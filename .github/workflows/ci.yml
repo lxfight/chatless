@@ -1,13 +1,26 @@
-name: CI/CD
+name: CI
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Select test type'
+        required: true
+        default: 'basic'
+        type: choice
+        options:
+        - basic
+        - full
+        - tauri-only
+      upload_artifacts:
+        description: 'Upload build artifacts (consumes storage space)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test:
+    if: ${{ github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -37,6 +50,7 @@ jobs:
       run: pnpm build
 
   test-tauri:
+    if: ${{ github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full' }}
     runs-on: ${{ matrix.platform }}
     strategy:
       matrix:
@@ -72,46 +86,11 @@ jobs:
       run: pnpm tauri build --debug
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  release:
-    needs: [test, test-tauri]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Upload build artifacts (if requested)
+      if: ${{ github.event.inputs.upload_artifacts }}
+      uses: actions/upload-artifact@v4
       with:
-        node-version: '18'
-        cache: 'pnpm'
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: latest
-    
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Build for release
-      run: pnpm tauri build
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          src-tauri/target/release/bundle/**/*
-        draft: true
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        name: chatless-debug-${{ matrix.platform }}
+        path: src-tauri/target/debug/bundle/
+        retention-days: 7 
