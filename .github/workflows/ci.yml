@@ -1,10 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       test_type:
@@ -37,7 +33,7 @@ on:
 
 jobs:
   lint-and-build:
-    if: github.event_name != 'workflow_dispatch' || (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full')
+    if: github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -63,7 +59,6 @@ jobs:
   test-tauri-ubuntu:
     needs: lint-and-build
     if: >-
-      github.event_name == 'workflow_dispatch' &&
       (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos')
     runs-on: ubuntu-latest
@@ -101,7 +96,6 @@ jobs:
   test-tauri-windows:
     needs: lint-and-build
     if: >-
-      github.event_name == 'workflow_dispatch' &&
       (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos')
     runs-on: windows-latest
@@ -137,7 +131,6 @@ jobs:
   test-tauri-macos:
     needs: lint-and-build
     if: >-
-      github.event_name == 'workflow_dispatch' &&
       (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos')
     runs-on: macos-latest
