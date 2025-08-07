@@ -1,20 +1,18 @@
-name: Manual Release
+name: Build and Test
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version'
+      action:
+        description: 'Select action to perform'
         required: true
-        type: string
-        default: ''
-      release_notes:
-        description: 'Release notes'
-        required: false
-        type: string
-        default: ''
+        default: 'test'
+        type: choice
+        options:
+        - test (Run code quality checks)
+        - build (Build and upload artifacts)
       platforms:
-        description: 'Select platforms to build'
+        description: 'Select platforms to build (only used for build action)'
         required: false
         type: choice
         default: 'all'
@@ -26,10 +24,50 @@ on:
         - ubuntu-windows (Linux + Windows)
         - ubuntu-macos (Linux + macOS)
         - windows-macos (Windows + macOS)
+      remark:
+        description: 'Remark information (optional)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
+  test:
+    if: ${{ github.event.inputs.action == 'test' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Run linting
+      run: pnpm lint
+    
+    - name: Type check
+      run: pnpm tsc --noEmit
+    
+    - name: Build
+      run: pnpm build
+    
+    - name: Test Tauri build
+      run: pnpm tauri build --debug
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-ubuntu:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos' }}
+    if: ${{ github.event.inputs.action == 'build' && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos') }}
     runs-on: ubuntu-latest
     
     steps:
@@ -71,7 +109,7 @@ jobs:
         retention-days: 14
 
   build-windows:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos' }}
+    if: ${{ github.event.inputs.action == 'build' && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos') }}
     runs-on: windows-latest
     
     steps:
@@ -113,7 +151,7 @@ jobs:
         retention-days: 14
 
   build-macos:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos' }}
+    if: ${{ github.event.inputs.action == 'build' && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos') }}
     runs-on: macos-latest
     
     steps:
@@ -153,27 +191,3 @@ jobs:
         name: chatless-macos
         path: src-tauri/target/release/bundle/
         retention-days: 14
-
-  release:
-    runs-on: ubuntu-latest
-    needs: [build-ubuntu, build-windows, build-macos]
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Release v${{ github.event.inputs.version }}
-        body: ${{ github.event.inputs.release_notes }}
-        files: artifacts/**/*
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
