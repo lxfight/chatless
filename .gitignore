@@ -60,3 +60,8 @@ temp-*.md
 *_IMPLEMENTATION.md
 
 .devdbrc
+
+.cursor
+.cursor/*
+.cursorrules
+.cursor/**/*.mdc

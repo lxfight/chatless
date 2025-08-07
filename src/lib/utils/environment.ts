@@ -261,7 +261,57 @@ export async function getDevToolsStatus(): Promise<{
 
 /**
  * 检测是否应该显示开发工具
+ * 在Tauri应用中，需要更严格的检测
  */
 export function shouldShowDevTools(): boolean {
-  return isDevelopmentEnvironment();
+  try {
+    // 1. 首先检查是否为Tauri环境
+    if (!isTauriEnvironment()) {
+      return false;
+    }
+
+    // 2. 检查编译时常量
+    if (typeof process !== 'undefined' && typeof process.env !== 'undefined') {
+      // 如果明确是production，则不显示
+      if (process.env.NODE_ENV === 'production') {
+        return false;
+      }
+      // 如果明确是development，则显示
+      if (process.env.NODE_ENV === 'development') {
+        return true;
+      }
+    }
+
+    // 3. 检查Vite环境变量
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (import.meta.env.PROD === true) {
+        return false;
+      }
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (import.meta.env.DEV === true) {
+        return true;
+      }
+    }
+
+    // 4. 检查URL是否为开发服务器
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      const port = window.location.port;
+      // 只有在localhost且端口为3000时才认为是开发环境
+      if (host === 'localhost' && port === '3000') {
+        return true;
+      }
+    }
+
+    // 5. 默认情况下，在Tauri正式版中不显示开发工具
+    return false;
+  } catch (_) {
+    // 出错时默认不显示
+    return false;
+  }
 } 
