@@ -1,0 +1,153 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Select action to perform'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+        - test (Run code quality checks)
+        - build (Build and upload artifacts for download)
+        - release (Create a new GitHub Release)
+      version:
+        description: 'Release version (only used for release action)'
+        required: false
+        type: string
+        default: ''
+      release_notes:
+        description: 'Release notes (only used for release action)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  test:
+    if: ${{ github.event.inputs.action == 'test' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Run linting
+      run: pnpm lint
+    
+    - name: Type check
+      run: pnpm tsc --noEmit
+    
+    - name: Build
+      run: pnpm build
+    
+    - name: Test Tauri build
+      run: pnpm tauri build --debug
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    if: ${{ github.event.inputs.action == 'build' }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Install Tauri CLI
+      run: pnpm tauri --version
+    
+    - name: Build Tauri app
+      run: pnpm tauri build
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatless-${{ matrix.platform }}
+        path: src-tauri/target/release/bundle/
+        retention-days: 14
+
+  release:
+    if: ${{ github.event.inputs.action == 'release' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Install Tauri CLI
+      run: pnpm tauri --version
+    
+    - name: Build for release
+      run: pnpm tauri build
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.event.inputs.version }}
+        name: Release v${{ github.event.inputs.version }}
+        body: ${{ github.event.inputs.release_notes }}
+        files: |
+          src-tauri/target/release/bundle/**/*
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
