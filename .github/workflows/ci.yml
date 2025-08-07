@@ -37,7 +37,7 @@ on:
 
 jobs:
   test:
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full') || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full') }}
     runs-on: ubuntu-latest
     
     steps:
@@ -67,7 +67,7 @@ jobs:
       run: pnpm build
 
   test-tauri-ubuntu:
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos') || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos') }}
     runs-on: ubuntu-latest
     
     steps:
@@ -110,7 +110,7 @@ jobs:
         retention-days: 7
 
   test-tauri-windows:
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos') || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos') }}
     runs-on: windows-latest
     
     steps:
@@ -153,7 +153,7 @@ jobs:
         retention-days: 7
 
   test-tauri-macos:
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos') || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos') }}
     runs-on: macos-latest
     
     steps:
