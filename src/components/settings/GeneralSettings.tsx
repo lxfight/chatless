@@ -113,11 +113,18 @@ export function GeneralSettings() {
           description="控制整个界面的基础文字大小，立即生效"
         />
 
-        {/* 快捷指令面板设置 */}
+        {/* 应用行为设置 */}
         {(() => {
           const ui = useUiPreferences();
           return (
             <>
+              <ToggleSwitch
+                label="关闭时显示确认对话框"
+                description="关闭应用时显示确认对话框，防止意外关闭"
+                checked={ui.showCloseConfirmation}
+                onChange={(v) => ui.setShowCloseConfirmation(v)}
+              />
+
               <ToggleSwitch
                 label="启用快捷指令面板"
                 description="使用Alt+O / 自定义快捷键呼出指令搜索窗口，快速导航和执行操作"

@@ -8,6 +8,7 @@ import { Sidebar } from './Sidebar';
 import { startupMonitor } from '@/lib/utils/startupPerformanceMonitor';
 import { ThemeInitializer } from './theme/ThemeInitializer';
 import { initializeSampleDataIfNeeded } from '@/lib/sampleDataInitializer';
+import { appCleanupService } from '@/lib/services/appCleanup';
 
 interface TauriAppProps {
   children: React.ReactNode;
@@ -40,6 +41,11 @@ export function TauriApp({ children }: TauriAppProps) {
       try {
         await initializationPromiseRef.current;
         hasInitializedRef.current = true;
+        
+        // 应用初始化完成后，设置窗口关闭事件监听
+        appCleanupService.setupWindowCloseListener().catch(error => {
+          console.warn('⚠️ 设置窗口关闭事件监听器失败:', error);
+        });
       } catch (error) {
         console.error('❌ [TauriApp] 应用初始化失败:', error);
         // 重置状态，允许重试

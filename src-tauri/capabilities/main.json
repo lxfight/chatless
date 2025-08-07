@@ -57,6 +57,8 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-is-visible",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
     "core:event:allow-emit",
     {
       "identifier": "opener:allow-open-path",

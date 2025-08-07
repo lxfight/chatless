@@ -9,6 +9,7 @@ const LOW_ANIMATION_KEY = "ui_low_animation";
 const SIDEBAR_WIDTH_KEY = "ui_sidebar_width"; // 'narrow' | 'medium' | 'wide'
 const COLLAPSE_CHAT_SIDEBAR_KEY = "ui_collapse_chat_sidebar";
 const TIMEZONE_KEY = "ui_timezone"; // e.g. 'local', 'UTC', 'UTC+8', 'America/New_York'
+const SHOW_CLOSE_CONFIRMATION_KEY = "ui_show_close_confirmation";
 
 type SidebarWidth = 'narrow' | 'medium' | 'wide' | 'xwide';
 type IconSize = 'small' | 'medium' | 'large';
@@ -35,6 +36,9 @@ interface UiPreferencesState {
   cmdPaletteEnabled: boolean;
   cmdPaletteShortcut: string;
 
+  // 应用行为
+  showCloseConfirmation: boolean;
+
   // setter
   setShowSettingIcons: (show: boolean) => void;
   setSimpleMode: (flag: boolean) => void;
@@ -45,6 +49,7 @@ interface UiPreferencesState {
   setTimezone: (tz: string) => void;
   setCmdPaletteEnabled: (flag: boolean) => void;
   setCmdPaletteShortcut: (sc: string) => void;
+  setShowCloseConfirmation: (flag: boolean) => void;
 }
 
 export const useUiPreferences = create<UiPreferencesState>((set) => ({
@@ -63,6 +68,8 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
 
   cmdPaletteEnabled: true,
   cmdPaletteShortcut: 'alt+o',
+
+  showCloseConfirmation: true,
 
   setShowSettingIcons: (show) => {
     set({ showSettingIcons: show });
@@ -108,11 +115,16 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     set({ cmdPaletteShortcut: sc });
     StorageUtil.setItem<string>('ui_cmd_palette_shortcut', sc, 'user-preferences.json');
   },
+
+  setShowCloseConfirmation: (flag) => {
+    set({ showCloseConfirmation: flag });
+    StorageUtil.setItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, flag, 'user-preferences.json');
+  },
 }));
 
 // 异步初始化首选项
 (async () => {
-  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut] = await Promise.all([
+  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm] = await Promise.all([
     StorageUtil.getItem<boolean>(SHOW_SETTING_ICONS_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SIMPLE_MODE_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(LOW_ANIMATION_KEY, false, 'user-preferences.json'),
@@ -122,6 +134,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<IconSize>('ui_sidebar_icon_size', 'small', 'user-preferences.json'),
     StorageUtil.getItem<boolean>('ui_cmd_palette_enabled', true, 'user-preferences.json'),
     StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'alt+o', 'user-preferences.json'),
+    StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
   ]);
 
   useUiPreferences.setState({
@@ -134,6 +147,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     timezone: tz || 'local',
     cmdPaletteEnabled: cpEnabled ?? true,
     cmdPaletteShortcut: cpShortcut || 'alt+o',
+    showCloseConfirmation: showCloseConfirm ?? true,
     initialized: true,
   });
 })(); 
