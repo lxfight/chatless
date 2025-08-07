@@ -1,6 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       test_type:
@@ -12,6 +16,19 @@ on:
         - basic (Run linting, type check, and build)
         - full (Run all tests including cross-platform Tauri builds)
         - tauri-only (Run only cross-platform Tauri build tests)
+      platforms:
+        description: 'Select platforms to build (only used for full/tauri-only)'
+        required: false
+        type: choice
+        default: 'all'
+        options:
+        - all (Build for all platforms)
+        - ubuntu (Linux only)
+        - windows (Windows only)
+        - macos (macOS only)
+        - ubuntu-windows (Linux + Windows)
+        - ubuntu-macos (Linux + macOS)
+        - windows-macos (Windows + macOS)
       upload_artifacts:
         description: 'Upload build artifacts (consumes storage space)'
         required: false
@@ -20,7 +37,7 @@ on:
 
 jobs:
   test:
-    if: ${{ github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -49,12 +66,9 @@ jobs:
     - name: Build
       run: pnpm build
 
-  test-tauri:
-    if: ${{ github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full' }}
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      matrix:
-        platform: [ubuntu-latest, windows-latest, macos-latest]
+  test-tauri-ubuntu:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
@@ -91,6 +105,92 @@ jobs:
       if: ${{ github.event.inputs.upload_artifacts }}
       uses: actions/upload-artifact@v4
       with:
-        name: chatless-debug-${{ matrix.platform }}
+        name: chatless-debug-ubuntu
+        path: src-tauri/target/debug/bundle/
+        retention-days: 7
+
+  test-tauri-windows:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos') || github.event_name != 'workflow_dispatch' }}
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Install Tauri CLI
+      run: pnpm tauri --version
+    
+    - name: Build Tauri app
+      run: pnpm tauri build --debug
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload build artifacts (if requested)
+      if: ${{ github.event.inputs.upload_artifacts }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatless-debug-windows
+        path: src-tauri/target/debug/bundle/
+        retention-days: 7
+
+  test-tauri-macos:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') && (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos') || github.event_name != 'workflow_dispatch' }}
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Install Tauri CLI
+      run: pnpm tauri --version
+    
+    - name: Build Tauri app
+      run: pnpm tauri build --debug
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload build artifacts (if requested)
+      if: ${{ github.event.inputs.upload_artifacts }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatless-debug-macos
         path: src-tauri/target/debug/bundle/
         retention-days: 7 
