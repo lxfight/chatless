@@ -6,12 +6,12 @@ export const APP_INFO = {
   author: "kamjin3086",
   repository: "https://github.com/kamjin3086/chatless",
   releases: "https://github.com/kamjin3086/chatless/releases",
-  website: "https://chatless.app",
-  helpCenter: "https://help.chatless.app",
-  feedback: "https://feedback.chatless.app",
-  community: "https://community.chatless.app",
-  terms: "https://chatless.app/terms",
-  privacy: "https://chatless.app/privacy",
+  website: "https://kamjin3086.github.io/chatless",
+  helpCenter: "https://kamjin3086.github.io/chatless/help",
+  feedback: "https://kamjin3086.github.io/chatless/feedback",
+  community: "https://kamjin3086.github.io/chatless/community",
+  terms: "https://kamjin3086.github.io/chatless/terms",
+  privacy: "https://kamjin3086.github.io/chatless/privacy",
 };
 
 // 获取构建日期

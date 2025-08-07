@@ -15,7 +15,7 @@
 ### 报告方式
 
 **推荐方式：**
-- 发送邮件至：[kamjin3086@gmail.com]
+- 发送邮件至：[kamjindev@gmail.com]
 - 邮件主题请包含：`[SECURITY] chatless 安全漏洞报告`
 
 **备选方式：**
@@ -93,7 +93,7 @@
 
 如果您对安全政策有任何疑问，请联系：
 
-- 邮箱：[kamjin3086@gmail.com]
+- 邮箱：[kamjindev@gmail.com]
 - GitHub：[https://github.com/kamjin3086/chatless](https://github.com/kamjin3086/chatless)
 
 ---

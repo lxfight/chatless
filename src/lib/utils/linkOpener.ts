@@ -155,42 +155,42 @@ export class LinkOpenerService {
    * 打开帮助中心
    */
   async openHelpCenter(): Promise<boolean> {
-    return this.openLink('https://help.chatless.app');
+    return this.openLink('https://kamjin3086.github.io/chatless/help');
   }
 
   /**
    * 打开反馈页面
    */
   async openFeedback(): Promise<boolean> {
-    return this.openLink('https://feedback.chatless.app');
+    return this.openLink('https://kamjin3086.github.io/chatless/feedback');
   }
 
   /**
    * 打开官方网站
    */
   async openWebsite(): Promise<boolean> {
-    return this.openLink('https://chatless.app');
+    return this.openLink('https://kamjin3086.github.io/chatless');
   }
 
   /**
    * 打开社区页面
    */
   async openCommunity(): Promise<boolean> {
-    return this.openLink('https://community.chatless.app');
+    return this.openLink('https://kamjin3086.github.io/chatless/community');
   }
 
   /**
    * 打开服务条款
    */
   async openTerms(): Promise<boolean> {
-    return this.openLink('https://chatless.app/terms');
+    return this.openLink('https://kamjin3086.github.io/chatless/terms');
   }
 
   /**
    * 打开隐私政策
    */
   async openPrivacy(): Promise<boolean> {
-    return this.openLink('https://chatless.app/privacy');
+    return this.openLink('https://kamjin3086.github.io/chatless/privacy');
   }
 
   /**
@@ -205,7 +205,7 @@ export class LinkOpenerService {
    * 打开支持邮件
    */
   async openSupportEmail(): Promise<boolean> {
-    return this.openEmail('support@chatless.app', 'Chatless Support Request');
+    return this.openEmail('kamjindev@gmail.com', 'Chatless Support Request');
   }
 }
 
