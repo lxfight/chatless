@@ -15,8 +15,8 @@ import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { useProviderStore } from '@/store/providerStore';
 import { mapToProviderWithStatus } from '@/lib/provider/transform';
 
-// Dev mode flag for debug logging
-const DEV_MODE = isDevelopmentEnvironment();
+// Dev mode flag for debug logging (currently unused, can be removed if not needed)
+// const DEV_MODE = isDevelopmentEnvironment();
 
 // --- 类型定义 ---
 // (可以考虑移到单独的 types 文件)

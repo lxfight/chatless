@@ -36,8 +36,8 @@ class Logger {
   private isInitialized = false;
   
   // 环境控制
-  private readonly isDevelopment = process.env.NODE_ENV === 'development';
-  private readonly shouldOutput = this.isDevelopment || process.env.FORCE_LOGS === 'true';
+  private readonly isDevelopment = process.env.NODE_ENV === 'development' || process.env.FORCE_LOGS === 'true';
+  private readonly shouldOutput = this.isDevelopment;
 
   constructor() {
     this.initializeSettings();

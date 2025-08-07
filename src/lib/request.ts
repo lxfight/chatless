@@ -7,10 +7,9 @@ import { processOllamaRequest } from './request-patches';
 
 
 
-// 临时启用生产环境调试日志
+// 环境检测：只在开发环境中启用调试日志
 const __DEV__ = isDevelopmentEnvironment();
-const __DEBUG_PROD__ = true; // 临时启用生产环境调试
-const __SHOULD_LOG__ = __DEV__ || __DEBUG_PROD__;
+const __SHOULD_LOG__ = __DEV__;
 
 /**
  * 通用HTTP请求选项
