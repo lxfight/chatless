@@ -1,0 +1,207 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { SettingsCard } from "./SettingsCard";
+import { SettingsSectionHeader } from "./SettingsSectionHeader";
+// import { ModelCard } from "./ModelCard"; // 不再使用 ModelCard
+import { InfoBanner } from "./InfoBanner";
+import { InputField } from "./InputField"; // 导入 InputField
+import { ProviderSettings } from "./ProviderSettings"; // 导入新组件（下一步创建）
+import { Server, RefreshCcw, KeyRound, ServerCog, Loader2, RotateCcw } from "lucide-react";
+// 导入新模块
+/* Commenting out for now due to persistent linter error
+import {
+  getMergedMetadata,
+  ProviderMetadata,
+  ModelMetadata,
+  updateProviderUrlOverride,
+  updateProviderDefaultApiKeyOverride,
+  updateModelApiKeyOverride,
+  updateOllamaModelsCache,
+*/
+// 从新模块导入 providerFetchers
+import { providerFetchers } from '@/lib/ai-providers';
+import { toast } from "sonner"; // <-- 导入 sonner 的 toast
+import { Input } from "@/components/ui/input";
+// 不再需要直接导入 tauriFetch
+// import { fetch as tauriFetch } from '@tauri-apps/plugin-http'; 
+// import { useProviderStatusStore } from '@/store/providerStatusStore'; // <-- 已修改路径
+// 导入新的 Hook 和类型
+import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
+import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
+
+// 添加一个包含连接状态的 Provider 类型
+// 导出接口，以便其他组件可以使用
+// export interface ProviderWithStatus extends ProviderMetadata {
+//   isConnected?: boolean; // 连接状态是可选的，初始可能未知
+//   // 添加用于显示的状态和 tooltip
+//   displayStatus?: 'CONNECTED' | 'CONNECTING' | 'NOT_CONNECTED' | 'NO_KEY' | 'UNKNOWN' | 'NO_FETCHER'; // <-- 添加 NO_FETCHER
+//   statusTooltip?: string | null;
+// }
+
+export function AiModelSettings() {
+  // 使用自定义 Hook 获取状态和处理函数
+  const {
+    providers,
+    isLoading,
+    isRefreshing,
+    connectingProviderName,
+    handleServiceUrlChange,
+    handleProviderDefaultApiKeyChange,
+    handleModelApiKeyChange,
+    handleUrlBlur,
+    handleGlobalRefresh,
+    handleSingleProviderRefresh 
+  } = useProviderManagement();
+
+  // 新增：失焦时保存/连接 API Key
+  const handleDefaultApiKeyBlur = async (providerName: string) => {
+    // 这里可以根据需要添加保存/连接逻辑，或直接复用 handleProviderDefaultApiKeyChange
+    // 由于 onBlur 时已调用 change，这里可用于额外的校验或提示
+    // 可留空或补充日志
+  };
+  const handleModelApiKeyBlur = async (modelName: string) => {
+    // 这里可以根据需要添加保存/连接逻辑，或直接复用 handleModelApiKeyChange
+    // 可留空或补充日志
+  };
+
+  // 添加 Provider 功能 (目前是占位符)
+  const handleAddProvider = () => {
+    toast.info("添加提供商功能正在开发中。"); // Use toast for feedback
+  };
+
+  // Helper function to render the loading state
+  const renderLoadingState = () => (
+    <div className="p-6 text-center flex flex-col items-center justify-center min-h-[200px]">
+      <Loader2 className="w-6 h-6 animate-spin text-gray-500 mb-3" />
+      <p className="text-gray-600 dark:text-gray-400">正在加载 AI 提供商配置...</p>
+    </div>
+  );
+
+  // Helper function to render the empty state
+  const renderEmptyState = () => (
+    <p className="text-center text-gray-500 dark:text-gray-400 py-4">未找到任何 AI 提供商配置。</p>
+  );
+  
+  // Helper function to render the action buttons
+  // 底部按钮已移除
+
+  // 搜索与过滤 state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'all'|'connected'|'disconnected'>('all');
+  const [showSearchInput, setShowSearchInput] = useState(false);
+
+  const filteredProviders = providers.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" ||
+      (statusFilter === "connected" && p.displayStatus === "CONNECTED") ||
+      (statusFilter === "disconnected" && p.displayStatus !== "CONNECTED");
+    return matchesSearch && matchesStatus;
+  });
+
+  // 计算刷新进度
+  const totalCount = providers.length;
+  const checkedCount = providers.filter(p => p.displayStatus !== 'CONNECTING').length;
+
+  // --- 渲染逻辑 ---
+  return (
+    <div className="space-y-6">
+ {/* 页面标题 */}
+ {/* <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">AI 模型配置</h1> */}
+
+
+    <SettingsCard data-testid="settings-card-ai-model">
+      <SettingsSectionHeader
+        icon={ServerCog}
+        title="提供商配置"
+        iconBgColor="from-purple-500 to-indigo-500"
+      />
+
+      {/* 提示栏 */}
+      <InfoBanner id="ai_provider_tip" message="配置不同 AI 提供商的服务地址和 API 密钥" type="info" className="mt-3" />
+
+      {/* 搜索 & 过滤 + 刷新按钮 */}
+      <div className="flex items-center mt-4 gap-3 justify-between flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {(providers.length>6 || showSearchInput) && (
+            showSearchInput ? (
+              <Input
+                autoFocus
+                placeholder="搜索提供商..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => { if(searchQuery==="") setShowSearchInput(false); }}
+                className="w-48 h-8 transition-all duration-200"
+              />
+            ) : (
+              <button onClick={()=>setShowSearchInput(true)} className="p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md" title="搜索">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.5 3.5a7.5 7.5 0 0013.15 13.15z" /></svg>
+              </button>
+            )
+          )}
+          {/* 分段过滤按钮 */}
+          <div className="inline-flex bg-gray-100 dark:bg-gray-700 rounded-md p-0.5">
+            {([
+              { id: 'all', label: '全部' },
+              { id: 'connected', label: '已连接' },
+              { id: 'disconnected', label: '未连接' },
+            ] as const).map(seg => (
+              <button
+                key={seg.id}
+                onClick={() => setStatusFilter(seg.id)}
+                className={`px-3 h-7 text-xs rounded-md transition-colors ${statusFilter===seg.id ? 'bg-white dark:bg-gray-800 shadow text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                {seg.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={handleGlobalRefresh}
+          disabled={isRefreshing || isLoading || connectingProviderName !== null}
+          className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="刷新全部提供商状态"
+        >
+          <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
+        </button>
+      </div>
+
+      {/* Provider 列表 */}
+      <div className="space-y-3 mt-6">
+        {filteredProviders.map((provider) => (
+           <ProviderSettings
+              key={provider.name}
+              provider={provider} 
+              isConnecting={connectingProviderName === provider.name}
+              isInitialChecking={isLoading}
+              onUrlChange={handleServiceUrlChange}
+              onUrlBlur={handleUrlBlur}
+              onDefaultApiKeyChange={handleProviderDefaultApiKeyChange}
+              onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
+              onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
+              onModelApiKeyBlur={handleModelApiKeyBlur}
+              onRefresh={handleSingleProviderRefresh}
+           />
+        ))}
+        
+        {/* 初始检查提示 */}
+        {connectingProviderName && (
+            <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                正在连接 {connectingProviderName}...
+            </div>
+        )}
+
+        {/* 空状态提示 */}
+        {providers.length === 0 && !isLoading && !connectingProviderName && (
+            renderEmptyState()
+        )}
+      </div>
+
+      
+
+    </SettingsCard>
+    </div>
+  );
+} 

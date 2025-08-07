@@ -1,0 +1,9 @@
+:root{
+  --bg-card:#ffffff;
+  --ring-focus:#3b82f6;
+  --sidebar-hover:rgba(0,0,0,0.04);
+}
+.dark{
+  --bg-card:#0f172a;
+  --sidebar-hover:rgba(255,255,255,0.05);
+} 

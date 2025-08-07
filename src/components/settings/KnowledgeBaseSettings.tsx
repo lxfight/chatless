@@ -1,0 +1,362 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { SettingsCard } from "./SettingsCard";
+import { CollapsibleCard } from "./CollapsibleCard";
+import { SettingsSectionHeader } from "./SettingsSectionHeader";
+import { SelectField } from "./SelectField";
+import { ToggleSwitch } from "./ToggleSwitch";
+import { InputField } from "./InputField";
+import { InfoBanner } from "./InfoBanner";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import { UniversalModelManager } from "./UniversalModelManager";
+import { Database, FileText, Search, Brain, HardDrive, Zap } from "lucide-react";
+import type { EmbeddingConfig } from "@/lib/embedding/types";
+import { 
+  KnowledgeBaseConfig, 
+  getKnowledgeBaseConfigManager, 
+  loadKnowledgeBaseConfig, 
+  DEFAULT_KNOWLEDGE_BASE_CONFIG 
+} from "@/lib/knowledgeBaseConfig";
+
+export function KnowledgeBaseSettings() {
+  const [settings, setSettings] = useState<KnowledgeBaseConfig>(DEFAULT_KNOWLEDGE_BASE_CONFIG);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 加载设置
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const config = await loadKnowledgeBaseConfig();
+        // 直接使用配置管理器中的最新配置
+        setSettings(config);
+      } catch (error) {
+        console.warn('Failed to load knowledge base config:', error);
+        setSettings(DEFAULT_KNOWLEDGE_BASE_CONFIG);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const updateSettings = (section: keyof KnowledgeBaseConfig, key: string, value: any) => {
+    setSettings((prev: KnowledgeBaseConfig) => {
+      const updated = {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [key]: value,
+        },
+      } as KnowledgeBaseConfig;
+
+      // 即时保存到配置管理器
+      getKnowledgeBaseConfigManager()
+        .updateConfig(section, { [key]: value } as any)
+        .catch((err) => console.error('实时保存配置失败:', err));
+
+      return updated;
+    });
+  };
+
+  // 重置为默认配置
+  const resetToDefault = async () => {
+    try {
+      await getKnowledgeBaseConfigManager().resetToDefault();
+      setSettings({ ...DEFAULT_KNOWLEDGE_BASE_CONFIG });
+      toast.success("已恢复默认配置");
+    } catch (error) {
+      console.error("Reset config failed", error);
+      toast.error("恢复默认配置失败", { description: (error as any)?.message || "请重试" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">加载配置中...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+         {/* 页面标题 */}
+         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">知识库设置</h1>
+      {/* 嵌入模型管理 */}
+      <SettingsCard>
+        <SettingsSectionHeader icon={Brain} title="嵌入模型管理" />
+        <UniversalModelManager />
+      </SettingsCard>
+
+      {/* 优化预设 */}
+      <SettingsCard>
+        <SettingsSectionHeader icon={Zap} title="优化预设" />
+        <div className="pt-4">
+          <SelectField
+            label="性能预设"
+            options={[
+              { value: 'memory_optimized', label: '小型知识库 · 内存优化' },
+              { value: 'balanced', label: '中型知识库 · 平衡模式' },
+              { value: 'performance', label: '大型知识库 · 性能优化' },
+            ]}
+            value={settings.vectorStore.performanceProfile}
+            onChange={(value) => updateSettings('vectorStore', 'performanceProfile', value)}
+            description="根据知识库规模快速应用推荐配置，可在下方高级配置中进一步微调"
+          />
+        </div>
+      </SettingsCard>
+      {/* 向量存储设置 */}
+      <CollapsibleCard title="向量存储设置" icon={Database}>
+        <div className="space-y-6">
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            已自动优化向量存储的性能和兼容性，也可根据实际情况进行调整。
+          </p>
+          
+          <SelectField
+            label="性能配置"
+            options={[
+              { value: 'memory_optimized', label: '内存优化（≤ 5K 向量 ≈ 5 000 条）' },
+              { value: 'balanced', label: '平衡模式（5K-50K 向量 ≈ 5 000-50 000 条）' },
+              { value: 'performance', label: '性能优化（> 50K 向量 ≈ 50 000 条以上）' },
+            ]}
+            value={settings.vectorStore.performanceProfile}
+            onChange={(value) => updateSettings('vectorStore', 'performanceProfile', value)}
+            description="K 代表向量条数，选择最接近您知识库规模的预设。"
+          />
+
+          <InputField
+            label="缓存大小"
+            type="number"
+            value={settings.vectorStore.cacheSize.toString()}
+            onChange={(e) => updateSettings('vectorStore', 'cacheSize', parseInt(e.target.value) || 256)}
+            description="向量查询缓存大小（单位：MB）。数值越大，重复查询速度越快，但占用内存也会增加。"
+            min="64"
+            max="2048"
+          />
+
+          <InputField
+            label="批处理大小"
+            type="number"
+            value={settings.vectorStore.batchSize.toString()}
+            onChange={(e) => updateSettings('vectorStore', 'batchSize', parseInt(e.target.value) || 100)}
+            description="每次批量写入/计算的向量条数。数值越大，索引速度越快，但会占用更多内存。单位：条"
+            min="10"
+            max="1000"
+          />
+
+          <ToggleSwitch
+            label="启用并行处理"
+            description="使用多线程加速向量计算，可能增加内存使用"
+            checked={settings.vectorStore.enableParallelProcessing}
+            onChange={(checked) => updateSettings('vectorStore', 'enableParallelProcessing', checked)}
+          />
+        </div>
+      </CollapsibleCard>
+
+      {/* 文档处理设置 */}
+      <CollapsibleCard title="文档处理设置" icon={FileText}>
+        <div className="space-y-6">
+          <InputField
+            label="最大文件大小"
+            type="number"
+            value={settings.documentProcessing.maxFileSize.toString()}
+            onChange={(e) => updateSettings('documentProcessing', 'maxFileSize', parseInt(e.target.value) || 50)}
+            description="单个文档文件的最大大小限制(MB)"
+            min="1"
+            max="500"
+          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              支持的文件类型
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {['pdf', 'docx', 'txt', 'md', 'html', 'csv'].map(fileType => (
+                <ToggleSwitch
+                  key={fileType}
+                  label={fileType.toUpperCase()}
+                  checked={settings.documentProcessing.supportedFileTypes.includes(fileType)}
+                  onChange={(checked) => {
+                    const newTypes = checked
+                      ? [...settings.documentProcessing.supportedFileTypes, fileType]
+                      : settings.documentProcessing.supportedFileTypes.filter(t => t !== fileType);
+                    updateSettings('documentProcessing', 'supportedFileTypes', newTypes);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <InputField
+            label="文本分块大小"
+            type="number"
+            value={settings.documentProcessing.chunkSize.toString()}
+            onChange={(e) => updateSettings('documentProcessing', 'chunkSize', parseInt(e.target.value) || 1000)}
+            description="将长文档分割为小块的字符数，影响检索精度"
+            min="200"
+            max="4000"
+          />
+
+          <InputField
+            label="分块重叠"
+            type="number"
+            value={settings.documentProcessing.chunkOverlap.toString()}
+            onChange={(e) => updateSettings('documentProcessing', 'chunkOverlap', parseInt(e.target.value) || 200)}
+            description="相邻文本块之间的重叠字符数，保持上下文连贯性"
+            min="0"
+            max="500"
+          />
+
+          <ToggleSwitch
+            label="启用OCR识别"
+            description="对图片和扫描PDF进行OCR文字识别(实验性功能)"
+            checked={settings.documentProcessing.enableOCR}
+            onChange={(checked) => updateSettings('documentProcessing', 'enableOCR', checked)}
+          />
+        </div>
+      </CollapsibleCard>
+
+      {/* 检索配置 */}
+      <CollapsibleCard title="检索配置" icon={Search}>
+        <div className="space-y-6">
+          <InputField
+            label="检索结果数量(Top-K)"
+            type="number"
+            value={settings.retrieval.topK.toString()}
+            onChange={(e) => updateSettings('retrieval', 'topK', parseInt(e.target.value) || 5)}
+            description="每次检索返回的相关文档片段数量"
+            min="1"
+            max="20"
+          />
+
+          <InputField
+            label="相似度阈值"
+            type="number"
+            step="0.1"
+            value={settings.retrieval.similarityThreshold.toString()}
+            onChange={(e) => updateSettings('retrieval', 'similarityThreshold', parseFloat(e.target.value) || 0.7)}
+            description="文档片段相似度的最低阈值(0-1)，过低可能包含不相关内容"
+            min="0.1"
+            max="1.0"
+          />
+
+          <ToggleSwitch
+            label="启用语义排序"
+            description="使用高级算法对检索结果进行语义重排序"
+            checked={settings.retrieval.enableSemanticRanking}
+            onChange={(checked) => updateSettings('retrieval', 'enableSemanticRanking', checked)}
+          />
+
+          <InputField
+            label="最大上下文长度"
+            type="number"
+            value={settings.retrieval.maxContextLength.toString()}
+            onChange={(e) => updateSettings('retrieval', 'maxContextLength', parseInt(e.target.value) || 4000)}
+            description="传递给AI模型的最大上下文字符数"
+            min="1000"
+            max="8000"
+          />
+        </div>
+      </CollapsibleCard>
+
+      {/* 存储管理 */}
+      <CollapsibleCard title="存储管理" icon={HardDrive}>
+        <div className="space-y-6">
+          <ToggleSwitch
+            label="启用自动清理"
+            description="定期清理过期的索引缓存和临时文件"
+            checked={settings.storage.enableAutoCleanup}
+            onChange={(checked) => updateSettings('storage', 'enableAutoCleanup', checked)}
+          />
+
+          {settings.storage.enableAutoCleanup && (
+            <InputField
+              label="清理间隔(天)"
+              type="number"
+              value={settings.storage.cleanupInterval.toString()}
+              onChange={(e) => updateSettings('storage', 'cleanupInterval', parseInt(e.target.value) || 30)}
+              description="自动清理的执行间隔"
+              min="1"
+              max="365"
+            />
+          )}
+
+          <ToggleSwitch
+            label="启用自动备份"
+            description="定期备份知识库数据，防止数据丢失"
+            checked={settings.storage.enableBackup}
+            onChange={(checked) => updateSettings('storage', 'enableBackup', checked)}
+          />
+
+          {settings.storage.enableBackup && (
+            <InputField
+              label="备份间隔(小时)"
+              type="number"
+              value={settings.storage.backupInterval.toString()}
+              onChange={(e) => updateSettings('storage', 'backupInterval', parseInt(e.target.value) || 24)}
+              description="自动备份的执行间隔"
+              min="1"
+              max="168"
+            />
+          )}
+        </div>
+      </CollapsibleCard>
+
+      {/* 性能提示 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <Zap className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">性能优化建议</h4>
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <li>• 小型知识库(小于 1000文档): 使用内存优化配置</li>
+              <li>• 中型知识库(1000-10000文档): 使用平衡模式配置</li>
+              <li>• 大型知识库(大于 10000文档): 使用性能优化配置</li>
+              <li>• 增大缓存大小可提升查询速度，但会占用更多内存</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* 重置按钮 */}
+      <div className="flex justify-end pt-4">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50"
+            >
+              恢复默认设置
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>恢复默认设置</AlertDialogTitle>
+              <AlertDialogDescription>
+                所有知识库相关配置将被重置为默认值，且无法撤销，确定继续？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={resetToDefault}>
+                确认
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+} 

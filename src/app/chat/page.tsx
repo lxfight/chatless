@@ -1,0 +1,266 @@
+"use client";
+
+import { useState, useEffect, useRef } from 'react';
+import { ChatInput } from '@/components/chat/ChatInput';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { ChatToolbar } from '@/components/chat/ChatToolbar';
+import type { Message } from "@/types/chat";
+import { useChatStore } from "@/store/chatStore";
+import { useSearchParams } from 'next/navigation';
+
+import { ChatInitializing } from '@/components/chat/ChatInitializing';
+import { EmptyChatView } from '@/components/chat/EmptyChatView';
+import { ChatMessageList } from '@/components/chat/ChatMessageList';
+
+import { useModelSelection } from '@/hooks/useModelSelection';
+import { useChatActions } from '@/hooks/useChatActions';
+import { useScrollManagement } from '@/hooks/useScrollManagement';
+import type { ModelParameters } from '@/types/model-params';
+import { ModelParametersService } from '@/lib/model-parameters';
+
+type StoreMessage = any;
+
+interface Conversation {
+  id: string;
+  title: string;
+  messages: StoreMessage[];
+  createdAt: number;
+  updatedAt: number;
+  tags?: string[];
+}
+
+export default function ChatPage() {
+  const [isClient, setIsClient] = useState(false);
+  const [isInputAreaHovered, setIsInputAreaHovered] = useState(false);
+  const currentConversationId = useChatStore((state) => state.currentConversationId);
+  const currentConversation = useChatStore((state) =>
+    currentConversationId
+      ? (state.conversations.find((c) => c.id === currentConversationId) as Conversation | undefined)
+      : null
+  );
+  
+  const searchParams = useSearchParams();
+  const selectedKnowledgeBaseId = searchParams.get('knowledgeBase');
+  
+  const { 
+    llmInitialized, 
+    allMetadata, 
+    selectedModelId, 
+    currentProviderName, 
+    handleModelChange 
+  } = useModelSelection();
+
+  // 会话参数相关状态
+  const [currentSessionParameters, setCurrentSessionParameters] = useState<ModelParameters | undefined>(undefined);
+
+  // 加载会话参数
+  useEffect(() => {
+    if (currentConversationId) {
+      loadSessionParameters();
+    } else {
+      setCurrentSessionParameters(undefined);
+    }
+  }, [currentConversationId]);
+
+  const loadSessionParameters = async () => {
+    try {
+      if (currentConversationId) {
+        const sessionParams = await ModelParametersService.getSessionParameters(currentConversationId);
+        setCurrentSessionParameters(sessionParams || undefined);
+      }
+    } catch (error) {
+      console.error('加载会话参数失败:', error);
+      setCurrentSessionParameters(undefined);
+    }
+  };
+
+  const {
+    isLoading,
+    handleSendMessage,
+    handleStopGeneration,
+    handleEmptyStatePromptClick,
+    handleTitleChange,
+    handleDeleteConversation,
+    handleRetryMessage,
+    handleShare,
+    handleDownload,
+    handleImageUpload,
+    handleFileUpload,
+    tokenCount,
+    setScrollToBottomCallback,
+  } = useChatActions(selectedModelId, currentProviderName, currentSessionParameters);
+
+  // 编辑消息相关状态
+  interface EditingMessageData {
+    content: string;
+    documentReference?: {
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+      summary: string;
+    };
+    contextData?: string;
+    knowledgeBaseReference?: { id: string; name: string };
+  }
+  const [editingMessage, setEditingMessage] = useState<EditingMessageData | null>(null);
+  
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const {
+    messageRefs,
+    messagesEndRef: managedEndRef,
+    handleScrollToTop,
+    handleScrollToBottom
+  } = useScrollManagement(
+      scrollContainerRef,
+      currentConversation?.messages as Message[] | undefined,
+      currentConversationId,
+      isLoading
+  );
+
+  // 设置滚动到底部的回调函数
+  useEffect(() => {
+    setScrollToBottomCallback(() => {
+      handleScrollToBottom();
+    });
+  }, [setScrollToBottomCallback, handleScrollToBottom]);
+
+  const navigateToMessage = (msgId: string) => {
+    const el = messageRefs.current[msgId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const handleEditMessage = (messageId: string, _content: string) => {
+    if (!currentConversation) return;
+    const msg = (currentConversation.messages as Message[]).find(m => m.id === messageId);
+    if (!msg) return;
+    setEditingMessage({
+      content: msg.content,
+      documentReference: msg.document_reference,
+      contextData: msg.context_data,
+      knowledgeBaseReference: msg.knowledge_base_reference,
+    });
+    // 滚动到底部，确保输入框可见
+    setTimeout(() => {
+      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
+    }, 0);
+  };
+
+  const handleCancelEdit = () => setEditingMessage(null);
+
+  // 保存思考时长的回调函数
+  const handleSaveThinkingDuration = (messageId: string, duration: number) => {
+    // 这里可以添加额外的逻辑，比如记录到日志或发送到分析服务
+  };
+
+  // 处理会话参数变更
+  const handleSessionParametersChange = (parameters: ModelParameters) => {
+    setCurrentSessionParameters(parameters);
+  };
+
+  if (!isClient) {
+    return <ChatInitializing />;
+  }
+
+  if (!currentConversationId || !currentConversation) {
+    return (
+      <EmptyChatView 
+        allMetadata={allMetadata}
+        selectedModelId={selectedModelId}
+        onModelChange={handleModelChange}
+        isLoading={isLoading}
+        llmInitialized={llmInitialized}
+        onSendMessage={handleSendMessage}
+        onStopGeneration={handleStopGeneration}
+        onPromptClick={handleEmptyStatePromptClick}
+        selectedKnowledgeBaseId={selectedKnowledgeBaseId || undefined}
+        onImageUpload={handleImageUpload}
+        onFileUpload={handleFileUpload}
+      />
+    );
+  }
+
+  const toolbarMessages: Message[] = (currentConversation?.messages || [])
+    .filter((msg): msg is Message & { created_at: number; updated_at: number } => 
+      typeof msg.created_at === 'number' && typeof msg.updated_at === 'number'
+    );
+
+  return (
+    <div className="flex flex-col h-screen bg-white dark:bg-gray-900">
+      <ChatHeader
+        title={currentConversation.title}
+        tags={currentConversation.tags}
+        onShare={handleShare}
+        onDownload={handleDownload}
+        onTitleChange={handleTitleChange}
+        onDelete={handleDeleteConversation}
+        allMetadata={allMetadata}
+        currentModelId={selectedModelId}
+        onModelChange={handleModelChange}
+        isModelSelectorDisabled={isLoading}
+        tokenCount={tokenCount}
+      />
+      <div className="flex-1 flex overflow-hidden">
+        <main className="flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto custom-scrollbar" ref={scrollContainerRef}>
+            <ChatMessageList
+              chatId={currentConversationId}
+              messages={currentConversation.messages as Message[]}
+              isLoading={isLoading}
+              onEditMessage={handleEditMessage}
+              onRetryMessage={handleRetryMessage}
+              onDeleteMessage={() => {}}
+              onSaveThinkingDuration={handleSaveThinkingDuration}
+              messageRefs={messageRefs}
+              messagesEndRef={managedEndRef}
+            />
+            {/* managedEndRef 已由组件内部渲染，无需此处额外 div */}
+          </div>
+          {/* 工具栏 - 超过3条消息时显示，且不在输入框区域时显示 */}
+          <div 
+            className={`fixed right-24 bottom-34 z-40 md:right-10 transition-opacity duration-300 ${
+              isInputAreaHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            <ChatToolbar
+              messages={currentConversation.messages as Message[]}
+              onNavigateToMessage={navigateToMessage}
+              onScrollToTop={handleScrollToTop}
+              onScrollToBottom={handleScrollToBottom}
+            />
+          </div>
+          <div 
+            className="px-4 py-4 bg-transparent"
+            onMouseEnter={() => setIsInputAreaHovered(true)}
+            onMouseLeave={() => setIsInputAreaHovered(false)}
+          >
+            <ChatInput
+              isLoading={isLoading}
+              onSendMessage={handleSendMessage}
+              onStopGeneration={handleStopGeneration}
+              onImageUpload={handleImageUpload}
+              onFileUpload={handleFileUpload}
+              selectedKnowledgeBaseId={selectedKnowledgeBaseId || undefined}
+              tokenCount={tokenCount}
+              editingMessage={editingMessage}
+              onCancelEdit={handleCancelEdit}
+              // 会话参数相关
+              providerName={currentProviderName}
+              modelId={selectedModelId || undefined}
+              modelLabel={allMetadata?.find(p => p.models?.some(m => m.name === selectedModelId))?.models?.find(m => m.name === selectedModelId)?.label}
+              onSessionParametersChange={handleSessionParametersChange}
+              currentSessionParameters={currentSessionParameters}
+              conversationId={currentConversationId}
+            />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

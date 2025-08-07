@@ -1,0 +1,154 @@
+// src-tauri/src/lib/sse.rs
+use futures_util::StreamExt;
+use lazy_static::lazy_static;
+use reqwest::{Client, Method};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, State};
+use tokio::sync::broadcast;
+
+lazy_static! {
+    // 可选：如果需要本地测试服务器，这里保留子进程句柄
+    pub static ref SERVER_CHILD: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+}
+
+/// 全局状态，用于在 `start_sse` 和 `stop_sse` 之间共享关闭信号
+pub struct AppState {
+  pub sse_shutdown_sender: Mutex<Option<broadcast::Sender<()>>>,
+}
+
+impl AppState {
+  pub fn new() -> Self {
+    Self {
+      sse_shutdown_sender: Mutex::new(None),
+    }
+  }
+}
+
+/// 启动 SSE 连接
+///
+/// * `url`     – 完整的 SSE 端点
+/// * `method`  – Optional: GET / POST / ...（默认 GET）
+/// * `headers` – Optional: 附加请求头
+/// * `body`    – Optional: JSON body（POST 时常用）
+#[tauri::command]
+pub async fn start_sse(
+  app: AppHandle,
+  state: State<'_, AppState>,
+  url: String,
+  method: Option<String>,
+  headers: Option<HashMap<String, String>>,
+  body: Option<Value>,
+) -> Result<(), String> {
+  // 如果已有连接，先断开
+  if let Some(sender) = state.sse_shutdown_sender.lock().unwrap().take() {
+    let _ = sender.send(());
+  }
+
+  // 新建广播通道用于优雅关闭
+  let (shutdown_tx, mut shutdown_rx) = broadcast::channel(1);
+  *state.sse_shutdown_sender.lock().unwrap() = Some(shutdown_tx);
+
+  let client = Client::new();
+
+  // 在后台任务中拉取 SSE 数据并通过 Tauri Event 转发给前端
+  tauri::async_runtime::spawn(async move {
+    app.emit("sse-status", "Connecting...").ok();
+
+    // ---------- 构造请求 ----------
+    let http_method = method.unwrap_or_else(|| "GET".to_string()).to_uppercase();
+    let mut req_builder = match http_method.as_str() {
+      "POST" => client.post(&url),
+      "PUT" => client.request(Method::PUT, &url),
+      _ => client.get(&url),
+    };
+
+    // Accept 头确保 SSE
+    req_builder = req_builder.header("Accept", "text/event-stream");
+
+    // 追加自定义头
+    if let Some(hdrs) = &headers {
+      for (k, v) in hdrs {
+        req_builder = req_builder.header(k, v);
+      }
+    }
+
+    // 若有 body 且为 POST/PUT，则附加 JSON
+    if matches!(http_method.as_str(), "POST" | "PUT") {
+      if let Some(b) = &body {
+        req_builder = req_builder.json(b);
+      }
+    }
+
+    // 发送请求
+    let res = match req_builder.send().await {
+      Ok(r) => r,
+      Err(e) => {
+        app.emit("sse-error", e.to_string()).ok();
+        return;
+      }
+    };
+
+    if !res.status().is_success() {
+      let status = res.status();
+      let body_text = res.text().await.unwrap_or_default();
+      let full_msg = format!("HTTP {}: {}", status, body_text);
+      app.emit("sse-error", full_msg).ok();
+      return;
+    }
+    app
+      .emit("sse-status", "Connected. Listening for events...")
+      .ok();
+
+    let mut stream = res.bytes_stream();
+    loop {
+      tokio::select! {
+          _ = shutdown_rx.recv() => {
+              app.emit("sse-status", "Connection closed by user.").ok();
+              break;
+          },
+          Some(item) = stream.next() => {
+              match item {
+                  Ok(bytes) => {
+                      let chunk = String::from_utf8_lossy(&bytes);
+                      for line in chunk.lines() {
+                          let payload = if let Some(data) = line.strip_prefix("data:") {
+                              data.trim()
+                          } else {
+                              // 对于 Ollama 这类直接返回 JSON 行的情况，整行即为数据
+                              line.trim()
+                          };
+
+                          if !payload.is_empty() {
+                              app.emit("sse-event", payload.to_string()).ok();
+                          }
+                      }
+                  },
+                  Err(e) => {
+                      app.emit("sse-error", e.to_string()).ok();
+                      break;
+                  }
+              }
+          },
+          else => break,
+      }
+    }
+
+    // 连接自然结束
+    app.emit("sse-status", "Connection closed.").ok();
+  });
+
+  Ok(())
+}
+
+/// 停止 SSE 连接的命令
+#[tauri::command]
+pub async fn stop_sse(state: State<'_, AppState>) -> Result<(), String> {
+  if let Some(sender) = state.sse_shutdown_sender.lock().unwrap().take() {
+    sender.send(()).map_err(|e| e.to_string())?;
+    Ok(())
+  } else {
+    Err("No active SSE connection to stop.".into())
+  }
+}

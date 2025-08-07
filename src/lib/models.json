@@ -1,0 +1,57 @@
+[
+  {
+    "id": "nomic-embed-text",
+    "name": "Nomic Embed Text",
+    "description": "高性能文本嵌入模型，支持多语言",
+    "size": "274MB",
+    "strategy": "ollama",
+    "isRecommended": true,
+    "category": "general"
+  },
+  {
+    "id": "all-minilm",
+    "name": "All MiniLM L6 v2",
+    "description": "轻量级嵌入模型，平衡性能与速度",
+    "size": "23MB",
+    "strategy": "ollama",
+    "isRecommended": false,
+    "category": "lightweight"
+  },
+  {
+    "id": "mxbai-embed-large",
+    "name": "MxBai Embed Large",
+    "description": "大型嵌入模型，提供最高精度",
+    "size": "669MB",
+    "strategy": "ollama",
+    "isRecommended": false,
+    "category": "large"
+  },
+  {
+    "id": "all-minilm-l12-v2",
+    "name": "All MiniLM L6 v2",
+    "description": "轻量级嵌入模型，兼容性佳",
+    "size": "90MB",
+    "strategy": "local-onnx",
+    "downloadUrl": "https://huggingface.co/onnx-models/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx?download=true",
+    "fileName": "model.onnx",
+    "tokenizerUrl": "https://huggingface.co/onnx-models/all-MiniLM-L6-v2-onnx/resolve/main/tokenizer.json?download=true",
+    "tokenizerFileName": "tokenizer.json",
+    "dimensions": 384,
+    "isRecommended": true,
+    "category": "local"
+  },
+  {
+    "id": "bge-small-zh-v1.5",
+    "name": "BGE Small 中文 v1.5",
+    "description": "专为中文优化的轻量级嵌入模型",
+    "size": "24MB",
+    "strategy": "local-onnx",
+    "downloadUrl": "https://huggingface.co/Xenova/bge-small-zh-v1.5/resolve/main/onnx/model_int8.onnx?download=true",
+    "fileName": "model_int8.onnx",
+    "tokenizerUrl": "https://huggingface.co/Xenova/bge-small-zh-v1.5/resolve/main/tokenizer.json?download=true",
+    "tokenizerFileName": "tokenizer.json",
+    "dimensions": 512,
+    "isRecommended": false,
+    "category": "chinese"
+  }
+] 

@@ -1,0 +1,72 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "sql:default",
+    "sql:allow-execute",
+    "core:path:default",
+    "fs:scope-appconfig",
+    "fs:allow-exists",
+    "fs:allow-appconfig-write",
+    "fs:allow-appconfig-write-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$APPDATA"
+        },
+        {
+          "path": "$APPDATA/**/*"
+        }
+      ]
+    },
+    "fs:allow-write-text-file",
+    "fs:allow-appconfig-read",
+    "fs:allow-mkdir",
+    "fs:allow-appconfig-read-recursive",
+    "fs:allow-read-text-file",
+    "fs:default",
+    {
+      "identifier": "http:default",
+      "dangerous": {
+        "all": true
+      },
+      "allow": [
+        {
+          "url": "http://*:*"
+        },
+        {
+          "url": "https://*:*"
+        }
+      ]
+    },
+    "store:default",
+    "opener:default",
+    "upload:default",
+    "upload:allow-download",
+    "dialog:default",
+    "core:tray:default",
+    "core:menu:default",
+    "core:app:allow-default-window-icon",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-visible",
+    "core:event:allow-emit",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
+    "log:default",
+    "log:allow-log"
+  ]
+}

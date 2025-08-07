@@ -1,0 +1,928 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* 根级别CSS变量 */
+:root {
+  /* Keep non-color variables if needed */
+  --radius: 0.625rem;
+
+  /* REMOVE color-related variables */
+  /* --background: #ffffff; */
+  /* --foreground: #171717; */
+  /* --primary: #2563eb; */
+  /* --primary-foreground: #ffffff; */
+  /* --secondary: #4f46e5; */
+  /* --secondary-foreground: #ffffff; */
+  /* --muted: #f3f4f6; */
+  /* --muted-foreground: #6b7280; */
+  /* --accent: #f3f4f6; */
+  /* --accent-foreground: #1f2937; */
+  /* --destructive: #ef4444; */
+  /* --destructive-foreground: #ffffff; */
+  /* --border: #e5e7eb; */
+  /* --input: #ffffff; */
+  /* --ring: #2563eb; */
+  /* --ai-msg-bg: #FAFAFA; */
+  /* --title-purple: #8B5CF6; */
+  /* --sidebar-bg: #F9FAFB; */
+  /* --grad-start: #818CF8; */
+  /* --grad-end: #A78BFA; */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --nav-active: #3b82f6; /* blue-500 */
+  --nav-fg: #cbd5e1; /* slate-300 */
+  --nav-hover: #334155; /* slate-700 */
+}
+
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #6366f1;
+    --secondary-foreground: #ffffff;
+    --muted: #1f2937;
+    --muted-foreground: #9ca3af;
+    --accent: #1f2937;
+    --accent-foreground: #ffffff;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #1f2937;
+    --input: #1f2937;
+    --ring: #3b82f6;
+
+    --ai-msg-bg: #111827; 
+    --title-purple: #A78BFA;
+    --sidebar-bg: #111827;
+    --grad-start: #6366F1;
+    --grad-end: #8B5CF6;
+  }
+} */
+
+/* We expect the .dark class from next-themes to handle dark mode overrides */
+/* .dark :root { ... } */
+
+/* Add global font and base background */
+body {
+  font-family: "Inter", "Noto Sans SC", "Segoe UI", Helvetica, Arial, sans-serif;
+  background-color: #f8f9fa;
+  color: #1f2937; /* slate-800 */
+}
+
+/* Dark mode body background and text color */
+.dark body {
+  background-color: #0f172a; /* slate-900 */
+  color: #f3f4f6; /* slate-100 */
+}
+
+/* 自定义滚动条样式 */
+.custom-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(155, 155, 155, 0.5) transparent; /* Firefox */
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.7);
+}
+
+/* 暗色模式滚动条 */
+.dark .custom-scrollbar {
+  scrollbar-color: rgba(75, 75, 75, 0.5) transparent; /* Firefox */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 75, 75, 0.5);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(75, 75, 75, 0.7);
+}
+
+/* 添加文本换行样式，用于处理长文本 */
+.overflow-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+/* Markdown内容特殊样式 */
+.markdown-content {
+  width: 100%;
+  max-width: 100%;
+}
+
+.markdown-content pre,
+.markdown-content code,
+.markdown-content table {
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-content pre > code {
+  white-space: pre-wrap;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-content a {
+  word-break: break-all;
+}
+
+/* 确保ai-content中所有元素都不会溢出 */
+.ai-content * {
+  max-width: 100%;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: hsl(var(--muted)); /* Use HSL variable */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+   background-color: hsl(var(--muted)); /* Tailwind handles dark mode for HSL vars */
+   /* Or specify a darker gray if needed explicitly */
+   /* background-color: #1f2937; */ 
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+   background-color: hsl(var(--muted-foreground)); /* Use HSL variable */
+   border-radius: 3px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+   background-color: hsl(var(--muted-foreground)); /* Use HSL variable */
+   /* Or specify a different dark thumb color explicitly */
+   /* background-color: #6b7280; */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+   background-color: hsl(var(--secondary)); /* Use HSL variable */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+   background-color: hsl(var(--secondary)); /* Use HSL variable */
+   /* Or specify a different dark hover color explicitly */
+   /* background-color: #4f46e5; */
+}
+
+/* 动画和交互效果 */
+.hover-scale {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-click-effect {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-click-effect:active {
+  transform: scale(0.95);
+}
+
+.input-focus-effect {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-focus-effect:focus-within {
+  box-shadow: 0 0 0 3px var(--ring);
+  transform: translateY(-1px);
+}
+
+/* 轻盈浅色背景 */
+.chat-gradient-bg {
+  background-color: #f8fafc;
+}
+
+/* 轻盈按钮样式 */
+.gradient-btn {
+  background-color: #3b82f6;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: white !important;
+  border-radius: 8px;
+}
+
+.gradient-btn:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.3);
+}
+
+.gradient-btn:active {
+  transform: translateY(0);
+}
+
+/* 确保按钮内的文字和图标清晰 */
+.gradient-btn span,
+.gradient-btn svg {
+  color: white !important;
+  fill: white !important;
+}
+
+/* 图标轻盈效果 */
+.gradient-icon {
+  transition: all 0.3s ease;
+}
+
+.gradient-icon:hover {
+  color: #3b82f6;
+}
+
+/* 图标阴影效果 */
+.icon-shadow {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+/* 加载动画 */
+.loading-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 输入区域样式 */
+.input-area {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.input-area:focus-within {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 发送按钮阴影 */
+.send-button {
+  transition: transform 0.2s ease;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.send-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Custom styles from prototype */
+/* .bg-sidebarBg { ... } */
+/* .bg-aiMsg { ... } */
+/* .text-titlePurple { ... } */
+/* .ai-title { ... } */
+/* .title-divider { ... } */
+/* .ai-content { ... } */
+/* .ai-content > * + * { ... } */
+
+/* Gradient styles using CSS variables */
+/* .bg-gradient-to-r.from-gradStart.to-gradEnd { ... } */
+
+/* 渐变按钮样式 */
+/* .gradient-btn { ... } */
+
+/* 图标渐变效果 */
+/* .gradient-icon { ... } */
+
+/* 图标阴影效果 */
+/* .icon-shadow { ... } */
+
+/* 加载动画 */
+/* .loading-circle { ... } */
+
+/* 输入区域样式 */
+/* .input-area { ... } */
+
+/* 发送按钮阴影 */
+/* .send-button { ... } */
+
+/* Custom Scrollbar */
+/* .custom-scrollbar::-webkit-scrollbar { ... } */
+/* .custom-scrollbar::-webkit-scrollbar-track { ... } */
+/* .custom-scrollbar::-webkit-scrollbar-thumb { ... } */
+/* .custom-scrollbar::-webkit-scrollbar-thumb:hover { ... } */
+
+/* Other utility styles from prototype */
+/* .chat-list-item { ... } */
+/* .unread-dot { ... } */
+/* .star-rotate { ... } */
+/* .page-gradient { ... } */
+/* .dark .page-gradient { ... } */
+/* .ai-message-card { ... } */
+/* .dark .ai-message-card { ... } */
+/* .ai-message-card:hover { ... } */
+/* .dark .ai-message-card:hover { ... } */
+/* .new-chat-button:hover { ... } */
+
+/* Settings Page Specific Styles */
+/* .settings-gradient-bg { ... } */
+/* .dark .settings-gradient-bg { ... } */
+/* .settings-card { ... } */
+/* .dark .settings-card { ... } */
+/* .settings-card:hover { ... } */
+/* .dark .settings-card:hover { ... } */
+/* .tab-hover { ... } */
+/* .tab-active { ... } */
+/* .tag-hover { ... } */
+/* .tag-hover:hover { ... } */
+/* .fade-in { ... } */
+/* @keyframes fadeIn { ... } */
+/* .toggle-btn { ... } */
+/* .toggle-btn::after { ... } */
+
+/* Knowledge Base Page Specific Styles */
+/* .knowledge-gradient-bg { ... } */
+/* .dark .knowledge-gradient-bg { ... } */
+/* .knowledge-card { ... } */
+/* .dark .knowledge-card:hover { ... } */
+/* .search-input:focus-within { ... } */
+/* .tag { ... } */
+
+/* Tab item animation - underline effect handled by component logic */
+/* .tab-item { ... } */
+
+/* Filter item animation */
+/* .filter-item { ... } */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+.dark {
+  /* 优化后的暗色主题配色，使用 HSL 数值确保与 Tailwind hsl(var(--*)) 语法兼容 */
+  --background: 222.2 47.4% 11.2%;          /* 深灰蓝，整体背景 */
+  --foreground: 210 40% 98%;                /* 近白文字色，保证可读性 */
+
+  /* 卡片与弹出层 */
+  --card: 222.2 47.4% 13%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 47.4% 13%;
+  --popover-foreground: 210 40% 98%;
+
+  /* 主要/次要强调色 */
+  --primary: 212.7 26.8% 83.9%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  /* 用于提示、分割等弱化元素 */
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+
+  /* 危险色 */
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* 交互边框 / 输入框 */
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+
+  /* 图表配色示例，可按需调整 */
+  --chart-1: 200 43% 44%;
+  --chart-2: 162.5 75% 54%;
+  --chart-3: 72.7 58.9% 50.2%;
+  --chart-4: 303.1 50.4% 47%;
+  --chart-5: 16.4 65% 58%;
+
+  /* 侧边栏 */
+  --sidebar: 222.2 47.4% 13%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-primary: 212.7 26.8% 83.9%;
+  --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+  --sidebar-accent: 217.2 32.6% 17.5%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 217.2 32.6% 17.5%;
+  --sidebar-ring: 212.7 26.8% 83.9%;
+  --surface-1: #0f172a; /* slate-900 */
+  --surface-2: #1e293b; /* slate-800 */
+  --surface-3: #1e293b80; /* slate-800/50 */
+  --fg-primary: #e2e8f0; /* slate-200 */
+  --fg-secondary: #94a3b8; /* slate-400 */
+  --border-subtle: #334155; /* slate-700 */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 自定义右键菜单样式 */
+.context-menu {
+  z-index: 9999 !important;
+  position: fixed !important;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: context-menu-appear 0.15s ease-out;
+}
+
+@keyframes context-menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 在生产环境中禁用默认的右键菜单选择 */
+.disable-context-menu {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 但允许输入框和文本区域的选择 */
+.disable-context-menu input,
+.disable-context-menu textarea,
+.disable-context-menu [contenteditable] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 历史列表界面优化样式 */
+
+/* 优化的薄型滚动条 */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 2px;
+  border: none;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: rgb(209, 213, 219);
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(156, 163, 175);
+}
+
+/* 历史卡片悬停效果 */
+.history-card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.history-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05), 0 2px 4px 0 rgba(0, 0, 0, 0.08);
+ 
+}
+
+/* 文本截断优化 */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 紧凑模式下的间距优化 */
+.compact-spacing > * + * {
+  margin-top: 0.25rem; /* 4px */
+}
+
+/* 性能优化：使用 will-change 属性 */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-scroll {
+  will-change: scroll-position;
+}
+
+/* 历史分组标题的粘性效果优化 */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* 优化长标题的显示 */
+.truncate-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 暗色模式下的历史界面优化 */
+.dark .history-card-hover:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+.dark .scrollbar-thin {
+  scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.5);
+}
+
+.dark .hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(107, 114, 128, 0.7);
+}
+
+/* 历史界面优化样式 */
+
+/* 历史列表优化滚动条 */
+.history-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+}
+
+.history-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.3);
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.history-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.5);
+}
+
+/* 历史界面粘性头部 */
+.history-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  background-color: rgba(249, 250, 251, 0.95);
+}
+
+.dark .history-sticky-header {
+  background-color: rgba(30, 41, 59, 0.6); /* slate-800/60 */
+}
+
+/* 历史卡片选中状态 */
+.history-card-selected {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(147, 197, 253, 0.08) 100%);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .history-card-selected {
+  background: rgba(59,130,246,0.12);
+  border-color: rgba(59,130,246,0.4);
+}
+
+/* 历史卡片重要标记 */
+.history-card-important {
+  border-left: 4px solid #ef4444;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.02) 0%, rgba(252, 165, 165, 0.05) 100%);
+}
+
+/* 历史标签样式优化 */
+.history-tag {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.08) 100%);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  transition: all 0.2s ease;
+}
+
+.history-tag:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.12) 100%);
+  transform: translateY(-1px);
+}
+
+/* 无滚动条样式 */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 历史界面状态图标动画 */
+.history-status-icon {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.history-status-icon:hover {
+  transform: scale(1.1);
+}
+
+/* 历史界面筛选按钮活跃状态 */
+.history-filter-active {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 1) 0%, rgba(139, 92, 246, 1) 100%);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  transform: translateY(-1px);
+}
+
+/* 优化的文本截断 */
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+/* 隐藏滚动条但保持滚动功能 */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+/* 滚动性能优化 */
+.transform-gpu {
+  transform: translateZ(0);
+}
+
+/* 聊天消息滚动优化 */
+.chat-scroll-container {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 防止滚动时的视觉错位 */
+.will-change-auto {
+  will-change: auto;
+}
+
+/* 优化毛玻璃效果的性能 */
+.backdrop-optimized {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+li+li { margin-top: 0.375rem; }
+
+/* 全局字体抗锯齿，提升文字清晰度 */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === 全局滚动条样式: 简约纤细 === */
+* {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(120, 120, 120, 0.4) transparent; /* Firefox */
+}
+
+/* WebKit 浏览器 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 120, 120, 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(120, 120, 120, 0.6);
+}
+
+/* 隐藏上下箭头按钮 */
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* 暗色模式适配 */
+.dark * {
+  scrollbar-color: rgba(90, 90, 90, 0.5) transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(90, 90, 90, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(90, 90, 90, 0.7);
+}
+
+/* ------------------------------ */
+/* 简洁模式：弱化装饰与阴影          */
+/* ------------------------------ */
+
+.simple-ui .settings-card,
+.simple-ui .history-card-hover,
+.simple-ui .chat-message,
+.simple-ui .card,
+.simple-ui .shadow-xs,
+.simple-ui .shadow-sm,
+.simple-ui .shadow-md,
+.simple-ui .shadow-lg,
+.simple-ui .shadow
+{
+  box-shadow: none !important;
+}
+
+/* 仅在浅色主题替换白色背景为灰 50 */
+.simple-ui:not(.dark) .bg-white{
+  background-color: theme("colors.gray.50") !important;
+}
+
+/* 在暗色主题下替换白色背景为灰 900（与默认 dark:bg-gray-900 一致）*/
+.dark.simple-ui .bg-white{
+  background-color: theme("colors.gray.900") !important;
+}
+
+/* ------------------------------ */
+/* 低动画模式：禁用过渡和动画        */
+/* ------------------------------ */
+
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Custom setting control styles */
+.setting-trigger {
+  @apply w-full h-9 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white/90 dark:bg-gray-700/90 hover:border-primary focus:ring-2 focus:ring-primary transition-shadow;
+}
+
+.setting-trigger-enhanced {
+  @apply w-full h-9 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white/90 dark:bg-gray-700/90 hover:border-blue-400 dark:hover:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200;
+}
+
+.setting-switch {
+  @apply w-10 h-5 bg-gray-300/60 dark:bg-gray-700 rounded-full relative transition-colors peer-checked:bg-primary;
+}
+.setting-switch-thumb {
+  @apply absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5;
+}
+
+/* Embedding model manager cards */
+.embed-card {
+  @apply border border-gray-200 dark:border-gray-700 rounded-md bg-white/70 dark:bg-gray-800/30 p-4 space-y-3 transition-shadow hover:ring-1 hover:ring-gray-300/40 dark:hover:ring-gray-600/40 hover:bg-gray-50/30;
+}
+
+.meta-label {
+  @apply text-[11px] leading-none tracking-wide text-gray-500 dark:text-gray-400;
+}
+
+/* Collapsible card styles for settings sections */
+.setting-collapse {
+  @apply border border-gray-200 dark:border-gray-700 rounded-md bg-white/70 dark:bg-gray-800/30 hover:ring-1 hover:ring-gray-300/40 dark:hover:ring-gray-600/40 transition-shadow overflow-hidden;
+}
+.setting-collapse-trigger {
+  @apply flex items-center justify-between w-full px-3 py-2 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/40 transition-colors select-none;
+}
+.setting-collapse-content {
+  @apply px-4 pb-4 pt-3 bg-white/60 dark:bg-gray-800/20 border-t border-gray-100 dark:border-gray-700/40 text-sm leading-relaxed;
+}
