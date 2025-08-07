@@ -4,176 +4,152 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version'
+        description: 'The release version (e.g., 1.2.3). This will be the tag name.'
         required: true
         type: string
-        default: ''
       release_notes:
-        description: 'Release notes'
+        description: 'Release notes (supports Markdown).'
         required: false
         type: string
-        default: ''
+        default: 'New release!'
       platforms:
-        description: 'Select platforms to build'
-        required: false
+        description: 'Select platforms to build for this release.'
+        required: true
         type: choice
         default: 'all'
         options:
-        - all (Build for all platforms)
-        - ubuntu (Linux only)
-        - windows (Windows only)
-        - macos (macOS only)
-        - ubuntu-windows (Linux + Windows)
-        - ubuntu-macos (Linux + macOS)
-        - windows-macos (Windows + macOS)
+        - all
+        - ubuntu
+        - windows
+        - macos
+        - ubuntu-windows
+        - ubuntu-macos
+        - windows-macos
 
 jobs:
   build-ubuntu:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'ubuntu' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'ubuntu-macos' }}
+    if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'ubuntu') }}
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'pnpm'
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: latest
-    
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Install Tauri CLI
-      run: pnpm tauri --version
-    
-    - name: Build Tauri app
-      run: pnpm tauri build
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: chatless-ubuntu
-        path: src-tauri/target/release/bundle/
-        retention-days: 14
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build Tauri app for release
+        run: pnpm tauri build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatless-ubuntu-artifact
+          path: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
 
   build-windows:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == 'ubuntu-windows' || github.event.inputs.platforms == 'windows-macos' }}
+    if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows') }}
     runs-on: windows-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'pnpm'
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: latest
-    
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Install Tauri CLI
-      run: pnpm tauri --version
-    
-    - name: Build Tauri app
-      run: pnpm tauri build
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: chatless-windows
-        path: src-tauri/target/release/bundle/
-        retention-days: 14
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build Tauri app for release
+        run: pnpm tauri build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatless-windows-artifact
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe.zip
 
   build-macos:
-    if: ${{ github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos' || github.event.inputs.platforms == 'ubuntu-macos' || github.event.inputs.platforms == 'windows-macos' }}
+    if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'macos') }}
     runs-on: macos-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'pnpm'
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: latest
-    
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Install Tauri CLI
-      run: pnpm tauri --version
-    
-    - name: Build Tauri app
-      run: pnpm tauri build
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: chatless-macos
-        path: src-tauri/target/release/bundle/
-        retention-days: 14
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build Tauri app for release
+        run: pnpm tauri build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatless-macos-artifact
+          path: src-tauri/target/release/bundle/dmg/*.dmg
 
   release:
     runs-on: ubuntu-latest
+    if: always()
     needs: [build-ubuntu, build-windows, build-macos]
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Release v${{ github.event.inputs.version }}
-        body: ${{ github.event.inputs.release_notes }}
-        files: artifacts/**/*
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+      - name: Create Release and Upload Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Release v${{ github.event.inputs.version }}
+          body: ${{ github.event.inputs.release_notes }}
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
