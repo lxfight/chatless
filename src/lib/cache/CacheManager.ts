@@ -68,6 +68,13 @@ export class CacheManager {
     // TODO: specializedStorage.cache?.evict(key)
   }
 
+  /** 清理所有缓存 */
+  async clear(): Promise<void> {
+    this.store.clear();
+    this.listeners.clear();
+    // TODO: specializedStorage.cache?.clear()
+  }
+
   /** 订阅指定 key 的变化，返回取消函数 */
   subscribe(key: string, listener: CacheListener): () => void {
     if (!this.listeners.has(key)) {

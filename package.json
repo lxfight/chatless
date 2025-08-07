@@ -15,7 +15,9 @@
     "generate:settings-index": "node scripts/generate-settings-index.cjs",
     "update:app-info": "node scripts/update-app-info.js",
     "prebuild": "pnpm run generate:settings-index && pnpm run update:app-info",
-    "pretauri": "pnpm run generate:settings-index && pnpm run update:app-info"
+    "pretauri": "pnpm run generate:settings-index && pnpm run update:app-info",
+    "dev:db:reset": "tsx src/scripts/dev-db-reset.ts",
+    "dev:test:providers": "tsx src/scripts/test-providers.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",

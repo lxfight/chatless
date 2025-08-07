@@ -1,29 +1,49 @@
-#!/usr/bin/env tsx
-
-import { devResetDatabase } from '../lib/__admin__/devTools';
+#!/usr/bin/env node
 
 /**
- * 开发环境数据库一键重置脚本
- * 使用方法: pnpm dev:db:reset
+ * 开发工具：重置数据库
+ * 清理所有providers配置，强制重新初始化
  */
 
-console.log("🚀 启动开发环境数据库重置...");
+import { StorageUtil } from '@/lib/storage';
+import { defaultCacheManager } from '@/lib/cache/CacheManager';
 
-devResetDatabase({ 
-  withTestData: false, 
-  verbose: true 
-})
-.then((success) => {
-  if (success) {
-    console.log("\n数据库重置成功完成！");
-    console.log("💡 现在可以重新启动应用使用全新数据库");
-    process.exit(0);
-  } else {
-    console.log("\n❌ 数据库重置失败！");
+async function resetDatabase() {
+  console.log('🧹 开始重置数据库...');
+  
+  try {
+    // 清理内存缓存
+    await defaultCacheManager.clear();
+    console.log('✅ 内存缓存已清理');
+    
+    // 删除providers配置文件
+    await StorageUtil.removeItem('providers', 'providers-config.json');
+    console.log('✅ providers配置文件已删除');
+    
+    // 删除模型配置文件
+    await StorageUtil.removeItem('models', 'models-config.json');
+    console.log('✅ models配置文件已删除');
+    
+    // 删除Ollama配置
+    await StorageUtil.removeItem('ollama-config', 'ollama-config.json');
+    console.log('✅ Ollama配置文件已删除');
+    
+    // 删除API密钥配置
+    await StorageUtil.removeItem('api-keys', 'api-keys.json');
+    console.log('✅ API密钥配置文件已删除');
+    
+    console.log('🎉 数据库重置完成！');
+    console.log('💡 重启应用后，系统将重新初始化所有providers配置');
+    
+  } catch (error) {
+    console.error('❌ 数据库重置失败:', error);
     process.exit(1);
   }
-})
-.catch((error) => {
-  console.error("\n❌ 脚本执行失败:", error);
-  process.exit(1);
-}); 
+}
+
+// 如果直接运行此脚本
+if (require.main === module) {
+  resetDatabase();
+}
+
+export { resetDatabase }; 

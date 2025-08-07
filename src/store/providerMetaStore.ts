@@ -13,24 +13,30 @@
 import { create } from 'zustand';
 import { ProviderRegistry } from '@/lib/llm';
 
+// 简化的 Provider 元数据，用于 UI 展示
 export interface QuickProviderMeta {
   name: string;
   aliases: string[];
-  icon: string;
+  icon?: string;
   api_base_url: string;
   requiresApiKey: boolean;
-  models: any[]; // placeholder
-  displayStatus: 'UNKNOWN' | 'CONNECTING' | 'NO_KEY' | 'NOT_CONNECTED' | 'CONNECTED';
-  statusTooltip: string;
+  models: any[];
+  displayStatus?: 'CONNECTED' | 'CONNECTING' | 'NOT_CONNECTED' | 'NO_KEY' | 'UNKNOWN' | 'NO_FETCHER';
+  statusTooltip?: string | null;
 }
 
 interface ProviderMetaState {
-  list: ReadonlyArray<QuickProviderMeta>;
-  setList: (l: QuickProviderMeta[]) => void;
+  list: QuickProviderMeta[];
+  setList: (list: QuickProviderMeta[]) => void;
 }
 
 function buildQuickList(): QuickProviderMeta[] {
-  return ProviderRegistry.all().map((p) => {
+  // 直接从ProviderRegistry获取所有providers，按PROVIDER_ORDER排序
+  const { PROVIDER_ORDER } = require('@/lib/llm');
+  const providers = ProviderRegistry.allInOrder(PROVIDER_ORDER);
+  console.log(`[providerMetaStore] 从ProviderRegistry获取到 ${providers.length} 个providers:`, providers.map(p => p.name));
+  
+  return providers.map((p) => {
     const slug = p.name.toLowerCase().replace(/\s+/g, '-');
     const requiresKey = p.name !== 'Ollama';
     return {
@@ -41,12 +47,12 @@ function buildQuickList(): QuickProviderMeta[] {
       requiresApiKey: requiresKey,
       models: [],
       displayStatus: p.name === 'Ollama' ? 'CONNECTING' : requiresKey ? 'UNKNOWN' : 'CONNECTING',
-      statusTooltip: '初始化…',
+      statusTooltip: '初始化中…',
     };
   });
 }
 
 export const useProviderMetaStore = create<ProviderMetaState>((set) => ({
   list: buildQuickList(),
-  setList: (l) => set({ list: l } as any),
+  setList: (list) => set({ list }),
 })); 

@@ -17,32 +17,20 @@ function isOllamaRequest(url: string): boolean {
   return OLLAMA_ENDPOINTS.some(endpoint => url.includes(endpoint));
 }
 
-// 单例初始化标记
-let initialized = false;
-
-// 简单的Ollama CORS补丁
-async function initOllamaCorsPatch() {
-  if (initialized) return;
-  
-  const { addRequestInterceptor } = await import('./request');
-  
-  addRequestInterceptor(async (url, options) => {
-    // 只处理启用了browserHeaders的Ollama请求
-    if (options.browserHeaders && isOllamaRequest(url) && !options.origin) {
-      options.origin = 'http://localhost:3000';
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[OllamaCorsPatch] 设置Origin为localhost:3000`);
-      }
+// 简单的Ollama请求处理函数
+export function processOllamaRequest(url: string, options: any): { url: string; options: any } {
+  // 只处理启用了browserHeaders的Ollama请求
+  if (options.browserHeaders && isOllamaRequest(url) && !options.origin) {
+    options.origin = 'http://localhost:3000';
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[OllamaCorsPatch] 设置Origin为localhost:3000`);
     }
-    return { url, options };
-  });
-  
-  initialized = true;
-  console.log('[OllamaCorsPatch] 已初始化');
+  }
+  return { url, options };
 }
 
-// 延迟初始化
-setTimeout(() => initOllamaCorsPatch(), 0);
+// 导出检查函数供其他地方使用
+export { isOllamaRequest };
 
  

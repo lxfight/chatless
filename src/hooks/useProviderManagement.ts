@@ -68,7 +68,19 @@ export function useProviderManagement() {
   useEffect(() => {
     
     const converted = repoProviders.map(mapToProviderWithStatus);
-    setProviders(converted as any);
+    
+    // 按PROVIDER_ORDER排序
+    const { PROVIDER_ORDER } = require('@/lib/llm');
+    const sortedConverted = converted.sort((a, b) => {
+      const aIndex = PROVIDER_ORDER.indexOf(a.name);
+      const bIndex = PROVIDER_ORDER.indexOf(b.name);
+      if (aIndex === -1 && bIndex === -1) return 0;
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+    
+    setProviders(sortedConverted as any);
     setIsLoading(repoLoading);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoProviders, repoLoading]);
@@ -416,9 +428,19 @@ export function useProviderManagement() {
         })
       );
       
-      // 然后更新UI状态
+      // 然后更新UI状态，按PROVIDER_ORDER排序
+      const { PROVIDER_ORDER } = require('@/lib/llm');
+      const sortedUpdatedProviders = updatedProviders.sort((a, b) => {
+        const aIndex = PROVIDER_ORDER.indexOf(a.name);
+        const bIndex = PROVIDER_ORDER.indexOf(b.name);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+      
       setProviders(prev => prev.map(provider => {
-        const updatedProvider = updatedProviders.find(p => p.name === provider.name);
+        const updatedProvider = sortedUpdatedProviders.find(p => p.name === provider.name);
         if (!updatedProvider) return provider;
         
         return {

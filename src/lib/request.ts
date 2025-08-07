@@ -2,8 +2,8 @@ import { fetch as httpFetch } from '@tauri-apps/plugin-http';
 import { useNetworkPreferences } from '@/store/networkPreferences';
 import { isDevelopmentEnvironment } from '@/lib/utils/environment';
 
-// 导入Ollama CORS补丁（自动初始化）
-import './request-patches';
+// 导入Ollama请求处理函数
+import { processOllamaRequest } from './request-patches';
 
 
 
@@ -98,7 +98,12 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
   }
 
   // 执行请求拦截器 (可修改 url / options)
-  const { url, options } = await applyRequestInterceptors(inputUrl, defaultedOpts);
+  let { url, options } = await applyRequestInterceptors(inputUrl, defaultedOpts);
+  
+  // 直接处理Ollama请求
+  const ollamaResult = processOllamaRequest(url, options);
+  url = ollamaResult.url;
+  options = ollamaResult.options;
 
   // 添加浏览器请求头（模拟浏览器行为）
   if (options.browserHeaders) {
@@ -160,8 +165,25 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
     try {
       resp = await httpFetch(url, options as any);
 
+      // 兼容Tauri HTTP响应对象的状态检查
+      // 如果响应对象有ok属性，说明是标准的Response对象
+      let status: number | undefined;
+      let statusText: string | undefined;
+      let isOk: boolean;
+      
+      if ((resp as any).ok !== undefined) {
+        isOk = (resp as any).ok;
+        status = (resp as any).status;
+        statusText = (resp as any).statusText;
+      } else {
+        // 兼容旧的响应格式
+        status = (resp as any).status || (resp as any).statusCode;
+        statusText = (resp as any).statusText || '';
+        isOk = status ? status >= 200 && status < 300 : false;
+      }
+      
       if (__SHOULD_LOG__) {
-        console.log(`[tauriFetch] Response: ${resp.status} ${resp.statusText}`);
+        console.log(`[tauriFetch] Response: ${status || 'unknown'} ${statusText || ''}`);
         // 打印响应头
         const responseHeaders: Record<string, string> = {};
         resp.headers.forEach((value, key) => {
@@ -171,7 +193,7 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
       }
       
       // 如果 status >= 500 且还有重试机会，进行重试
-      if (!resp.ok && resp.status >= 500 && attempt < maxAttempts - 1) {
+      if (!isOk && status && status >= 500 && attempt < maxAttempts - 1) {
         await sleep(options.retryDelay! * Math.pow(2, attempt));
         attempt++;
         continue;

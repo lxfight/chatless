@@ -16,8 +16,26 @@ export class ProviderService {
   async saveInitialProviders(): Promise<ProviderEntity[]> {
     console.log('[ProviderService] 开始执行 saveInitialProviders...');
     
-    const registryProviders = ProviderRegistry.all();
-    console.log(`[ProviderService] 从注册表获取到 ${registryProviders.length} 个提供商`);
+    // 确保所有providers都已经注册到ProviderRegistry
+    try {
+      const { initializeLLM } = await import('@/lib/llm');
+      await initializeLLM();
+      console.log('[ProviderService] LLM系统初始化完成，确保所有providers已注册');
+    } catch (error) {
+      console.warn('[ProviderService] LLM系统初始化失败，但继续执行:', error);
+    }
+    
+    // 使用PROVIDER_ORDER确保顺序正确
+    const { PROVIDER_ORDER } = await import('@/lib/llm');
+    const registryProviders = ProviderRegistry.allInOrder(PROVIDER_ORDER);
+    console.log(`[ProviderService] 从注册表获取到 ${registryProviders.length} 个提供商:`, registryProviders.map(p => p.name));
+    
+    // 验证所有必需的providers都存在
+    const requiredProviders = PROVIDER_ORDER;
+    const missingProviders = requiredProviders.filter(name => !registryProviders.some(p => p.name === name));
+    if (missingProviders.length > 0) {
+      console.warn(`[ProviderService] 缺少以下providers: ${missingProviders.join(', ')}`);
+    }
     
     // 获取现有的用户配置，避免覆盖用户已保存的设置
     const existingProviders = await providerRepository.getAll();
@@ -101,7 +119,7 @@ export class ProviderService {
       })
     );
 
-    console.log(`[ProviderService] 准备保存 ${list.length} 个提供商配置`);
+    console.log(`[ProviderService] 准备保存 ${list.length} 个提供商配置:`, list.map(p => p.name));
     await providerRepository.saveAll(list);
     console.log('[ProviderService] saveInitialProviders 执行完成');
     return list;

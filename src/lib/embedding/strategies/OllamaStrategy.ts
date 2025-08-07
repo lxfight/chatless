@@ -45,11 +45,34 @@ export class OllamaStrategy implements EmbeddingStrategy {
         signal: AbortSignal.timeout(this.config.timeout || 10000),
       });
 
-      if (!response.ok) {
-        throw new Error(`Ollama API响应错误: ${response.status} ${response.statusText}`);
+      // 检查响应状态 - 兼容Tauri HTTP响应对象
+      // 如果响应对象有ok属性，说明是标准的Response对象
+      if ((response as any).ok !== undefined) {
+        if (!(response as any).ok) {
+          const status = (response as any).status || (response as any).statusCode || 'unknown';
+          const statusText = (response as any).statusText || '';
+          throw new Error(`Ollama API响应错误: ${status} ${statusText}`);
+        }
+      } else {
+        // 兼容旧的响应格式，直接检查状态码
+        const status = (response as any).status || (response as any).statusCode;
+        if (status && status !== 200) {
+          const statusText = (response as any).statusText || '';
+          throw new Error(`Ollama API响应错误: ${status} ${statusText}`);
+        }
       }
 
-      const data = await response.json();
+      // 处理响应数据 - 兼容不同的响应格式
+      let data: any;
+      if (typeof response.json === 'function') {
+        // 如果是标准的Response对象，解析JSON
+        data = await response.json();
+      } else if (typeof response === 'object' && response !== null) {
+        // 如果已经是解析后的对象，直接使用
+        data = response;
+      } else {
+        throw new Error('无法解析Ollama API响应');
+      }
       
       // 检查模型是否可用
       const models = data.models || [];
@@ -122,11 +145,34 @@ export class OllamaStrategy implements EmbeddingStrategy {
         signal: AbortSignal.timeout(this.config.timeout || 30000),
       });
 
-      if (!response.ok) {
-        throw new Error(`Ollama API响应错误: ${response.status} ${response.statusText}`);
+      // 检查响应状态 - 兼容Tauri HTTP响应对象
+      // 如果响应对象有ok属性，说明是标准的Response对象
+      if ((response as any).ok !== undefined) {
+        if (!(response as any).ok) {
+          const status = (response as any).status || (response as any).statusCode || 'unknown';
+          const statusText = (response as any).statusText || '';
+          throw new Error(`Ollama API响应错误: ${status} ${statusText}`);
+        }
+      } else {
+        // 兼容旧的响应格式，直接检查状态码
+        const status = (response as any).status || (response as any).statusCode;
+        if (status && status !== 200) {
+          const statusText = (response as any).statusText || '';
+          throw new Error(`Ollama API响应错误: ${status} ${statusText}`);
+        }
       }
 
-      const data = await response.json();
+      // 处理响应数据 - 兼容不同的响应格式
+      let data: any;
+      if (typeof response.json === 'function') {
+        // 如果是标准的Response对象，解析JSON
+        data = await response.json();
+      } else if (typeof response === 'object' && response !== null) {
+        // 如果已经是解析后的对象，直接使用
+        data = response;
+      } else {
+        throw new Error('无法解析Ollama API响应');
+      }
       
       if (!data.embedding || !Array.isArray(data.embedding)) {
         throw new Error('Ollama API返回的嵌入格式无效');
@@ -191,7 +237,16 @@ export class OllamaStrategy implements EmbeddingStrategy {
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
         signal: AbortSignal.timeout(5000),
       });
-      return response.ok;
+      
+      // 检查响应状态 - 兼容Tauri HTTP响应对象
+      // 如果响应对象有ok属性，说明是标准的Response对象
+      if ((response as any).ok !== undefined) {
+        return (response as any).ok;
+      } else {
+        // 兼容旧的响应格式，直接检查状态码
+        const status = (response as any).status || (response as any).statusCode;
+        return status === 200;
+      }
     } catch {
       return false;
     }

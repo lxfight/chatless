@@ -5,17 +5,59 @@ import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
 
-// —— 实例化并按指定顺序注册 Provider ——
-// 1. Ollama - 使用异步初始化确保配置正确加载
-let ollamaProvider: OllamaProvider;
+// —— 定义 Provider 注册顺序 ——
+const PROVIDER_ORDER = [
+  'Ollama',      // 1. Ollama 排在最前面
+  'DeepSeek',    // 2. DeepSeek
+  'Google AI',   // 3. Google AI
+  'Anthropic',   // 4. Anthropic
+  'OpenAI'       // 5. OpenAI
+];
 
-// 异步初始化OllamaProvider，确保使用正确的配置
-async function initializeOllamaProvider(): Promise<OllamaProvider> {
-  if (ollamaProvider) {
-    return ollamaProvider;
-  }
+// 同步注册所有providers，确保顺序正确
+function registerAllProviders(): void {
+  console.log('[llm/index] 开始按顺序注册所有providers...');
+  
+  // 1. Ollama - 使用默认URL，后续会从配置中更新
+  const ollamaProvider = new OllamaProvider('http://localhost:11434');
+  ProviderRegistry.register(ollamaProvider);
+  console.log('[llm/index] 1. OllamaProvider 已注册');
 
+  // 2. DeepSeek
+  const deepseekApiKey: string | undefined = undefined;
+  ProviderRegistry.register(new DeepSeekProvider('https://api.deepseek.com', deepseekApiKey));
+  console.log('[llm/index] 2. DeepSeekProvider 已注册');
+
+  // 3. Google AI
+  const googleApiKey: string | undefined = undefined;
+  ProviderRegistry.register(new GoogleAIProvider('https://generativelanguage.googleapis.com/v1beta', googleApiKey));
+  console.log('[llm/index] 3. GoogleAIProvider 已注册');
+
+  // 4. Anthropic (Claude)
+  const anthropicKey: string | undefined = undefined;
+  ProviderRegistry.register(new AnthropicProvider('https://api.anthropic.com/v1', anthropicKey));
+  console.log('[llm/index] 4. AnthropicProvider 已注册');
+
+  // 5. OpenAI
+  const openaiKey: string | undefined = undefined;
+  ProviderRegistry.register(new OpenAIProvider('https://api.openai.com/v1', openaiKey));
+  console.log('[llm/index] 5. OpenAIProvider 已注册');
+
+  console.log(`[llm/index] 所有providers注册完成，共 ${ProviderRegistry.all().length} 个`);
+}
+
+// 立即执行注册
+registerAllProviders();
+
+// 异步更新OllamaProvider的URL配置
+async function updateOllamaProviderConfig(): Promise<void> {
   try {
+    const ollamaProvider = ProviderRegistry.get('Ollama') as OllamaProvider;
+    if (!ollamaProvider) {
+      console.warn('[llm/index] OllamaProvider未找到，无法更新配置');
+      return;
+    }
+
     // 优先从OllamaConfigService获取配置
     const { OllamaConfigService } = await import('@/lib/config/OllamaConfigService');
     let ollamaUrl = await OllamaConfigService.getOllamaUrl();
@@ -39,32 +81,13 @@ async function initializeOllamaProvider(): Promise<OllamaProvider> {
       console.log(`[llm/index] 使用配置的 URL: ${ollamaUrl}`);
     }
     
-    ollamaProvider = new OllamaProvider(ollamaUrl);
-    ProviderRegistry.register(ollamaProvider);
-    return ollamaProvider;
+    // 更新OllamaProvider的baseUrl
+    (ollamaProvider as any).baseUrl = ollamaUrl;
+    console.log(`[llm/index] OllamaProvider URL 已更新: ${ollamaUrl}`);
   } catch (error) {
-    console.warn('[llm/index] 读取 Ollama 配置失败，使用默认配置:', error);
-    ollamaProvider = new OllamaProvider('http://localhost:11434');
-    ProviderRegistry.register(ollamaProvider);
-    return ollamaProvider;
+    console.warn('[llm/index] 更新OllamaProvider配置失败:', error);
   }
 }
-
-// 2. DeepSeek
-const deepseekApiKey: string | undefined = undefined;
-ProviderRegistry.register(new DeepSeekProvider('https://api.deepseek.com', deepseekApiKey));
-
-// 3. Google AI
-const googleApiKey: string | undefined = undefined;
-ProviderRegistry.register(new GoogleAIProvider('https://generativelanguage.googleapis.com/v1beta', googleApiKey));
-
-// 4. Anthropic (Claude)
-const anthropicKey: string | undefined = undefined;
-ProviderRegistry.register(new AnthropicProvider('https://api.anthropic.com/v1', anthropicKey));
-
-// 5. OpenAI
-const openaiKey: string | undefined = undefined;
-ProviderRegistry.register(new OpenAIProvider('https://api.openai.com/v1', openaiKey));
 
 import { LLMInterpreter } from './interpreter';
 
@@ -72,8 +95,14 @@ let _interpreterInstance: LLMInterpreter | null = null;
 
 export async function initializeLLM(forceUpdate = false): Promise<boolean> {
   try {
-    // 确保OllamaProvider已正确初始化
-    await initializeOllamaProvider();
+    // 确保所有providers都已注册
+    if (ProviderRegistry.all().length === 0) {
+      console.warn('[initializeLLM] 检测到ProviderRegistry为空，重新注册providers');
+      registerAllProviders();
+    }
+    
+    // 异步更新OllamaProvider配置
+    await updateOllamaProviderConfig();
     
     if (!_interpreterInstance) {
       _interpreterInstance = new LLMInterpreter();
@@ -89,6 +118,7 @@ export async function initializeLLM(forceUpdate = false): Promise<boolean> {
 // 添加更新OllamaProvider URL的函数
 export async function updateOllamaProviderUrl(newUrl: string): Promise<void> {
   try {
+    const ollamaProvider = ProviderRegistry.get('Ollama') as OllamaProvider;
     if (ollamaProvider) {
       // 如果URL为空，使用默认值
       const effectiveUrl = newUrl.trim() || 'http://localhost:11434';
@@ -140,5 +170,5 @@ export function cancelStream() {
   }
 }
 
-export { ProviderRegistry };
+export { ProviderRegistry, PROVIDER_ORDER };
 
