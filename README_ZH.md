@@ -1,4 +1,4 @@
-[English](README.md) | 中文
+中文 | [English](README.md)
 
 # chatless – 现代AI聊天桌面应用
 
