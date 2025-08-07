@@ -51,6 +51,24 @@ pub fn run() {
   let _builder = tauri::Builder::default()
     .plugin(tauri_plugin_log::Builder::new().build())
     .setup(|app| {
+      // 在生产环境下禁用开发者工具
+      #[cfg(not(debug_assertions))]
+      {
+        if let Some(window) = app.get_window("main") {
+          // 禁用开发者工具
+          window.close_devtools();
+          
+          // 监听键盘事件，禁用 F12 键
+          window.on_menu_event(|event| {
+            if let tauri::menu::MenuEvent::KeyboardInput { key_code, .. } = event {
+              if key_code == tauri::api::keyboard::KeyCode::F12 {
+                return;
+              }
+            }
+          });
+        }
+      }
+
       // 根据当前操作系统选择正确的 ONNX Runtime 动态库文件名
       let lib_name = if cfg!(target_os = "windows") {
         "onnxruntime.dll"

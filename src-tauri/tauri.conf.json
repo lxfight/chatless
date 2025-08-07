@@ -27,6 +27,7 @@
       "csp": null,
       "capabilities": ["main-capability"]
     }
+    
   },
   "bundle": {
     "active": true,
