@@ -1,20 +1,19 @@
-name: Manual Release
+name: Build and Test
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'The release version (e.g., 1.2.3). This will be the tag name.'
+      action:
+        description: 'Select action: "test" for checks, "build" for artifacts.'
         required: true
-        type: string
-      release_notes:
-        description: 'Release notes (supports Markdown).'
-        required: false
-        type: string
-        default: 'New release!'
+        default: 'test'
+        type: choice
+        options:
+        - test
+        - build
       platforms:
-        description: 'Select platforms to build for this release.'
-        required: true
+        description: 'Select platforms (only for "build" action).'
+        required: false
         type: choice
         default: 'all'
         options:
@@ -25,71 +24,106 @@ on:
         - ubuntu-windows
         - ubuntu-macos
         - windows-macos
+      remark:
+        description: 'Optional remark information.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
-  build-ubuntu:
-    if: contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'ubuntu')
+  test:
+    if: ${{ github.event.inputs.action == 'test' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest main branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: 'main'
-      # 添加 Rust 缓存
+
+      # ✅ Cache Rust dependencies to speed up the build
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'pnpm'
+      - name: Install Rust system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run linting
+        run: pnpm lint
+      - name: Type check
+        run: pnpm tsc --noEmit
+      - name: Build Frontend
+        run: pnpm build
+      - name: Test Tauri build
+        run: pnpm tauri build --debug
+
+  build-ubuntu:
+    if: contains(github.event.inputs.action, 'build') && (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'ubuntu'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ✅ Cache Rust dependencies to speed up the build
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: latest
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install Rust system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Install Rust dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
-      - name: Build Tauri app for release
+      - name: Build Tauri app
         run: pnpm tauri build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Linux artifacts
+      - name: Upload build artifacts (Linux)
         uses: actions/upload-artifact@v4
         with:
-          name: chatless-ubuntu-artifact
+          name: chatless-ubuntu
           path: |
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
+          retention-days: 14
 
   build-windows:
-    if: contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows')
+    if: contains(github.event.inputs.action, 'build') && (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows'))
     runs-on: windows-latest
     steps:
-      - name: Checkout latest main branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: 'main'
-      # 添加 Rust 缓存
+
+      # ✅ Cache Rust dependencies to speed up the build
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'pnpm'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Setup Rust
@@ -97,39 +131,37 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - name: Build Tauri app for release
+      - name: Build Tauri app
         run: pnpm tauri build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Windows artifacts
+      - name: Upload build artifacts (Windows)
         uses: actions/upload-artifact@v4
         with:
-          name: chatless-windows-artifact
+          name: chatless-windows
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe.zip
+          retention-days: 14
 
   build-macos:
-    if: contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'macos')
+    if: contains(github.event.inputs.action, 'build') && (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'macos'))
     runs-on: macos-latest
     steps:
-      - name: Checkout latest main branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: 'main'
-      # 添加 Rust 缓存
+
+      # ✅ Cache Rust dependencies to speed up the build
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'pnpm'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Setup Rust
@@ -137,34 +169,11 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - name: Build Tauri app for release
+      - name: Build Tauri app
         run: pnpm tauri build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload macOS artifacts
+      - name: Upload build artifacts (macOS)
         uses: actions/upload-artifact@v4
         with:
-          name: chatless-macos-artifact
+          name: chatless-macos
           path: src-tauri/target/release/bundle/dmg/*.dmg
-
-  # release 作业保持不变
-  release:
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [build-ubuntu, build-windows, build-macos]
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
-      - name: Create Release and Upload Artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: Release v${{ github.event.inputs.version }}
-          body: ${{ github.event.inputs.release_notes }}
-          files: artifacts/**/*
-          draft: false
-          prerelease: false
+          retention-days: 14
