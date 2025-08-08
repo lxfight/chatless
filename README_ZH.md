@@ -1,15 +1,21 @@
+<div align="center">
+  <img  src="public/logo.svg"/>
+</div>
+
+
+
 中文 | [English](README.md)
 
 # chatless – 现代AI聊天桌面应用
 
 <p align="center">
-  <img alt="构建" src="https://img.shields.io/badge/build-manual-blue" />
+  <img alt="状态" src="https://img.shields.io/badge/status-active-success?style=flat-square" />
   <a href="https://github.com/kamjin3086/chatless/blob/main/LICENSE">
-    <img alt="许可证" src="https://img.shields.io/github/license/kamjin3086/chatless" />
+    <img alt="许可证" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
   </a>
-  <img alt="版本" src="https://img.shields.io/github/package-json/v/kamjin3086/chatless?filename=package.json&color=blueviolet" />
-  <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" />
-  <img alt="技术栈" src="https://img.shields.io/badge/tech%20stack-Tauri%202.0%20%7C%20Next.js%2015%20%7C%20Rust-blue" />
+  <img alt="版本" src="https://img.shields.io/badge/version-v0.1.0-blue?style=flat-square" />
+  <img alt="平台" src="https://img.shields.io/badge/platform-cross--platform-orange?style=flat-square" />
+  <img alt="技术栈" src="https://img.shields.io/badge/stack-Tauri%20%7C%20Next.js%20%7C%20Rust-purple?style=flat-square" />
 </p>
 
 > **chatless** 是一个基于Tauri和Next.js构建的现代、隐私优先的AI聊天桌面应用。连接多个AI提供商，通过Ollama在本地运行模型，并通过知识库集成与你的文档进行对话。所有数据都保存在你的设备上——你的对话保持私密。
@@ -28,36 +34,26 @@
 
 ---
 
+
 ## 📸 界面预览  
 
-![chatless截图](public/tauri-nextjs-template-2_screenshot.png)
+![chatless截图](/docs/assets/screenshot-main1.png)
 
 ---
 
-## 🚀 安装指南  
+## 🚀 快速开始
 
-### 环境要求
-- Node.js 18+ 
-- Rust 1.70+
-- pnpm（推荐）或 npm
+### 🎯 最简单的方式
+1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载最新版本
+2. **配置API** - 在设置中添加你的AI提供商API密钥
+3. **开始聊天** - 选择模型，开始对话！
 
-### 快速开始
+### 🛠️ 开发者构建
 ```bash
-# 克隆仓库
 git clone https://github.com/kamjin3086/chatless.git
 cd chatless
-
-# 安装依赖
 pnpm install
-
-# 启动开发服务器
-pnpm dev
-```
-
-### 构建桌面应用
-```bash
-# 为你的平台构建
-pnpm tauri build
+pnpm tauri dev
 ```
 
 ---
@@ -68,6 +64,18 @@ pnpm tauri build
 3. **创建知识库** – 上传文档以与你的数据进行对话
 4. **开始聊天** – 选择你偏好的AI模型并开始对话
 5. **管理历史记录** – 查看和组织你的聊天历史
+
+---
+
+## 待实现清单
+
+- [ ] 支持添加任意提供商和添加模型
+- [ ] http/sock5代理功能的完整支持
+- [ ] 自动更新功能
+- [ ] 系统提示词设置
+- [ ] 会话标题生成
+- [ ] 多语言支持
+- [ ] 其他
 
 ---
 
@@ -152,6 +160,8 @@ ollama pull mistral
 - [Next.js](https://nextjs.org/) – React全栈框架
 - [TailwindCSS](https://tailwindcss.com/) – 实用优先的CSS框架
 - [Ollama](https://ollama.ai/) – 本地大语言模型运行时
+
+- [ort](https://ort.pyke.io/) - an open-source Rust binding for ONNX Runtime.
 
 ---
 

@@ -1,15 +1,21 @@
+<div align="center">
+  <img  src="public/logo.svg"/>
+</div>
+
+
+
 English | [中文](README_ZH.md)
 
 # chatless – Modern AI Chat Desktop Application
 
 <p align="center">
-  <img alt="Build" src="https://img.shields.io/badge/build-manual-blue" />
+  <img alt="Status" src="https://img.shields.io/badge/status-active-success?style=flat-square" />
   <a href="https://github.com/kamjin3086/chatless/blob/main/LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/kamjin3086/chatless" />
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
   </a>
-  <img alt="Version" src="https://img.shields.io/github/package-json/v/kamjin3086/chatless?filename=package.json&color=blueviolet" />
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" />
-  <img alt="Tech Stack" src="https://img.shields.io/badge/tech%20stack-Tauri%202.0%20%7C%20Next.js%2015%20%7C%20Rust-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-blue?style=flat-square" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-cross--platform-orange?style=flat-square" />
+  <img alt="Stack" src="https://img.shields.io/badge/stack-Tauri%20%7C%20Next.js%20%7C%20Rust-purple?style=flat-square" />
 </p>
 
 > **chatless** is a modern, privacy-first AI chat desktop application built with Tauri and Next.js. Connect to multiple AI providers, run models locally with Ollama, and chat with your documents through knowledge base integration. All data stays on your device—your conversations remain private.
@@ -30,28 +36,23 @@ English | [中文](README_ZH.md)
 
 ## 📸 Screenshot Preview  
 
-![chatless screenshot](public/tauri-nextjs-template-2_screenshot.png)
+![chatless screenshot](/docs/assets/screenshot-main1.png)
 
 ---
 
-## 🚀 Installation  
+## 🚀 Quick Start
 
-### Prerequisites
-- Node.js 18+ 
-- Rust 1.70+
-- pnpm (recommended) or npm
+### 🎯 Easiest Way
+1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases)
+2. **Configure API** - Add your AI provider API keys in settings
+3. **Start Chatting** - Choose a model and begin conversations!
 
-### Quick Start
+### 🛠️ Developer Build
 ```bash
-# Clone the repository
 git clone https://github.com/kamjin3086/chatless.git
 cd chatless
-
-# Install dependencies
 pnpm install
-
-# Start development server
-pnpm dev
+pnpm tauri dev
 ```
 
 ### Build Desktop App
@@ -68,6 +69,18 @@ pnpm tauri build
 3. **Create Knowledge Base** – Upload documents to chat with your data
 4. **Start Chatting** – Choose your preferred AI model and start conversations
 5. **Manage History** – View and organize your chat history
+
+---
+
+## Todo List
+
+- [ ] Support adding arbitrary providers and models
+- [ ] Complete HTTP/SOCKS5 proxy functionality support
+- [ ] Auto-update feature
+- [ ] System prompt settings
+- [ ] Session title generation
+- [ ] Multi-language support
+- [ ] Others
 
 ---
 
@@ -118,7 +131,7 @@ ollama pull mistral
 
 ---
 
-## 💬 Feedback / Support
+## 💬 Feedback & Support
 | Channel | Link |
 | --- | --- |
 | GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
@@ -152,6 +165,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Next.js](https://nextjs.org/) – React full-stack framework
 - [TailwindCSS](https://tailwindcss.com/) – Utility-first CSS framework
 - [Ollama](https://ollama.ai/) – Local large language model runtime
+
+- [ort](https://ort.pyke.io/) - an open-source Rust binding for ONNX Runtime.
 
 ---
 
