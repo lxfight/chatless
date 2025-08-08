@@ -21,22 +21,23 @@
   <img alt="技术栈" src="https://img.shields.io/badge/stack-Tauri%20%7C%20Next.js%20%7C%20Rust-purple?style=flat-square" />
 </p>
 
-> **chatless** 是一个基于Tauri和Next.js构建的现代、隐私优先的AI聊天桌面应用。连接多个AI提供商，通过Ollama在本地运行模型，并通过知识库集成与你的文档进行对话。所有数据都保存在你的设备上——你的对话保持私密。
+> **chatless** 是一个基于Tauri和Next.js构建的AI聊天桌面应用。支持多种AI提供商，可连接Ollama本地模型，支持文档解析和知识库功能。所有数据本地存储，保护用户隐私。应用轻量简洁、启动快速、资源占用少。
 
 ---
 
 ## ✨ 主要功能
 | 功能 | 描述 |
 | --- | --- |
-| **多AI提供商支持** | 连接OpenAI、Anthropic、DeepSeek等多个AI提供商 |
-| **本地AI模型** | 通过Ollama集成在本地运行AI模型 |
-| **知识库集成** | 上传文档并与你的数据进行对话 |
-| **隐私优先设计** | 所有数据都存储在本地设备上 |
+| **多AI提供商支持** | 支持OpenAI、Anthropic、DeepSeek、Gemini、Claude等 |
+| **本地AI模型** | 通过Ollama集成运行本地模型 |
+| **文档解析** | 支持PDF、Word、Markdown等格式文档解析 |
+| **图片解析** | 支持Vision模型进行图片分析 |
+| **知识库集成** | 上传文档构建本地知识库 |
 | **跨平台支持** | 支持Windows、macOS和Linux |
-| **现代界面** | 基于Next.js 15和TailwindCSS 4构建 |
+| **简洁界面** | 基于React和TailwindCSS构建，界面简洁易用 |
+| **轻量性能** | 安装包小、启动快、内存占用低 |
 
 ---
-
 
 ## 📸 界面预览  
 
@@ -46,10 +47,12 @@
 
 ## 🚀 快速开始
 
-### 🎯 最简单的方式
-1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载最新版本
-2. **配置API** - 在设置中添加你的AI提供商API密钥
-3. **开始聊天** - 选择模型，开始对话！
+### 🎯 安装使用
+1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载对应平台版本（安装包轻量，下载快速）
+2. **配置API** - 在设置中添加AI提供商API密钥
+3. **开始使用** - 选择模型开始对话或上传文档
+
+**💡 优势：安装简单、启动快速、界面简洁易用**
 
 ### 🛠️ 开发者构建
 ```bash
@@ -62,23 +65,22 @@ pnpm tauri dev
 ---
 
 ## 📝 使用说明
-1. **配置AI提供商** – 在设置 → AI模型设置中添加你的API密钥
-2. **设置本地模型** – 安装Ollama并下载模型进行本地处理
-3. **创建知识库** – 上传文档以与你的数据进行对话
-4. **开始聊天** – 选择你偏好的AI模型并开始对话
-5. **管理历史记录** – 查看和组织你的聊天历史
+1. **配置AI提供商** – 在设置中添加API密钥
+2. **设置本地模型** – 安装Ollama并下载模型
+3. **创建知识库** – 上传文档构建知识库
+4. **开始对话** – 选择模型开始聊天
+5. **管理历史** – 查看和管理对话记录
 
 ---
 
-## 待实现清单
+## 开发计划
 
-- [ ] 支持添加任意提供商和添加模型
-- [ ] http/sock5代理功能的完整支持
+- [ ] 支持更多AI提供商和模型
+- [ ] 完善HTTP/SOCKS5代理功能
 - [ ] 自动更新功能
 - [ ] 系统提示词设置
 - [ ] 会话标题生成
 - [ ] 多语言支持
-- [ ] 其他
 
 ---
 
@@ -87,17 +89,23 @@ pnpm tauri dev
 ### 前端
 - **框架**: [Next.js 15](https://nextjs.org/) + TypeScript
 - **样式**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI组件**: 自定义组件库
+- **UI**: React组件库
 
 ### 后端
 - **桌面框架**: [Tauri 2.0](https://v2.tauri.app/) + Rust
 - **数据库**: SQLite本地存储
-- **文档处理**: 支持PDF、Word、Markdown和文本文件
+- **文档处理**: 支持多种格式文件解析
 
 ### AI集成
-- **多提供商支持**: OpenAI、Anthropic、DeepSeek等
+- **多提供商**: OpenAI、Anthropic、DeepSeek、Gemini、Claude等
 - **本地模型**: Ollama集成
-- **向量检索**: 自定义向量存储系统
+- **向量检索**: 本地向量存储系统
+
+### 性能优化
+- **轻量架构**: 基于Tauri的轻量级桌面应用
+- **快速启动**: 优化的启动流程，冷启动时间短
+- **低内存占用**: 精简的UI组件和高效的资源管理
+- **本地存储**: SQLite数据库，无需网络连接即可使用
 
 ---
 
@@ -105,8 +113,8 @@ pnpm tauri dev
 
 ### AI提供商设置
 1. 打开应用设置
-2. 导航到"AI模型设置"
-3. 添加你的API密钥
+2. 进入"AI模型设置"
+3. 添加API密钥
 4. 选择默认模型
 
 ### 本地模型设置
@@ -121,11 +129,11 @@ ollama pull mistral
 
 ---
 
-## 🔒 隐私与数据安全
-* **本地数据存储** – 所有对话和文档都保存在你的设备上
-* **无云端上传** – AI处理在本地或通过你配置的提供商进行
-* **隐私优先设计** – 不收集或跟踪个人数据
-* **开源透明** – 透明的代码库便于安全验证
+## 🔒 隐私与安全
+* **本地数据存储** – 所有对话和文档保存在本地设备
+* **无数据上传** – 不向云端上传任何数据
+* **开源透明** – 代码开源，可验证安全性
+* **隐私保护** – 不收集用户个人信息
 
 ---
 
@@ -163,15 +171,14 @@ ollama pull mistral
 - [Next.js](https://nextjs.org/) – React全栈框架
 - [TailwindCSS](https://tailwindcss.com/) – 实用优先的CSS框架
 - [Ollama](https://ollama.ai/) – 本地大语言模型运行时
-
-- [ort](https://ort.pyke.io/) - an open-source Rust binding for ONNX Runtime.
+- [ort](https://ort.pyke.io/) - ONNX Runtime的Rust绑定
 
 ---
 
 <p align="center">
 
-**chatless** – 让AI聊天更简单，让生活更专注。
+**chatless** – 简洁易用的AI聊天应用
 
-⭐ 如果这个项目对你有帮助，请给我一个星标！
+⭐ 如果这个项目对你有帮助，请给我们一个星标！
 
 </p> 

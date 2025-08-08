@@ -20,19 +20,21 @@ English | [中文](README.md)
   <img alt="Stack" src="https://img.shields.io/badge/stack-Tauri%20%7C%20Next.js%20%7C%20Rust-purple?style=flat-square" />
 </p>
 
-> **chatless** is a modern, privacy-first AI chat desktop application built with Tauri and Next.js. Connect to multiple AI providers, run models locally with Ollama, and chat with your documents through knowledge base integration. All data stays on your device—your conversations remain private.
+> **chatless** is an AI chat desktop application built with Tauri and Next.js. Supports multiple AI providers, connects to Ollama local models, and features document parsing and knowledge base functionality. All data is stored locally, protecting user privacy. The application is lightweight, fast to start, and uses minimal resources.
 
 ---
 
 ## ✨ Key Features
 | Feature | Description |
 | --- | --- |
-| **Multi-AI Provider Support** | Connect to OpenAI, Anthropic, DeepSeek, and more AI providers |
-| **Local AI Models** | Run AI models locally with Ollama integration |
-| **Knowledge Base Integration** | Upload documents and chat with your data |
-| **Privacy-First Design** | All data stored locally on your device |
+| **Multi-AI Provider Support** | Supports OpenAI, Anthropic, DeepSeek, Gemini, Claude, and more |
+| **Local AI Models** | Run local models through Ollama integration |
+| **Document Parsing** | Supports PDF, Word, Markdown, and other document formats |
+| **Image Analysis** | Supports Vision models for image analysis |
+| **Knowledge Base Integration** | Upload documents to build local knowledge base |
 | **Cross-Platform** | Works on Windows, macOS, and Linux |
-| **Modern UI** | Built with Next.js 15 and TailwindCSS 4 |
+| **Clean Interface** | Built with React and TailwindCSS, clean and easy-to-use interface |
+| **Lightweight Performance** | Small package size, fast startup, low memory usage |
 
 ---
 
@@ -44,10 +46,12 @@ English | [中文](README.md)
 
 ## 🚀 Quick Start
 
-### 🎯 Easiest Way
-1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases)
-2. **Configure API** - Add your AI provider API keys in settings
-3. **Start Chatting** - Choose a model and begin conversations!
+### 🎯 Installation & Usage
+1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases) (lightweight package, fast download)
+2. **Configure API** - Add AI provider API keys in settings
+3. **Start Using** - Choose a model to start chatting or upload documents
+
+**💡 Advantages: Simple installation, fast startup, clean and easy-to-use interface**
 
 ### 🛠️ Developer Build
 ```bash
@@ -57,32 +61,25 @@ pnpm install
 pnpm tauri dev
 ```
 
-### Build Desktop App
-```bash
-# Build for your platform
-pnpm tauri build
-```
-
 ---
 
 ## 📝 How to Use
-1. **Configure AI Providers** – Add your API keys in Settings → AI Model Settings
-2. **Set Up Local Models** – Install Ollama and download models for local processing
-3. **Create Knowledge Base** – Upload documents to chat with your data
-4. **Start Chatting** – Choose your preferred AI model and start conversations
-5. **Manage History** – View and organize your chat history
+1. **Configure AI Providers** – Add API keys in settings
+2. **Set Up Local Models** – Install Ollama and download models
+3. **Create Knowledge Base** – Upload documents to build knowledge base
+4. **Start Chatting** – Choose a model to begin conversations
+5. **Manage History** – View and manage conversation records
 
 ---
 
-## Todo List
+## Development Plan
 
-- [ ] Support adding arbitrary providers and models
-- [ ] Complete HTTP/SOCKS5 proxy functionality support
+- [ ] Support more AI providers and models
+- [ ] Complete HTTP/SOCKS5 proxy functionality
 - [ ] Auto-update feature
 - [ ] System prompt settings
 - [ ] Session title generation
 - [ ] Multi-language support
-- [ ] Others
 
 ---
 
@@ -91,17 +88,23 @@ pnpm tauri build
 ### Frontend
 - **Framework**: [Next.js 15](https://nextjs.org/) + TypeScript
 - **Styling**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI Components**: Custom component library
+- **UI**: React component library
 
 ### Backend
 - **Desktop Framework**: [Tauri 2.0](https://v2.tauri.app/) + Rust
 - **Database**: SQLite local storage
-- **Document Processing**: PDF, Word, Markdown, and text file support
+- **Document Processing**: Supports multiple file format parsing
 
 ### AI Integration
-- **Multi-Provider Support**: OpenAI, Anthropic, DeepSeek, and more
+- **Multi-Provider**: OpenAI, Anthropic, DeepSeek, Gemini, Claude, and more
 - **Local Models**: Ollama integration
-- **Vector Retrieval**: Custom vector storage system
+- **Vector Retrieval**: Local vector storage system
+
+### Performance Optimization
+- **Lightweight Architecture**: Tauri-based lightweight desktop application
+- **Fast Startup**: Optimized startup process with short cold start time
+- **Low Memory Usage**: Streamlined UI components and efficient resource management
+- **Local Storage**: SQLite database, works without internet connection
 
 ---
 
@@ -109,8 +112,8 @@ pnpm tauri build
 
 ### AI Provider Setup
 1. Open application settings
-2. Navigate to "AI Model Settings"
-3. Add your API keys
+2. Go to "AI Model Settings"
+3. Add API keys
 4. Select default models
 
 ### Local Model Setup
@@ -125,11 +128,11 @@ ollama pull mistral
 
 ---
 
-## 🔒 Privacy & Data Security
-* **Local data storage** – All conversations and documents stay on your device
-* **No cloud uploads** – AI processing happens locally or through your configured providers
-* **Privacy-first design** – No personal data collection or tracking
+## 🔒 Privacy & Security
+* **Local data storage** – All conversations and documents stored locally
+* **No data upload** – No data uploaded to cloud services
 * **Open source** – Transparent codebase for security verification
+* **Privacy protection** – No collection of user personal information
 
 ---
 
@@ -167,14 +170,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Next.js](https://nextjs.org/) – React full-stack framework
 - [TailwindCSS](https://tailwindcss.com/) – Utility-first CSS framework
 - [Ollama](https://ollama.ai/) – Local large language model runtime
-
-- [ort](https://ort.pyke.io/) - an open-source Rust binding for ONNX Runtime.
+- [ort](https://ort.pyke.io/) - Rust binding for ONNX Runtime
 
 ---
 
 <p align="center">
 
-**chatless** – Making AI chat simpler, making life more focused.
+**chatless** – Simple and easy-to-use AI chat application
 
 ⭐ If this project helps you, please give us a star!
 
