@@ -2,14 +2,11 @@
   <img  src="public/logo.svg"/>
 </div>
 
-
-
 中文 | [English](README_EN.md)
 
 <h1 align="center">
   chatless – 现代AI聊天桌面应用
 </h1>
-
 
 <p align="center">
   <img alt="状态" src="https://img.shields.io/badge/status-active-success?style=flat-square" />
@@ -26,6 +23,7 @@
 ---
 
 ## ✨ 主要功能
+
 | 功能 | 描述 |
 | --- | --- |
 | **多AI提供商支持** | 支持OpenAI、Anthropic、DeepSeek、Gemini、Claude等 |
@@ -39,7 +37,7 @@
 
 ---
 
-## 📸 界面预览  
+## 📸 界面预览
 
 ![chatless截图](/docs/assets/screenshot-main1.png)
 
@@ -48,11 +46,9 @@
 ## 🚀 快速开始
 
 ### 🎯 安装使用
-1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载对应平台版本（安装包轻量，下载快速）
+1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载对应平台版本
 2. **配置API** - 在设置中添加AI提供商API密钥
 3. **开始使用** - 选择模型开始对话或上传文档
-
-**💡 优势：安装简单、启动快速、界面简洁易用**
 
 ### 🛠️ 开发者构建
 ```bash
@@ -65,6 +61,7 @@ pnpm tauri dev
 ---
 
 ## 📝 使用说明
+
 1. **配置AI提供商** – 在设置中添加API密钥
 2. **设置本地模型** – 安装Ollama并下载模型
 3. **创建知识库** – 上传文档构建知识库
@@ -73,7 +70,7 @@ pnpm tauri dev
 
 ---
 
-## 开发计划
+## 🎯 开发计划
 
 - [ ] 支持更多AI提供商和模型
 - [ ] 完善HTTP/SOCKS5代理功能
@@ -86,26 +83,10 @@ pnpm tauri dev
 
 ## 🛠️ 技术栈
 
-### 前端
-- **框架**: [Next.js 15](https://nextjs.org/) + TypeScript
-- **样式**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI**: React组件库
-
-### 后端
-- **桌面框架**: [Tauri 2.0](https://v2.tauri.app/) + Rust
-- **数据库**: SQLite本地存储
-- **文档处理**: 支持多种格式文件解析
-
-### AI集成
-- **多提供商**: OpenAI、Anthropic、DeepSeek、Gemini、Claude等
-- **本地模型**: Ollama集成
-- **向量检索**: 本地向量存储系统
-
-### 性能优化
-- **轻量架构**: 基于Tauri的轻量级桌面应用
-- **快速启动**: 优化的启动流程，冷启动时间短
-- **低内存占用**: 精简的UI组件和高效的资源管理
-- **本地存储**: SQLite数据库，无需网络连接即可使用
+- **前端**: Next.js 15 + TypeScript + TailwindCSS
+- **后端**: Tauri 2.0 + Rust
+- **数据库**: SQLite
+- **AI集成**: 多提供商支持 + Ollama本地模型
 
 ---
 
@@ -130,6 +111,7 @@ ollama pull mistral
 ---
 
 ## 🔒 隐私与安全
+
 * **本地数据存储** – 所有对话和文档保存在本地设备
 * **无数据上传** – 不向云端上传任何数据
 * **开源透明** – 代码开源，可验证安全性
@@ -138,6 +120,7 @@ ollama pull mistral
 ---
 
 ## 💬 反馈与支持
+
 | 渠道 | 链接 |
 | --- | --- |
 | GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
@@ -177,7 +160,7 @@ ollama pull mistral
 
 <p align="center">
 
-**chatless** – 简洁易用的AI聊天应用
+**chatless** – 简洁易用的AI聊天应用 ✨
 
 ⭐ 如果这个项目对你有帮助，请给我们一个星标！
 

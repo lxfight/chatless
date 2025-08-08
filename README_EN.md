@@ -2,8 +2,6 @@
   <img  src="public/logo.svg"/>
 </div>
 
-
-
 English | [中文](README.md)
 
 <h1 align="center">
@@ -25,6 +23,7 @@ English | [中文](README.md)
 ---
 
 ## ✨ Key Features
+
 | Feature | Description |
 | --- | --- |
 | **Multi-AI Provider Support** | Supports OpenAI, Anthropic, DeepSeek, Gemini, Claude, and more |
@@ -38,7 +37,7 @@ English | [中文](README.md)
 
 ---
 
-## 📸 Screenshot Preview  
+## 📸 Screenshot Preview
 
 ![chatless screenshot](/docs/assets/screenshot-main1.png)
 
@@ -47,11 +46,9 @@ English | [中文](README.md)
 ## 🚀 Quick Start
 
 ### 🎯 Installation & Usage
-1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases) (lightweight package, fast download)
+1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases)
 2. **Configure API** - Add AI provider API keys in settings
 3. **Start Using** - Choose a model to start chatting or upload documents
-
-**💡 Advantages: Simple installation, fast startup, clean and easy-to-use interface**
 
 ### 🛠️ Developer Build
 ```bash
@@ -64,6 +61,7 @@ pnpm tauri dev
 ---
 
 ## 📝 How to Use
+
 1. **Configure AI Providers** – Add API keys in settings
 2. **Set Up Local Models** – Install Ollama and download models
 3. **Create Knowledge Base** – Upload documents to build knowledge base
@@ -72,7 +70,7 @@ pnpm tauri dev
 
 ---
 
-## Development Plan
+## 🎯 Development Plan
 
 - [ ] Support more AI providers and models
 - [ ] Complete HTTP/SOCKS5 proxy functionality
@@ -85,26 +83,10 @@ pnpm tauri dev
 
 ## 🛠️ Technology Stack
 
-### Frontend
-- **Framework**: [Next.js 15](https://nextjs.org/) + TypeScript
-- **Styling**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI**: React component library
-
-### Backend
-- **Desktop Framework**: [Tauri 2.0](https://v2.tauri.app/) + Rust
-- **Database**: SQLite local storage
-- **Document Processing**: Supports multiple file format parsing
-
-### AI Integration
-- **Multi-Provider**: OpenAI, Anthropic, DeepSeek, Gemini, Claude, and more
-- **Local Models**: Ollama integration
-- **Vector Retrieval**: Local vector storage system
-
-### Performance Optimization
-- **Lightweight Architecture**: Tauri-based lightweight desktop application
-- **Fast Startup**: Optimized startup process with short cold start time
-- **Low Memory Usage**: Streamlined UI components and efficient resource management
-- **Local Storage**: SQLite database, works without internet connection
+- **Frontend**: Next.js 15 + TypeScript + TailwindCSS
+- **Backend**: Tauri 2.0 + Rust
+- **Database**: SQLite
+- **AI Integration**: Multi-provider support + Ollama local models
 
 ---
 
@@ -129,6 +111,7 @@ ollama pull mistral
 ---
 
 ## 🔒 Privacy & Security
+
 * **Local data storage** – All conversations and documents stored locally
 * **No data upload** – No data uploaded to cloud services
 * **Open source** – Transparent codebase for security verification
@@ -137,6 +120,7 @@ ollama pull mistral
 ---
 
 ## 💬 Feedback & Support
+
 | Channel | Link |
 | --- | --- |
 | GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
@@ -176,7 +160,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <p align="center">
 
-**chatless** – Simple and easy-to-use AI chat application
+**chatless** – Simple and easy-to-use AI chat application ✨
 
 ⭐ If this project helps you, please give us a star!
 
