@@ -17,8 +17,8 @@ export class DeepSeekProvider extends BaseProvider {
   async checkConnection(): Promise<CheckResult> {
     // DeepSeek 目前无公开健康端点；尝试获取模型列表或返回 NO_KEY 占位
     const key = await this.getApiKey();
-    if (!key) return { success: false, message: 'NO_KEY' };
-    return { success: true };
+    if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   /**

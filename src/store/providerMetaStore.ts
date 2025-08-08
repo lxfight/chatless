@@ -12,6 +12,8 @@
 
 import { create } from 'zustand';
 import { ProviderRegistry } from '@/lib/llm';
+import { defaultCacheManager } from '@/lib/cache/CacheManager';
+import { EVENTS } from '@/lib/provider/events/keys';
 
 // 简化的 Provider 元数据，用于 UI 展示
 export interface QuickProviderMeta {
@@ -28,6 +30,8 @@ export interface QuickProviderMeta {
 interface ProviderMetaState {
   list: QuickProviderMeta[];
   setList: (list: QuickProviderMeta[]) => void;
+  connectingSet: Set<string>;
+  setConnecting: (name: string, on: boolean) => void;
 }
 
 function buildQuickList(): QuickProviderMeta[] {
@@ -52,7 +56,38 @@ function buildQuickList(): QuickProviderMeta[] {
   });
 }
 
-export const useProviderMetaStore = create<ProviderMetaState>((set) => ({
+export const useProviderMetaStore = create<ProviderMetaState>((set, get) => ({
   list: buildQuickList(),
-  setList: (list) => set({ list }),
+  setList: (list) => {
+    const connecting = get().connectingSet;
+    // 将临时“连接中”态覆盖到 displayStatus
+    const withOverlay = list.map((p) =>
+      connecting.has(p.name) ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态…' } : p
+    );
+    set({ list: withOverlay });
+  },
+  connectingSet: new Set<string>(),
+  setConnecting: (name, on) => {
+    const connecting = new Set(get().connectingSet);
+    if (on) connecting.add(name); else connecting.delete(name);
+    // 同步到 list 覆盖显示
+    const list = get().list.map((p) =>
+      p.name === name
+        ? { ...p, displayStatus: on ? 'CONNECTING' : p.displayStatus, statusTooltip: on ? '正在检查连接状态…' : p.statusTooltip }
+        : p
+    );
+    set({ connectingSet: connecting, list });
+  },
 })); 
+
+// 订阅 providers 列表变化与细粒度事件，自动保持 UI 同步
+defaultCacheManager.subscribe(EVENTS.PROVIDERS_LIST, () => {
+  try {
+    const { providerRepository } = require('@/lib/provider/ProviderRepository');
+    const { mapToProviderWithStatus } = require('@/lib/provider/transform');
+    providerRepository.getAll().then((entities: any[]) => {
+      const mapped = entities.map(mapToProviderWithStatus);
+      useProviderMetaStore.getState().setList(mapped);
+    }).catch(console.error);
+  } catch (e) { console.error(e); }
+});

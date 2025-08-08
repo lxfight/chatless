@@ -22,6 +22,10 @@ export interface ProviderEntity {
   lastChecked: number;
   /** Provider 级别 API Key，可为空 */
   apiKey?: string | null;
+  /** 最近一次检查的失败/状态原因 */
+  lastReason?: 'NO_KEY' | 'AUTH' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN';
+  /** 最近一次检查的消息 */
+  lastMessage?: string | null;
 }
 
 export interface ModelEntity {

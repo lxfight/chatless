@@ -15,6 +15,10 @@
 import { create } from 'zustand';
 import { ProviderEntity } from '@/lib/provider/types';
 import { providerService } from '@/lib/provider/ProviderService';
+import { refreshProviderUseCase } from '@/lib/provider/usecases/RefreshProvider';
+import { refreshAllProvidersUseCase } from '@/lib/provider/usecases/RefreshAllProviders';
+import { updateProviderConfigUseCase } from '@/lib/provider/usecases/UpdateProviderConfig';
+import { updateModelKeyUseCase } from '@/lib/provider/usecases/UpdateModelKey';
 import { providerRepository } from '@/lib/provider/ProviderRepository';
 import { modelRepository } from '@/lib/provider/ModelRepository';
 
@@ -28,6 +32,8 @@ interface ProviderState {
   /** 刷新指定 provider 状态 */
   refresh: (name: string) => Promise<void>;
   refreshAll: () => Promise<void>;
+  updateConfig: (name: string, input: { url?: string; apiKey?: string | null }) => Promise<void>;
+  updateModelKey: (providerName: string, modelName: string, apiKey: string | null) => Promise<void>;
 }
 
 export const useProviderStore = create<ProviderState>((set, get) => ({
@@ -125,6 +131,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       });
       
       set({ providers: sortedCombined });
+
+      // 同步 providerMetaStore
+      import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
+        const { mapToProviderWithStatus } = require('@/lib/provider/transform');
+        useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus));
+      }).catch(console.error);
     });
 
     // 订阅各 provider 模型变化
@@ -132,16 +144,30 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       modelRepository.subscribe(p.name, async () => {
         const current = get().providers;
         const newModels = await modelRepository.get(p.name) ?? [];
-        set({ providers: current.map((prov) => prov.name === p.name ? { ...prov, models: newModels } : prov) });
+        const next = current.map((prov) => prov.name === p.name ? { ...prov, models: newModels } : prov);
+        set({ providers: next });
+
+        // 同步 providerMetaStore
+        import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
+          const { mapToProviderWithStatus } = require('@/lib/provider/transform');
+          useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus));
+        }).catch(console.error);
       });
     });
   },
 
   refresh: async (name: string) => {
-    await providerService.refreshProviderStatus(name);
+    await refreshProviderUseCase.execute(name, { withModels: true });
   },
 
   refreshAll: async () => {
-    await providerService.refreshAll();
+    await refreshAllProvidersUseCase.execute();
+  },
+  
+  updateConfig: async (name: string, input: { url?: string; apiKey?: string | null }) => {
+    await updateProviderConfigUseCase.execute(name, input);
+  },
+  updateModelKey: async (providerName: string, modelName: string, apiKey: string | null) => {
+    await updateModelKeyUseCase.execute(providerName, modelName, apiKey);
   },
 })); 

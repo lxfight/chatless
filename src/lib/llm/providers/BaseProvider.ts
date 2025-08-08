@@ -10,8 +10,10 @@ export interface LlmMessage {
 }
 
 export interface CheckResult {
-  success: boolean;
+  ok: boolean;
+  reason?: 'NO_KEY' | 'AUTH' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN';
   message?: string;
+  meta?: any;
 }
 
 export interface StreamCallbacks {

@@ -23,7 +23,7 @@ export class GoogleAIProvider extends BaseProvider {
 
   async checkConnection(): Promise<CheckResult> {
     const apiKey = await this.getApiKey();
-    if (!apiKey) return { success: false, message: 'NO_KEY' };
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
     
     // 使用 request.ts 工具，它已经封装了 Tauri HTTP 插件，避免 CORS 问题
     const url = `${this.baseUrl.replace(/\/$/, '')}/models?key=${apiKey}`;
@@ -47,7 +47,7 @@ export class GoogleAIProvider extends BaseProvider {
         });
         
         clearTimeout(timeoutId);
-        return { success: true };
+        return { ok: true };
       } catch (fetchError) {
         clearTimeout(timeoutId);
         throw fetchError;
@@ -56,14 +56,14 @@ export class GoogleAIProvider extends BaseProvider {
       console.error('[GoogleAIProvider] checkConnection error:', error);
       if (error instanceof Error) {
         if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时' };
+          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
         }
         if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败' };
+          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
         }
-        return { success: false, message: error.message };
+        return { ok: false, reason: 'UNKNOWN', message: error.message };
       }
-      return { success: false, message: '未知错误' };
+      return { ok: false, reason: 'UNKNOWN', message: '未知错误' };
     }
   }
 

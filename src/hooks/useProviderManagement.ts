@@ -57,7 +57,9 @@ export function useProviderManagement() {
     isLoading: repoLoading,
     init: initProviders,
     refreshAll: storeRefreshAll,
+    refresh: storeRefresh,
   } = useProviderStore();
+  const setConnecting = useProviderMetaStore(s=>s.setConnecting);
 
   // 初始加载 - 调用 store.init()
   useEffect(() => {
@@ -96,11 +98,15 @@ export function useProviderManagement() {
   // --- 刷新单个 Provider (handleSingleProviderRefresh remains largely the same) ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
     setConnectingProviderName(provider.name);
+    setConnecting(provider.name, true);
     // 先把 UI 标为正在检查
     setProviders(prev => prev.map(p => p.name === provider.name ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态...' } : p));
 
     try {
-      const updated = await providerService.refreshProviderStatus(provider.name);
+      await storeRefresh(provider.name);
+      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+      const updatedList = await providerRepository.getAll();
+      const updated = updatedList.find(p=>p.name===provider.name);
 
       if (!updated) throw new Error('无法刷新状态');
 
@@ -170,8 +176,9 @@ export function useProviderManagement() {
       }
     } finally {
       setConnectingProviderName(null);
+      setConnecting(provider.name, false);
     }
-  }, [refreshOllamaModels]);
+  }, [refreshOllamaModels, setConnecting, storeRefresh]);
 
   // --- EFFECT 1: Load Initial Data on Mount ---
   // Effect 1 被移除：首次连通性检查已在 loadData > runInitialChecks 完成。

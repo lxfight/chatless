@@ -21,7 +21,7 @@ export class OpenAIProvider extends BaseProvider {
 
   async checkConnection(): Promise<CheckResult> {
     const apiKey = await this.getApiKey();
-    if (!apiKey) return { success: false, message: 'NO_KEY' };
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
     
     const url = `${this.baseUrl.replace(/\/$/, '')}/models`;
     
@@ -39,7 +39,7 @@ export class OpenAIProvider extends BaseProvider {
         }) as Response;
         
         clearTimeout(timeoutId);
-        return resp.ok ? { success: true } : { success: false, message: `HTTP ${resp.status}` };
+        return resp.ok ? { ok: true } : { ok: false, reason: 'AUTH', message: `HTTP ${resp.status}` };
       } catch (fetchError) {
         clearTimeout(timeoutId);
         throw fetchError;
@@ -48,14 +48,14 @@ export class OpenAIProvider extends BaseProvider {
       console.error('[OpenAIProvider] checkConnection error:', error);
       if (error instanceof Error) {
         if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时' };
+          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
         }
         if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败' };
+          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
         }
-        return { success: false, message: error.message };
+        return { ok: false, reason: 'UNKNOWN', message: error.message };
       }
-      return { success: false, message: '未知错误' };
+      return { ok: false, reason: 'UNKNOWN', message: '未知错误' };
     }
   }
 

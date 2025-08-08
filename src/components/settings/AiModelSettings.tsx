@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 // import { useProviderStatusStore } from '@/store/providerStatusStore'; // <-- 已修改路径
 // 导入新的 Hook 和类型
 import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
+import { useProviderStore } from '@/store/providerStore';
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
 
 // 添加一个包含连接状态的 Provider 类型
@@ -90,6 +91,8 @@ export function AiModelSettings() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all'|'connected'|'disconnected'>('all');
   const [showSearchInput, setShowSearchInput] = useState(false);
+  const updateConfig = useProviderStore(s=>s.updateConfig);
+  const updateModelKey = useProviderStore(s=>s.updateModelKey);
 
   const filteredProviders = providers.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -175,11 +178,11 @@ export function AiModelSettings() {
               provider={provider} 
               isConnecting={connectingProviderName === provider.name}
               isInitialChecking={isLoading}
-              onUrlChange={handleServiceUrlChange}
+              onUrlChange={(name, url) => updateConfig(name, { url }).catch(console.error)}
               onUrlBlur={handleUrlBlur}
-              onDefaultApiKeyChange={handleProviderDefaultApiKeyChange}
+              onDefaultApiKeyChange={(name, key) => updateConfig(name, { apiKey: key }).catch(console.error)}
               onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
-              onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
+              onModelApiKeyChange={(modelName, apiKey) => updateModelKey(provider.name, modelName, apiKey).catch(console.error)}
               onModelApiKeyBlur={handleModelApiKeyBlur}
               onRefresh={handleSingleProviderRefresh}
            />

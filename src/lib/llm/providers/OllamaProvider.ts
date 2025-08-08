@@ -65,7 +65,7 @@ export class OllamaProvider extends BaseProvider {
           clearTimeout(timeoutId);
           console.error(`[OllamaProvider] 原生 fetch 也失败:`, nativeFetchError);
           if (nativeFetchError instanceof Error && nativeFetchError.name === 'AbortError') {
-            return { success: false, message: '连接超时（8秒内无响应）' };
+            return { ok: false, reason: 'TIMEOUT', message: '连接超时（8秒内无响应）' };
           }
           throw nativeFetchError;
         }
@@ -75,29 +75,29 @@ export class OllamaProvider extends BaseProvider {
       
       if (resp.ok) {
         console.log(`[OllamaProvider] 连接检查成功`);
-        return { success: true };
+        return { ok: true };
       }
       
       console.warn(`[OllamaProvider] 服务器响应错误，状态码: ${resp.status}`);
-      return { success: false, message: `HTTP ${resp.status} - 服务器响应错误` };
+      return { ok: false, reason: 'UNKNOWN', message: `HTTP ${resp.status} - 服务器响应错误` };
     } catch (error) {
       console.error('[OllamaProvider] checkConnection error:', error);
       if (error instanceof Error) {
         if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时（8秒内无响应）' };
+          return { ok: false, reason: 'TIMEOUT', message: '连接超时（8秒内无响应）' };
         }
         if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败 - 请检查网络和服务器地址' };
+          return { ok: false, reason: 'NETWORK', message: '网络连接失败 - 请检查网络和服务器地址' };
         }
         if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
-          return { success: false, message: '无法解析服务器地址 - 请检查URL是否正确' };
+          return { ok: false, reason: 'NETWORK', message: '无法解析服务器地址 - 请检查URL是否正确' };
         }
         if (error.message.includes('ECONNREFUSED')) {
-          return { success: false, message: '连接被拒绝 - 请检查服务器是否运行在端口6434' };
+          return { ok: false, reason: 'NETWORK', message: '连接被拒绝 - 请检查服务器是否运行在端口6434' };
         }
-        return { success: false, message: `连接错误: ${error.message}` };
+        return { ok: false, reason: 'UNKNOWN', message: `连接错误: ${error.message}` };
       }
-      return { success: false, message: '未知连接错误' };
+      return { ok: false, reason: 'UNKNOWN', message: '未知连接错误' };
     }
   }
 

@@ -36,7 +36,19 @@ export function mapToProviderWithStatus(
           return 'UNKNOWN';
       }
     })(),
-    statusTooltip: null,
+    statusTooltip: (() => {
+      if (entity.status === ProviderStatus.NO_KEY) return '未配置 API 密钥';
+      if (entity.status === ProviderStatus.NOT_CONNECTED) {
+        switch ((entity as any).lastReason) {
+          case 'AUTH': return '鉴权失败，请检查 API Key';
+          case 'NETWORK': return '网络异常或服务不可达';
+          case 'TIMEOUT': return '连接超时，请稍后重试';
+          case 'UNKNOWN': return (entity as any).lastMessage || '连接失败';
+          default: return (entity as any).lastMessage || '连接失败';
+        }
+      }
+      return null;
+    })(),
     healthCheckPath: undefined,
     authenticatedHealthCheckPath: undefined,
   } as ProviderWithStatus;
