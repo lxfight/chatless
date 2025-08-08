@@ -2,8 +2,6 @@
   <img  src="public/logo.svg"/>
 </div>
 
-English | [中文](README.md)
-
 <h1 align="center">
   chatless – Modern AI Chat Desktop Application
 </h1>
@@ -19,6 +17,10 @@ English | [中文](README.md)
 </p>
 
 > **chatless** is an AI chat desktop application built with Tauri and Next.js. Supports multiple AI providers, connects to Ollama local models, and features document parsing and knowledge base functionality. All data is stored locally, protecting user privacy. The application is lightweight, fast to start, and uses minimal resources.
+
+---
+
+**English | [中文](README.md)**
 
 ---
 

@@ -2,7 +2,6 @@
   <img  src="public/logo.svg"/>
 </div>
 
-中文 | [English](README_EN.md)
 
 <h1 align="center">
   chatless – 现代AI聊天桌面应用
@@ -19,6 +18,10 @@
 </p>
 
 > **chatless** 是一个基于Tauri和Next.js构建的AI聊天桌面应用。支持多种AI提供商，可连接Ollama本地模型，支持文档解析和知识库功能。所有数据本地存储，保护用户隐私。应用轻量简洁、启动快速、资源占用少。
+
+---
+
+**中文 | [English](README_EN.md)**
 
 ---
 
