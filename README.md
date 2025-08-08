@@ -1,164 +1,170 @@
-English | [中文](README_ZH.md)
+<div align="center">
+  <img  src="public/logo.svg"/>
+</div>
 
-# chatless – Modern AI Chat Desktop Application
+
+<h1 align="center">
+  chatless – 现代AI聊天桌面应用
+</h1>
 
 <p align="center">
-  <img alt="Build" src="https://img.shields.io/badge/build-manual-blue" />
+  <img alt="状态" src="https://img.shields.io/badge/status-active-success?style=flat-square" />
   <a href="https://github.com/kamjin3086/chatless/blob/main/LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/kamjin3086/chatless" />
+    <img alt="许可证" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
   </a>
-  <img alt="Version" src="https://img.shields.io/github/package-json/v/kamjin3086/chatless?filename=package.json&color=blueviolet" />
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" />
-  <img alt="Tech Stack" src="https://img.shields.io/badge/tech%20stack-Tauri%202.0%20%7C%20Next.js%2015%20%7C%20Rust-blue" />
+  <img alt="版本" src="https://img.shields.io/badge/version-v0.1.0-blue?style=flat-square" />
+  <img alt="平台" src="https://img.shields.io/badge/platform-cross--platform-orange?style=flat-square" />
+  <img alt="技术栈" src="https://img.shields.io/badge/stack-Tauri%20%7C%20Next.js%20%7C%20Rust-purple?style=flat-square" />
 </p>
 
-> **chatless** is a modern, privacy-first AI chat desktop application built with Tauri and Next.js. Connect to multiple AI providers, run models locally with Ollama, and chat with your documents through knowledge base integration. All data stays on your device—your conversations remain private.
+> **chatless** 是一个基于Tauri和Next.js构建的AI聊天桌面应用。支持多种AI提供商，可连接Ollama本地模型，支持文档解析和知识库功能。所有数据本地存储，保护用户隐私。应用轻量简洁、启动快速、资源占用少。
 
 ---
 
-## ✨ Key Features
-| Feature | Description |
+**中文 | [English](README_EN.md)**
+
+---
+
+## ✨ 主要功能
+
+| 功能 | 描述 |
 | --- | --- |
-| **Multi-AI Provider Support** | Connect to OpenAI, Anthropic, DeepSeek, and more AI providers |
-| **Local AI Models** | Run AI models locally with Ollama integration |
-| **Knowledge Base Integration** | Upload documents and chat with your data |
-| **Privacy-First Design** | All data stored locally on your device |
-| **Cross-Platform** | Works on Windows, macOS, and Linux |
-| **Modern UI** | Built with Next.js 15 and TailwindCSS 4 |
+| **多AI提供商支持** | 支持OpenAI、Anthropic、DeepSeek、Gemini、Claude等 |
+| **本地AI模型** | 通过Ollama集成运行本地模型 |
+| **文档解析** | 支持PDF、Word、Markdown等格式文档解析 |
+| **图片解析** | 支持Vision模型进行图片分析 |
+| **知识库集成** | 上传文档构建本地知识库 |
+| **跨平台支持** | 支持Windows、macOS和Linux |
+| **简洁界面** | 基于React和TailwindCSS构建，界面简洁易用 |
+| **轻量性能** | 安装包小、启动快、内存占用低 |
 
 ---
 
-## 📸 Screenshot Preview  
+## 📸 界面预览
 
-![chatless screenshot](public/tauri-nextjs-template-2_screenshot.png)
+![chatless截图](/docs/assets/screenshot-main1.png)
 
 ---
 
-## 🚀 Installation  
+## 🚀 快速开始
 
-### Prerequisites
-- Node.js 18+ 
-- Rust 1.70+
-- pnpm (recommended) or npm
+### 🎯 安装使用
+1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载对应平台版本
+2. **配置API** - 在设置中添加AI提供商API密钥
+3. **开始使用** - 选择模型开始对话或上传文档
 
-### Quick Start
+### 🛠️ 开发者构建
 ```bash
-# Clone the repository
 git clone https://github.com/kamjin3086/chatless.git
 cd chatless
-
-# Install dependencies
 pnpm install
-
-# Start development server
-pnpm dev
-```
-
-### Build Desktop App
-```bash
-# Build for your platform
-pnpm tauri build
+pnpm tauri dev
 ```
 
 ---
 
-## 📝 How to Use
-1. **Configure AI Providers** – Add your API keys in Settings → AI Model Settings
-2. **Set Up Local Models** – Install Ollama and download models for local processing
-3. **Create Knowledge Base** – Upload documents to chat with your data
-4. **Start Chatting** – Choose your preferred AI model and start conversations
-5. **Manage History** – View and organize your chat history
+## 📝 使用说明
+
+1. **配置AI提供商** – 在设置中添加API密钥
+2. **设置本地模型** – 安装Ollama并下载模型
+3. **创建知识库** – 上传文档构建知识库
+4. **开始对话** – 选择模型开始聊天
+5. **管理历史** – 查看和管理对话记录
 
 ---
 
-## 🛠️ Technology Stack
+## 🎯 开发计划
 
-### Frontend
-- **Framework**: [Next.js 15](https://nextjs.org/) + TypeScript
-- **Styling**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI Components**: Custom component library
-
-### Backend
-- **Desktop Framework**: [Tauri 2.0](https://v2.tauri.app/) + Rust
-- **Database**: SQLite local storage
-- **Document Processing**: PDF, Word, Markdown, and text file support
-
-### AI Integration
-- **Multi-Provider Support**: OpenAI, Anthropic, DeepSeek, and more
-- **Local Models**: Ollama integration
-- **Vector Retrieval**: Custom vector storage system
+- [ ] 支持更多AI提供商和模型
+- [ ] 完善HTTP/SOCKS5代理功能
+- [ ] 自动更新功能
+- [ ] 系统提示词设置
+- [ ] 会话标题生成
+- [ ] 多语言支持
 
 ---
 
-## 🔧 Configuration
+## 🛠️ 技术栈
 
-### AI Provider Setup
-1. Open application settings
-2. Navigate to "AI Model Settings"
-3. Add your API keys
-4. Select default models
+- **前端**: Next.js 15 + TypeScript + TailwindCSS
+- **后端**: Tauri 2.0 + Rust
+- **数据库**: SQLite
+- **AI集成**: 多提供商支持 + Ollama本地模型
 
-### Local Model Setup
+---
+
+## 🔧 配置说明
+
+### AI提供商设置
+1. 打开应用设置
+2. 进入"AI模型设置"
+3. 添加API密钥
+4. 选择默认模型
+
+### 本地模型设置
 ```bash
-# Install Ollama
+# 安装Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# Download models
+# 下载模型
 ollama pull llama2
 ollama pull mistral
 ```
 
 ---
 
-## 🔒 Privacy & Data Security
-* **Local data storage** – All conversations and documents stay on your device
-* **No cloud uploads** – AI processing happens locally or through your configured providers
-* **Privacy-first design** – No personal data collection or tracking
-* **Open source** – Transparent codebase for security verification
+## 🔒 隐私与安全
+
+* **本地数据存储** – 所有对话和文档保存在本地设备
+* **无数据上传** – 不向云端上传任何数据
+* **开源透明** – 代码开源，可验证安全性
+* **隐私保护** – 不收集用户个人信息
 
 ---
 
-## 💬 Feedback / Support
-| Channel | Link |
+## 💬 反馈与支持
+
+| 渠道 | 链接 |
 | --- | --- |
 | GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
-| Discussions | <https://github.com/kamjin3086/chatless/discussions> |
-| In-app Feedback | **Settings → Feedback** inside the application |
+| 讨论区 | <https://github.com/kamjin3086/chatless/discussions> |
+| 应用内反馈 | 应用内**设置 → 反馈** |
 
 ---
 
-## 🤝 Contributing
+## 🤝 贡献指南
 
-We welcome all forms of contributions!
+欢迎所有形式的贡献！
 
-### How to Contribute
-1. Fork this project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### 如何贡献
+1. Fork这个项目
+2. 创建你的功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交你的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开一个Pull Request
 
 ---
 
-## 🙏 Acknowledgments
+## 📜 许可证
 
-- [Tauri](https://tauri.app/) – Cross-platform desktop app framework
-- [Next.js](https://nextjs.org/) – React full-stack framework
-- [TailwindCSS](https://tailwindcss.com/) – Utility-first CSS framework
-- [Ollama](https://ollama.ai/) – Local large language model runtime
+本项目采用MIT许可证 - 查看[LICENSE](LICENSE)文件了解详情。
+
+---
+
+## 🙏 致谢
+
+- [Tauri](https://tauri.app/) – 跨平台桌面应用框架
+- [Next.js](https://nextjs.org/) – React全栈框架
+- [TailwindCSS](https://tailwindcss.com/) – 实用优先的CSS框架
+- [Ollama](https://ollama.ai/) – 本地大语言模型运行时
+- [ort](https://ort.pyke.io/) - ONNX Runtime的Rust绑定
 
 ---
 
 <p align="center">
 
-**chatless** – Making AI chat simpler, making life more focused.
+**chatless** – 简洁易用的AI聊天应用 ✨
 
-⭐ If this project helps you, please give us a star!
+⭐ 如果这个项目对你有帮助，请给我们一个星标！
 
 </p> 

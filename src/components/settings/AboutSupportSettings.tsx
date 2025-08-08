@@ -110,7 +110,7 @@ export function AboutSupportSettings() {
           <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-md transition-shadow">
             <h3 className="font-semibold text-gray-800 dark:text-gray-200">提交反馈</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              帮助我们改进产品，报告 Bug 或提出建议。
+              帮助改进应用使用体验，报告 Bug 或提出建议。
             </p>
             <button
               onClick={() => handleOpenLink(APP_INFO.feedback)}
