@@ -6,7 +6,10 @@
 
 中文 | [English](README_EN.md)
 
-# chatless – 现代AI聊天桌面应用
+<h1 align="center">
+  chatless – 现代AI聊天桌面应用
+</h1>
+
 
 <p align="center">
   <img alt="状态" src="https://img.shields.io/badge/status-active-success?style=flat-square" />

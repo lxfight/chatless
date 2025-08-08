@@ -6,7 +6,9 @@
 
 English | [中文](README.md)
 
-# chatless – Modern AI Chat Desktop Application
+<h1 align="center">
+  chatless – Modern AI Chat Desktop Application
+</h1>
 
 <p align="center">
   <img alt="Status" src="https://img.shields.io/badge/status-active-success?style=flat-square" />
