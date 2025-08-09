@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
 import { useProviderStore } from '@/store/providerStore';
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
+import { AddProvidersDialog } from './AddProvidersDialog';
+import { Button } from '@/components/ui/button';
 
 // 添加一个包含连接状态的 Provider 类型
 // 导出接口，以便其他组件可以使用
@@ -66,10 +68,7 @@ export function AiModelSettings() {
     // 可留空或补充日志
   };
 
-  // 添加 Provider 功能 (目前是占位符)
-  const handleAddProvider = () => {
-    toast.info("添加提供商功能正在开发中。"); // Use toast for feedback
-  };
+  // 添加 Provider 入口由对话框承载
 
   // Helper function to render the loading state
   const renderLoadingState = () => (
@@ -116,7 +115,7 @@ export function AiModelSettings() {
     <SettingsCard data-testid="settings-card-ai-model">
       <SettingsSectionHeader
         icon={ServerCog}
-        title="提供商配置"
+        title="管理提供商"
         iconBgColor="from-purple-500 to-indigo-500"
       />
 
@@ -160,14 +159,23 @@ export function AiModelSettings() {
           </div>
         </div>
 
-        <button
-          onClick={handleGlobalRefresh}
-          disabled={isRefreshing || isLoading || connectingProviderName !== null}
-          className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-          title="刷新全部提供商状态"
-        >
-          <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleGlobalRefresh}
+            disabled={isRefreshing || isLoading || connectingProviderName !== null}
+            className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            title="刷新全部提供商状态"
+          >
+            <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
+          </button>
+          <AddProvidersDialog
+          trigger={
+            <Button variant="secondary" size="sm" className="ml-2">
+              管理提供商
+            </Button>
+          }
+          />
+        </div>
       </div>
 
       {/* Provider 列表 */}

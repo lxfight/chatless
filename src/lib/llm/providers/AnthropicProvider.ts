@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, StreamCallbacks, LlmMessage } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 /**
@@ -15,58 +15,15 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['Anthropic']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    const list = getStaticModels('Anthropic');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，仅判断是否配置密钥
     const apiKey = await this.getApiKey();
-    if (!apiKey) {
-      return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    }
-    
-    try {
-      const url = `${this.baseUrl.replace(/\/$/, '')}/models`;
-      
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        const response = await this.fetchJson(url, {
-          method: 'GET',
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          rawResponse: true,
-          timeout: 8000 // 同时设置fetchJson的超时
-        } as any);
-        
-        clearTimeout(timeoutId);
-        return (response as Response).ok
-          ? { ok: true }
-          : { ok: false, reason: 'AUTH', message: `HTTP ${(response as Response).status} ${(response as Response).statusText}` };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[AnthropicProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
-        }
-        return { ok: false, reason: 'UNKNOWN', message: error.message };
-      }
-      return { ok: false, reason: 'UNKNOWN', message: '未知错误' };
-    }
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   /**

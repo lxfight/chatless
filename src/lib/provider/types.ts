@@ -12,6 +12,8 @@ export enum ProviderStatus {
 export interface ProviderEntity {
   /** 唯一标识 */
   name: string;
+  /** 展示名称（可编辑），不作为主键使用 */
+  displayName?: string;
   /** 服务 URL */
   url: string;
   /** 是否需要 API Key */
@@ -26,6 +28,14 @@ export interface ProviderEntity {
   lastReason?: 'NO_KEY' | 'AUTH' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN';
   /** 最近一次检查的消息 */
   lastMessage?: string | null;
+  /** 是否为用户新增的 Provider（用于 UI 标记） */
+  isUserAdded?: boolean;
+  /** 是否在 UI 中展示（不影响已配置项与缓存） */
+  isVisible?: boolean;
+  /** 运行时策略类型（用户新增时用于选择策略） */
+  strategy?: string;
+  /** 预留：头像/图标生成用的种子（稍后接入图案生成） */
+  avatarSeed?: string;
 }
 
 export interface ModelEntity {

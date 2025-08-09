@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
 import { linkOpener } from '@/lib/utils/linkOpener';
+import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 import { toast } from 'sonner';
 
 // 导入 ProviderWithStatus 类型
@@ -67,8 +68,8 @@ export function ProviderSettings({
   const providerKey = provider.name.toLowerCase();
   const docUrl = keyDocLinks[providerKey];
 
-  // 判断图标是否为SVG路径
-  const isSvgPath = provider.icon && typeof provider.icon === 'string' && provider.icon.startsWith('/');
+  // 判断图标是否为可渲染的图片地址（本地路径或 data:image）
+  const isImageSrc = !!(provider.icon && typeof provider.icon === 'string' && (provider.icon.startsWith('/') || provider.icon.startsWith('data:image')));
 
   // 处理打开模型参数设置弹窗
   const handleOpenParameters = (modelId: string, modelLabel?: string) => {
@@ -82,6 +83,10 @@ export function ProviderSettings({
 
   // 获取默认URL
   const getDefaultUrl = (providerName: string): string => {
+    // 优先从目录中查询（包括 302AI、ocoolAI、OpenRouter、Groq 等代理）
+    const def = AVAILABLE_PROVIDERS_CATALOG.find(d => d.name === providerName);
+    if (def?.defaultUrl) return def.defaultUrl;
+    // 兜底：常见官方默认地址
     switch (providerName.toLowerCase()) {
       case 'ollama':
         return 'http://localhost:11434';
@@ -100,10 +105,11 @@ export function ProviderSettings({
 
   // 重置URL到默认值
   const handleResetUrl = () => {
+    const repoName = provider.aliases?.[0] || provider.name;
     const defaultUrl = getDefaultUrl(provider.name);
     setLocalUrl(defaultUrl);
-    onUrlChange(provider.name, defaultUrl);
-    onUrlBlur(provider.name);
+    onUrlChange(repoName, defaultUrl);
+    onUrlBlur(repoName);
     toast.success('已重置为默认地址', { description: defaultUrl });
   };
 
@@ -207,7 +213,7 @@ export function ProviderSettings({
               "flex items-center justify-center w-8 h-8 rounded-md text-lg shadow-sm flex-shrink-0",
               "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800"
             )}>
-              {isSvgPath && !iconError && provider.icon ? (
+              {isImageSrc && !iconError && provider.icon ? (
                 <Image
                   src={provider.icon}
                   alt={`${provider.name} 图标`}
@@ -216,14 +222,19 @@ export function ProviderSettings({
                   className="w-5 h-5 text-gray-800 dark:text-white"
                   onError={() => setIconError(true)}
                 />
-              ) : provider.icon && !isSvgPath ? (
+              ) : provider.icon && !isImageSrc ? (
                 <span className="text-base">{provider.icon}</span>
               ) : (
                 <Database className="w-4 h-4" />
               )}
             </div>
             <div className="flex-grow min-w-0">
-              <span className="font-semibold text-base text-gray-800 dark:text-gray-200 block truncate">{provider.name}</span>
+              <span className="font-semibold text-base text-gray-800 dark:text-gray-200 block truncate">
+                {provider.name}
+                {provider.isUserAdded && (
+                  <span className="ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">新增</span>
+                )}
+              </span>
               <TooltipProvider delayDuration={100}>
                   <Tooltip>
                       <TooltipTrigger asChild>
@@ -284,8 +295,9 @@ export function ProviderSettings({
                     isUserTypingRef.current = true;
                   }}
                   onBlur={() => {
-                    onUrlChange(provider.name, localUrl);
-                    onUrlBlur(provider.name);
+                    const repoName = provider.aliases?.[0] || provider.name;
+                    onUrlChange(repoName, localUrl);
+                    onUrlBlur(repoName);
                     isUserTypingRef.current = false;
                   }}
                   placeholder={provider.name.toLowerCase()==='ollama' ? 'http://localhost:11434' : '服务地址 (http://...)'}
@@ -322,9 +334,10 @@ export function ProviderSettings({
               setLocalDefaultApiKey(e.target.value);
               isUserTypingRef.current = true;
             }}
-            onBlur={() => {
-              onDefaultApiKeyChange(provider.name, localDefaultApiKey);
-              onDefaultApiKeyBlur(provider.name);
+             onBlur={() => {
+               const repoName = provider.aliases?.[0] || provider.name;
+               onDefaultApiKeyChange(repoName, localDefaultApiKey);
+               onDefaultApiKeyBlur(repoName);
               isUserTypingRef.current = false;
             }}
             placeholder="API Key"
@@ -424,6 +437,7 @@ export function ProviderSettings({
                           isUserTypingRef.current = true;
                         }}
                         onBlur={() => {
+                          const repoName = provider.aliases?.[0] || provider.name;
                           onModelApiKeyChange(model.name, localModelApiKeys[model.name] || '');
                           onModelApiKeyBlur(model.name);
                           isUserTypingRef.current = false;
@@ -450,13 +464,9 @@ export function ProviderSettings({
               </div>
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400 pl-2">
-                {/* Model loading text: depends on individual connection status */}
-                {provider.displayStatus === 'CONNECTING' ? '正在加载模型...' : 
-                 provider.displayStatus === 'CONNECTED' ? '刷新后未找到可用模型。' : 
-                 provider.displayStatus === 'NOT_CONNECTED' ? '服务未连接或无模型。' : 
-                 provider.displayStatus === 'NO_KEY' ? '请先配置 API 密钥。' : 
-                 '连接状态未知或未配置。' // Default/Unknown
-                 }
+                {provider.models && provider.models.length === 0
+                  ? (provider.displayStatus === 'CONNECTING' ? '正在加载模型...' : '未找到可用模型。')
+                  : (provider.displayStatus === 'NO_KEY' ? '已显示已知/静态模型。配置 API 密钥后可拉取最新模型。' : '')}
               </p>
             )}
           </div>

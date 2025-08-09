@@ -1,9 +1,9 @@
 import { modelRepository } from "../ModelRepository";
 import { providerRepository } from "../ProviderRepository";
 import { ProviderStatus } from "../types";
-import { ProviderRegistry } from "@/lib/llm";
 import { defaultCacheManager } from "@/lib/cache/CacheManager";
 import { EVENTS } from "../events/keys";
+import { getStaticModels } from "../staticModels";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000;
 
@@ -21,27 +21,15 @@ export class ProviderModelService {
   }
 
   private async _fetchImpl(name: string, ttl: number): Promise<void> {
-    const providers = await providerRepository.getAll();
-    const target = providers.find((p) => p.name === name);
-    if (!target) return;
-    if (target.status !== ProviderStatus.CONNECTED) return; // 仅在已连接时拉取
-
-    const strat = ProviderRegistry.get(name);
-    if (!strat || !strat.fetchModels) return;
-
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 10000));
-      const modelsRaw = await Promise.race([Promise.resolve(strat.fetchModels()), timeoutPromise]);
-      if (modelsRaw && modelsRaw.length) {
-        await modelRepository.save(
-          name,
-          modelsRaw.map((m) => ({ provider: name, name: m.name, label: m.label, aliases: m.aliases || [m.name] })),
-          ttl
-        );
-        await defaultCacheManager.set(EVENTS.providerModels(name), true);
-      }
-    } catch (_) {
-      // 降级：保持旧缓存
+    // 改为只写入静态模型（不做在线拉取）
+    const staticList = getStaticModels(name);
+    if (staticList?.length) {
+      await modelRepository.save(
+        name,
+        staticList.map((m) => ({ provider: name, name: m.id, label: m.label, aliases: [m.id] })),
+        ttl
+      );
+      await defaultCacheManager.set(EVENTS.providerModels(name), true);
     }
   }
 }

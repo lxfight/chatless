@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 export class GoogleAIProvider extends BaseProvider {
@@ -14,57 +14,16 @@ export class GoogleAIProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['Google AI']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    // 仅使用静态模型
+    const list = getStaticModels('Google AI');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，按是否配置密钥给出状态
     const apiKey = await this.getApiKey();
     if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    
-    // 使用 request.ts 工具，它已经封装了 Tauri HTTP 插件，避免 CORS 问题
-    const url = `${this.baseUrl.replace(/\/$/, '')}/models?key=${apiKey}`;
-    
-    try {
-      const { request } = await import('@/lib/request');
-      
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        // 使用 request 工具发送请求
-        await request(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          },
-          rawResponse: true, // 获取原始 Response 对象
-          timeout: 8000 // 同时设置request的超时
-        });
-        
-        clearTimeout(timeoutId);
-        return { ok: true };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[GoogleAIProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
-        }
-        return { ok: false, reason: 'UNKNOWN', message: error.message };
-      }
-      return { ok: false, reason: 'UNKNOWN', message: '未知错误' };
-    }
+    return { ok: true };
   }
 
   async chatStream(

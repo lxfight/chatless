@@ -44,6 +44,13 @@ export class ModelRepository {
     this.listeners.forEach(l=>l(provider));
   }
 
+  /** 清空指定 provider 模型（保留键值结构） */
+  async clear(provider: string) {
+    await defaultCacheManager.set(this.key(provider), []);
+    try { await specializedStorage.models.setProviderModels(provider, []);} catch(_){}
+    this.listeners.forEach(l=>l(provider));
+  }
+
   subscribe(provider: string, cb: (models: ModelEntity[] | undefined) => void): () => void {
     return defaultCacheManager.subscribe(this.key(provider), () => {
       this.get(provider).then(cb).catch(console.error);

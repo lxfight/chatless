@@ -61,6 +61,10 @@ temp-*.md
 
 .devdbrc
 
+.private/
+.private/**/*
+.private/**
+
 .cursor
 .cursor/*
 .cursorrules

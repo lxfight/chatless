@@ -9,6 +9,7 @@ export class RefreshProviderUseCase {
     if (!updated) return { provider: undefined };
 
     if (options?.withModels) {
+      // 无论连接状态如何，都写入静态模型，确保界面可见
       await providerModelService.fetchIfNeeded(name);
       const models = await modelRepository.get(name);
       return { provider: updated, modelsLength: models?.length };

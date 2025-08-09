@@ -1,62 +1,27 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
-import { tauriFetch } from '@/lib/request';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 export class OpenAIProvider extends BaseProvider {
   private sseClient: SSEClient;
 
-  constructor(baseUrl: string, apiKey?: string) {
-    super('OpenAI', baseUrl, apiKey);
+  constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI') {
+    super(displayName, baseUrl, apiKey);
     this.sseClient = new SSEClient('OpenAIProvider');
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['OpenAI']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    // 暂不进行在线拉取，统一使用静态模型清单；按 provider 名称读取对应静态清单
+    const key = this.name || 'OpenAI';
+    const list = getStaticModels(key);
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，仅判断是否配置密钥
     const apiKey = await this.getApiKey();
     if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    
-    const url = `${this.baseUrl.replace(/\/$/, '')}/models`;
-    
-    try {
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        const resp = await tauriFetch(url, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${apiKey}` },
-          rawResponse: true,
-          timeout: 8000 // 同时设置tauriFetch的超时
-        }) as Response;
-        
-        clearTimeout(timeoutId);
-        return resp.ok ? { ok: true } : { ok: false, reason: 'AUTH', message: `HTTP ${resp.status}` };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[OpenAIProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
-        }
-        return { ok: false, reason: 'UNKNOWN', message: error.message };
-      }
-      return { ok: false, reason: 'UNKNOWN', message: '未知错误' };
-    }
+    return { ok: true };
   }
 
   async chatStream(

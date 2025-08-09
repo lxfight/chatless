@@ -1,6 +1,7 @@
 import { providerRepository } from "../ProviderRepository";
 import { KeyManager } from "@/lib/llm/KeyManager";
 import { refreshProviderUseCase } from "./RefreshProvider";
+import { syncDynamicProviders } from "@/lib/llm";
 
 export class UpdateProviderConfigUseCase {
   async execute(name: string, input: { url?: string; apiKey?: string | null }) {
@@ -24,6 +25,9 @@ export class UpdateProviderConfigUseCase {
 
     // 保存配置后触发一次刷新（含模型）
     await refreshProviderUseCase.execute(name, { withModels: true });
+
+    // 同步动态 providers 到运行时注册表
+    await syncDynamicProviders();
   }
 }
 

@@ -32,13 +32,8 @@ export class ProviderStatusService {
 
     const latestKey = target.requiresKey ? await KeyManager.getProviderKey(name) : null;
     if (target.requiresKey && !(latestKey && latestKey.trim())) {
-      // 更新状态为 NO_KEY 并清空仓库记录的 apiKey
+      // 更新状态为 NO_KEY，但不清理模型缓存，以便在无密钥时也能展示静态模型/已知模型
       await providerRepository.update({ name, status: ProviderStatus.NO_KEY, lastChecked: Date.now(), apiKey: null });
-      // 额外：清理该 Provider 的模型缓存，避免 UI 看到过期模型
-      try {
-        const { modelRepository } = await import('../ModelRepository');
-        await modelRepository.save(name, []);
-      } catch (_) {}
       return { ...target, status: ProviderStatus.NO_KEY, apiKey: null } as ProviderEntity;
     }
 

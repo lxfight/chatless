@@ -78,7 +78,7 @@ export function ModelSelector({
   };
 
   const isSvgPath = (icon?: string): icon is string => {
-    return Boolean(icon && typeof icon === 'string' && icon.startsWith('/'));
+    return Boolean(icon && typeof icon === 'string' && (icon.startsWith('/') || icon.startsWith('data:image')));
   };
 
   const currentProvider = useMemo(() => {

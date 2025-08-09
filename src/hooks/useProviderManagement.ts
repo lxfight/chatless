@@ -26,6 +26,8 @@ export interface ProviderWithStatus extends ProviderMetadata {
   statusTooltip?: string | null;
   healthCheckPath?: string;
   authenticatedHealthCheckPath?: string;
+  isUserAdded?: boolean;
+  isVisible?: boolean;
 }
 
 // --- 通用连接检查函数已抽离到 ProviderService，避免重复实现 ---
@@ -69,7 +71,9 @@ export function useProviderManagement() {
   // 替换同步 effect
   useEffect(() => {
     
-    const converted = repoProviders.map(mapToProviderWithStatus);
+    const converted = repoProviders
+      .map(mapToProviderWithStatus)
+      .filter((p:any) => p.isVisible !== false);
     
     // 按PROVIDER_ORDER排序
     const { PROVIDER_ORDER } = require('@/lib/llm');
@@ -92,21 +96,28 @@ export function useProviderManagement() {
     setGlobalQuickList(providers as any);
   }, [providers, setGlobalQuickList]);
 
+  // 保证隐藏项不进入 UI 列表（防御，若上游漏过滤）
+  useEffect(() => {
+    setProviders(prev => prev.filter((p:any)=> p.isVisible !== false));
+  }, []);
+
   // --- 数据加载 (loadData) ---
   // loadData 函数已废弃
 
   // --- 刷新单个 Provider (handleSingleProviderRefresh remains largely the same) ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
+    // 将显示名映射为仓库内部 id（自定义 Provider 的内部 id 存在 aliases[0]）
+    const repoName = provider.aliases?.[0] || provider.name;
     setConnectingProviderName(provider.name);
     setConnecting(provider.name, true);
     // 先把 UI 标为正在检查
     setProviders(prev => prev.map(p => p.name === provider.name ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态...' } : p));
 
     try {
-      await storeRefresh(provider.name);
+      await storeRefresh(repoName);
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       const updatedList = await providerRepository.getAll();
-      const updated = updatedList.find(p=>p.name===provider.name);
+      const updated = updatedList.find(p=>p.name===repoName);
 
       if (!updated) throw new Error('无法刷新状态');
 
@@ -122,7 +133,7 @@ export function useProviderManagement() {
 
       // 重新加载最新的模型数据
       const { modelRepository } = await import('@/lib/provider/ModelRepository');
-      const latestModels = await modelRepository.get(provider.name);
+      const latestModels = await modelRepository.get(repoName);
       
       setProviders(prev => prev.map(p => p.name === provider.name ? { 
         ...p, 
@@ -141,7 +152,7 @@ export function useProviderManagement() {
       } : p));
 
       // 特殊：Ollama 成功后刷新模型列表
-      if (provider.name === 'Ollama' && updated.status === ProviderStatus.CONNECTED && updated.url) {
+      if (repoName === 'Ollama' && updated.status === ProviderStatus.CONNECTED && updated.url) {
         await refreshOllamaModels(updated.url);
       }
 

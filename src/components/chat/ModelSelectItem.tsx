@@ -15,8 +15,8 @@ interface ModelSelectItemProps {
   onOpenParameters?: (providerName: string, modelId: string, modelLabel?: string) => void;
 }
 
-const isSvgPath = (icon?: string): icon is string => {
-  return Boolean(icon && typeof icon === 'string' && icon.startsWith('/'));
+const isImgSrc = (icon?: string): icon is string => {
+  return Boolean(icon && typeof icon === 'string' && (icon.startsWith('/') || icon.startsWith('data:image')));
 };
 
 export function ModelSelectItem({
@@ -37,7 +37,7 @@ export function ModelSelectItem({
       "flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer",
       isSelected ? "bg-blue-100 dark:bg-blue-600/40" : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
     )}>
-      {isSvgPath(provider.icon) ? (
+      {isImgSrc(provider.icon) ? (
         <Image
           src={provider.icon}
           alt={`${provider.name}`}

@@ -25,6 +25,8 @@ export interface QuickProviderMeta {
   models: any[];
   displayStatus?: 'CONNECTED' | 'CONNECTING' | 'NOT_CONNECTED' | 'NO_KEY' | 'UNKNOWN' | 'NO_FETCHER';
   statusTooltip?: string | null;
+  isUserAdded?: boolean;
+  isVisible?: boolean;
 }
 
 interface ProviderMetaState {

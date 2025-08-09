@@ -30,14 +30,15 @@ export function InfoBanner({ id, message, type = 'warning', className, ...rest }
   if (hidden) return null;
 
   const colors = {
-    warning: "bg-yellow-50 dark:bg-yellow-900 border-yellow-400 dark:border-yellow-600 text-yellow-800 dark:text-yellow-200",
-    info: "bg-blue-50 dark:bg-blue-900 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-200",
-    error: "bg-red-50 dark:bg-red-900 border-red-400 dark:border-red-600 text-red-800 dark:text-red-200",
+    warning: "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300/60 dark:border-yellow-700/60 text-yellow-800 dark:text-yellow-200",
+    info: "bg-blue-50 dark:bg-blue-900/30 border-blue-300/60 dark:border-blue-700/60 text-blue-800 dark:text-blue-200",
+    error: "bg-red-50 dark:bg-red-900/30 border-red-300/60 dark:border-red-700/60 text-red-800 dark:text-red-200",
   };
 
   return (
-    <div {...rest} className={cn("border-l p-3 rounded-md flex items-start justify-between", colors[type], className)}>
-      <div className="flex items-center gap-2 text-xs">
+    <div {...rest} className={cn("p-3 rounded-md flex items-start justify-between", className)}>
+      <div className={cn("w-1 rounded-sm mr-3 self-stretch", type==='warning' ? 'bg-yellow-300/60' : type==='error' ? 'bg-red-300/60' : 'bg-blue-300/60')} />
+      <div className={cn("flex items-center gap-2 text-xs flex-1 border rounded-md px-3 py-2", colors[type])}>
         <AlertTriangle className="w-4 h-4 opacity-70 flex-shrink-0" />
         <span className="opacity-80 leading-snug">{message}</span>
       </div>

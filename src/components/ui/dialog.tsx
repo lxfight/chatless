@@ -50,7 +50,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Close
         data-autofocus="false"
         tabIndex={-1}
-        className="absolute cursor-pointer right-4 top-4 p-1 opacity-70 text-gray-500 dark:text-gray-400 hover:opacity-100 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary rounded">
+        className="absolute cursor-pointer right-4 top-4 p-1 opacity-70 text-gray-500 dark:text-gray-400 hover:opacity-100 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none focus:ring-0 focus:outline-0 outline-none rounded">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>

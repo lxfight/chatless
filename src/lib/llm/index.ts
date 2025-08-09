@@ -4,6 +4,9 @@ import { DeepSeekProvider } from './providers/DeepSeekProvider';
 import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
+import { createProviderInstance } from './strategy-factory';
+import { providerRepository } from '@/lib/provider/ProviderRepository';
+import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 
 // —— 定义 Provider 注册顺序 ——
 const PROVIDER_ORDER = [
@@ -48,6 +51,39 @@ function registerAllProviders(): void {
 
 // 立即执行注册
 registerAllProviders();
+
+/**
+ * 同步用户新增的 Provider 到运行时注册表。
+ * - 跳过 Ollama（避免覆盖内建）
+ * - 未知策略默认按 openai-compatible 处理（由工厂内部兜底）
+ */
+export async function syncDynamicProviders(): Promise<void> {
+  try {
+    const list = await providerRepository.getAll();
+    for (const p of list) {
+      if (p.name === 'Ollama') continue;
+      // 从目录中找到定义，策略/默认URL等
+      const def = AVAILABLE_PROVIDERS_CATALOG.find(d => d.name === p.name);
+      if (!def) {
+        // 未在目录中，按 openai-compatible 兜底
+        const inst = createProviderInstance({
+          id: p.name.toLowerCase(),
+          name: p.name,
+          strategy: 'openai-compatible',
+          requiresKey: p.requiresKey,
+          defaultUrl: p.url,
+        }, p.url, p.apiKey);
+        ProviderRegistry.register(inst);
+        continue;
+      }
+      const inst = createProviderInstance(def, p.url, p.apiKey);
+      // 设置 name 与 def.name 保持一致（Provider 子类构造器已固定 name），若不一致可忽略
+      ProviderRegistry.register(inst);
+    }
+  } catch (e) {
+    console.warn('[llm/index] syncDynamicProviders failed:', e);
+  }
+}
 
 // 异步更新OllamaProvider的URL配置
 async function updateOllamaProviderConfig(): Promise<void> {
@@ -103,6 +139,8 @@ export async function initializeLLM(forceUpdate = false): Promise<boolean> {
     
     // 异步更新OllamaProvider配置
     await updateOllamaProviderConfig();
+    // 同步用户新增的 providers 到运行时注册表
+    await syncDynamicProviders();
     
     if (!_interpreterInstance) {
       _interpreterInstance = new LLMInterpreter();

@@ -11,10 +11,9 @@ export class RefreshAllProvidersUseCase {
     const runWorker = async () => {
       while (queue.length) {
         const p = queue.shift()!;
-        const updated = await providerStatusService.refresh(p.name);
-        if ((updated as any)?.status === 'CONNECTED' || (updated as any)?.status === 0) {
-          await providerModelService.fetchIfNeeded(p.name);
-        }
+        await providerStatusService.refresh(p.name);
+        // 无论连接状态如何，都写入静态模型，确保界面可见
+        await providerModelService.fetchIfNeeded(p.name);
       }
     };
     for (let i = 0; i < Math.min(concurrency, list.length); i += 1) {

@@ -3,7 +3,7 @@ import { modelRepository } from "../ModelRepository";
 import { ProviderEntity, ProviderStatus } from "../types";
 import { ProviderRegistry } from "@/lib/llm";
 import { KeyManager } from "@/lib/llm/KeyManager";
-import { STATIC_PROVIDER_MODELS } from "../staticModels";
+import { getStaticModels } from "../staticModels";
 
 /**
  * 仅负责初始化 Provider 列表与静态模型写入，不做状态检查。
@@ -47,10 +47,13 @@ export class ProviderInitializationService {
           status: existingConfig?.status || initStatus,
           lastChecked: existingConfig?.lastChecked || 0,
           apiKey: existingConfig?.apiKey || apiKey,
+          isUserAdded: existingConfig?.isUserAdded ?? false,
+          isVisible: existingConfig?.isVisible ?? true,
+          strategy: existingConfig?.strategy,
         };
 
-        // 写入静态模型列表（若有）
-        const staticList = STATIC_PROVIDER_MODELS[p.name];
+        // 写入静态模型列表（若有）。注意：无密钥时也保留静态模型用于展示。
+        const staticList = getStaticModels(p.name);
         if (staticList?.length) {
           await modelRepository.save(
             p.name,

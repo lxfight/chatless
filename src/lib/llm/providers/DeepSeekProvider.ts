@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 /**
@@ -15,7 +15,7 @@ export class DeepSeekProvider extends BaseProvider {
   }
 
   async checkConnection(): Promise<CheckResult> {
-    // DeepSeek 目前无公开健康端点；尝试获取模型列表或返回 NO_KEY 占位
+    // 暂不在线检查，仅判断是否配置密钥
     const key = await this.getApiKey();
     if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
     return { ok: true };
@@ -91,11 +91,8 @@ export class DeepSeekProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['DeepSeek']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    const list = getStaticModels('DeepSeek');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   /**
