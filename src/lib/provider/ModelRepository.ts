@@ -17,18 +17,21 @@ export class ModelRepository {
   async get(provider: string): Promise<ModelEntity[] | undefined> {
     // 先读内存缓存
     const inMem = await defaultCacheManager.get<ModelEntity[]>(this.key(provider));
-    if (inMem && inMem.length) return inMem;
+    if (inMem) return inMem; // 允许为空数组作为已知状态
 
     // 尝试读取持久化存储
     try {
       const names = await specializedStorage.models.getProviderModels(provider);
       if (names && names.length) {
-        const arr: ModelEntity[] = names.map(n=>({provider,name:n,aliases:[n]}));
+        const arr: ModelEntity[] = names.map((n) => ({ provider, name: n, aliases: [n] }));
         await defaultCacheManager.set(this.key(provider), arr);
         return arr;
       }
     } catch (_) {}
-    return undefined;
+
+    // 不存在则返回空数组并写入缓存，减少上层判空复杂度
+    await defaultCacheManager.set(this.key(provider), []);
+    return [];
   }
 
   async save(provider: string, models: ModelEntity[], ttl: number = DEFAULT_TTL) {
