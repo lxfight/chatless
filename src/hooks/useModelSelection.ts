@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useChatStore } from "@/store/chatStore";
 import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { useProviderStore } from '@/store/providerStore';
@@ -19,9 +19,15 @@ export const useModelSelection = () => {
   const [llmInitialized, setLlmInitialized] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [persistentLastModel, setPersistentLastModel] = useState<string | null>(null);
+  const [persistentLastPair, setPersistentLastPair] = useState<{provider: string; modelId: string} | null>(null);
   const [currentProviderName, setCurrentProviderName] = useState<string>('');
 
-  const allMetadata = useProviderMetaStore((s)=>s.list as unknown as ProviderMetadata[]);
+  // 统一来源：使用 providerMetaStore，并在读取时过滤不可见项，保证与设置页一致
+  const allMetadataRaw = useProviderMetaStore((s)=>s.list as unknown as ProviderMetadata[]);
+  const allMetadata = useMemo(
+    () => (allMetadataRaw || []).filter((p: any) => p?.isVisible !== false),
+    [allMetadataRaw]
+  );
 
   // 确保 ProviderStore 已初始化（解决聊天界面首次不显示模型的问题）
   const providerStoreInit = useProviderStore((s)=>s.init);
@@ -50,8 +56,7 @@ export const useModelSelection = () => {
     currentConversationId ? state.lastUsedModelPerChat[currentConversationId] : null
   );
   const setLastUsedModelForChat = useChatStore((state) => state.setLastUsedModelForChat);
-  const setSessionLastSelectedModel = useChatStore((state) => state.setSessionLastSelectedModel);
-  const sessionLastSelectedModel = useChatStore((state) => state.sessionLastSelectedModel);
+  // 移除会话内临时 sessionLastSelectedModel 的依赖，统一使用 storage pair
   const updateConversation = useChatStore((state) => state.updateConversation);
 
 
@@ -101,17 +106,22 @@ export const useModelSelection = () => {
         let modelSource: string = 'None';
         const currentChatId = currentConversationId;
 
-        if (persistentLastModel) {
-            targetModelId = persistentLastModel;
-            modelSource = 'Persistent Last';
+        // 1) 会话级持久化选择
+        if (currentChatId) {
+          try {
+            const { specializedStorage } = await import('@/lib/storage');
+            const convSel = await specializedStorage.models.getConversationSelectedModel(currentChatId);
+            if (convSel?.modelId && isModelValid(convSel.modelId, allMetadata)) {
+              targetModelId = convSel.modelId;
+              modelSource = 'Conversation Selected';
+            }
+          } catch (_) {}
         }
 
-        if (!targetModelId && sessionLastSelectedModel) {
-            const [providerName, modelName] = sessionLastSelectedModel.split('/');
-            if (isModelValid(modelName, allMetadata)) {
-                targetModelId = modelName;
-                modelSource = 'Last Selected (Session)';
-            }
+        // 2) 全局最近选择（pair）
+        if (!targetModelId && persistentLastModel && isModelValid(persistentLastModel, allMetadata)) {
+          targetModelId = persistentLastModel;
+          modelSource = 'Global Last Pair';
         }
 
         if (!targetModelId && currentChatId && lastUsedModel && isModelValid(lastUsedModel, allMetadata)) {
@@ -139,7 +149,7 @@ export const useModelSelection = () => {
 
     selectInitialModel();
 
-  }, [llmInitialized, allMetadata, currentConversationId, lastUsedModel, setLastUsedModelForChat, sessionLastSelectedModel, selectedModelId, persistentLastModel]);
+  }, [llmInitialized, allMetadata, currentConversationId, lastUsedModel, setLastUsedModelForChat, selectedModelId, persistentLastModel]);
 
   // Update provider name based on selected model
   useEffect(() => {
@@ -151,32 +161,37 @@ export const useModelSelection = () => {
     }
   }, [selectedModelId, allMetadata]);
 
-  // 初始化时读取持久化的 lastSelectedModel
+  // 初始化时读取持久化的 {provider, modelId}
   useEffect(() => {
     (async () => {
       try {
         const { specializedStorage } = await import('@/lib/storage');
-        const last = await specializedStorage.models.getLastSelectedModel();
-        if (last) {
-          setSelectedModelId(last);
-          setPersistentLastModel(last);
+        const pair = await specializedStorage.models.getLastSelectedModelPair();
+        if (pair && pair.modelId) {
+          setSelectedModelId(pair.modelId);
+          setPersistentLastModel(pair.modelId);
+          setPersistentLastPair(pair);
         }
       } catch (_) {}
     })();
   }, []);
 
-  // 每次 selectedModelId 变化时写入缓存
+  // 每次 selectedModelId 变化时写入缓存（仅写 pair）
   useEffect(() => {
     if (!selectedModelId) return;
     (async () => {
       try {
         const { specializedStorage } = await import('@/lib/storage');
-        await specializedStorage.models.setLastSelectedModel(selectedModelId);
+        const provider = allMetadata.find(p => p.models.some((m: any) => m.name === selectedModelId))?.name || '';
+        if (provider) {
+          await specializedStorage.models.setLastSelectedModelPair(provider, selectedModelId);
+          setPersistentLastPair({ provider, modelId: selectedModelId });
+        }
         // 同步更新内存中的 persistentLastModel，防止初始模型逻辑覆盖用户选择
         setPersistentLastModel(selectedModelId);
       } catch (_) {}
     })();
-  }, [selectedModelId]);
+  }, [selectedModelId, allMetadata]);
 
   // Handle model change
   const handleModelChange = useCallback((newModelId: string) => {
@@ -190,12 +205,20 @@ export const useModelSelection = () => {
     
     const provider = allMetadata.find(p => p.models.some((m: any) => m.name === newModelId));
     if (provider) {
-      setSessionLastSelectedModel(`${provider.name}/${newModelId}`);
+      // 会话级选择记录 provider+modelId，保障恢复
+      (async () => {
+        try {
+          const { specializedStorage } = await import('@/lib/storage');
+          if (currentConversationId) {
+            await specializedStorage.models.setConversationSelectedModel(currentConversationId, provider.name, newModelId);
+          }
+          await specializedStorage.models.setLastSelectedModelPair(provider.name, newModelId);
+        } catch (_) {}
+      })();
     } else {
-      setSessionLastSelectedModel('');
       console.warn(`[Model Change] Provider not found for newly selected model ${newModelId}. Session model reset.`);
     }
-  }, [allMetadata, currentConversationId, setSessionLastSelectedModel, updateConversation]);
+  }, [allMetadata, currentConversationId, updateConversation]);
 
   return {
     llmInitialized,

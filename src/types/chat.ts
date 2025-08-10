@@ -46,6 +46,10 @@ export interface Conversation {
   updated_at: number;
   messages: Message[];
   model_id: string;
+  /** 新增：精确保存 provider 名称 */
+  model_provider?: string;
+  /** 新增：如 provider/modelId 这样的全名 */
+  model_full_id?: string;
   is_important: boolean;
   /** 收藏标记 */
   is_favorite: boolean;

@@ -1,5 +1,6 @@
 import { Migration } from './types';
 import { migration_001 } from './scripts/001_initial_schema';
+import { migration_002 } from './scripts/002_add_model_provider';
 /**
  * 迁移注册器
  * 管理所有迁移脚本的注册和发现
@@ -19,7 +20,7 @@ export class MigrationRegistry {
     this.register(migration_001);
     
     // 添加新迁移时，只需要在这里添加一行即可
-    // this.register(migration_002);
+    this.register(migration_002);
   }
 
   /**

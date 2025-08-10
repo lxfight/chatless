@@ -2,6 +2,9 @@
  * 消息更新管理器
  * 负责管理流式数据的临时状态，实现智能防抖和批量更新
  */
+/**
+ * Deprecated: 使用 MessageAutoSaver + 内存即时更新 代替
+ */
 export class MessageUpdateManager {
   private pendingUpdates = new Map<string, {
     content: string;

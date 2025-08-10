@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Star, Check, Sparkles, Settings } from 'lucide-react';
+import { Check, Sparkles, Settings } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
@@ -41,13 +41,13 @@ export function ModelSelectItem({
         <Image
           src={provider.icon}
           alt={`${provider.name}`}
-          width={32}
-          height={32}
-          className="w-8 h-8 flex-shrink-0"
+          width={20}
+          height={20}
+          className="w-5 h-5 flex-shrink-0 rounded-sm"
         />
       ) : (
-        <div className="w-8 h-8 flex-shrink-0 bg-gray-200 dark:bg-gray-600/60 rounded-md flex items-center justify-center">
-          <Sparkles className="w-5 h-5 text-gray-500 dark:text-gray-300" />
+        <div className="w-5 h-5 flex-shrink-0 bg-gray-200 dark:bg-gray-600/60 rounded-sm flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-gray-500 dark:text-gray-300" />
         </div>
       )}
 
@@ -57,12 +57,7 @@ export function ModelSelectItem({
         </p>
       </div>
 
-      <div className="flex items-center gap-1">
-        {isDefault && (
-          <Star className="w-4 h-4 text-yellow-400" />
-        )}
-        
-      </div>
+      <div className="flex items-center gap-1" />
     </div>
   );
 } 

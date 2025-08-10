@@ -24,6 +24,7 @@ export class ConversationRepository extends BaseRepository<Conversation> {
     options: {
       is_important?: boolean;
       is_favorite?: boolean;
+      model_provider?: string;
     } = {}
   ): Promise<Conversation> {
     this.validateRequiredFields({ title, modelId }, ['title', 'modelId']);
@@ -32,6 +33,8 @@ export class ConversationRepository extends BaseRepository<Conversation> {
       id: this.generateId(),
       title,
       model_id: modelId, // 使用数据库schema中的字段名
+      model_provider: options.model_provider,
+      model_full_id: options.model_provider ? `${options.model_provider}/${modelId}` : modelId,
       is_important: options.is_important || false,
       is_favorite: options.is_favorite || false
     } as any;
@@ -281,6 +284,8 @@ export class ConversationRepository extends BaseRepository<Conversation> {
       created_at: record.created_at,
       updated_at: record.updated_at,
       model_id: record.model_id,
+      model_provider: record.model_provider,
+      model_full_id: record.model_full_id,
       is_important: this.convertToBoolean(record.is_important),
       is_favorite: this.convertToBoolean(record.is_favorite),
       messages: record.messages || []

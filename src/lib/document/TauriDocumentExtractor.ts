@@ -11,7 +11,7 @@ export class TauriDocumentExtractor implements DocumentExtractor {
 
   constructor() {
     // 立即设置默认支持的类型
-    this.supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt'];
+    this.supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt', 'json'];
     // 异步获取真实的支持类型，但不阻塞构造函数
     this.initializationPromise = this.initializeSupportedTypes();
   }
@@ -85,18 +85,31 @@ export class TauriDocumentExtractor implements DocumentExtractor {
     try {
       // 验证文件类型
       if (!this.isFileSupported(fileName)) {
-        throw new DocumentExtractionError(`不支持的文件类型: ${this.getFileExtension(fileName)}`);
+        throw new DocumentExtractionError(`不支持的文件类型: ${this.getFileExtension(fileName)}。支持的类型: ${this.supportedTypes.join(', ')}`);
       }
 
       // 将 ArrayBuffer 转换为 Uint8Array
       const uint8Array = new Uint8Array(buffer);
       const fileContent = Array.from(uint8Array);
 
-      // 调用Tauri命令解析文档
-      const content = await invoke<string>('parse_document_from_binary', {
-        fileName: fileName,
-        fileContent: fileContent
-      });
+      // 调用Tauri命令解析文档（JSON特殊处理：直接解析为文本）
+      let content: string;
+      const ext = this.getFileExtension(fileName);
+      if (ext === 'json') {
+        try {
+          const decoder = new TextDecoder('utf-8');
+          const jsonText = decoder.decode(buffer as ArrayBuffer);
+          // 压缩为单行文本，避免换行噪声
+          content = jsonText.trim();
+        } catch (e) {
+          throw new DocumentExtractionError(`JSON 文本解析失败: ${(e as Error)?.message || e}`);
+        }
+      } else {
+        content = await invoke<string>('parse_document_from_binary', {
+          fileName: fileName,
+          fileContent: fileContent
+        });
+      }
 
       const fileExtension = this.getFileExtension(fileName);
 

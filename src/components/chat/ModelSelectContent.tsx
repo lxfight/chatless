@@ -55,7 +55,7 @@ export function ModelSelectContent({
   return (
     <SelectContent
       onFocusCapture={handleFocusCapture}
-      className="max-h-[400px] w-[500px] p-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+      className="max-h-[560px] w-[500px] p-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
     >
       {/* 搜索栏 */}
       <div className="sticky top-0 z-10 p-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -68,7 +68,7 @@ export function ModelSelectContent({
             autoCorrect="off"
             spellCheck={false}
             placeholder="搜索模型或提供商..."
-            className="w-full py-2 pl-9 pr-9 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-200 transition-colors"
+            className="w-full py-1.5 pl-9 pr-9 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-200 transition-colors"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDownCapture={(e) => {

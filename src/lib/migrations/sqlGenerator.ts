@@ -27,7 +27,8 @@ export class SQLGenerator {
   /**
    * 生成字段定义
    */
-  private generateColumnDefinition(column: ColumnDefinition): string {
+  // 导出为公用，供 ensureColumns 使用
+  public generateColumnDefinition(column: ColumnDefinition): string {
     let sql = `${column.name} ${column.type}`;
     
     if (column.primaryKey) {

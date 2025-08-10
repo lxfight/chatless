@@ -1,5 +1,6 @@
 import { BaseProvider } from './providers/BaseProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
+import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { DeepSeekProvider } from './providers/DeepSeekProvider';
@@ -14,8 +15,13 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
   const baseUrl = (url || '').trim();
   switch (def.strategy) {
     case 'openai':
-    case 'openai-compatible':
       return new OpenAIProvider(
+        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+        apiKey || undefined,
+        def.name
+      );
+    case 'openai-compatible':
+      return new OpenAICompatibleProvider(
         baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
         apiKey || undefined,
         def.name
@@ -29,7 +35,7 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
     case 'ollama':
       return new OllamaProvider(baseUrl || 'http://localhost:11434');
     default:
-      return new OpenAIProvider(baseUrl || def.defaultUrl || 'https://api.openai.com/v1', apiKey || undefined);
+      return new OpenAICompatibleProvider(baseUrl || def.defaultUrl || 'https://api.openai.com/v1', apiKey || undefined);
   }
 }
 

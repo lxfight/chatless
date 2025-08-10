@@ -40,8 +40,8 @@ export function ModelSelector({
 
   useEffect(() => {
     (async () => {
-      const last = await specializedStorage.models.getLastSelectedModel();
-      setGlobalDefaultModel(last);
+      const pair = await specializedStorage.models.getLastSelectedModelPair();
+      setGlobalDefaultModel(pair ? `${pair.provider}/${pair.modelId}` : null);
     })();
   }, []);
 
@@ -90,24 +90,27 @@ export function ModelSelector({
     return null;
   }, [allMetadata, currentModelId]);
 
+  // 统一：只显示 isVisible !== false 的提供商，防御上游漏过滤
+  const visibleProviders = useMemo(() => allMetadata.filter((p: any)=>p?.isVisible !== false), [allMetadata]);
+
   const filteredModels = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    if (!query) return allMetadata;
+    if (!query) return visibleProviders;
 
-    return allMetadata.map(provider => ({
+    return visibleProviders.map(provider => ({
       ...provider,
       models: provider.models.filter(modelMeta =>
         modelMeta.name.toLowerCase().includes(query) ||
         provider.name.toLowerCase().includes(query)
       )
     })).filter(provider => provider.models.length > 0);
-  }, [allMetadata, searchQuery]);
+  }, [visibleProviders, searchQuery]);
 
   const recentModelDetails = useMemo(() => {
     const result: { provider: ProviderMetadata, model: ModelMetadata }[] = [];
-    if (!allMetadata) return result;
+    if (!visibleProviders) return result;
     recentModels.forEach(modelName => {
-      for (const provider of allMetadata) {
+      for (const provider of visibleProviders) {
         const foundModel = provider.models.find(m => m.name === modelName);
         if (foundModel) {
           result.push({ provider, model: foundModel });
@@ -116,7 +119,7 @@ export function ModelSelector({
       }
     });
     return result;
-  }, [allMetadata, recentModels]);
+  }, [visibleProviders, recentModels]);
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
@@ -134,11 +137,11 @@ export function ModelSelector({
     e.preventDefault();
     const newDefaultIdentifier = `${providerName}/${modelName}`;
     if (globalDefaultModel === newDefaultIdentifier) {
-      await specializedStorage.models.setLastSelectedModel('');
+      await specializedStorage.models.removeLastSelectedModelPair?.();
       setGlobalDefaultModel(null);
       toast.info("默认模型已清除");
     } else {
-      await specializedStorage.models.setLastSelectedModel(newDefaultIdentifier);
+      await specializedStorage.models.setLastSelectedModelPair(providerName, modelName);
       setGlobalDefaultModel(newDefaultIdentifier);
       toast.success(`${modelName} 已设为默认模型`);
     }

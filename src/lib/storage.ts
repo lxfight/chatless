@@ -350,11 +350,21 @@ export const specializedStorage = {
     getModelManagerState: () => 
       StorageUtil.getItem('modelManagerState', null, 'model-manager.json'),
 
-    // Last selected model across sessions
-    setLastSelectedModel: (modelId: string) =>
-      StorageUtil.setItem('lastSelectedModel', modelId, 'model-usage.json'),
-    getLastSelectedModel: () =>
-      StorageUtil.getItem<string>('lastSelectedModel', null, 'model-usage.json'),
+    // 保存 provider + modelId 对，避免不同 provider 同名模型冲突
+    setLastSelectedModelPair: (provider: string, modelId: string) =>
+      StorageUtil.setItem('lastSelectedModelPair', { provider, modelId }, 'model-usage.json'),
+    getLastSelectedModelPair: () =>
+      StorageUtil.getItem<{ provider: string; modelId: string }>('lastSelectedModelPair', null, 'model-usage.json'),
+    removeLastSelectedModelPair: () =>
+      StorageUtil.removeItem('lastSelectedModelPair', 'model-usage.json'),
+
+    // 每个会话固定选择（不改动数据库 schema 的前提下）
+    setConversationSelectedModel: (conversationId: string, provider: string, modelId: string) =>
+      StorageUtil.setItem(`conv_${conversationId}_selected_model`, { provider, modelId }, 'model-usage.json'),
+    getConversationSelectedModel: (conversationId: string) =>
+      StorageUtil.getItem<{ provider: string; modelId: string }>(`conv_${conversationId}_selected_model`, null, 'model-usage.json'),
+    removeConversationSelectedModel: (conversationId: string) =>
+      StorageUtil.removeItem(`conv_${conversationId}_selected_model`, 'model-usage.json'),
 
             // 模型参数配置存储
         setModelParameters: (providerName: string, modelId: string, parameters: any) => {

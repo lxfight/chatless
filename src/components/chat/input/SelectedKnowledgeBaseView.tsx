@@ -116,7 +116,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
 
   return (
     <div className={cn(
-      "relative mx-3 mb-2 p-2.5 rounded-lg border border-indigo-200/80 dark:border-indigo-700/50", 
+      "relative w-full max-w-full overflow-hidden mx-3 mb-2 p-2.5 rounded-lg border border-indigo-200/80 dark:border-indigo-700/50", 
       "bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-900/20 dark:to-purple-900/20",
       "shadow-sm hover:shadow-md transition-all duration-200",
       className
@@ -132,7 +132,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
         <X className="w-2.5 h-2.5" />
       </Button>
 
-      <div className="flex items-center gap-2.5 pr-1">
+      <div className="flex items-center gap-2.5 pr-1 min-w-0">
         {/* 知识库图标 */}
         <div className="flex-shrink-0 w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-800/50 flex items-center justify-center">
           <IconComponent className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -159,7 +159,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
             </button>
           </div>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between min-w-0 gap-2">
             <h4 className="font-medium text-gray-800 dark:text-gray-200 text-sm leading-tight truncate" title={knowledgeBase.name}>
               {knowledgeBase.name}
             </h4>

@@ -10,7 +10,8 @@ import {
 } from '@/types/document';
 
 export class DocumentParser {
-  private static readonly DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  private static readonly DEFAULT_MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB，与后端一致
+  private static readonly DEFAULT_TIMEOUT_MS = 30_000; // 30s 超时保护
   
   /**
    * 解析文档文本内容（从文件路径）
@@ -52,10 +53,12 @@ export class DocumentParser {
         };
       }
 
-      // 调用 Tauri 后端解析文档
-      const content = await invoke<string>('parse_document_text', { 
-        filePath: filePath 
-      });
+      // 调用 Tauri 后端解析文档（超时保护）
+      const content = await this.withTimeout(
+        invoke<string>('parse_document_text', { filePath }),
+        options.timeoutMs ?? this.DEFAULT_TIMEOUT_MS,
+        '解析文档'
+      );
 
       return {
         success: true,
@@ -117,10 +120,15 @@ export class DocumentParser {
       const fileContent = Array.from(new Uint8Array(fileBuffer));
 
       // 使用新的统一二进制解析命令
-      const content = await invoke<string>('parse_document_from_binary', { 
-        fileName: file.name,
-        fileContent: fileContent
-      });
+      const content = await this.withTimeout(
+        invoke<string>('parse_document_from_binary', { fileName: file.name, fileContent }),
+        options.timeoutMs ?? this.DEFAULT_TIMEOUT_MS,
+        '解析文档'
+      );
+
+      // 主动释放引用，提示 GC
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      (fileBuffer as unknown as null);
 
       return {
         success: true,
@@ -173,7 +181,7 @@ export class DocumentParser {
     } catch (error) {
       console.error('获取支持的文件类型失败:', error);
       // 返回默认的支持类型
-      return ['pdf', 'docx', 'md', 'markdown', 'txt'];
+      return ['pdf', 'docx', 'md', 'markdown', 'txt', 'json', 'csv', 'xlsx', 'xls', 'html', 'htm', 'rtf', 'epub'] as unknown as SupportedFileType[];
     }
   }
 
@@ -198,6 +206,17 @@ export class DocumentParser {
       return '';
     }
     return fileName.substring(lastDotIndex + 1).toLowerCase();
+  }
+
+  /**
+   * promise 超时保护
+   */
+  private static withTimeout<T>(promise: Promise<T>, ms: number, label = '操作'): Promise<T> {
+    let timer: any;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label}超时，请稍后重试`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
   }
 
   /**

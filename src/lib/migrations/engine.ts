@@ -301,6 +301,39 @@ export class MigrationEngine {
    */
   private async executeOperation(operation: MigrationOperation): Promise<void> {
     switch (operation.type) {
+      case 'ensureTable': {
+        const exists = await this.checkTableExists(operation.table.name);
+        if (!exists) {
+          const createSQL = sqlGenerator.generateCreateTable(operation.table, true);
+          await this.db.execute(createSQL);
+        }
+        // 幂等创建索引
+        if (operation.table.indexes) {
+          for (const index of operation.table.indexes) {
+            const indexSQL = sqlGenerator.generateCreateIndex(operation.table.name, index, true);
+            await this.db.execute(indexSQL);
+          }
+        }
+        break;
+      }
+      case 'ensureColumns': {
+        const existingCols = await this.getTableColumns(operation.tableName);
+        const existingSet = new Set(existingCols.map(c => c.toLowerCase()));
+        for (const col of operation.columns) {
+          if (!existingSet.has(col.name.toLowerCase())) {
+            const sql = `ALTER TABLE ${operation.tableName} ADD COLUMN ${sqlGenerator['generateColumnDefinition'](col)}`;
+            await this.db.execute(sql);
+          }
+        }
+        break;
+      }
+      case 'ensureIndexes': {
+        for (const idx of operation.indexes) {
+          const sql = sqlGenerator.generateCreateIndex(operation.tableName, idx, true);
+          await this.db.execute(sql);
+        }
+        break;
+      }
       case 'createTable':
         // 检查表是否已存在
         const tableExists = await this.checkTableExists(operation.table.name);
@@ -346,7 +379,13 @@ export class MigrationEngine {
         break;
 
       case 'rawSQL':
-        await this.db.execute(operation.sql, operation.params);
+        if (Array.isArray(operation.sql)) {
+          for (const s of operation.sql) {
+            await this.db.execute(s, operation.params);
+          }
+        } else {
+          await this.db.execute(operation.sql, operation.params);
+        }
         break;
 
       case 'dataMigration':
@@ -415,6 +454,15 @@ export class MigrationEngine {
     } catch (error) {
       console.warn(`检查表 ${tableName} 是否存在时出错:`, error);
       return false;
+    }
+  }
+
+  private async getTableColumns(tableName: string): Promise<string[]> {
+    try {
+      const rows = await this.db.select(`PRAGMA table_info(${tableName})`) as Array<{name: string}>;
+      return rows.map(r => r.name);
+    } catch (e) {
+      return [];
     }
   }
 } 

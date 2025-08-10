@@ -32,6 +32,10 @@ interface ChatActions {
   setCurrentConversation: (conversationId: string) => void;
   addMessage: (message: Message) => Promise<Message | null>;
   updateMessage: (messageId: string, updates: Partial<Message>) => Promise<void>;
+  /**
+   * 仅更新内存中的消息内容，不触发 DB IO
+   */
+  updateMessageContentInMemory: (messageId: string, content: string) => void;
   updateLastMessage: (content: string) => void;
   clearCurrentConversation: () => void;
   updateConversationTitle: (conversationId: string, title: string) => void;
@@ -368,6 +372,20 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }
 
         return newMessage;
+      },
+
+      updateMessageContentInMemory: (messageId, content) => {
+        const now = Date.now();
+        set(state => {
+          for (const conv of state.conversations) {
+            const msg = conv.messages?.find(m => m.id === messageId);
+            if (msg) {
+              msg.content = content;
+              conv.updated_at = now;
+              break;
+            }
+          }
+        });
       },
 
       updateMessage: async (messageId, updates) => {

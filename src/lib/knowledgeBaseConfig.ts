@@ -19,6 +19,13 @@ export interface KnowledgeBaseConfig {
     chunkSize: number;
     chunkOverlap: number;
     enableOCR: boolean;
+    // —— 新增：LLM 上下文控制 ——
+    autoAttachDocumentPreview: boolean; // 发送时是否自动拼接文档预览
+    previewTokenLimit: number; // 预览的 token 上限
+    previewKeepTailRatio: number; // 预览末尾保留比例 0~0.5
+    // —— 新增：大文档判定阈值 ——
+    bigFileSizeMb: number; // 触发索引引导的文件大小阈值
+    bigTokenThreshold: number; // 触发索引引导的 token 估算阈值
   };
   // 检索配置
   retrieval: {
@@ -63,6 +70,11 @@ export const DEFAULT_KNOWLEDGE_BASE_CONFIG: KnowledgeBaseConfig = {
     chunkSize: 1000,
     chunkOverlap: 200,
     enableOCR: false,
+    autoAttachDocumentPreview: false,
+    previewTokenLimit: 6000,
+    previewKeepTailRatio: 0.2,
+    bigFileSizeMb: 2,
+    bigTokenThreshold: 4000,
   },
   retrieval: {
     topK: 5,

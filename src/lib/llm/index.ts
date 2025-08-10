@@ -4,6 +4,7 @@ import { DeepSeekProvider } from './providers/DeepSeekProvider';
 import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
+import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider';
 import { createProviderInstance } from './strategy-factory';
 import { providerRepository } from '@/lib/provider/ProviderRepository';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
@@ -41,10 +42,14 @@ function registerAllProviders(): void {
   ProviderRegistry.register(new AnthropicProvider('https://api.anthropic.com/v1', anthropicKey));
   console.log('[llm/index] 4. AnthropicProvider 已注册');
 
-  // 5. OpenAI
+  // 5. OpenAI（严格解析）
   const openaiKey: string | undefined = undefined;
   ProviderRegistry.register(new OpenAIProvider('https://api.openai.com/v1', openaiKey));
   console.log('[llm/index] 5. OpenAIProvider 已注册');
+
+  // 6. OpenAI-Compatible（宽松解析，用于各种代理/聚合）
+  ProviderRegistry.register(new OpenAICompatibleProvider('https://api.openai.com/v1', undefined, 'OpenAI-Compatible'));
+  console.log('[llm/index] 6. OpenAICompatibleProvider 已注册');
 
   console.log(`[llm/index] 所有providers注册完成，共 ${ProviderRegistry.all().length} 个`);
 }

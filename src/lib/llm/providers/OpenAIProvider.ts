@@ -69,7 +69,7 @@ export class OpenAIProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
-            // OpenAI 特定的数据解析逻辑
+            // 严格 OpenAI：只处理以 data: 开头的行
             if (!rawData.startsWith('data:')) return;
             const jsonStr = rawData.substring(5).trim();
             if (!jsonStr) return;

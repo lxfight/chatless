@@ -17,7 +17,7 @@ import { getDatabaseService } from "@/lib/db";
 import { getRAGService } from '@/lib/rag/ragServiceInstance';
 import { historyService } from '@/lib/historyService';
 import { downloadService } from '@/lib/utils/downloadService';
-import { messageUpdateManager } from '@/lib/chat/MessageUpdateManager';
+import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
 
 type StoreMessage = any;
@@ -31,6 +31,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const updateMessageContentInMemory = useChatStore((state) => state.updateMessageContentInMemory);
   const updateConversation = useChatStore((state) => state.updateConversation);
   const renameConversation = useChatStore((state) => state.renameConversation);
   const deleteConversation = useChatStore((state) => state.deleteConversation);
@@ -76,6 +77,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   // 全局计时器引用，便于随时清理
   const renderIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const genTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaverRef = useRef<MessageAutoSaver | null>(null);
   
   // 添加内容变化检测变量
   const lastSavedContentRef = useRef('');
@@ -319,35 +321,50 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           similarityThreshold: 0.7,
         });
 
-        let fullAnswer = '';
+        // 为 RAG 流初始化自动保存器
+        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+          await updateMessage(assistantMessageId, {
+            content: latest,
+            thinking_start_time: thinking_start_time,
+          });
+        }, 1000);
+
         for await (const chunk of ragStream) {
           if (chunk.type === 'answer') {
             const token = chunk.data as string;
             currentContentRef.current += token;
             pendingContentRef.current = currentContentRef.current;
-            
-            // 使用批量更新
-            batchUpdateMessage(assistantMessageId, currentContentRef.current, thinking_start_time);
+
+            // 即时内存更新 + UI 流畅
+            updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
             setTokenCount(prev => prev + 1);
+            // 定时保存
+            autoSaverRef.current?.update(currentContentRef.current);
           } else if (chunk.type === 'error') {
             throw chunk.data as Error;
           }
         }
 
-        // 最终更新，确保完整内容被保存
-        updateMessage(assistantMessageId, {
+        // 强制flush并最终落盘
+        autoSaverRef.current?.stop();
+        await autoSaverRef.current?.flush();
+        await updateMessage(assistantMessageId, {
           content: currentContentRef.current,
           status: 'sent',
           thinking_start_time: thinking_start_time,
           thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
         });
-
+        autoSaverRef.current = null;
         return;
       } catch (error) {
         console.error('RAG query failed:', error);
-        updateMessage(assistantMessageId, {
+        autoSaverRef.current?.stop();
+        await autoSaverRef.current?.flush();
+        autoSaverRef.current = null;
+        await updateMessage(assistantMessageId, {
           status: 'error',
-          content: error instanceof Error ? error.message : 'RAG查询失败',
+          content: currentContentRef.current || (error instanceof Error ? error.message : 'RAG查询失败'),
+          thinking_start_time: thinking_start_time,
           thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
         });
         return;
@@ -375,23 +392,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       images: options?.images
     });
 
+    // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
+
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
         console.log(`[useChatActions] Starting stream for model: ${modelToUse}`);
-        
-        // 注册消息更新管理器
-        messageUpdateManager.registerUpdateCallback(assistantMessageId, (content) => {
-          // 立即更新UI状态，不等待数据库操作
-          setTokenCount(prev => prev + 1);
-        });
-        
-        messageUpdateManager.registerSaveCallback(assistantMessageId, async (content) => {
-          // 异步保存到数据库，不阻塞UI更新
-          await updateMessage(assistantMessageId, { 
-            content, 
-            thinking_start_time: thinking_start_time 
+
+        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+          await updateMessage(assistantMessageId, {
+            content: latest,
+            thinking_start_time: thinking_start_time,
           });
-        });
+        }, 1000);
 
         if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
         genTimeoutRef.current = setInterval(() => {
@@ -413,8 +425,11 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         performanceRef.current.tokenCount++;
         logPerformance();
         
-        // 使用消息更新管理器，分离UI更新和数据库操作
-        messageUpdateManager.updateMessage(assistantMessageId, currentContentRef.current);
+        // 1) 立即更新内存与界面，保证流畅
+        updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+        setTokenCount(prev => prev + 1);
+        // 2) 通知自动保存器按秒保存
+        autoSaverRef.current?.update(currentContentRef.current);
       },
       onComplete: () => {
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
@@ -427,13 +442,16 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         
         // 先更新UI状态
         setTokenCount(prev => prev + 1);
-        
-        // 然后保存到数据库
-        updateMessage(assistantMessageId, {
-          content: finalContent,
-          status: 'sent',
-          thinking_start_time: thinking_start_time,
-          thinking_duration: thinking_duration,
+        // 内存中已是最新，先停止自动保存并flush，避免定时器晚到覆盖
+        autoSaverRef.current?.stop();
+        autoSaverRef.current?.flush().finally(() => {
+          // 最终一次确认状态 & 内容
+          updateMessage(assistantMessageId, {
+            content: finalContent,
+            status: 'sent',
+            thinking_start_time: thinking_start_time,
+            thinking_duration: thinking_duration,
+          });
         });
         
         // 清理引用
@@ -447,19 +465,21 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setGenerationTimeout(null);
 
         const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        updateMessage(assistantMessageId, { 
-          status: 'error', 
-          content: error.message || "发生未知错误", 
-          thinking_start_time: thinking_start_time, 
-          thinking_duration: thinking_duration 
+        // 停止并尽量flush到最新，再标记错误
+        autoSaverRef.current?.stop();
+        autoSaverRef.current?.flush().finally(() => {
+          updateMessage(assistantMessageId, { 
+            status: 'error', 
+            content: currentContentRef.current || error.message || "发生未知错误", 
+            thinking_start_time: thinking_start_time, 
+            thinking_duration: thinking_duration 
+          });
         });
         
         // 清理引用
         currentContentRef.current = '';
         setTokenCount(0);
-        
-        // 清理消息更新管理器
-        messageUpdateManager.cleanup();
+        autoSaverRef.current = null;
         
         toast.error('发生错误', { description: briefErrorText(error) || "与AI模型的通信失败。" });
       },
@@ -518,6 +538,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       console.error("Error canceling stream:", error);
     }
     
+    // 停止并尽量落盘当前内容，防止丢尾部
+    autoSaverRef.current?.stop();
+    autoSaverRef.current?.flush().catch(() => {}).finally(() => {
+      autoSaverRef.current = null;
+    });
+
     // 清理所有定时器
     if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
     if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
@@ -527,9 +553,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     // 清理引用
     currentContentRef.current = '';
     setTokenCount(0);
-    
-    // 清理消息更新管理器
-    messageUpdateManager.cleanup();
     
     // 更新当前消息状态为已停止
     if (currentConversation?.messages) {
@@ -557,8 +580,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
       if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
       if (debouncedTokenUpdateRef.current) clearTimeout(debouncedTokenUpdateRef.current);
-      // 清理消息更新管理器
-      messageUpdateManager.cleanup();
     };
   }, []);
 

@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { BrainCircuit } from 'lucide-react';
 import { SessionParametersDialog } from './SessionParametersDialog';
 import type { ModelParameters } from '@/types/model-params';
+import { createSafePreview } from '@/lib/utils/tokenBudget';
+import { getCurrentKnowledgeBaseConfig } from '@/lib/knowledgeBaseConfig';
 
 interface EditingMessageData {
   content: string;
@@ -191,7 +193,17 @@ export function ChatInput({
       // 退出编辑模式
       onCancelEdit?.();
     } else if (attachedDocument) {
-      onSendMessage(userMessage, {
+      // 可选：自动拼接文档预览到提示词
+      let contentToSend = userMessage;
+      try {
+        const cfg = getCurrentKnowledgeBaseConfig();
+        if (cfg.documentProcessing.autoAttachDocumentPreview) {
+          const { preview } = createSafePreview(attachedDocument.content, cfg.documentProcessing.previewTokenLimit);
+          contentToSend = `${userMessage}\n\n[Document Preview]\n${preview}`;
+        }
+      } catch {}
+
+      onSendMessage(contentToSend, {
         documentReference: {
           fileName: attachedDocument.name,
           fileType: attachedDocument.name.split('.').pop() || 'unknown',
@@ -253,7 +265,13 @@ export function ChatInput({
 
     // 检查是否是可解析的文档类型
     const fileExtension = file.name.toLowerCase().split('.').pop();
-    const supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt'];
+    const supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt', 'json', 'csv', 'xlsx', 'xls', 'html', 'htm', 'rtf', 'epub'];
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB，与后端限制一致
+    if (file.size > MAX_SIZE) {
+      toast.error('文档过大', { description: `当前限制为 ${Math.round(MAX_SIZE/1024/1024)}MB，请拆分后再试` });
+      e.target.value = "";
+      return;
+    }
     
     if (supportedTypes.includes(fileExtension || '')) {
       // 处理文档解析
@@ -271,14 +289,16 @@ export function ChatInput({
     
     try {
       // 使用DocumentParser解析文件
-      const result = await DocumentParser.parseFileObject(file);
+      const result = await DocumentParser.parseFileObject(file, { maxFileSize: 20 * 1024 * 1024, timeoutMs: 30_000 });
       
       if (result.success && result.content) {
         const summary = DocumentParser.getDocumentSummary(result.content, 150);
-        
+        // 生成安全预览，防止误把超长文本拼进后续提示词
+        const { preview } = createSafePreview(result.content, 6000);
+
         setAttachedDocument({
           name: file.name,
-          content: DocumentParser.cleanDocumentContent(result.content),
+          content: DocumentParser.cleanDocumentContent(preview),
           summary,
           fileSize: file.size
         });
@@ -342,10 +362,13 @@ export function ChatInput({
       )}
 
       {attachedDocument && (
-        <AttachedDocumentView
-          document={attachedDocument}
-          onRemove={removeAttachedDocument}
-        />
+        <div className="max-w-full overflow-hidden px-1">
+          <AttachedDocumentView
+            document={attachedDocument}
+            onRemove={removeAttachedDocument}
+            onIndexed={(kbId) => setSelectedKnowledgeBase(prev => prev || { id: kbId, name: '临时收纳箱' } as any)}
+          />
+        </div>
       )}
 
       <div className="relative mt-1">
@@ -433,7 +456,7 @@ export function ChatInput({
             ref={fileInputRef}
             onChange={handleFileUpload}
             className="hidden"
-            accept=".pdf, .docx, .md, .markdown, .txt"
+            accept=".pdf, .docx, .md, .markdown, .txt, .json, .csv, .xlsx, .xls, .html, .htm, .rtf, .epub"
             disabled={disabled}
           />
         </div>

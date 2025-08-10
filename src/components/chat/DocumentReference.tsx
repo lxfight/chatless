@@ -22,6 +22,11 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
+const truncateText = (text: string, maxLength: number): string => {
+  if (!text) return "";
+  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
+};
+
 const getFileIcon = (fileType: string, variant: string = 'default') => {
   const type = fileType.toLowerCase();
   let iconColor = "";
@@ -61,10 +66,10 @@ export function DocumentReference({
       case 'user-message':
         return {
           container: "border border-blue-500/10 dark:border-blue-400/10 rounded-xl bg-blue-500/5 dark:bg-blue-400/5 p-3 my-2",
-          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate",
+          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate block",
           fileType: "text-xs text-blue-600 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-400/10 px-2 py-0.5 rounded-lg",
           fileSize: "text-xs text-blue-600/70 dark:text-blue-300/70",
-          summary: "text-sm text-blue-800/90 dark:text-blue-200/90 line-clamp-2",
+          summary: "text-sm text-blue-800/90 dark:text-blue-200/90 truncate",
           expandButton: "text-xs text-blue-600/80 dark:text-blue-300/80 hover:text-blue-700 dark:hover:text-blue-200",
           expandedHeader: "text-xs text-blue-600/70 dark:text-blue-300/70 mb-2",
           expandedContent: "text-sm text-blue-900 dark:text-blue-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-blue-100 dark:border-blue-800 max-h-60 overflow-y-auto"
@@ -72,10 +77,10 @@ export function DocumentReference({
       case 'ai-message':
         return {
           container: "border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 my-2",
-          fileName: "font-medium text-slate-900 dark:text-slate-100 text-sm truncate",
+          fileName: "font-medium text-slate-900 dark:text-slate-100 text-sm truncate block",
           fileType: "text-xs text-slate-600 dark:text-slate-300 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-0.5 rounded-lg",
           fileSize: "text-xs text-slate-500 dark:text-slate-400",
-          summary: "text-sm text-slate-700 dark:text-slate-300 line-clamp-2",
+          summary: "text-sm text-slate-700 dark:text-slate-300 truncate",
           expandButton: "text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200",
           expandedHeader: "text-xs text-slate-600 dark:text-slate-400 mb-2",
           expandedContent: "text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto"
@@ -83,10 +88,10 @@ export function DocumentReference({
       default:
         return {
           container: "border border-blue-200 dark:border-blue-800 rounded-xl bg-blue-50 dark:bg-blue-900/20 p-3 my-2",
-          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate",
+          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate block",
           fileType: "text-xs text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 px-2 py-0.5 rounded-lg",
           fileSize: "text-xs text-slate-500 dark:text-slate-400",
-          summary: "text-sm text-blue-800 dark:text-blue-200 line-clamp-2",
+          summary: "text-sm text-blue-800 dark:text-blue-200 truncate",
           expandButton: "text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300",
           expandedHeader: "text-xs text-slate-600 dark:text-slate-400 mb-2",
           expandedContent: "text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-blue-100 dark:border-blue-800 max-h-60 overflow-y-auto"
@@ -110,8 +115,8 @@ export function DocumentReference({
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className={styles.fileName}>
-              📎 {fileName}
+            <span className={styles.fileName} title={fileName}>
+              📎 {truncateText(fileName, 24)}
             </span>
             <span className={styles.fileType}>
               {fileType.toUpperCase()}
@@ -121,8 +126,8 @@ export function DocumentReference({
             </span>
           </div>
           
-          <p className={styles.summary}>
-            {summary}
+          <p className={styles.summary} title={summary}>
+            {truncateText(summary, 60)}
           </p>
           
           {/* 展开/收起按钮 */}

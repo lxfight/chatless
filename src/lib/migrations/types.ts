@@ -51,6 +51,9 @@ export type MigrationOperation =
   | DropTableOperation
   | CreateIndexOperation
   | DropIndexOperation
+  | EnsureTableOperation
+  | EnsureColumnsOperation
+  | EnsureIndexesOperation
   | RawSQLOperation
   | DataMigrationOperation;
 
@@ -82,14 +85,54 @@ export interface CreateIndexOperation {
   index: IndexDefinition;
 }
 
+// 便捷：确保表存在（等价于 createTable if not exists + 可选索引）
+export interface EnsureTableOperation {
+  type: 'ensureTable';
+  table: TableDefinition;
+}
+
+// 便捷：确保列存在（对不存在的列执行 ADD COLUMN）
+export interface EnsureColumnsOperation {
+  type: 'ensureColumns';
+  tableName: string;
+  columns: ColumnDefinition[];
+}
+
+// 便捷：确保索引存在（IF NOT EXISTS 创建索引）
+export interface EnsureIndexesOperation {
+  type: 'ensureIndexes';
+  tableName: string;
+  indexes: IndexDefinition[];
+}
+
 export interface DropIndexOperation {
   type: 'dropIndex';
   indexName: string;
 }
 
+// 幂等：确保表存在（如果不存在则创建）
+export interface EnsureTableOperation {
+  type: 'ensureTable';
+  table: TableDefinition;
+}
+
+// 幂等：确保列存在（不存在则添加）
+export interface EnsureColumnsOperation {
+  type: 'ensureColumns';
+  tableName: string;
+  columns: ColumnDefinition[];
+}
+
+// 幂等：确保索引存在（不存在则创建）
+export interface EnsureIndexesOperation {
+  type: 'ensureIndexes';
+  tableName: string;
+  indexes: IndexDefinition[];
+}
+
 export interface RawSQLOperation {
   type: 'rawSQL';
-  sql: string;
+  sql: string | string[];
   params?: any[];
 }
 
