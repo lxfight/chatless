@@ -400,6 +400,24 @@ export const specializedStorage = {
           return StorageUtil.removeItem(key, 'session-parameters.json');
         },
 
+        // —— 模型显示名（label）重命名覆盖 ——
+        setModelLabel: async (providerName: string, modelId: string, label: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          const record = (await StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json')) || {};
+          record[modelId] = label;
+          return StorageUtil.setItem(key, record, 'provider-models-meta.json');
+        },
+        getModelLabels: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          return StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json');
+        },
+        removeModelLabel: async (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          const record = (await StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json')) || {};
+          delete record[modelId];
+          return StorageUtil.setItem(key, record, 'provider-models-meta.json');
+        },
+
         // —— 模型请求策略（per-provider、per-model）——
         setModelStrategy: (providerName: string, modelId: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
           const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;

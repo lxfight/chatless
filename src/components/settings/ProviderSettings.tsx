@@ -5,6 +5,9 @@ import { CheckCircle, XCircle, KeyRound, RefreshCcw, ChevronDown, ChevronUp, Dat
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { MoreHorizontal } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"; // 使用 shadcn 折叠组件
 import { Badge } from "@/components/ui/badge"; // 导入 Badge
@@ -58,6 +61,8 @@ export function ProviderSettings({
   const [filterTools, setFilterTools] = useState(false);
   const [filterVision, setFilterVision] = useState(false);
   const [showDetailCaps, setShowDetailCaps] = useState(false); // 是否在行内展示所有能力徽标
+  // 模型显示名内联重命名
+  const [editingModel, setEditingModel] = useState<{ id: string | null; value: string }>({ id: null, value: '' });
   
   // 模型参数设置弹窗状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -676,7 +681,7 @@ export function ProviderSettings({
               </div>
             )}
             {provider.models && provider.models.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {(() => {
                   const filtered = provider.models.filter((m: ModelMetadata) => {
                     if (!m.name.toLowerCase().includes(modelSearch.toLowerCase())) return false;
@@ -688,15 +693,62 @@ export function ProviderSettings({
                     return true;
                   });
                   const toShow = modelsExpanded ? filtered : filtered.slice(0, 6);
-                  return toShow.map((model: ModelMetadata) => (
+
+                  // 分组：静态模型 vs 自定义模型
+                  const { getStaticModels } = require('@/lib/provider/staticModels');
+                  const staticList = getStaticModels(provider.name) || getStaticModels((provider as any).aliases?.[0] || provider.name) || [];
+                  const staticIds = new Set(staticList.map((m: any) => m.id));
+                  const staticModels = toShow.filter((m: ModelMetadata) => staticIds.has(m.name));
+                  const customModels = toShow.filter((m: ModelMetadata) => !staticIds.has(m.name));
+
+                  const commitRename = async (modelName: string, nextLabelRaw: string) => {
+                    const nextLabel = (nextLabelRaw || '').trim();
+                    setEditingModel({ id: null, value: '' });
+                    if (!nextLabel) return; // 空值则忽略
+                    try {
+                      const { modelRepository } = await import('@/lib/provider/ModelRepository');
+                      const { specializedStorage } = await import('@/lib/storage');
+                      const list = (await modelRepository.get(provider.name)) || [];
+                      const updated = list.map((m: any) => (m.name === modelName ? { ...m, label: nextLabel } : m));
+                      await modelRepository.save(provider.name, updated);
+                      await specializedStorage.models.setModelLabel(provider.name, modelName, nextLabel);
+                      toast.success('已重命名', { description: nextLabel });
+                      await onRefresh(provider);
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('重命名失败');
+                    }
+                  };
+
+                  const renderItem = (model: ModelMetadata) => (
                     <div key={model.name} className="flex items-center gap-2 pl-2 border-l-2 border-indigo-200 dark:border-indigo-700 py-1">
                       <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-2">
-                        <span
-                          className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate"
-                          title={model.label || model.name}
-                        >
-                          {model.label || model.name}
-                        </span>
+                        {editingModel.id === model.name ? (
+                          <input
+                            value={editingModel.value}
+                            onChange={(e) => setEditingModel((prev) => ({ ...prev, value: e.target.value }))}
+                            onBlur={() => commitRename(model.name, editingModel.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                commitRename(model.name, editingModel.value);
+                              } else if (e.key === 'Escape') {
+                                setEditingModel({ id: null, value: '' });
+                              }
+                            }}
+                            autoFocus
+                            className="text-xs font-medium text-gray-800 dark:text-gray-100 bg-transparent border-b border-dashed border-gray-300 dark:border-gray-600 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 px-0 py-0.5 min-w-[6rem]"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-left text-xs font-medium text-gray-700 dark:text-gray-300 truncate hover:underline"
+                            title={model.label || model.name}
+                            onClick={() => setEditingModel({ id: model.name, value: model.label || model.name })}
+                          >
+                            {model.label || model.name}
+                          </button>
+                        )}
                         {isMultiStrategyProvider && (
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-gray-400">策略:</span>
@@ -732,16 +784,64 @@ export function ProviderSettings({
                         {renderCapabilitySummaryButton(model.name)}
                       </div>
 
-                      {/* 模型参数设置按钮 */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
-                        onClick={() => handleOpenParameters(model.name, model.label)}
-                        title="设置模型默认参数"
-                      >
-                        <Settings className="w-3 h-3 text-gray-500 dark:text-gray-400" />
-                      </Button>
+                      {/* 三点菜单：模型参数设置 +（可选）删除模型 */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="bottom" align="end" className="min-w-[180px]">
+                          <DropdownMenuItem onSelect={(e:any)=>{ e?.preventDefault?.(); handleOpenParameters(model.name, model.label); }}>
+                            模型参数设置
+                          </DropdownMenuItem>
+                          {/* 仅允许删除“用户新增模型”，静态模型不显示删除 */}
+                          {(() => {
+                            const { getStaticModels } = require('@/lib/provider/staticModels');
+                            const staticList = getStaticModels(provider.name) || getStaticModels((provider as any).aliases?.[0] || provider.name) || [];
+                            const isStatic = staticList.some((m: any) => m.id === model.name);
+                            if (isStatic) return null;
+                            return (
+                              <>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem variant="destructive" onSelect={(e:any)=>e?.preventDefault?.()}>删除模型</DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>确认删除该模型？</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        该操作仅删除本地配置中的“用户新增模型”条目，不会影响远端服务。删除后可再次手动添加。
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>取消</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={async () => {
+                                          try {
+                                            const { modelRepository } = await import('@/lib/provider/ModelRepository');
+                                            const list = (await modelRepository.get(provider.name)) || [];
+                                            const next = list.filter((m: any) => m.name !== model.name);
+                                            await modelRepository.save(provider.name, next);
+                                            toast.success('已删除模型', { description: model.name });
+                                            await onRefresh(provider);
+                                          } catch (e) {
+                                            console.error(e);
+                                            toast.error('删除模型失败');
+                                          }
+                                        }}
+                                      >
+                                        确认删除
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            );
+                          })()}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
                       {showApiKeyFields && (
                         <InputField
@@ -765,7 +865,31 @@ export function ProviderSettings({
                         />
                       )}
                     </div>
-                  ));
+                  );
+
+                  return (
+                    <>
+                      {customModels.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-2">
+                            <span className="font-medium">自定义模型</span>
+                            <span className="opacity-60">· {customModels.length} 个</span>
+                          </div>
+                          {customModels.map(renderItem)}
+                          {staticModels.length > 0 && <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />}
+                        </div>
+                      )}
+                      {staticModels.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-2">
+                            <span className="font-medium">默认模型</span>
+                            <span className="opacity-60">· {staticModels.length} 个</span>
+                          </div>
+                          {staticModels.map(renderItem)}
+                        </div>
+                      )}
+                    </>
+                  );
                 })()}
                 {/* 展开/收起 */}
                 {provider.models.filter((m: ModelMetadata) => m.name.toLowerCase().includes(modelSearch.toLowerCase())).length > 6 && (
