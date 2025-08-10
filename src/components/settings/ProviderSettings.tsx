@@ -9,11 +9,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge"; // 导入 Badge
 import Image from "next/image"; // 导入Image组件
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // 导入 Tooltip 相关组件
+import { getModelCapabilities } from '@/lib/provider/staticModels';
+import { Brain, Workflow, Camera, Image as ImageIcon, Mic, Volume2, Clapperboard, Globe, Braces, Layers, ListOrdered, SlidersHorizontal, Ban, MessageSquareOff } from 'lucide-react';
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
 import { linkOpener } from '@/lib/utils/linkOpener';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 import { toast } from 'sonner';
+import { modelRepository } from '@/lib/provider/ModelRepository';
 
 // 导入 ProviderWithStatus 类型
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
@@ -48,6 +51,12 @@ export function ProviderSettings({
   const [showModelSearch, setShowModelSearch] = useState(false); // 控制模型搜索输入框的显示
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
   const [modelsExpanded, setModelsExpanded] = useState(false); // 模型列表展开
+  const [newModelId, setNewModelId] = useState(''); // 新增模型 ID
+  const [isAddingModel, setIsAddingModel] = useState(false);
+  const [filterThinking, setFilterThinking] = useState(false);
+  const [filterTools, setFilterTools] = useState(false);
+  const [filterVision, setFilterVision] = useState(false);
+  const [showDetailCaps, setShowDetailCaps] = useState(false); // 是否在行内展示所有能力徽标
   
   // 模型参数设置弹窗状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -204,6 +213,149 @@ export function ProviderSettings({
   // 是否显示 API Key 相关字段 (Ollama 等不需要)
   const showApiKeyFields = provider.requiresApiKey !== false;
 
+  // 是否允许用户新增模型（除 Ollama）
+  const canAddModels = provider.name !== 'Ollama';
+
+  const handleAddModel = async () => {
+    const raw = (newModelId || '').trim();
+    if (!raw) {
+      toast.error('请输入模型 ID');
+      return;
+    }
+    // 简单重复校验（对大小写不敏感）
+    const exists = (provider.models || []).some((m) => m.name.toLowerCase() === raw.toLowerCase());
+    if (exists) {
+      toast.error('模型已存在');
+      return;
+    }
+    setIsAddingModel(true);
+    try {
+      // 读取当前存储模型 → 追加 → 保存
+      const current = (await modelRepository.get(provider.name)) || [];
+      const next = [
+        ...current,
+        { provider: provider.name, name: raw, label: raw, aliases: [raw] },
+      ];
+      await modelRepository.save(provider.name, next);
+      // 刷新上层 Provider 数据
+      await onRefresh(provider);
+      setNewModelId('');
+      toast.success('已添加模型', { description: raw });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('添加模型失败', { description: err?.message || String(err) });
+    }
+    setIsAddingModel(false);
+  };
+
+  const renderCapabilityIcons = (modelId: string) => {
+    const caps = getModelCapabilities(modelId);
+    const items: Array<{ key: string; show: boolean; title: string; Icon: any; className?: string }> = [
+      { key: 'thinking', show: caps.supportsThinking, title: '支持思考/推理', Icon: Brain },
+      { key: 'tools', show: caps.supportsFunctionCalling, title: '支持工具调用', Icon: Workflow },
+      { key: 'vision', show: caps.supportsVision, title: '支持视觉', Icon: Camera },
+      { key: 'image', show: caps.supportsImageGeneration, title: '支持图片生成', Icon: ImageIcon },
+      { key: 'audio-in', show: caps.supportsAudioIn, title: '支持音频输入', Icon: Mic },
+      { key: 'audio-out', show: caps.supportsAudioOut, title: '支持音频输出/TTS', Icon: Volume2 },
+      { key: 'video', show: caps.supportsVideoGeneration, title: '支持视频生成', Icon: Clapperboard },
+      { key: 'search', show: caps.supportsWebSearch, title: '支持联网搜索', Icon: Globe },
+      { key: 'json', show: caps.supportsJSONMode, title: '支持 JSON Mode', Icon: Braces },
+      { key: 'embed', show: caps.supportsEmbedding, title: '支持 Embedding', Icon: Layers },
+      { key: 'rerank', show: caps.supportsRerank, title: '支持 Rerank', Icon: ListOrdered },
+      { key: 'reasoning-ctrl', show: caps.supportsReasoningControl, title: '支持思考强度控制', Icon: SlidersHorizontal },
+    ];
+    const negatives: Array<{ key: string; show: boolean; title: string; Icon: any }> = [
+      { key: 'no-delta', show: caps.notSupportTextDelta, title: '不支持文本增量(流式)', Icon: Ban },
+      { key: 'no-system', show: caps.notSupportSystemMessage, title: '不支持 System Message', Icon: MessageSquareOff },
+    ];
+    return (
+      <div className="flex items-center flex-wrap gap-1 text-gray-500 dark:text-gray-400">
+        {showDetailCaps && items.filter(i=>i.show).map(i => (
+          <TooltipProvider key={i.key} delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-gray-100 dark:bg-gray-700/50">
+                  <i.Icon className="w-3.5 h-3.5" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                <span className="text-xs">{i.title}</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+        {negatives.filter(n=>n.show).map(n => (
+          <TooltipProvider key={n.key} delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-red-50 dark:bg-red-900/30">
+                  <n.Icon className="w-3.5 h-3.5 text-red-500" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                <span className="text-xs text-red-500">{n.title}</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+      </div>
+    );
+  };
+
+  const renderCapabilitySummaryButton = (modelId: string) => {
+    const caps = getModelCapabilities(modelId);
+    const lines: Array<{ label: string; ok: boolean }> = [
+      { label: '思考/推理', ok: caps.supportsThinking },
+      { label: '工具调用', ok: caps.supportsFunctionCalling },
+      { label: '视觉', ok: caps.supportsVision },
+      { label: '图片生成', ok: caps.supportsImageGeneration },
+      { label: '音频输入', ok: caps.supportsAudioIn },
+      { label: '音频输出', ok: caps.supportsAudioOut },
+      { label: '视频生成', ok: caps.supportsVideoGeneration },
+      { label: '联网搜索', ok: caps.supportsWebSearch },
+      { label: 'JSON 模式', ok: caps.supportsJSONMode },
+      { label: 'Embedding', ok: caps.supportsEmbedding },
+      { label: 'Rerank', ok: caps.supportsRerank },
+      { label: '思考强度控制', ok: caps.supportsReasoningControl },
+    ];
+    const negatives: Array<{ label: string; bad: boolean }> = [
+      { label: '不支持流式增量', bad: caps.notSupportTextDelta },
+      { label: '不支持 System Message', bad: caps.notSupportSystemMessage },
+    ];
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button className="p-1 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+              aria-label="查看能力清单" title="查看能力清单">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="start" className="max-w-xs">
+            <div className="text-xs space-y-1">
+              {lines.map((l, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className={`inline-block w-2 h-2 rounded-full ${l.ok? 'bg-green-500':'bg-gray-400'}`} />
+                  <span>{l.label}</span>
+                </div>
+              ))}
+              {negatives.filter(n=>n.bad).length>0 && (
+                <div className="pt-1">
+                  {negatives.filter(n=>n.bad).map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 text-red-500">
+                      <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+                      <span>{n.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   return (
     <>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden bg-white/60 dark:bg-gray-800/30 hover:bg-gray-50/40 transition-colors">
@@ -324,55 +476,97 @@ export function ProviderSettings({
             </div>
           </div>
           {showApiKeyFields && (
-          <div className="flex items-center gap-2">
-          <div className="flex-1">
-          <InputField
-            label="默认 API Key"
-            type="password"
-            value={localDefaultApiKey}
-            onChange={(e) => {
-              setLocalDefaultApiKey(e.target.value);
-              isUserTypingRef.current = true;
-            }}
-             onBlur={() => {
-               const repoName = provider.aliases?.[0] || provider.name;
-               onDefaultApiKeyChange(repoName, localDefaultApiKey);
-               onDefaultApiKeyBlur(repoName);
-              isUserTypingRef.current = false;
-            }}
-            placeholder="API Key"
-            className="h-8 text-sm w-full"
-            icon={<KeyRound className="w-4 h-4 text-gray-400" />}
-          />
-          {docUrl && (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const success = await linkOpener.openLink(docUrl);
-                  if (!success) {
-                    toast.error('无法打开链接，请稍后重试');
-                  }
-                } catch (error) {
-                  console.error('打开链接失败:', error);
-                  toast.error('打开链接失败');
-                }
-              }}
-              className="p-1 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded focus:outline-none"
-              title="前往秘钥管理"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </button>
-          )}
-          </div>
-          </div>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <InputField
+                  label="默认 API Key"
+                  type="password"
+                  value={localDefaultApiKey}
+                  onChange={(e) => {
+                    setLocalDefaultApiKey(e.target.value);
+                    isUserTypingRef.current = true;
+                  }}
+                  onBlur={() => {
+                    const repoName = provider.aliases?.[0] || provider.name;
+                    onDefaultApiKeyChange(repoName, localDefaultApiKey);
+                    onDefaultApiKeyBlur(repoName);
+                    isUserTypingRef.current = false;
+                  }}
+                  placeholder="API Key"
+                  className="h-8 text-sm w-full"
+                  wrapperClassName="mb-0"
+                  icon={<KeyRound className="w-4 h-4 text-gray-400" />}
+                />
+              </div>
+              {docUrl && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const success = await linkOpener.openLink(docUrl);
+                      if (!success) {
+                        toast.error('无法打开链接，请稍后重试');
+                      }
+                    } catch (error) {
+                      console.error('打开链接失败:', error);
+                      toast.error('打开链接失败');
+                    }
+                  }}
+                  className="h-8 w-8 flex items-center justify-center text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded focus:outline-none"
+                  title="前往秘钥管理"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           )}
 
           {/* 模型列表和配置 */}
           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            {/* 标题 + 搜索 */}
+            {/* 标题 + 搜索 + 能力筛选 */}
             <div className="flex items-center justify-between mb-2 gap-2">
-              <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400">可用模型配置</h4>
+              <div className="flex items-center gap-2 min-w-0">
+                <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">可用模型配置</h4>
+                {provider.models && (
+                  <span className="text-[10px] text-gray-400 whitespace-nowrap">{provider.models.length} 个</span>
+                )}
+                {/* 能力筛选（轻量） */}
+                <div className="hidden sm:flex items-center gap-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={()=>setFilterThinking(v=>!v)}
+                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterThinking? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    title="仅显示支持思考的模型"
+                  >
+                    <Brain className="w-3 h-3" />思考
+                  </button>
+                  <button
+                    type="button"
+                    onClick={()=>setFilterTools(v=>!v)}
+                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterTools? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    title="仅显示支持工具调用的模型"
+                  >
+                    <Workflow className="w-3 h-3" />工具
+                  </button>
+                  <button
+                    type="button"
+                    onClick={()=>setFilterVision(v=>!v)}
+                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterVision? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    title="仅显示支持视觉的模型"
+                  >
+                    <Camera className="w-3 h-3" />视觉
+                  </button>
+                  <span className="mx-1 text-gray-300 dark:text-gray-600">|</span>
+                  <button
+                    type="button"
+                    onClick={()=>setShowDetailCaps(v=>!v)}
+                    className={`px-1.5 h-5 rounded-md text-[10px] ${showDetailCaps? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    title="切换行内能力徽标的显示"
+                  >
+                    {showDetailCaps? '详细徽标' : '简洁模式'}
+                  </button>
+                </div>
+              </div>
               {/* 当模型较多时提供筛选 */}
               {provider.models && provider.models.length > 8 && (
                 showModelSearch ? (
@@ -400,22 +594,53 @@ export function ProviderSettings({
                 )
               )}
             </div>
+            {/* 新增模型（除 Ollama） */}
+            {canAddModels && (
+              <div className="flex items-center gap-2 mb-2">
+                <Input
+                  value={newModelId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewModelId(e.target.value)}
+                  placeholder="输入模型 ID，例如：gpt-4o 或 deepseek-r1"
+                  className="h-7 text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={isAddingModel || isGloballyInitializing}
+                  onClick={handleAddModel}
+                >
+                  {isAddingModel ? <Loader2 className="w-3 h-3 animate-spin" /> : '添加模型'}
+                </Button>
+              </div>
+            )}
             {provider.models && provider.models.length > 0 ? (
               <div className="space-y-2">
                 {(() => {
-                  const filtered = provider.models.filter((m: ModelMetadata) =>
-                    m.name.toLowerCase().includes(modelSearch.toLowerCase())
-                  );
+                  const filtered = provider.models.filter((m: ModelMetadata) => {
+                    if (!m.name.toLowerCase().includes(modelSearch.toLowerCase())) return false;
+                    if (!filterThinking && !filterTools && !filterVision) return true;
+                    const caps = getModelCapabilities(m.name);
+                    if (filterThinking && !caps.supportsThinking) return false;
+                    if (filterTools && !caps.supportsFunctionCalling) return false;
+                    if (filterVision && !caps.supportsVision) return false;
+                    return true;
+                  });
                   const toShow = modelsExpanded ? filtered : filtered.slice(0, 6);
                   return toShow.map((model: ModelMetadata) => (
                     <div key={model.name} className="flex items-center gap-2 pl-2 border-l-2 border-indigo-200 dark:border-indigo-700 py-1">
-                      <span
-                        className="flex-auto text-xs font-medium text-gray-700 dark:text-gray-300 truncate pr-2"
-                        title={model.label || model.name}
-                      >
-                        {model.label || model.name}
-                      </span>
-                      
+                      <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-2">
+                        <span
+                          className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate"
+                          title={model.label || model.name}
+                        >
+                          {model.label || model.name}
+                        </span>
+                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                        {renderCapabilityIcons(model.name)}
+                        {renderCapabilitySummaryButton(model.name)}
+                      </div>
+
                       {/* 模型参数设置按钮 */}
                       <Button
                         variant="ghost"
@@ -426,27 +651,27 @@ export function ProviderSettings({
                       >
                         <Settings className="w-3 h-3 text-gray-500 dark:text-gray-400" />
                       </Button>
-                      
+
                       {showApiKeyFields && (
-                      <InputField
-                        label=""
-                        type="password"
-                        value={localModelApiKeys[model.name] || ''}
-                        onChange={(e) => {
-                          setLocalModelApiKeys((prev) => ({ ...prev, [model.name]: e.target.value }));
-                          isUserTypingRef.current = true;
-                        }}
-                        onBlur={() => {
-                          const repoName = provider.aliases?.[0] || provider.name;
-                          onModelApiKeyChange(model.name, localModelApiKeys[model.name] || '');
-                          onModelApiKeyBlur(model.name);
-                          isUserTypingRef.current = false;
-                        }}
-                        placeholder="模型 API Key (可选)"
-                        className="h-7 text-xs w-40"
-                        wrapperClassName="mb-0 flex-shrink-0"
-                        icon={<KeyRound className="w-3 h-3 text-gray-400" />}
-                      />
+                        <InputField
+                          label=""
+                          type="password"
+                          value={localModelApiKeys[model.name] || ''}
+                          onChange={(e) => {
+                            setLocalModelApiKeys((prev) => ({ ...prev, [model.name]: e.target.value }));
+                            isUserTypingRef.current = true;
+                          }}
+                          onBlur={() => {
+                            const repoName = provider.aliases?.[0] || provider.name;
+                            onModelApiKeyChange(model.name, localModelApiKeys[model.name] || '');
+                            onModelApiKeyBlur(model.name);
+                            isUserTypingRef.current = false;
+                          }}
+                          placeholder="模型 API Key (可选)"
+                          className="h-7 text-xs w-40"
+                          wrapperClassName="mb-0 flex-shrink-0"
+                          icon={<KeyRound className="w-3 h-3 text-gray-400" />}
+                        />
                       )}
                     </div>
                   ));

@@ -2,6 +2,7 @@
 // 后续可提取为专用 Hook 或工具文件以符合文件规模规范。
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
+import { trimToastDescription } from '@/components/ui/sonner';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatStore } from "@/store/chatStore";
@@ -86,6 +87,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   const navigateToSettings = useCallback((tab: string = 'localModels') => {
     router.push(`/settings?tab=${tab}`);
   }, [router]);
+
+  // 将错误信息压缩为短文本，避免右下角提示过长
+  const briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
 
   const checkApiKeyValidity = useCallback(async (providerName: string, modelId: string): Promise<boolean> => {
     return true;
@@ -395,7 +399,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             console.warn('Generation timed out due to inactivity.');
             handleStopGeneration();
             updateMessage(assistantMessageId, { status: 'error', content: '响应超时', thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) });
-            toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
+          toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
             if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
           }
         }, 5000);
@@ -457,7 +461,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 清理消息更新管理器
         messageUpdateManager.cleanup();
         
-        toast.error('发生错误', { description: error.message || "与AI模型的通信失败。" });
+        toast.error('发生错误', { description: briefErrorText(error) || "与AI模型的通信失败。" });
       },
     };
 
