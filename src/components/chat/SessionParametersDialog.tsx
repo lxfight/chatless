@@ -124,8 +124,9 @@ export function SessionParametersDialog({
         advancedOptions: advanced,
       };
       const chatOptions = ModelParametersService.convertToChatOptions(tempParams);
-      // 仅展示“将下发的参数”，不经过策略引擎加工，避免出现默认值回填造成误解
-      setAppliedOptionsJson(JSON.stringify(chatOptions, null, 2));
+      // 展示最终将下发的参数：在用户改动项基础上叠加模型级高级参数（策略引擎注入）
+      const finalOptions = ParameterPolicyEngine.apply(providerName, modelId, chatOptions);
+      setAppliedOptionsJson(JSON.stringify(finalOptions, null, 2));
     } catch (e: any) {
       setAdvancedJsonError(e?.message || 'JSON 格式错误');
     }

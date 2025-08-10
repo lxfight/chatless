@@ -31,6 +31,18 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-border": "var(--border)",
         } as React.CSSProperties
       }
+      position={props.position || "bottom-right"}
+      toastOptions={{
+        ...props.toastOptions,
+        classNames: {
+          ...props.toastOptions?.classNames,
+          toast: "rounded-md border bg-[var(--normal-bg)] text-[var(--normal-text)] border-[var(--normal-border)] shadow-md",
+          title: "text-sm font-medium",
+          description: "text-xs opacity-90",
+          actionButton: "text-xs",
+          cancelButton: "text-xs",
+        },
+      }}
       {...props}
     />
   )

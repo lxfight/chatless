@@ -37,7 +37,10 @@ export class AnthropicProvider extends BaseProvider {
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
-      callbacks.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（Anthropic）。请在设置中配置密钥后重试';
+      callbacks.onError?.(err);
       return;
     }
 

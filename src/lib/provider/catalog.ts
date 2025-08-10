@@ -4,7 +4,8 @@ export type CatalogStrategy =
   | 'anthropic'            // Claude
   | 'gemini'               // Google AI
   | 'deepseek'             // DeepSeek
-  | 'ollama';              // Ollama（不出现在可添加列表，仅作占位）
+  | 'ollama'               // Ollama（不出现在可添加列表，仅作占位）
+  | 'multi';               // 多策略委派（例如 New API：按模型选择具体协议）
 
 export interface CatalogProviderDef {
   id: string;          // 唯一 id，用作内部标识
@@ -45,6 +46,14 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
     strategy: 'deepseek',
     requiresKey: true,
     defaultUrl: 'https://api.deepseek.com',
+  },
+  {
+    id: 'newapi',
+    name: 'New API',
+    strategy: 'multi',
+    requiresKey: true,
+    // 默认留空，用户在设置中填写；或可根据部署填入聚合网关地址
+    defaultUrl: ''
   },
   // 兼容 OpenAI 的常见代理/聚合服务
   { id: '302ai', name: '302AI', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.302.ai/v1' },

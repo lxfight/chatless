@@ -15,7 +15,8 @@ const PROVIDER_ORDER = [
   'DeepSeek',    // 2. DeepSeek
   'Google AI',   // 3. Google AI
   'Anthropic',   // 4. Anthropic
-  'OpenAI'       // 5. OpenAI
+  'OpenAI',      // 5. OpenAI
+  'New API'      // 6. New API（多策略聚合）
 ];
 
 // 同步注册所有providers，确保顺序正确

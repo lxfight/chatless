@@ -399,6 +399,32 @@ export const specializedStorage = {
           const key = `session_${conversationId}_params`;
           return StorageUtil.removeItem(key, 'session-parameters.json');
         },
+
+        // —— 模型请求策略（per-provider、per-model）——
+        setModelStrategy: (providerName: string, modelId: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.setItem(key, strategy, 'model-strategy.json');
+        },
+        getModelStrategy: (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.getItem<string>(key, null, 'model-strategy.json');
+        },
+        removeModelStrategy: (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.removeItem(key, 'model-strategy.json');
+        },
+        setProviderDefaultStrategy: (providerName: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.setItem(key, strategy, 'model-strategy.json');
+        },
+        getProviderDefaultStrategy: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.getItem<string>(key, null, 'model-strategy.json');
+        },
+        removeProviderDefaultStrategy: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.removeItem(key, 'model-strategy.json');
+        },
   },
 
   /**

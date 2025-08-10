@@ -82,8 +82,32 @@ export class LLMInterpreter {
     }
 
     try {
+      // 计算参数策略应用时的“有效 Provider 名称”
+      // 场景：New API 这类多策略聚合，根据模型选择下游协议，需要把策略引擎视作对应的真实 Provider
+      let policyProviderName = provider;
+      try {
+        const lower = provider.toLowerCase();
+        const isMulti = lower === 'new api' || lower === 'newapi';
+        if (isMulti) {
+          const { specializedStorage } = await import('@/lib/storage');
+          const s = (await specializedStorage.models.getModelStrategy(provider, model))
+            || (await specializedStorage.models.getProviderDefaultStrategy(provider))
+            || 'openai-compatible';
+          policyProviderName = ((): string => {
+            switch (s) {
+              case 'gemini': return 'Google AI';
+              case 'anthropic': return 'Anthropic';
+              case 'deepseek': return 'DeepSeek';
+              case 'openai': return 'OpenAI';
+              case 'openai-compatible':
+              default: return 'OpenAI-Compatible';
+            }
+          })();
+        }
+      } catch (_) {}
+
       // 应用参数策略（按 Provider/模型正则自动注入/修正）
-      const refined = ParameterPolicyEngine.apply(provider, model, options || {});
+      const refined = ParameterPolicyEngine.apply(policyProviderName, model, options || {});
       await strategy.chatStream(model, messages as any, callbacks, refined);
     } catch (e: any) {
       callbacks.onError?.(e);

@@ -2,6 +2,7 @@ import { providerRepository } from "../ProviderRepository";
 import { KeyManager } from "@/lib/llm/KeyManager";
 import { refreshProviderUseCase } from "./RefreshProvider";
 import { syncDynamicProviders } from "@/lib/llm";
+import { specializedStorage } from "@/lib/storage";
 
 export class UpdateProviderConfigUseCase {
   async execute(name: string, input: { url?: string; apiKey?: string | null }) {
@@ -22,6 +23,14 @@ export class UpdateProviderConfigUseCase {
       // 只有当调用方显式传入 apiKey 字段时才更新仓库里的 apiKey，避免误覆盖
       ...(typeof input.apiKey !== "undefined" ? { apiKey: input.apiKey ?? null } : {}),
     });
+
+    // 对于 multi 策略（例如 New API），若无设置默认策略，初始化为 openai-compatible
+    try {
+      const def = await specializedStorage.models.getProviderDefaultStrategy(name);
+      if (!def) {
+        await specializedStorage.models.setProviderDefaultStrategy(name, 'openai-compatible');
+      }
+    } catch (_) {}
 
     // 保存配置后触发一次刷新（含模型）
     await refreshProviderUseCase.execute(name, { withModels: true });

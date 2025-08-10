@@ -35,7 +35,10 @@ export class GoogleAIProvider extends BaseProvider {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
       console.error('[GoogleAIProvider] No API key provided');
-      cb.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（Google AI）。请在设置中配置密钥后重试';
+      cb.onError?.(err);
       return;
     }
     

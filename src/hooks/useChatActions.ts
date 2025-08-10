@@ -19,6 +19,7 @@ import { historyService } from '@/lib/historyService';
 import { downloadService } from '@/lib/utils/downloadService';
 import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
+import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
 
 type StoreMessage = any;
 
@@ -468,11 +469,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 停止并尽量flush到最新，再标记错误
         autoSaverRef.current?.stop();
         autoSaverRef.current?.flush().finally(() => {
-          updateMessage(assistantMessageId, { 
-            status: 'error', 
-            content: currentContentRef.current || error.message || "发生未知错误", 
-            thinking_start_time: thinking_start_time, 
-            thinking_duration: thinking_duration 
+          updateMessage(assistantMessageId, {
+            status: 'error',
+            content:
+              currentContentRef.current || (error as any)?.userMessage || briefErrorText(error) || '发生未知错误',
+            thinking_start_time: thinking_start_time,
+            thinking_duration: thinking_duration,
           });
         });
         
@@ -481,7 +483,17 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(0);
         autoSaverRef.current = null;
         
-        toast.error('发生错误', { description: briefErrorText(error) || "与AI模型的通信失败。" });
+        const code = (error as any)?.code || (typeof error?.message === 'string' && error.message);
+        if (code === 'NO_KEY') {
+          toast.error('未配置 API 密钥', {
+            description:
+              (error as any)?.userMessage || '请在“设置 → 模型与Provider”中为当前 Provider 或模型配置密钥后重试。',
+          });
+        } else {
+          toast.error('发生错误', {
+            description: (error as any)?.userMessage || briefErrorText(error) || '与AI模型的通信失败。',
+          });
+        }
       },
     };
 
@@ -491,16 +503,20 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       
       try {
         if (sessionParameters) {
-          // 仅当存在“会话参数”时才显式下发；无会话参数则完全不下发，交由模型默认处理
+          // 会话参数（仅改动项）
           chatOptions = ModelParametersService.convertToChatOptions(sessionParameters);
         } else {
+          // 无会话参数：不下发通用参数，但允许策略引擎注入“模型级默认/必要高级参数”
           chatOptions = {};
         }
         
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, chatOptions).catch(err => console.error("streamChat promise rejected:", err));
+        // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
+        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, chatOptions);
+        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
       } catch (error) {
         console.error('获取模型参数失败，使用默认参数:', error);
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, {}).catch(err => console.error("streamChat promise rejected:", err));
+        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, {});
+        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
       }
     } else {
        console.error("No model selected, cannot start chat.");

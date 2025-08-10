@@ -32,7 +32,10 @@ export class OpenAIProvider extends BaseProvider {
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
-      cb.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥，请在“设置 → 模型与Provider”中为当前 Provider 或模型配置密钥';
+      cb.onError?.(err);
       return;
     }
 

@@ -21,16 +21,19 @@ export class ProviderModelService {
   }
 
   private async _fetchImpl(name: string, ttl: number): Promise<void> {
-    // 改为只写入静态模型（不做在线拉取）
-    const staticList = getStaticModels(name);
-    if (staticList?.length) {
-      await modelRepository.save(
-        name,
-        staticList.map((m) => ({ provider: name, name: m.id, label: m.label, aliases: [m.id] })),
-        ttl
-      );
-      await defaultCacheManager.set(EVENTS.providerModels(name), true);
+    // 合并静态模型与用户已添加模型，避免覆盖用户新增项
+    const staticList = getStaticModels(name) || [];
+    const existing = (await modelRepository.get(name)) || [];
+
+    const byName = new Map<string, { provider: string; name: string; label?: string; aliases: string[] }>();
+    for (const m of existing) byName.set(m.name, m);
+    for (const s of staticList) {
+      if (!byName.has(s.id)) byName.set(s.id, { provider: name, name: s.id, label: s.label, aliases: [s.id] });
     }
+
+    const merged = Array.from(byName.values());
+    await modelRepository.save(name, merged, ttl);
+    await defaultCacheManager.set(EVENTS.providerModels(name), true);
   }
 }
 

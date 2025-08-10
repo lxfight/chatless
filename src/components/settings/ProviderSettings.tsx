@@ -4,6 +4,7 @@ import { InputField } from './InputField';
 import { CheckCircle, XCircle, KeyRound, RefreshCcw, ChevronDown, ChevronUp, Database, Loader2, AlertTriangle, HelpCircle, Search, ExternalLink, Settings, RotateCcw, Wifi, Undo2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"; // 使用 shadcn 折叠组件
 import { Badge } from "@/components/ui/badge"; // 导入 Badge
@@ -215,6 +216,33 @@ export function ProviderSettings({
 
   // 是否允许用户新增模型（除 Ollama）
   const canAddModels = provider.name !== 'Ollama';
+
+  // —— 模型策略选择（仅对 multi 策略类 provider 有意义，如 New API） ——
+  const isMultiStrategyProvider = provider.name.toLowerCase() === 'new api' || provider.name.toLowerCase() === 'newapi';
+  const STRATEGY_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
+    { value: 'openai', label: 'OpenAI Strict' },
+    { value: 'anthropic', label: 'Anthropic (messages)' },
+    { value: 'gemini', label: 'Google Gemini (generateContent)' },
+    { value: 'deepseek', label: 'DeepSeek (chat/completions)' },
+  ];
+  const [defaultStrategy, setDefaultStrategy] = useState<string>('openai-compatible');
+  const [modelStrategies, setModelStrategies] = useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    (async () => {
+      if (!isMultiStrategyProvider) return;
+      const { specializedStorage } = await import('@/lib/storage');
+      const def = await specializedStorage.models.getProviderDefaultStrategy(provider.name);
+      setDefaultStrategy(def || 'openai-compatible');
+      const map: Record<string, string> = {};
+      for (const m of provider.models || []) {
+        const s = await specializedStorage.models.getModelStrategy(provider.name, m.name);
+        if (s) map[m.name] = s;
+      }
+      setModelStrategies(map);
+    })().catch(console.error);
+  }, [provider.name, provider.models, isMultiStrategyProvider]);
 
   const handleAddModel = async () => {
     const raw = (newModelId || '').trim();
@@ -523,6 +551,39 @@ export function ProviderSettings({
 
           {/* 模型列表和配置 */}
           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            {isMultiStrategyProvider && (
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">默认请求策略</label>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={defaultStrategy}
+                    onValueChange={async (val) => {
+                      try {
+                        setDefaultStrategy(val);
+                        const { specializedStorage } = await import('@/lib/storage');
+                        await specializedStorage.models.setProviderDefaultStrategy(provider.name, val as any);
+                        toast.success('已更新默认策略');
+                      } catch (e) {
+                        console.error(e);
+                        toast.error('更新默认策略失败');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-80 h-8 text-xs">
+                      <SelectValue placeholder="选择默认请求策略" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STRATEGY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="mt-1 text-[10px] text-gray-400">对于 New API 等聚合服务，默认策略会应用到未单独指定策略的模型上。</p>
+              </div>
+            )}
             {/* 标题 + 搜索 + 能力筛选 */}
             <div className="flex items-center justify-between mb-2 gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -636,6 +697,36 @@ export function ProviderSettings({
                         >
                           {model.label || model.name}
                         </span>
+                        {isMultiStrategyProvider && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400">策略:</span>
+                            <Select
+                              value={modelStrategies[model.name] || defaultStrategy}
+                              onValueChange={async (val) => {
+                                try {
+                                  const { specializedStorage } = await import('@/lib/storage');
+                                  setModelStrategies(prev => ({ ...prev, [model.name]: val }));
+                                  await specializedStorage.models.setModelStrategy(provider.name, model.name, val as any);
+                                  toast.success('模型策略已保存');
+                                } catch (e) {
+                                  console.error(e);
+                                  toast.error('保存模型策略失败');
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-6 w-64 text-[11px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {STRATEGY_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                         <span className="text-gray-300 dark:text-gray-600">·</span>
                         {renderCapabilityIcons(model.name)}
                         {renderCapabilitySummaryButton(model.name)}

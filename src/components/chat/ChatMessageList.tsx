@@ -38,7 +38,7 @@ export function ChatMessageList({
   return (
     <div className="flex-1 custom-scrollbar">
       <div className="px-2 py-2">
-        {messages.map((message) => (
+        {messages.map((message, idx) => (
           <div
             key={message.id}
             ref={(el) => {
@@ -57,7 +57,14 @@ export function ChatMessageList({
             role={message.role}
             timestamp={new Date(message.created_at).toISOString()}
             model={message.model}
-            status={message.status || (isLoading && messages[messages.length - 1].id === message.id ? 'loading' : 'sent')}
+            status={((): any => {
+              const isLast = messages[messages.length - 1]?.id === message.id;
+              const s = message.status;
+              // 只允许“最后一条消息”进入 loading；历史消息即便存有旧的 loading 标记也强制视为已完成
+              if (!isLast && s === 'loading') return 'sent';
+              if (isLast) return s || (isLoading ? 'loading' : 'sent');
+              return s || 'sent';
+            })()}
             thinking_duration={message.thinking_duration}
             onSaveThinkingDuration={onSaveThinkingDuration}
             documentReference={message.document_reference}

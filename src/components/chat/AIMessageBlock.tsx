@@ -232,7 +232,6 @@ export function AIMessageBlock({
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
-            <Brain className="w-3.5 h-3.5 text-slate-400 animate-pulse" />
             <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
           </div>
           <div className="flex gap-1">
@@ -240,7 +239,7 @@ export function AIMessageBlock({
             <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
             <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
           </div>
-          <span className="text-sm text-slate-500 dark:text-slate-400">AI正在思考...</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">等待模型响应...</span>
         </div>
       )}
 

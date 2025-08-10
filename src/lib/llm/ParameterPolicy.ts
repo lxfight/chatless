@@ -42,15 +42,16 @@ const builtinRules: ParameterRule[] = [
     model:
       /^(gemini-2\.5-(pro|flash-thinking)(?:-[a-z]+)?|gemini-1\.5-.*-thinking|gemini-2\.0-.*-thinking|.*-thinking)$/i,
     apply: (base) => {
+      // 只注入思考预算；不强行设置 temperature/topP 等通用参数，避免用户未开启也被下发
       const patch: ParameterPatch = {
         generationConfig: {
-          // 若用户或上游已给出则尊重已有值，否则给出温和默认
-          temperature: base?.temperature ?? base?.generationConfig?.temperature ?? 0.7,
-          // 统一映射 maxTokens → maxOutputTokens（Gemini 字段名）
-          maxOutputTokens:
-            base?.maxOutputTokens ?? base?.maxTokens ?? base?.generationConfig?.maxOutputTokens,
-          topP: base?.topP ?? base?.generationConfig?.topP,
-          stopSequences: base?.stop ?? base?.generationConfig?.stopSequences,
+          // 统一映射 maxTokens → maxOutputTokens（若用户显式设置才透传）
+          ...(base?.maxOutputTokens || base?.maxTokens || base?.generationConfig?.maxOutputTokens
+            ? { maxOutputTokens: base?.maxOutputTokens ?? base?.maxTokens ?? base?.generationConfig?.maxOutputTokens }
+            : {}),
+          ...(base?.stop || base?.generationConfig?.stopSequences
+            ? { stopSequences: base?.stop ?? base?.generationConfig?.stopSequences }
+            : {}),
           thinkingConfig: {
             // 仅当未设置或为 0 时，给出非零预算，避免 400 错误
             thinkingBudget:

@@ -55,7 +55,14 @@ export class DeepSeekProvider extends BaseProvider {
     };
 
     const apiKey = await this.getApiKey(model);
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    if (!apiKey) {
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（DeepSeek）。请在设置中配置密钥后重试';
+      cb.onError?.(err);
+      return;
+    }
+    headers['Authorization'] = `Bearer ${apiKey}`;
 
     try {
       await this.sseClient.startConnection(
