@@ -329,7 +329,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="input-area bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3">
+    <div className="input-area bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3 overflow-x-hidden">
       {/* 编辑模式提示栏 */}
       {editingMessage && (
         <div className="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 text-xs text-yellow-800 dark:text-yellow-200 rounded-md px-3 py-1 mb-2">
@@ -362,7 +362,7 @@ export function ChatInput({
       )}
 
       {attachedDocument && (
-        <div className="max-w-full overflow-hidden px-1">
+        <div className="w-full max-w-full overflow-hidden px-1">
           <AttachedDocumentView
             document={attachedDocument}
             onRemove={removeAttachedDocument}

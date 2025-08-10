@@ -124,8 +124,8 @@ export function SessionParametersDialog({
         advancedOptions: advanced,
       };
       const chatOptions = ModelParametersService.convertToChatOptions(tempParams);
-      const applied = ParameterPolicyEngine.apply(providerName, modelId, chatOptions);
-      setAppliedOptionsJson(JSON.stringify(applied, null, 2));
+      // 仅展示“将下发的参数”，不经过策略引擎加工，避免出现默认值回填造成误解
+      setAppliedOptionsJson(JSON.stringify(chatOptions, null, 2));
     } catch (e: any) {
       setAdvancedJsonError(e?.message || 'JSON 格式错误');
     }
@@ -253,8 +253,20 @@ export function SessionParametersDialog({
       // 清除会话参数
       await ModelParametersService.removeSessionParameters(conversationId);
       
-      // 重置为模型默认参数
-      await handleResetToModelDefault();
+      // 清理为“完全不下发”的视觉状态：关闭所有开关，值显示为系统默认，仅作参考
+      setParameters({
+        ...DEFAULT_MODEL_PARAMETERS,
+        enableTemperature: false,
+        enableMaxTokens: false,
+        enableTopP: false,
+        enableFrequencyPenalty: false,
+        enablePresencePenalty: false,
+        enableStopSequences: false,
+      } as any);
+      setStopSequences([]);
+      setParameterSource('default');
+      setAdvancedJsonText('{}');
+      setAppliedOptionsJson('{}');
     } catch (error) {
       console.error('清除会话参数失败:', error);
       setParameters(DEFAULT_MODEL_PARAMETERS);
@@ -334,7 +346,9 @@ export function SessionParametersDialog({
                     </Badge>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-gray-500">仅对当前会话生效，不会影响模型默认参数。</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  仅对当前会话生效；<span className="font-medium">未开启或未改动</span>的参数<strong>不会下发</strong>，由模型默认值接管。
+                </p>
               </div>
             </div>
           
@@ -346,7 +360,10 @@ export function SessionParametersDialog({
           {/* Temperature */}
           <div className="space-y-2">
             <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTemperature === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>多样性</Label>
+              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTemperature === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>
+                多样性
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enableTemperature === false ? '不下发' : '将覆盖默认'}</span>
+              </Label>
               <input
                 type="range"
                 className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
@@ -371,7 +388,10 @@ export function SessionParametersDialog({
           {/* Max Tokens */}
           <div className="space-y-2">
             <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableMaxTokens === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>回复长度上限</Label>
+              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableMaxTokens === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>
+                回复长度上限
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enableMaxTokens === false ? '不下发' : '将覆盖默认'}</span>
+              </Label>
               <input
                 type="range"
                 className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
@@ -396,7 +416,10 @@ export function SessionParametersDialog({
           {/* topP */}
           <div className="space-y-2">
             <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTopP === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>采样阈值</Label>
+              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTopP === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>
+                采样阈值
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enableTopP === false ? '不下发' : '将覆盖默认'}</span>
+              </Label>
               <input
                 type="range"
                 className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
@@ -421,7 +444,10 @@ export function SessionParametersDialog({
           {/* frequencyPenalty */}
           <div className="space-y-2">
             <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableFrequencyPenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>频率惩罚</Label>
+              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableFrequencyPenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>
+                频率惩罚
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enableFrequencyPenalty === false ? '不下发' : '将覆盖默认'}</span>
+              </Label>
               <input
                 type="range"
                 className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
@@ -446,7 +472,10 @@ export function SessionParametersDialog({
           {/* presencePenalty */}
           <div className="space-y-2">
             <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enablePresencePenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>新主题倾向</Label>
+              <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enablePresencePenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>
+                新主题倾向
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enablePresencePenalty === false ? '不下发' : '将覆盖默认'}</span>
+              </Label>
               <input
                 type="range"
                 className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
@@ -473,6 +502,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-4">
               <Label className={cn("text-sm font-medium min-w-20", parameters.enableStopSequences === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300") }>
                 停止序列
+                <span className="ml-1 text-[10px] text-gray-400">{parameters.enableStopSequences === false ? '不下发' : '将覆盖默认'}</span>
               </Label>
               <div className="flex gap-2 flex-1">
                 <Input

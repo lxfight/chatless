@@ -63,23 +63,33 @@ export class ModelParametersService {
    * 将模型参数转换为聊天选项格式
    */
   static convertToChatOptions(parameters: ModelParameters): Record<string, any> {
+    // 仅当用户“启用”某参数或者值与默认不同，才传给 Provider
     const opts: Record<string, any> = { ...(parameters.advancedOptions || {}) };
-    if (parameters.enableTemperature !== false) {
+    const def = DEFAULT_MODEL_PARAMETERS;
+
+    const shouldSet = (enabledFlag: boolean | undefined, value: any, defValue: any) => {
+      // 若显式关闭则不传；若与默认相同且未显式开启也不传
+      if (enabledFlag === false) return false;
+      if (enabledFlag === true) return true;
+      return value !== defValue;
+    };
+
+    if (shouldSet(parameters.enableTemperature, parameters.temperature, def.temperature)) {
       opts.temperature = parameters.temperature;
     }
-    if (parameters.enableMaxTokens !== false) {
+    if (shouldSet(parameters.enableMaxTokens, parameters.maxTokens, def.maxTokens)) {
       opts.maxTokens = parameters.maxTokens;
     }
-    if (parameters.enableTopP !== false) {
+    if (shouldSet(parameters.enableTopP, parameters.topP, def.topP)) {
       opts.topP = parameters.topP;
     }
-    if (parameters.enableFrequencyPenalty !== false) {
+    if (shouldSet(parameters.enableFrequencyPenalty, parameters.frequencyPenalty, def.frequencyPenalty)) {
       opts.frequencyPenalty = parameters.frequencyPenalty;
     }
-    if (parameters.enablePresencePenalty !== false) {
+    if (shouldSet(parameters.enablePresencePenalty, parameters.presencePenalty, def.presencePenalty)) {
       opts.presencePenalty = parameters.presencePenalty;
     }
-    if (parameters.enableStopSequences !== false) {
+    if (shouldSet(parameters.enableStopSequences, parameters.stopSequences.length, 0)) {
       if (parameters.stopSequences.length > 0) {
         opts.stop = parameters.stopSequences;
       }

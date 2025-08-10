@@ -104,7 +104,7 @@ export function DocumentReference({
   return (
     <div className={cn(
       styles.container,
-      "will-change-auto transform-gpu transition-all duration-200",
+      "will-change-auto transform-gpu transition-all duration-200 min-w-0",
       className
     )}>
       {/* 文档引用头部 */}
@@ -116,7 +116,7 @@ export function DocumentReference({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
             <span className={styles.fileName} title={fileName}>
-              📎 {truncateText(fileName, 24)}
+              📎 {truncateText(fileName, 18)}
             </span>
             <span className={styles.fileType}>
               {fileType.toUpperCase()}
@@ -127,7 +127,7 @@ export function DocumentReference({
           </div>
           
           <p className={styles.summary} title={summary}>
-            {truncateText(summary, 60)}
+            {truncateText(summary, 36)}
           </p>
           
           {/* 展开/收起按钮 */}

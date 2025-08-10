@@ -12,6 +12,8 @@ import { useMarkdownFontSize } from '@/hooks/useMarkdownFontSize';
 interface MemoizedMarkdownProps {
   content: string;
   className?: string;
+  // 可选：覆盖全局字号（用于“思考过程”等需要缩小一号的场景）
+  sizeOverride?: 'small' | 'medium' | 'large';
 }
 
 // 根据字号动态生成渲染器
@@ -131,12 +133,14 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
   };
 }
 
-export const MemoizedMarkdown = memo(({ content, className }: MemoizedMarkdownProps) => {
+export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: MemoizedMarkdownProps) => {
   const { size } = useMarkdownFontSize();
 
-  const sizeClass = size === 'small' ? 'text-sm' : size === 'large' ? 'text-lg' : 'text-base';
+  const effectiveSize = sizeOverride ?? size;
 
-  const renderers = createRenderers(size);
+  const sizeClass = effectiveSize === 'small' ? 'text-sm' : effectiveSize === 'large' ? 'text-lg' : 'text-base';
+
+  const renderers = createRenderers(effectiveSize);
 
   return (
     <div className={cn(sizeClass, className)}>

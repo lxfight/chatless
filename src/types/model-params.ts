@@ -25,12 +25,13 @@ export interface ModelConfig {
 }
 
 export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
-  enableTemperature: true,
-  enableMaxTokens: true,
-  enableTopP: true,
-  enableFrequencyPenalty: true,
-  enablePresencePenalty: true,
-  enableStopSequences: true,
+  // 模型参数默认均未启用：开箱即用“不下发”，仅在开启后才覆盖模型默认
+  enableTemperature: false,
+  enableMaxTokens: false,
+  enableTopP: false,
+  enableFrequencyPenalty: false,
+  enablePresencePenalty: false,
+  enableStopSequences: false,
   temperature: 0.7,
   maxTokens: 2048,
   topP: 1.0,

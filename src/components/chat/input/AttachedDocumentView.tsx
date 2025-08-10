@@ -73,8 +73,8 @@ export function AttachedDocumentView({ document, onRemove, className, onIndexed 
       setIndexing(false);
     }
   };
-  const TITLE_MAX = 36;
-  const SUMMARY_MAX = 60;
+  const TITLE_MAX = 20;
+  const SUMMARY_MAX = 40;
   const titleText = truncateText(document.name, TITLE_MAX);
   const summary = truncateText(document.summary, SUMMARY_MAX);
   return (
@@ -112,22 +112,22 @@ export function AttachedDocumentView({ document, onRemove, className, onIndexed 
             </span>
           </div>
           
-          <h4 className="font-medium text-gray-800 dark:text-gray-200 text-[13px] leading-tight truncate mb-0.5" title={document.name}>
-            {titleText}
+          <h4 className="font-medium text-gray-800 dark:text-gray-200 text-[13px] leading-tight truncate mb-0.5 max-w-full" title={document.name}>
+            <span className="block truncate">{titleText}</span>
           </h4>
           
           {document.summary && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 truncate leading-relaxed">
-            {summary}
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed max-w-full">
+            <span className="block truncate">{summary}</span>
           </p>
           )}
         </div>
       </div>
 
       {(isBigFile || isBigToken) && (
-        <div className="mt-2 px-2 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          <div className="truncate">检测到大文档，推荐转入知识库以获得更稳定的问答体验</div>
-          <div className="flex items-center gap-1">
+        <div className="mt-2 px-2 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex-1 min-w-0 truncate">检测到大文档，推荐转入知识库以获得更稳定的问答体验</div>
+          <div className="flex-shrink-0 flex items-center gap-1">
             <Button size="sm" variant="secondary" className="h-7 px-2" onClick={handleQuickIndex} disabled={indexing}>
               {indexing ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Database className="w-3.5 h-3.5"/>}
               <span className="ml-1">一键索引并引用</span>

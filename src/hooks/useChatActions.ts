@@ -491,12 +491,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       
       try {
         if (sessionParameters) {
-          // 使用会话参数
+          // 仅当存在“会话参数”时才显式下发；无会话参数则完全不下发，交由模型默认处理
           chatOptions = ModelParametersService.convertToChatOptions(sessionParameters);
         } else {
-          // 获取模型默认参数
-          const modelParameters = await ModelParametersService.getModelParameters(currentProviderName, modelToUse);
-          chatOptions = ModelParametersService.convertToChatOptions(modelParameters);
+          chatOptions = {};
         }
         
         streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, chatOptions).catch(err => console.error("streamChat promise rejected:", err));
