@@ -1,6 +1,7 @@
 import { ProviderEntity, ProviderStatus, ModelEntity } from './types';
 import { generateAvatarDataUrl } from '@/lib/avatar';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
+import { getStaticModels } from './staticModels';
 
 /**
  * 将持久化的 ProviderEntity + models 映射为 UI 层使用的 ProviderWithStatus
@@ -15,6 +16,10 @@ export function mapToProviderWithStatus(
     ? generateAvatarDataUrl(entity.avatarSeed, displayName, 20)
     : defaultIcon;
 
+  // 预先加载该 Provider 的静态模型，便于为缺失 label 的旧数据补全展示名
+  const staticList = getStaticModels(displayName) || getStaticModels(entity.name) || [];
+  const idToLabel = new Map(staticList.map((m) => [m.id, m.label]));
+
   return {
     name: displayName,
     aliases: [entity.name],
@@ -27,7 +32,7 @@ export function mapToProviderWithStatus(
     models: (entity.models ?? []).map((m) => ({
       name: m.name,
       aliases: m.aliases,
-      label: m.label,
+      label: m.label || idToLabel.get(m.name) || m.name,
       api_key: (m as any).apiKey ?? null,
     })),
     // 透传运行时显示状态（若存在）

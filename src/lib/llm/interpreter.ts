@@ -4,6 +4,7 @@ import { Message, StreamCallbacks, ChatOptions } from './types';
 import { tauriFetch } from '@/lib/request';
 import { isTauriEnvironment } from '@/lib/utils/environment';
 import { ProviderRegistry } from './index';
+import { ParameterPolicyEngine } from './ParameterPolicy';
 
 /**
  * 简化版 LLMInterpreter：
@@ -81,7 +82,9 @@ export class LLMInterpreter {
     }
 
     try {
-      await strategy.chatStream(model, messages as any, callbacks, options);
+      // 应用参数策略（按 Provider/模型正则自动注入/修正）
+      const refined = ParameterPolicyEngine.apply(provider, model, options || {});
+      await strategy.chatStream(model, messages as any, callbacks, refined);
     } catch (e: any) {
       callbacks.onError?.(e);
       throw e;

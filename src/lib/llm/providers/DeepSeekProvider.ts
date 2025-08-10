@@ -34,11 +34,19 @@ export class DeepSeekProvider extends BaseProvider {
     // 组合请求参数
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
+    const mapped: any = { ...opts };
+    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
+    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
+    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
+    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = opts.frequencyPenalty;
+    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = opts.presencePenalty;
+    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+
     const body = {
       model,
       stream: true,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      ...opts,
+      ...mapped,
     };
 
     // 准备请求头

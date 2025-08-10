@@ -30,7 +30,7 @@ export class GoogleAIProvider extends BaseProvider {
     model: string,
     messages: LlmMessage[],
     cb: StreamCallbacks,
-    _opts: Record<string, any> = {}
+    opts: Record<string, any> = {}
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
@@ -42,20 +42,36 @@ export class GoogleAIProvider extends BaseProvider {
     // 构造正确的 URL - 使用官方文档中的流式API端点
     const url = `${this.baseUrl.replace(/\/$/, '')}/models/${model}:streamGenerateContent?alt=sse`;
     
-    // 构造正确的请求体格式 - 根据官方文档添加role字段
-    const body = {
+    // 将通用选项映射到 Gemini generationConfig
+    const generationConfig: any = {
+      ...(opts.generationConfig || {}),
+    };
+    // 仅当未在 generationConfig 中出现时才从扁平字段映射
+    if (generationConfig.temperature === undefined && opts.temperature !== undefined) {
+      generationConfig.temperature = opts.temperature;
+    }
+    if (generationConfig.topP === undefined && opts.topP !== undefined) {
+      generationConfig.topP = opts.topP;
+    }
+    // OpenAI 风格的 maxTokens → Gemini 的 maxOutputTokens
+    if (generationConfig.maxOutputTokens === undefined) {
+      const flatMax = (opts as any).maxOutputTokens ?? (opts as any).maxTokens;
+      if (flatMax !== undefined) generationConfig.maxOutputTokens = flatMax;
+    }
+    if (generationConfig.stopSequences === undefined && (opts as any).stop) {
+      generationConfig.stopSequences = (opts as any).stop;
+    }
+
+    const body: any = {
       contents: messages.map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
       })),
-      generationConfig: { 
-        temperature: 0.7,
-        // 可选：禁用思考功能以节省成本
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
-      }
+      generationConfig,
     };
+    // 透传 Gemini 允许的其他顶层字段（若存在）
+    if ((opts as any).safetySettings) body.safetySettings = (opts as any).safetySettings;
+    if ((opts as any).tools) body.tools = (opts as any).tools;
 
     console.log('[GoogleAIProvider] Starting chat stream with:', {
       model,

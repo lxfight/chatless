@@ -43,11 +43,17 @@ export class AnthropicProvider extends BaseProvider {
 
     // Claude expects messages as array of {role, content}
     const endpoint = `${this.baseUrl.replace(/\/$/, '')}/messages`;
+    const mapped: any = { ...options };
+    if (options.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxTokens;
+    if (options.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxOutputTokens;
+    if (options.stop !== undefined && mapped.stop_sequences === undefined) mapped.stop_sequences = options.stop;
+    if (options.topP !== undefined && mapped.top_p === undefined) mapped.top_p = options.topP;
+
     const body = {
       model,
       messages,
-      max_tokens: options?.maxOutputTokens ?? 1024,
       stream: true,
+      ...mapped,
     };
 
     try {

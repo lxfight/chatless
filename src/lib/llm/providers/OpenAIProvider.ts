@@ -37,11 +37,20 @@ export class OpenAIProvider extends BaseProvider {
     }
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
+    // 将通用选项映射为 OpenAI 字段（snake_case）
+    const mapped: any = { ...opts };
+    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
+    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
+    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
+    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = opts.frequencyPenalty;
+    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = opts.presencePenalty;
+    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+
     const body = {
       model,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
       stream: true,
-      ...opts
+      ...mapped,
     };
 
     try {
