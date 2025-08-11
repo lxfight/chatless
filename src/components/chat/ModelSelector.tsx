@@ -73,8 +73,32 @@ export function ModelSelector({
   };
 
   const handleInternalModelChange = (value: string) => {
-    updateRecentModels(value);
-    onModelChange(value);
+    let providerName: string | undefined;
+    let modelId: string = value;
+    // 如果携带 provider 信息，格式为 "provider::model"
+    if (value.includes('::')) {
+      const parts = value.split('::');
+      if (parts.length === 2) {
+        providerName = parts[0];
+        modelId = parts[1];
+      }
+    }
+
+    // 更新最近使用列表（仅记录模型名）
+    updateRecentModels(modelId);
+
+    // 如果拿到了 provider 名称，则立即同步到持久化，避免同名模型误匹配
+    if (providerName) {
+      (async () => {
+        try {
+          const { specializedStorage } = await import('@/lib/storage');
+          await specializedStorage.models.setLastSelectedModelPair(providerName!, modelId);
+        } catch (_) {}
+      })();
+    }
+
+    // 通知上层只发送模型名以保持兼容
+    onModelChange(modelId);
   };
 
   const isSvgPath = (icon?: string): icon is string => {

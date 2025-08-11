@@ -249,7 +249,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     
     if (!conversationId) {
       try {
-        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse);
+        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, currentProviderName);
       } catch (error) {
         console.error("Failed to create conversation:", error);
         toast.error('创建对话失败', { description: '无法创建新的对话，请重试。' });
@@ -472,7 +472,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           updateMessage(assistantMessageId, {
             status: 'error',
             content:
-              currentContentRef.current || (error as any)?.userMessage || briefErrorText(error) || '发生未知错误',
+              currentContentRef.current
+                || (error as any)?.userMessage
+                || (error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)))
+                || '发生未知错误',
             thinking_start_time: thinking_start_time,
             thinking_duration: thinking_duration,
           });

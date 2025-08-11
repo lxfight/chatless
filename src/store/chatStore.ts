@@ -27,7 +27,7 @@ interface ChatState {
 
 interface ChatActions {
   loadConversations: () => Promise<void>;
-  createConversation: (title: string, modelId: string) => Promise<string>;
+  createConversation: (title: string, modelId: string, providerName?: string) => Promise<string>;
   deleteConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversationId: string) => void;
   addMessage: (message: Message) => Promise<Message | null>;
@@ -198,6 +198,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
               created_at: convAny.created_at || convAny.created_at,
               updated_at: convAny.updated_at || convAny.updated_at,
               model_id: convAny.model_id || convAny.model_id || 'default',
+              model_provider: convAny.model_provider || null,
+              model_full_id: convAny.model_full_id || (convAny.model_provider ? `${convAny.model_provider}/${convAny.model_id}` : convAny.model_id),
               is_important: convAny.is_important === true || convAny.is_important === 1,
               is_favorite: convAny.is_favorite === true || convAny.is_favorite === 1,
               messages: processedMessages,
@@ -231,7 +233,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }
       },
 
-      createConversation: async (title, modelId) => {
+      createConversation: async (title, modelId, providerName) => {
         const now = Date.now();
         const newConversation: Conversation = {
           id: uuidv4(),
@@ -240,6 +242,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
           updated_at: now,
           messages: [],
           model_id: modelId || 'default',
+          model_provider: providerName,
+          model_full_id: providerName ? `${providerName}/${modelId}` : modelId,
           is_important: false,
           is_favorite: false,
         };
@@ -259,6 +263,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             created_at: now,
             updated_at: now,
             model_id: modelId || 'default',
+            model_provider: providerName || null,
+            model_full_id: providerName ? `${providerName}/${modelId}` : modelId,
             is_important: 0,
             is_favorite: 0,
           } as any);
@@ -543,7 +549,19 @@ export const useChatStore = create<ChatState & ChatActions>()(
           };
 
           if ('title' in updates) dbUpdates.title = updates.title;
-          if ('model_id' in updates) dbUpdates.model_id = updates.model_id;
+          if ('model_id' in updates) {
+            dbUpdates.model_id = updates.model_id;
+            if ('model_provider' in updates) {
+              dbUpdates.model_provider = updates.model_provider;
+              dbUpdates.model_full_id = updates.model_provider ? `${updates.model_provider}/${updates.model_id}` : updates.model_id;
+            }
+          }
+          if ('model_provider' in updates && !('model_id' in updates)) {
+            dbUpdates.model_provider = updates.model_provider;
+            const targetConv = get().conversations.find(c=>c.id===id);
+            const mId = updates.model_id || targetConv?.model_id || '';
+            dbUpdates.model_full_id = updates.model_provider ? `${updates.model_provider}/${mId}` : mId;
+          }
           if ('is_important' in updates) dbUpdates.is_important = updates.is_important ? 1 : 0;
           if ('is_favorite' in updates) dbUpdates.is_favorite = updates.is_favorite ? 1 : 0;
 
@@ -695,6 +713,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             created_at: now,
             updated_at: now,
             model_id: originalConv.model_id,
+            model_provider: (originalConv as any).model_provider,
+            model_full_id: (originalConv as any).model_full_id,
             is_important: originalConv.is_important,
             is_favorite: originalConv.is_favorite,
             messages: []
@@ -706,6 +726,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             created_at: now,
             updated_at: now,
             model_id: originalConv.model_id,
+            model_provider: (originalConv as any).model_provider || null,
+            model_full_id: (originalConv as any).model_full_id || ((originalConv as any).model_provider ? `${(originalConv as any).model_provider}/${originalConv.model_id}` : originalConv.model_id),
             is_important: originalConv.is_important ? 1 : 0,
             is_favorite: originalConv.is_favorite ? 1 : 0,
           } as any);

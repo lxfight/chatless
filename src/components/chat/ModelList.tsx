@@ -76,7 +76,7 @@ export function ModelList({
               <ChevronRight className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")}/>
             </div>
             {expanded && provider.models.map((model) => (
-              <SelectItem key={model.name} value={model.name} className="p-0 focus:bg-transparent">
+              <SelectItem key={model.name} value={`${provider.name}::${model.name}`} className="p-0 focus:bg-transparent">
                 <ModelSelectItem
                   provider={provider}
                   model={model}
