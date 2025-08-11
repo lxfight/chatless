@@ -77,15 +77,12 @@ export function AboutSupportSettings() {
               />
             </div>
             
-            {/* 副标题 */}
-            <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
-              智能对话，无限可能
-            </p>
+          
           </div>
           
           {/* 右侧：应用信息 */}
           <div className="flex-1 text-center md:text-left">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+            <h2 className="italic text-lg text-gray-900 dark:text-gray-100 mb-1">
               {APP_INFO.name}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">

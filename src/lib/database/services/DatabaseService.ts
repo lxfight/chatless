@@ -219,6 +219,20 @@ export class DatabaseService {
   }
 
   /**
+   * 清空知识库相关数据（不删除知识库定义）
+   * - knowledge_chunks
+   * - doc_knowledge_mappings
+   * - documents（复用现有实现）
+   */
+  public async clearKnowledgeData(): Promise<void> {
+    const db = this.getDbManager();
+    // 先清空依赖于 documents 的表，避免残留外键/数据引用
+    await db.execute('DELETE FROM knowledge_chunks');
+    await db.execute('DELETE FROM doc_knowledge_mappings');
+    await this.clearAllDocuments();
+  }
+
+  /**
    * 搜索对话
    */
   public async searchConversations(query: string): Promise<Conversation[]> {
