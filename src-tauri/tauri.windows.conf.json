@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons-windows/32x32.png",
+      "icons-windows/128x128.png",
+      "icons-windows/128x128@2x.png",
+      "icons-windows/icon.icns",
+      "icons-windows/icon.ico"
+    ],
+    "resources": [
+      "onnxruntime.dll"
+    ]
+  }
+}

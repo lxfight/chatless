@@ -54,105 +54,122 @@ export function AboutSupportSettings() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* 页面标题 */}
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">关于与支持</h1>
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">关于与支持</h1>
 
-      {/* 关于应用 */}
-      <section className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 flex items-center space-x-6">
-        {/* 应用Logo */}
-        <div className="flex-shrink-0">
-          <div className="w-20 h-20 bg-white dark:bg-gray-900 rounded-2xl shadow-md flex items-center justify-center">
-            <img className="p-2" src="/logo.svg" alt="logo" width={80} height={80} />
+      {/* 应用信息卡片 */}
+      <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+        <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
+          {/* 左侧：Logo和艺术字 */}
+          <div className="flex flex-col items-center text-center md:text-left md:items-start">
+            {/* 应用Logo */}
+            <div className="w-14 h-14 bg-white dark:bg-gray-900 rounded-xl shadow-sm flex items-center justify-center mb-3">
+              <img className="p-1.5" src="/logo.svg" alt="logo" width={56} height={56} />
+            </div>
+            
+            {/* CHATLESS 艺术字 */}
+            <div className="mb-2">
+              <img 
+                src="/chatless-text.svg" 
+                alt="CHATLESS" 
+                className="w-40 h-auto drop-shadow-sm"
+              />
+            </div>
+            
+            {/* 副标题 */}
+            <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+              智能对话，无限可能
+            </p>
           </div>
-        </div>
-        
-        {/* 应用信息 */}
-        <div className="flex-1">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            {APP_INFO.name}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            版本 {versionInfo.version} (Build {versionInfo.build})
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {APP_INFO.description}
-          </p>
-          <Button 
-            onClick={handleCheckUpdate}
-            variant="outline"
-            size="sm"
-            className="mt-3 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            检查更新
-          </Button>
+          
+          {/* 右侧：应用信息 */}
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              {APP_INFO.name}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              v{versionInfo.version} · Build {versionInfo.build}
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              {APP_INFO.description}
+            </p>
+            <Button 
+              onClick={handleCheckUpdate}
+              variant="outline"
+              size="sm"
+              className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              检查更新
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* 支持与链接 */}
-      <section className="mt-8">
+      <section>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* 帮助中心 */}
-          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-md transition-shadow">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">帮助中心</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              查找教程和常见问题解答。
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+            <h3 className="font-medium text-gray-800 dark:text-gray-200 text-sm">帮助中心</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+              查找使用教程和常见问题
             </p>
             <button
               onClick={() => handleOpenLink(APP_INFO.helpCenter)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
-              前往 →
+              查看帮助 →
             </button>
           </div>
 
           {/* 提交反馈 */}
-          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-md transition-shadow">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">提交反馈</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              帮助改进应用使用体验，报告 Bug 或提出建议。
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+            <h3 className="font-medium text-gray-800 dark:text-gray-200 text-sm">意见反馈</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+              分享使用体验，报告问题或提出建议
             </p>
             <button
               onClick={() => handleOpenLink(APP_INFO.feedback)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
-              前往 →
+              提交反馈 →
             </button>
           </div>
 
           {/* 官方网站 */}
-          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-md transition-shadow">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">官方网站</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              了解更多关于 {APP_INFO.name} 的信息。
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+            <h3 className="font-medium text-gray-800 dark:text-gray-200 text-sm">官方网站</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+              了解更多产品信息和最新动态
             </p>
             <button
               onClick={() => handleOpenLink(APP_INFO.website)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
               访问官网 →
             </button>
           </div>
 
           {/* 加入社区 */}
-          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-md transition-shadow">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">加入社区</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              与其他用户交流使用心得。
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+            <h3 className="font-medium text-gray-800 dark:text-gray-200 text-sm">用户社区</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+              与其他用户交流使用心得和技巧
             </p>
             <button
               onClick={() => handleOpenLink(APP_INFO.community)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
-              立即加入 →
+              加入社区 →
             </button>
           </div>
         </div>
       </section>
 
       {/* 法律信息 */}
-      <footer className="mt-12 text-center text-xs text-gray-400 dark:text-gray-500">
-        <div className="space-x-4">
+      <footer className="pt-4 text-center text-xs text-gray-400 dark:text-gray-500">
+        <div className="space-x-3">
           <button
             onClick={() => handleOpenLink(APP_INFO.terms)}
             className="hover:text-gray-600 dark:hover:text-gray-300 hover:underline"
@@ -167,7 +184,7 @@ export function AboutSupportSettings() {
             隐私政策
           </button>
         </div>
-        <p className="mt-2">© 2025 {APP_INFO.name}. All rights reserved.</p>
+        <p className="mt-1">© 2025 {APP_INFO.name}. All rights reserved.</p>
       </footer>
     </div>
   );
