@@ -82,6 +82,8 @@ pnpm tauri dev
 - [ ] 会话标题生成
 - [ ] 多语言支持
 
+详细查看 [Project](https://github.com/users/kamjin3086/projects/1)
+
 ---
 
 ## 🛠️ 技术栈
