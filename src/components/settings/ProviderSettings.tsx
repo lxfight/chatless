@@ -433,7 +433,7 @@ export function ProviderSettings({
                     alt={`${provider.name} 图标`}
                     width={20}
                     height={20}
-                    className="w-5 h-5 text-gray-800 dark:text-white"
+                    className="w-5 h-5 text-gray-800 dark:text-gray-200"
                     onError={() => {
                       if (iconIsCatalog) {
                         markUrlMissing(resolvedIconSrc as string);
@@ -454,7 +454,7 @@ export function ProviderSettings({
                     alt={`${provider.name} 图标`}
                     width={20}
                     height={20}
-                    className="w-5 h-5 text-gray-800 dark:text-white rounded-sm"
+                    className="w-5 h-5 text-gray-800 dark:text-gray-200 rounded-sm"
                   />
                 );
               })()}
