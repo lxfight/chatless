@@ -73,6 +73,7 @@ export function ModelSelectItem({
       isSelected ? "bg-blue-100 dark:bg-blue-600/40" : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
     )}>
       {(!useProviderIcon) ? (
+        <div className="w-5 h-5 bg-gray-100 dark:bg-gray-200 rounded-sm">
         <ModelBrandLogo
           modelId={model.name}
           providerName={provider.name}
@@ -81,28 +82,32 @@ export function ModelSelectItem({
           className="w-5 h-5 flex-shrink-0 rounded-sm"
           alt={model.name}
         />
+        </div>
       ) : (
         isImgSrc(providerCatalogSrc) ? (
-          <Image
-            src={providerCatalogSrc as string}
-            alt={`${provider.name}`}
-            width={20}
-            height={20}
-            className="w-5 h-5 flex-shrink-0 rounded-sm"
-            onError={() => {
-              if (providerIsCatalog) {
-                markUrlMissing(providerCatalogSrc as string);
-                if (providerExtIdx < iconExts.length - 1) {
-                  setProviderExtIdx((i) => i + 1);
+          <div className="w-5 h-5 dark:bg-gray-100 rounded-sm">
+            <Image
+              src={providerCatalogSrc as string}
+              alt={`${provider.name}`}
+              width={20}
+              height={20}
+              className="w-5 h-5 flex-shrink-0 rounded-sm"
+              onError={() => {
+                if (providerIsCatalog) {
+                  markUrlMissing(providerCatalogSrc as string);
+                  if (providerExtIdx < iconExts.length - 1) {
+                    setProviderExtIdx((i) => i + 1);
+                  } else {
+                    setUseProviderIcon(true);
+                  }
                 } else {
                   setUseProviderIcon(true);
                 }
-              } else {
-                setUseProviderIcon(true);
-              }
-            }}
-          />
+              }}
+            />
+          </div>
         ) : (
+          <div className="w-5 h-5 dark:bg-gray-100 rounded-sm">
           <Image
             src={providerAvatarSrc}
             alt={`${provider.name}`}
@@ -110,6 +115,7 @@ export function ModelSelectItem({
             height={20}
             className="w-5 h-5 flex-shrink-0 rounded-sm"
           />
+          </div>
         )
       )}
 

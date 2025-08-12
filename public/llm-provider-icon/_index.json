@@ -1,6 +1,7 @@
 {
   "files": [
     "302ai.png",
+    "_index.json",
     "aihubmix.png",
     "alayanew.webp",
     "anthropic.svg",
@@ -48,7 +49,6 @@
     "voyageai.png",
     "xirang.png",
     "yi.png",
-    "zhipu.png",
-    "_index.json"
+    "zhipu.png"
   ]
 }

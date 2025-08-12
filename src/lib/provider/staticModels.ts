@@ -16,31 +16,35 @@ export const STATIC_PROVIDER_MODELS = [
   {
     providerName: "Google AI",
     models: [
-    { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-    { id: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B" },
-    { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+      { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
       { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
       { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash Exp" },
       { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
-      { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" }
+      { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { id: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B" },
     ]
   },
   {
     providerName: "Anthropic",
     models: [
-    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
-    { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet" },
-    { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-    { id: "claude-opus-4-20250514", label: "Claude Opus 4" },
-    { id: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-    { id: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
+      { id: "claude-opus-4-20250514", label: "Claude Opus 4" },
+      { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+      { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet" },
+      { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+      { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
+      { id: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+      { id: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
     ]
   },
   {
     providerName: "OpenAI",
     models: [
+      { id: "gpt-5", label: "GPT-5" },
+      { id: "gpt-5-nano", label: "GPT-5 Nano" },
+      { id: "gpt-5-mini", label: "GPT-5 Mini" },
     { id: "gpt-4.5-preview", label: "GPT-4.5 Preview" },
     { id: "gpt-4o", label: "GPT-4o" },
     { id: "gpt-4o-mini", label: "GPT-4o Mini" },

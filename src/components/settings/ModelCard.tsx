@@ -26,7 +26,7 @@ export function ModelCard({
       <div className="flex gap-4">
         <div className={cn(
           "flex items-center justify-center w-10 h-10 rounded-md text-xl shadow-sm flex-shrink-0",
-          `bg-gradient-to-br ${iconBgGradient} dark:from-gray-700 dark:to-gray-800`
+          `bg-gradient-to-br ${iconBgGradient} dark:from-gray-100 dark:to-gray-200`
         )}>
           {typeof icon === 'string' ? icon : icon}
         </div>

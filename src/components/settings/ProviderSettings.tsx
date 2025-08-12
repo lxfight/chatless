@@ -421,7 +421,7 @@ export function ProviderSettings({
         <div className="flex items-center gap-2 flex-grow min-w-0 mr-3">
             <div className={cn(
               "flex items-center justify-center w-8 h-8 rounded-md text-lg shadow-sm flex-shrink-0",
-              "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800"
+              "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-100 dark:to-gray-200"
             )}>
               {/* 优先显示 provider.icon（支持 data:image 或 /llm-provider-icon 路径），失败回退到生成头像 */}
               {(() => {

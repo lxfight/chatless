@@ -225,6 +225,7 @@ export const useModelSelection = () => {
   }, [allMetadata]);
 
   // 每次 selectedModelId 变化时写入缓存（仅写 pair）
+  // 注意：不要把 persistentLastPair 放进依赖里，否则 setPersistentLastPair 会导致无限循环写入
   useEffect(() => {
     // 1) 需要一个明确的 selectedModelId
     if (!selectedModelId) return;
@@ -252,12 +253,18 @@ export const useModelSelection = () => {
 
         if (providerName) {
           await specializedStorage.models.setLastSelectedModelPair(providerName, selectedModelId);
-          setPersistentLastPair({ provider: providerName, modelId: selectedModelId });
+          // 仅在值真的变化时才更新，避免无意义的 re-render
+          setPersistentLastPair((prev) => {
+            if (prev && prev.provider === providerName && prev.modelId === selectedModelId) {
+              return prev;
+            }
+            return { provider: providerName, modelId: selectedModelId };
+          });
         }
         setPersistentLastModel(selectedModelId);
       } catch (_) {}
     })();
-  }, [selectedModelId, allMetadata, currentProviderName, persistentLastPair, storageInitialized]);
+  }, [selectedModelId, allMetadata, currentProviderName, storageInitialized]);
 
   // Handle model change
   const handleModelChange = useCallback((value: string) => {
