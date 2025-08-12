@@ -14,8 +14,11 @@
     "tauri": "tauri",
     "generate:settings-index": "node scripts/generate-settings-index.cjs",
     "update:app-info": "node scripts/update-app-info.js",
-    "prebuild": "pnpm run generate:settings-index && pnpm run update:app-info",
-    "pretauri": "pnpm run generate:settings-index && pnpm run update:app-info",
+    "icons:index": "node scripts/generate-icons-index.cjs",
+    "predev": "pnpm run icons:index",
+    "prestart": "pnpm run icons:index",
+    "prebuild": "pnpm run generate:settings-index && pnpm run update:app-info && pnpm run icons:index",
+    "pretauri": "pnpm run generate:settings-index && pnpm run update:app-info && pnpm run icons:index",
     "dev:db:reset": "tsx src/scripts/dev-db-reset.ts",
     "dev:test:providers": "tsx src/scripts/test-providers.ts"
   },

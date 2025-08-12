@@ -16,10 +16,86 @@ import { getStaticModels, type ProviderName } from '@/lib/provider/staticModels'
 import { MoreVertical, Pencil, Trash2, Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { getAvatarSync, prewarmAvatars } from '@/lib/utils/logoService';
+import { getResolvedUrlForBase, isUrlKnownMissing, markResolvedBase, markUrlMissing, ensureLogoCacheReady } from '@/lib/utils/logoService';
+import StorageUtil from '@/lib/storage';
 
 type Props = {
   trigger: React.ReactNode;
 };
+
+// 统一的小图标：优先 png → svg；利用预加载的命中映射/失败清单，避免重复 404
+function ProviderIcon({ id, name, size = 18, src }: { id?: string; name: string; size?: number; src?: string }) {
+  const exts = ['png', 'svg', 'webp', 'jpeg', 'jpg'] as const;
+  const base = id ? `/llm-provider-icon/${id}` : null;
+  const mapped = React.useMemo(() => (base ? getResolvedUrlForBase(base) : null), [base]);
+  const avatarFallback = React.useMemo(() => generateAvatarDataUrl((id || name).toLowerCase(), name, size), [id, name, size]);
+  const [displaySrc, setDisplaySrc] = React.useState<string>(src || mapped || avatarFallback);
+
+  // 首次渲染即有头像，后台尝试真实图标，命中后再替换，避免“无图→有图”的闪动
+  React.useEffect(() => {
+    if (!base || src) return; // 自带 src 或无 base 直接使用现有
+    if (mapped) { setDisplaySrc(mapped); return; }
+    const run = async () => {
+      await ensureLogoCacheReady();
+      const all = exts.map((ext) => `${base}.${ext}`).filter((u) => !isUrlKnownMissing(u));
+      let cancelled = false;
+      for (const url of all) {
+        try {
+          const ok = await new Promise<boolean>((resolve) => {
+            const img = new window.Image();
+            img.onload = () => resolve(true);
+            img.onerror = () => resolve(false);
+            img.src = url;
+          });
+          if (ok) {
+            if (!cancelled) setDisplaySrc(url);
+            markResolvedBase(base, url);
+            return;
+          } else {
+            markUrlMissing(url);
+          }
+        } catch { /* noop */ }
+      }
+    };
+    let stop = false;
+    run().catch(()=>{});
+    let cancelled = false;
+    return () => { cancelled = true; stop = true; };
+  }, [base, mapped, src]);
+
+  return (
+    <img
+      src={displaySrc}
+      alt={`${name} icon`}
+      width={size}
+      height={size}
+      className="shrink-0 rounded-sm ring-1 ring-black/5 dark:ring-white/10 bg-white/70 dark:bg-black/30 w-[18px] h-[18px]"
+    />
+  );
+}
+
+// 生成型头像（组件形式），内部自行使用状态/副作用，避免在父组件中调用 Hook
+function CachedAvatarIcon({ seed, label, size = 18 }: { seed: string; label: string; size?: number }) {
+  const baseAvatar = React.useMemo(() => generateAvatarDataUrl(seed, label, size), [seed, label, size]);
+  const [avatar, setAvatar] = React.useState<string>(baseAvatar);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const key = `avatar:${seed}:${size}`;
+        const existed = await StorageUtil.getItem<string>(key, null, 'logo-cache.json');
+        if (existed) {
+          if (mounted) setAvatar(existed);
+        } else {
+          await StorageUtil.setItem(key, baseAvatar, 'logo-cache.json');
+        }
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, [seed, size, baseAvatar]);
+  return <ProviderIcon src={avatar} name={label} size={size} />;
+}
 
 export function AddProvidersDialog({ trigger }: Props) {
   const [open, setOpen] = useState(false);
@@ -55,6 +131,8 @@ export function AddProvidersDialog({ trigger }: Props) {
         .map(p => ({ id: p.name, displayName: (p as any).displayName || p.name, url: p.url || '', strategy: (p as any).strategy as CatalogStrategy | undefined, isVisible: p.isVisible !== false }));
       customs.forEach(cp => { map[cp.id] = cp.isVisible; });
       setCustomProviders(customs);
+      // 后台预热自定义 Provider 头像（非阻塞）
+      prewarmAvatars(customs.map(cp => ({ seed: cp.id || cp.displayName, label: cp.displayName })), 18).catch(()=>{});
       setVisibleMap(map);
     })().catch(console.error);
   }, [open]);
@@ -163,6 +241,10 @@ export function AddProvidersDialog({ trigger }: Props) {
       while (existingNames.has(finalId)) {
         finalId = `${baseId}-${n++}`;
       }
+      // 预先生成并持久化头像到 store：首次渲染即可从本地读取
+      const avatarKey = `avatar:${finalId}:18`;
+      const avatarSmall = generateAvatarDataUrl(finalId, displayName, 18);
+      await StorageUtil.setItem(avatarKey, avatarSmall, 'logo-cache.json');
       await providerRepository.upsert({
         name: finalId,
         url,
@@ -262,20 +344,22 @@ export function AddProvidersDialog({ trigger }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-xl p-4 sm:p-5">
+      <DialogContent className="max-w-[92vw] w-[92vw] sm:w-auto sm:max-w-xl box-border p-4 sm:p-5 overflow-hidden max-h-[85vh]">
         <DialogHeader>
           <DialogTitle>添加/管理提供商</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <Input placeholder="搜索提供商..." value={keyword} onChange={(e)=>setKeyword(e.target.value)} />
-          <div ref={listRef} className="max-h-80 overflow-auto rounded-md bg-white/70 dark:bg-gray-900/20 space-y-1.5 px-1">
+          {/* 为避免在小屏宽度下出现水平溢出，强制容器与输入框不超出 */}
+          <Input className="w-full max-w-full" placeholder="搜索提供商..." value={keyword} onChange={(e)=>setKeyword(e.target.value)} />
+          <div ref={listRef} className="max-h-[60vh] overflow-y-auto rounded-md bg-white/70 dark:bg-gray-900/20 space-y-1.5 px-1">
             {/* 内置分组标签 */}
             <div className="px-2 pt-1 text-[10px] tracking-wide text-gray-400">内置</div>
             {catalog.map((c) => {
               const checked = visibleMap[c.name] ?? false;
               return (
-                <label key={c.id} className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
+                <label key={c.id} className="flex items-center gap-2.5 py-2 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
                   <Checkbox checked={checked} onCheckedChange={(v)=>toggle(c.name, !!v)} id={`chk-${c.id}`} />
+                  <ProviderIcon id={c.id} name={c.name} />
                   <div className="flex-1 min-w-0">
                     <label htmlFor={`chk-${c.id}`} className="font-medium truncate cursor-pointer select-none">{c.name}</label>
                     <div className="text-xs text-gray-500 truncate">
@@ -298,8 +382,10 @@ export function AddProvidersDialog({ trigger }: Props) {
               const id = `chk-custom-${cp.id.replace(/\s+/g,'-')}`;
               const checked = visibleMap[cp.id] ?? cp.isVisible;
               return (
-                <div key={cp.id} className="flex items-center gap-3 py-2 px-2 group rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
+                <div key={cp.id} className="flex items-center gap-2.5 py-2 px-2 group rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
                   <Checkbox checked={checked} onCheckedChange={(v)=>toggle(cp.id, !!v)} id={id} />
+                  {/* 首帧同步拿到 dataURL，避免闪动；后台已预热持久化 */}
+                  <ProviderIcon src={getAvatarSync(cp.id || cp.displayName, cp.displayName, 18)} name={cp.displayName} />
                   <div className="flex-1 min-w-0">
                     <label htmlFor={id} className="font-medium truncate cursor-pointer select-none">{cp.displayName}</label>
                     <div className="text-xs text-gray-500 truncate">

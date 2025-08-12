@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"; // 使用 shadcn 折叠组件
 import { Badge } from "@/components/ui/badge"; // 导入 Badge
 import Image from "next/image"; // 导入Image组件
+import { getResolvedUrlForBase, isUrlKnownMissing, ensureLogoCacheReady, markResolvedBase, markUrlMissing, getAvatarSync, ensureAvatarInMemory } from '@/lib/utils/logoService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // 导入 Tooltip 相关组件
 import { getModelCapabilities } from '@/lib/provider/staticModels';
 import { Brain, Workflow, Camera, Image as ImageIcon, Mic, Volume2, Clapperboard, Globe, Braces, Layers, ListOrdered, SlidersHorizontal, Ban, MessageSquareOff } from 'lucide-react';
@@ -51,7 +52,6 @@ export function ProviderSettings({
   onRefresh
 }: ProviderSettingsProps) {
   const [isOpen, setIsOpen] = useState(false); // 默认折叠
-  const [iconError, setIconError] = useState(false); // 添加图标加载错误状态
   const [showModelSearch, setShowModelSearch] = useState(false); // 控制模型搜索输入框的显示
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
   const [modelsExpanded, setModelsExpanded] = useState(false); // 模型列表展开
@@ -83,8 +83,33 @@ export function ProviderSettings({
   const providerKey = provider.name.toLowerCase();
   const docUrl = keyDocLinks[providerKey];
 
-  // 判断图标是否为可渲染的图片地址（本地路径或 data:image）
-  const isImageSrc = !!(provider.icon && typeof provider.icon === 'string' && (provider.icon.startsWith('/') || provider.icon.startsWith('data:image')));
+  // 规范化 icon 字符串与回退链：data:image（自定义） → 目录图标（多扩展名） → 生成头像
+  const iconStr = typeof provider.icon === 'string' ? provider.icon : '';
+  const iconExts = ['png', 'svg', 'webp', 'jpeg', 'jpg'] as const; // 与 logoService 一致
+  const iconIsData = !!(iconStr && iconStr.startsWith('data:image'));
+  const iconIsCatalog = !!(iconStr && iconStr.startsWith('/llm-provider-icon/'));
+  const [iconExtIdx, setIconExtIdx] = useState(0);
+  const [iconError, setIconError] = useState(false);
+  const catalogBase = iconIsCatalog ? iconStr.replace(/\.(svg|png|webp|jpeg|jpg)$/i, '') : iconStr;
+  // 若是目录图标，先查询预加载映射；否则按当前扩展索引
+  const resolvedIconSrc = iconIsData
+    ? iconStr
+    : iconIsCatalog
+      ? (() => {
+          const mapped = getResolvedUrlForBase(catalogBase);
+          if (mapped) return mapped;
+          let idx = iconExtIdx;
+          while (idx < iconExts.length && isUrlKnownMissing(`${catalogBase}.${iconExts[idx]}`)) idx++;
+          return `${catalogBase}.${iconExts[Math.min(idx, iconExts.length - 1)]}`;
+        })()
+      : iconStr;
+  // 生成型头像 → 使用缓存，避免每次重算/字符串分配
+  const [fallbackAvatarSrc, setFallbackAvatarSrc] = React.useState<string>(() => getAvatarSync(provider.name.toLowerCase(), provider.name, 20));
+  React.useEffect(() => {
+    ensureAvatarInMemory(provider.name.toLowerCase(), provider.name, 20)
+      .then((v)=> setFallbackAvatarSrc(v))
+      .catch(()=>{});
+  }, [provider.name]);
 
   // 处理打开模型参数设置弹窗
   const handleOpenParameters = (modelId: string, modelLabel?: string) => {
@@ -298,8 +323,8 @@ export function ProviderSettings({
       { key: 'reasoning-ctrl', show: caps.supportsReasoningControl, title: '支持思考强度控制', Icon: SlidersHorizontal },
     ];
     const negatives: Array<{ key: string; show: boolean; title: string; Icon: any }> = [
-      { key: 'no-delta', show: caps.notSupportTextDelta, title: '不支持文本增量(流式)', Icon: Ban },
-      { key: 'no-system', show: caps.notSupportSystemMessage, title: '不支持 System Message', Icon: MessageSquareOff },
+      { key: 'no-delta', show: !!caps.notSupportTextDelta, title: '不支持文本增量(流式)', Icon: Ban },
+      { key: 'no-system', show: !!caps.notSupportSystemMessage, title: '不支持 System Message', Icon: MessageSquareOff },
     ];
     return (
       <div className="flex items-center flex-wrap gap-1 text-gray-500 dark:text-gray-400">
@@ -352,8 +377,8 @@ export function ProviderSettings({
       { label: '思考强度控制', ok: caps.supportsReasoningControl },
     ];
     const negatives: Array<{ label: string; bad: boolean }> = [
-      { label: '不支持流式增量', bad: caps.notSupportTextDelta },
-      { label: '不支持 System Message', bad: caps.notSupportSystemMessage },
+      { label: '不支持流式增量', bad: !!caps.notSupportTextDelta },
+      { label: '不支持 System Message', bad: !!caps.notSupportSystemMessage },
     ];
     return (
       <TooltipProvider delayDuration={150}>
@@ -398,20 +423,41 @@ export function ProviderSettings({
               "flex items-center justify-center w-8 h-8 rounded-md text-lg shadow-sm flex-shrink-0",
               "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800"
             )}>
-              {isImageSrc && !iconError && provider.icon ? (
+              {/* 优先显示 provider.icon（支持 data:image 或 /llm-provider-icon 路径），失败回退到生成头像 */}
+              {(() => {
+                const isImageSrc = !!(resolvedIconSrc && (resolvedIconSrc.startsWith('/') || resolvedIconSrc.startsWith('data:image')));
+                if (isImageSrc && !iconError && provider.icon) {
+                  return (
                 <Image
-                  src={provider.icon}
-                  alt={`${provider.name} 图标`}
-                  width={20}
-                  height={20}
-                  className="w-5 h-5 text-gray-800 dark:text-white"
-                  onError={() => setIconError(true)}
-                />
-              ) : provider.icon && !isImageSrc ? (
-                <span className="text-base">{provider.icon}</span>
-              ) : (
-                <Database className="w-4 h-4" />
-              )}
+                    src={resolvedIconSrc as string}
+                    alt={`${provider.name} 图标`}
+                    width={20}
+                    height={20}
+                    className="w-5 h-5 text-gray-800 dark:text-white"
+                    onError={() => {
+                      if (iconIsCatalog) {
+                        markUrlMissing(resolvedIconSrc as string);
+                        if (iconExtIdx < iconExts.length - 1) {
+                          setIconExtIdx((i) => i + 1);
+                        } else {
+                          setIconError(true);
+                        }
+                      } else { setIconError(true); }
+                    }}
+                  />
+                );
+                }
+                // 回退：生成头像，确保自定义 provider 总是有图标
+                return (
+                  <Image
+                    src={fallbackAvatarSrc}
+                    alt={`${provider.name} 图标`}
+                    width={20}
+                    height={20}
+                    className="w-5 h-5 text-gray-800 dark:text-white rounded-sm"
+                  />
+                );
+              })()}
             </div>
             <div className="flex-grow min-w-0">
               <span className="font-semibold text-base text-gray-800 dark:text-gray-200 block truncate">

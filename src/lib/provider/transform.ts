@@ -1,5 +1,5 @@
 import { ProviderEntity, ProviderStatus, ModelEntity } from './types';
-import { generateAvatarDataUrl } from '@/lib/avatar';
+import { getAvatarSync } from '@/lib/utils/logoService';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
 import { getStaticModels } from './staticModels';
 
@@ -11,9 +11,9 @@ export function mapToProviderWithStatus(
 ): ProviderWithStatus {
   const displayName = entity.displayName || entity.name;
   // 若存在 avatarSeed，则用生成头像替代默认 icon
-  const defaultIcon = `/llm-provider-icon/${entity.name.toLowerCase().replace(/\s+/g, '-')}.svg`;
+  const defaultIcon = `/llm-provider-icon/${entity.name.toLowerCase().replace(/\s+/g, '-')}.png`;
   const icon = entity.avatarSeed
-    ? generateAvatarDataUrl(entity.avatarSeed, displayName, 20)
+    ? getAvatarSync(entity.avatarSeed, displayName, 20)
     : defaultIcon;
 
   // 预先加载该 Provider 的静态模型，便于为缺失 label 的旧数据补全展示名

@@ -14,6 +14,7 @@ import { modelRepository } from '@/lib/provider/ModelRepository';
 import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { useProviderStore } from '@/store/providerStore';
 import { mapToProviderWithStatus } from '@/lib/provider/transform';
+import { preloadProviderAndModelLogos } from '@/lib/utils/logoPreloader';
 
 // Dev mode flag for debug logging (currently unused, can be removed if not needed)
 // const DEV_MODE = isDevelopmentEnvironment();
@@ -88,6 +89,10 @@ export function useProviderManagement() {
     
     setProviders(sortedConverted as any);
     setIsLoading(repoLoading);
+    // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
+    try {
+      preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{});
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoProviders, repoLoading]);
 
@@ -478,7 +483,7 @@ export function useProviderManagement() {
         };
       }));
       
-      toast.success("已全量刷新 Provider 状态");
+      toast.success("提供商刷新完成");
     } catch (e:any) {
       console.error("Global refresh failed", e);
       toast.error("刷新失败", { description: e?.message || String(e) });

@@ -7,10 +7,13 @@ import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
 import { metadataService } from '@/lib/metadata/MetadataService';
 import { specializedStorage } from '@/lib/storage';
 import Image from "next/image";
+import { ModelBrandLogo } from './ModelBrandLogo';
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ModelSelectContent } from './ModelSelectContent';
 import { ModelParametersDialog } from './ModelParametersDialog';
+import { PROVIDER_ICON_EXTS, getResolvedUrlForBase, isUrlKnownMissing, getModelBrandLogoSrc, prewarmModelBrandLogos, markUrlMissing } from '@/lib/utils/logoService';
+import { generateAvatarDataUrl } from '@/lib/avatar';
 
 interface ModelSelectorProps {
   currentModelId: string | null;
@@ -101,7 +104,7 @@ export function ModelSelector({
     }
   };
 
-  const isSvgPath = (icon?: string): icon is string => {
+  const isImgSrc = (icon?: string): icon is string => {
     return Boolean(icon && typeof icon === 'string' && (icon.startsWith('/') || icon.startsWith('data:image')));
   };
 
@@ -151,12 +154,51 @@ export function ModelSelector({
     return result;
   }, [visibleProviders, recentModels]);
 
+  // —— 选择器触发器上的图标显示（模型优先 → provider → 头像） ——
+  const iconExts = PROVIDER_ICON_EXTS;
+  const currentModel = useMemo(() => {
+    if (!currentProvider || !currentModelId) return null;
+    return currentProvider.models.find(m => m.name === currentModelId) || null;
+  }, [currentProvider, currentModelId]);
+
+  const modelLogoBase = useMemo(() => {
+    if (!currentProvider || !currentModelId) return '';
+    const src = getModelBrandLogoSrc(currentModelId, currentProvider.name);
+    if (!src) return '';
+    const m = src.match(/^(.*)\.(svg|png|webp|jpeg|jpg)$/i);
+    return m ? m[1] : src;
+  }, [currentProvider, currentModelId]);
+  const [modelExtIdx, setModelExtIdx] = useState(0);
+  const modelLogoSrc = modelLogoBase ? `${modelLogoBase}.${iconExts[Math.min(modelExtIdx, iconExts.length - 1)]}` : '';
+
+  const providerIsCatalog = typeof currentProvider?.icon === 'string' && currentProvider.icon.startsWith('/llm-provider-icon/');
+  const providerBase = providerIsCatalog ? (currentProvider?.icon as string).replace(/\.(svg|png|webp|jpeg|jpg)$/i, '') : (currentProvider?.icon || '');
+  const [providerExtIdx, setProviderExtIdx] = useState(0);
+  const providerCatalogSrc = providerIsCatalog ? (() => {
+    const mapped = getResolvedUrlForBase(providerBase);
+    if (mapped) return mapped;
+    let idx = providerExtIdx;
+    while (idx < iconExts.length && isUrlKnownMissing(`${providerBase}.${iconExts[idx]}`)) idx++;
+    return `${providerBase}.${iconExts[Math.min(idx, iconExts.length - 1)]}`;
+  })() : (currentProvider?.icon || '');
+  const providerAvatarSrc = !providerIsCatalog && typeof currentProvider?.icon === 'string' && currentProvider.icon.startsWith('data:image')
+    ? (currentProvider.icon as string)
+    : generateAvatarDataUrl((currentProvider?.name || 'prov').toLowerCase(), currentProvider?.name || 'Provider', 20);
+  const [useProviderIcon, setUseProviderIcon] = useState(false);
+
   const handleOpenChange = (open: boolean) => {
     if (open) {
       setTimeout(() => {
         // We now need to focus the input inside the content component.
         // This ref is just a placeholder now. The logic is passed down.
       }, 100);
+      // 后台预热当前可见 provider 的品牌 logo（非阻塞）
+      try {
+        const modelsToWarm: Array<{ modelId: string; providerName?: string }> = [];
+        filteredModels.forEach(p => p.models.forEach(m => modelsToWarm.push({ modelId: m.name, providerName: p.name })));
+        // 仅预热前 50 个，避免大列表一次性预热过多
+        prewarmModelBrandLogos(modelsToWarm, 8, { limit: 50 }).catch(()=>{});
+      } catch {}
     } else {
       setSearchQuery('');
     }
@@ -216,13 +258,51 @@ export function ModelSelector({
         onOpenChange={handleOpenChange}
       >
         <SelectTrigger className="h-8 px-2 bg-transparent border-0 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-0">
-          {currentModelId
-            ? currentProvider
-              ? `${currentModelId} (${currentProvider.name})`
-              : currentModelId
-            : allMetadata.length === 0
-              ? '加载模型中...'
-              : '选择模型'}
+          <span className="inline-flex items-center gap-2">
+            {currentProvider && currentModelId ? (
+              !useProviderIcon ? (
+                <ModelBrandLogo
+                  modelId={currentModelId}
+                  providerName={currentProvider.name}
+                  size={18}
+                  fallbackSrc={providerCatalogSrc || providerAvatarSrc}
+                  className="w-[18px] h-[18px] rounded-sm"
+                />
+              ) : (
+                isImgSrc(providerCatalogSrc) ? (
+                  <Image
+                    src={providerCatalogSrc}
+                    alt={currentProvider.name}
+                    width={18}
+                    height={18}
+                    className="w-[18px] h-[18px] rounded-sm"
+                    onError={() => {
+                      if (providerIsCatalog && providerExtIdx < iconExts.length - 1) {
+                        setProviderExtIdx(i => i + 1);
+                      }
+                    }}
+                  />
+                ) : (
+                  <Image
+                    src={providerAvatarSrc}
+                    alt={currentProvider.name}
+                    width={18}
+                    height={18}
+                    className="w-[18px] h-[18px] rounded-sm"
+                  />
+                )
+              )
+            ) : null}
+            <span>
+              {currentModelId
+                ? currentProvider
+                  ? `${currentModelId} (${currentProvider.name})`
+                  : currentModelId
+                : allMetadata.length === 0
+                  ? '加载模型中...'
+                  : '选择模型'}
+            </span>
+          </span>
         </SelectTrigger>
         
         <ModelSelectContent

@@ -10,6 +10,7 @@ import { useGlobalFontSize } from "@/hooks/useGlobalFontSize";
 import { useUiPreferences } from "@/store/uiPreferences";
 import { listen } from '@tauri-apps/api/event';
 import { useRouter } from "next/navigation";
+import { preloadInitialLogos } from '@/lib/utils/logoPreloader';
 
 // 动态导入系统托盘管理器
 const initializeTray = async () => {
@@ -162,6 +163,8 @@ export default function RootLayout({
     // 初始化系统托盘和导航监听器
     initializeTray();
     setupNavigationListener(router);
+    // 提前预加载常见 Provider 与品牌 logo，提升全站首屏图标显示速度
+    preloadInitialLogos().catch(()=>{});
     
     const html = document.documentElement;
     // 简洁模式
