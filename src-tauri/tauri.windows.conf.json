@@ -12,5 +12,12 @@
     "resources": [
       "onnxruntime.dll"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -69,6 +69,11 @@
       ]
     },
     "log:default",
-    "log:allow-log"
+    "log:allow-log",
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "updater:allow-download",
+    "updater:allow-install"
   ]
 }

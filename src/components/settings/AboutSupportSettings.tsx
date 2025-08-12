@@ -49,8 +49,33 @@ export function AboutSupportSettings() {
   };
 
   const handleCheckUpdate = async () => {
-    // 使用统一的链接打开工具
-    await handleOpenLink(APP_INFO.releases);
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check({ timeout: 30_000 });
+
+      if (!update || !('available' in update) || !update.available) {
+        toast.success('已是最新版本');
+        return;
+      }
+
+      const version = (update as any).version ?? '新版本';
+      toast.message(`检测到更新：${version}`, {
+        description: '正在下载并安装，请稍候…'
+      });
+
+      // 若可用，一步到位：下载并安装
+      if ('downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
+        await (update as any).downloadAndInstall();
+        // Windows 会在安装前自动退出应用（由系统安装器决定）
+        toast.success('更新已安装。部分平台需重启应用以生效。');
+      } else {
+        // 兼容性兜底：仅提示用户前往发布页
+        await handleOpenLink(APP_INFO.releases);
+      }
+    } catch (error) {
+      console.error('检查更新失败:', error);
+      toast.error('检查或安装更新失败');
+    }
   };
 
   return (

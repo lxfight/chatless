@@ -81,6 +81,8 @@ pub fn run() {
 
       Ok(())
     })
+    // 启用 Tauri Updater 插件（仅桌面平台有效）
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_store::Builder::new().build())
