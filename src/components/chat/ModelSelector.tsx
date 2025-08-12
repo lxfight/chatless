@@ -262,24 +262,24 @@ export function ModelSelector({
           <span className="inline-flex items-center gap-2">
             {currentProvider && currentModelId ? (
               !useProviderIcon ? (
-                <div className="w-[18px] h-[18px] bg-gray-100 dark:bg-gray-200 rounded-sm">
+                <div className="w-5 h-5 bg-gray-100 dark:bg-gray-200 rounded-sm">
                 <ModelBrandLogo
                   modelId={currentModelId}
                   providerName={currentProvider.name}
                   size={18}
                   fallbackSrc={providerCatalogSrc || providerAvatarSrc}
-                  className="w-[18px] h-[18px] rounded-sm"
+                  className="w-5 h-5 rounded-sm"
                 />
                 </div>
               ) : (
                 isImgSrc(providerCatalogSrc) ? (
-                  <div className="w-[18px] h-[18px] bg-gray-100 dark:bg-gray-200 rounded-sm">
+                  <div className="w-5 h-5 bg-gray-100 dark:bg-gray-200 rounded-sm">
                   <Image
                     src={providerCatalogSrc}
                     alt={currentProvider.name}
                     width={18}
                     height={18}
-                    className="w-[18px] h-[18px] rounded-sm"
+                    className="w-5 h-5 rounded-sm"
                     onError={() => {
                       if (providerIsCatalog && providerExtIdx < iconExts.length - 1) {
                         setProviderExtIdx(i => i + 1);
@@ -288,13 +288,13 @@ export function ModelSelector({
                   />
                   </div>
                 ) : (
-                  <div className="w-[18px] h-[18px] bg-gray-100 dark:bg-gray-200 rounded-sm">
+                  <div className="w-5 h-5 bg-gray-100 dark:bg-gray-200 rounded-sm">
                   <Image
                     src={providerAvatarSrc}
                     alt={currentProvider.name}
                     width={18}
                     height={18}
-                    className="w-[18px] h-[18px] rounded-sm"
+                    className="w-5 h-5 rounded-sm"
                   />
                   </div>
                 )

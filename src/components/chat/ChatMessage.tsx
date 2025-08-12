@@ -117,6 +117,8 @@ export function ChatMessage({
   const formattedTime = formatTimestamp(timestamp);
 
   const isStreaming = status === 'loading';
+  // 仅对“正在生成/刚发送”的消息开启入场动画；历史消息不做入场动画，避免切换会话时整列表闪烁
+  const shouldAnimateEnter = isStreaming || status === 'sending' || status === 'pending';
 
   const messageContent = useMemo(() => {
     if (DEBUG_CHAT_MESSAGE) {
@@ -181,7 +183,7 @@ export function ChatMessage({
           )}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
+            initial={shouldAnimateEnter ? { opacity: 0, scale: 0.98 } : false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.15 }}
             className={cn(
