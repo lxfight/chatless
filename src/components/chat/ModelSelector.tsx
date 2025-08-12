@@ -17,13 +17,15 @@ interface ModelSelectorProps {
   allMetadata: ProviderMetadata[];
   onModelChange: (newModelId: string) => void;
   disabled?: boolean;
+  currentProviderName?: string;
 }
 
 export function ModelSelector({ 
   currentModelId, 
   allMetadata,
   onModelChange, 
-  disabled = false
+  disabled = false,
+  currentProviderName
 }: ModelSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [recentModels, setRecentModels] = useState<string[]>([]);
@@ -75,7 +77,6 @@ export function ModelSelector({
   const handleInternalModelChange = (value: string) => {
     let providerName: string | undefined;
     let modelId: string = value;
-    // 如果携带 provider 信息，格式为 "provider::model"
     if (value.includes('::')) {
       const parts = value.split('::');
       if (parts.length === 2) {
@@ -87,7 +88,6 @@ export function ModelSelector({
     // 更新最近使用列表（仅记录模型名）
     updateRecentModels(modelId);
 
-    // 如果拿到了 provider 名称，则立即同步到持久化，避免同名模型误匹配
     if (providerName) {
       (async () => {
         try {
@@ -95,10 +95,10 @@ export function ModelSelector({
           await specializedStorage.models.setLastSelectedModelPair(providerName!, modelId);
         } catch (_) {}
       })();
+      onModelChange(`${providerName}::${modelId}`);
+    } else {
+      onModelChange(modelId);
     }
-
-    // 通知上层只发送模型名以保持兼容
-    onModelChange(modelId);
   };
 
   const isSvgPath = (icon?: string): icon is string => {
@@ -107,12 +107,18 @@ export function ModelSelector({
 
   const currentProvider = useMemo(() => {
     if (!allMetadata || allMetadata.length === 0 || !currentModelId) return null;
+    // 1) 若外部提供了精确的 provider 名称，则优先按名称定位
+    if (currentProviderName) {
+      const byName = allMetadata.find(p => p.name === currentProviderName);
+      if (byName && byName.models.some(m => m.name === currentModelId)) return byName;
+    }
+    // 2) 回退：按 modelId 扫描（可能存在重名，仅作兜底）
     for (const provider of allMetadata) {
       const foundModel = provider.models.find(m => m.name === currentModelId);
       if (foundModel) return provider;
     }
     return null;
-  }, [allMetadata, currentModelId]);
+  }, [allMetadata, currentModelId, currentProviderName]);
 
   // 统一：只显示 isVisible !== false 的提供商，防御上游漏过滤
   const visibleProviders = useMemo(() => allMetadata.filter((p: any)=>p?.isVisible !== false), [allMetadata]);

@@ -20,6 +20,7 @@ interface ChatHeaderProps {
   onDelete: () => void;
   allMetadata: ProviderMetadata[];
   currentModelId: string | null;
+  currentProviderName?: string;
   onModelChange: (newModelId: string) => void;
   isModelSelectorDisabled?: boolean;
   tokenCount?: number;
@@ -34,6 +35,7 @@ export function ChatHeader({
   onDelete,
   allMetadata,
   currentModelId,
+  currentProviderName,
   onModelChange: handleModelChange,
   isModelSelectorDisabled = false,
   tokenCount = 0
@@ -84,6 +86,7 @@ export function ChatHeader({
           <ModelSelector 
             allMetadata={allMetadata}
             currentModelId={currentModelId}
+            currentProviderName={currentProviderName}
             onModelChange={handleModelChange}
             disabled={isModelSelectorDisabled}
           />

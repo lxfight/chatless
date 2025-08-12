@@ -201,7 +201,14 @@ export class StorageUtil {
         'settings.json',
         'knowledge-config.json',
         'embedding-config.json',
-        'user-preferences.json'
+        'user-preferences.json',
+        // 新增：Provider/模型相关的持久化文件
+        'provider-models.json',
+        'provider-models-meta.json',
+        'provider-status.json',
+        'model-parameters.json',
+        'session-parameters.json',
+        'model-strategy.json'
       ];
 
       for (const storeFile of appStoreFiles) {
@@ -226,6 +233,7 @@ export class StorageUtil {
             key.startsWith('knowledge_') || 
             key.startsWith('embedding_') ||
             key.startsWith('chat_') ||
+            key === 'chat-store' || // Zustand 持久化默认键
             key.startsWith('sample_') ||
             key.includes('onnx') ||
             key.includes('ollama') ||

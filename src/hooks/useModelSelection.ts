@@ -203,21 +203,34 @@ export const useModelSelection = () => {
   }, [selectedModelId, allMetadata]);
 
   // Handle model change
-  const handleModelChange = useCallback((newModelId: string) => {
+  const handleModelChange = useCallback((value: string) => {
+    let providerName: string | undefined;
+    let newModelId = value;
+    if (value.includes('::')) {
+      const parts = value.split('::');
+      if (parts.length === 2) {
+        providerName = parts[0];
+        newModelId = parts[1];
+      }
+    }
+
     setSelectedModelId(newModelId);
     setPersistentLastModel(newModelId);
+
+    // 精确定位 provider：优先使用传入的 providerName
+    let provider = providerName
+      ? allMetadata.find(p => p.name === providerName && p.models.some((m: any) => m.name === newModelId))
+      : allMetadata.find(p => p.models.some((m: any) => m.name === newModelId));
+
     if (currentConversationId) {
-        const provider = allMetadata.find(p => p.models.some((m: any) => m.name === newModelId));
-        updateConversation(currentConversationId, {
-          model_id: newModelId,
-          model_provider: provider ? provider.name : undefined,
-          model_full_id: provider ? `${provider.name}/${newModelId}` : newModelId,
-        });
+      updateConversation(currentConversationId, {
+        model_id: newModelId,
+        model_provider: provider ? provider.name : undefined,
+        model_full_id: provider ? `${provider.name}/${newModelId}` : newModelId,
+      });
     }
-    
-    const provider = allMetadata.find(p => p.models.some((m: any) => m.name === newModelId));
+
     if (provider) {
-      // 会话级选择记录 provider+modelId，保障恢复
       (async () => {
         try {
           const { specializedStorage } = await import('@/lib/storage');
@@ -225,6 +238,7 @@ export const useModelSelection = () => {
             await specializedStorage.models.setConversationSelectedModel(currentConversationId, provider.name, newModelId);
           }
           await specializedStorage.models.setLastSelectedModelPair(provider.name, newModelId);
+          setPersistentLastPair({ provider: provider.name, modelId: newModelId });
         } catch (_) {}
       })();
     } else {

@@ -53,7 +53,7 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
     strategy: 'multi',
     requiresKey: true,
     // 默认留空，用户在设置中填写；或可根据部署填入聚合网关地址
-    defaultUrl: ''
+    defaultUrl: 'http://localhost:3000'
   },
   // 兼容 OpenAI 的常见代理/聚合服务
   { id: '302ai', name: '302AI', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.302.ai/v1' },

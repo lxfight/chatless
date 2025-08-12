@@ -202,6 +202,7 @@ export default function ChatPage() {
         onDelete={handleDeleteConversation}
         allMetadata={allMetadata}
         currentModelId={selectedModelId}
+        currentProviderName={currentProviderName}
         onModelChange={handleModelChange}
         isModelSelectorDisabled={isLoading}
         tokenCount={tokenCount}
