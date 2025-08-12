@@ -4,13 +4,19 @@ import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { useProviderStore } from '@/store/providerStore';
 import type { ProviderMetadata } from '@/lib/metadata/types';
 
-// Helper function to check if a modelId is valid within the metadata
-const isModelValid = (modelId: string | null | undefined, metadata: ProviderMetadata[]): boolean => {
+// Helper: 校验模型是否在指定 provider 下有效（若未提供 provider，则在所有 provider 下查找）
+const isModelValid = (
+  modelId: string | null | undefined,
+  metadata: ProviderMetadata[],
+  providerName?: string | null
+): boolean => {
   if (!modelId || !metadata || metadata.length === 0) return false;
+  if (providerName) {
+    const p = metadata.find((pp) => pp.name === providerName);
+    return !!p && p.models.some((m: any) => m.name === modelId);
+  }
   for (const provider of metadata) {
-    if (provider.models.some((m: any) => m.name === modelId)) {
-      return true;
-    }
+    if (provider.models.some((m: any) => m.name === modelId)) return true;
   }
   return false;
 };
@@ -52,6 +58,11 @@ export const useModelSelection = () => {
   }, []); // 移除providerStoreInit依赖，避免重复执行
   
   const currentConversationId = useChatStore((state) => state.currentConversationId);
+  const currentConversationProvider = useChatStore((state) => {
+    const id = state.currentConversationId;
+    const conv = id ? state.conversations.find((c:any)=>c.id===id) : null;
+    return conv?.model_provider || null;
+  });
   const lastUsedModel = useChatStore((state) => 
     currentConversationId ? state.lastUsedModelPerChat[currentConversationId] : null
   );
@@ -104,6 +115,7 @@ export const useModelSelection = () => {
 
     const selectInitialModel = async () => {
       let targetModelId: string | null = null;
+      let targetProviderName: string | null = null;
       let modelSource = 'None';
       const currentChatId = currentConversationId;
 
@@ -112,22 +124,25 @@ export const useModelSelection = () => {
         try {
           const { specializedStorage } = await import('@/lib/storage');
           const convSel = await specializedStorage.models.getConversationSelectedModel(currentChatId);
-          if (convSel?.modelId && isModelValid(convSel.modelId, allMetadata)) {
+          if (convSel?.modelId && isModelValid(convSel.modelId, allMetadata, convSel.provider)) {
             targetModelId = convSel.modelId;
+            targetProviderName = convSel.provider || null;
             modelSource = 'Conversation Selected';
           }
         } catch (_) {}
       }
 
       // 2) 全局最近选择（pair）
-      if (!targetModelId && persistentLastModel && isModelValid(persistentLastModel, allMetadata)) {
+      if (!targetModelId && persistentLastModel && isModelValid(persistentLastModel, allMetadata, persistentLastPair?.provider)) {
         targetModelId = persistentLastModel;
         modelSource = 'Global Last Pair';
+        if (persistentLastPair?.provider) targetProviderName = persistentLastPair.provider;
       }
 
       // 3) 会话最近使用
-      if (!targetModelId && currentChatId && lastUsedModel && isModelValid(lastUsedModel, allMetadata)) {
+      if (!targetModelId && currentChatId && lastUsedModel && isModelValid(lastUsedModel, allMetadata, currentConversationProvider)) {
         targetModelId = lastUsedModel;
+        targetProviderName = currentConversationProvider;
         modelSource = 'Last Used (Conversation)';
       } else if (currentChatId && lastUsedModel) {
         console.warn(`[Model Selection] Last used model '${lastUsedModel}' for chat ${currentChatId} is no longer valid.`);
@@ -139,6 +154,7 @@ export const useModelSelection = () => {
         if (allMetadata.length > 0 && allMetadata[0].models.length > 0) {
           targetModelId = allMetadata[0].models[0].name;
           modelSource = 'First Available';
+          targetProviderName = allMetadata[0].name;
         } else {
           console.warn('[Model Selection] No models available in metadata.');
         }
@@ -148,18 +164,22 @@ export const useModelSelection = () => {
       if (targetModelId && targetModelId !== selectedModelId) {
         setSelectedModelId(targetModelId);
       }
+      if (targetProviderName) {
+        setCurrentProviderName(targetProviderName);
+      } else if (targetModelId) {
+        // 兜底：从 metadata 中找第一个包含该模型的 provider（仅首次初始化时用）
+        const p = allMetadata.find(p => p.models.some((m: any) => m.name === targetModelId));
+        if (p) setCurrentProviderName(p.name);
+      }
     };
 
     selectInitialModel();
   }, [llmInitialized, allMetadata, currentConversationId, lastUsedModel, setLastUsedModelForChat, selectedModelId, persistentLastModel]);
 
-  // Update provider name based on selected model（若存在同名模型，优先使用 persistentLastPair 中记录的 provider）
+  // 当仅变更 selectedModelId 而 provider 未显式设置时，尽量保持现有 provider
   useEffect(() => {
-    if (!selectedModelId || allMetadata.length === 0) {
-      setCurrentProviderName('');
-      return;
-    }
-
+    if (!selectedModelId || allMetadata.length === 0) return;
+    if (currentProviderName) return; // 已有明确 provider，不覆盖
     let provider;
     if (persistentLastPair && persistentLastPair.modelId === selectedModelId) {
       provider = allMetadata.find(p => p.name === persistentLastPair.provider && p.models.some((m: any) => m.name === selectedModelId));
@@ -167,7 +187,7 @@ export const useModelSelection = () => {
     if (!provider) {
       provider = allMetadata.find(p => p.models.some((m: any) => m.name === selectedModelId));
     }
-    setCurrentProviderName(provider ? provider.name : '');
+    if (provider) setCurrentProviderName(provider.name);
   }, [selectedModelId, allMetadata, persistentLastPair]);
 
   // 初始化时读取持久化的 {provider, modelId}
@@ -175,6 +195,21 @@ export const useModelSelection = () => {
     (async () => {
       try {
         const { specializedStorage } = await import('@/lib/storage');
+        // —— 迁移逻辑：如果历史 recentModels 是 string[]，转换为 pair[] ——
+        try {
+          const legacy = await specializedStorage.models.getRecentModels();
+          if (Array.isArray(legacy) && legacy.length > 0 && typeof legacy[0] === 'string') {
+            const legacyIds = legacy as unknown as string[];
+            const pairs: Array<{provider: string; modelId: string}> = [];
+            // 尽最大努力：按当前元数据反查第一个包含该模型的 provider
+            legacyIds.forEach((mid) => {
+              const p = allMetadata.find(pp => pp.models.some((m:any)=>m.name===mid));
+              if (p) pairs.push({ provider: p.name, modelId: mid });
+            });
+            await specializedStorage.models.setRecentModels(pairs);
+          }
+        } catch (_) {}
+
         const pair = await specializedStorage.models.getLastSelectedModelPair();
         if (pair && pair.modelId) {
           setSelectedModelId(pair.modelId);
@@ -183,7 +218,7 @@ export const useModelSelection = () => {
         }
       } catch (_) {}
     })();
-  }, []);
+  }, [allMetadata]);
 
   // 每次 selectedModelId 变化时写入缓存（仅写 pair）
   useEffect(() => {
@@ -216,6 +251,7 @@ export const useModelSelection = () => {
 
     setSelectedModelId(newModelId);
     setPersistentLastModel(newModelId);
+    if (providerName) setCurrentProviderName(providerName);
 
     // 精确定位 provider：优先使用传入的 providerName
     let provider = providerName

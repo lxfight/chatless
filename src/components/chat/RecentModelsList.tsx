@@ -32,7 +32,7 @@ export function RecentModelsList({
   return (
     <>
       {recentModelDetails.map(({ provider, model }) => (
-        <SelectItem key={model.name} value={model.name} className="p-0 focus:bg-transparent">
+        <SelectItem key={`${provider.name}::${model.name}`} value={`${provider.name}::${model.name}`} className="p-0 focus:bg-transparent">
           <ModelSelectItem
             provider={provider}
             model={model}

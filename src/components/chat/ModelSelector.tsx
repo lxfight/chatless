@@ -31,7 +31,7 @@ export function ModelSelector({
   currentProviderName
 }: ModelSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [recentModels, setRecentModels] = useState<string[]>([]);
+  const [recentModels, setRecentModels] = useState<Array<{provider: string; modelId: string}>>([]);
   const [globalDefaultModel, setGlobalDefaultModel] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
@@ -65,9 +65,10 @@ export function ModelSelector({
     loadRecentModels();
   }, []);
 
-  const updateRecentModels = async (modelId: string) => {
+  const updateRecentModels = async (providerName: string, modelId: string) => {
     try {
-      const newRecent = [modelId, ...recentModels.filter(id => id !== modelId)].slice(0, 3);
+      const newPair = { provider: providerName, modelId };
+      const newRecent = [newPair, ...recentModels.filter(p => !(p.provider === providerName && p.modelId === modelId))].slice(0, 3);
       setRecentModels(newRecent);
       
       const { specializedStorage } = await import('@/lib/storage');
@@ -88,8 +89,8 @@ export function ModelSelector({
       }
     }
 
-    // 更新最近使用列表（仅记录模型名）
-    updateRecentModels(modelId);
+    // 更新最近使用列表（记录 provider+model）
+    if (providerName) updateRecentModels(providerName, modelId);
 
     if (providerName) {
       (async () => {
@@ -110,17 +111,10 @@ export function ModelSelector({
 
   const currentProvider = useMemo(() => {
     if (!allMetadata || allMetadata.length === 0 || !currentModelId) return null;
-    // 1) 若外部提供了精确的 provider 名称，则优先按名称定位
-    if (currentProviderName) {
-      const byName = allMetadata.find(p => p.name === currentProviderName);
-      if (byName && byName.models.some(m => m.name === currentModelId)) return byName;
-    }
-    // 2) 回退：按 modelId 扫描（可能存在重名，仅作兜底）
-    for (const provider of allMetadata) {
-      const foundModel = provider.models.find(m => m.name === currentModelId);
-      if (foundModel) return provider;
-    }
-    return null;
+    // 严格模式：仅根据 currentProviderName 精确定位，杜绝跨 provider 误配
+    if (!currentProviderName) return null;
+    const byName = allMetadata.find(p => p.name === currentProviderName);
+    return byName && byName.models.some(m => m.name === currentModelId) ? byName : null;
   }, [allMetadata, currentModelId, currentProviderName]);
 
   // 统一：只显示 isVisible !== false 的提供商，防御上游漏过滤
@@ -142,14 +136,10 @@ export function ModelSelector({
   const recentModelDetails = useMemo(() => {
     const result: { provider: ProviderMetadata, model: ModelMetadata }[] = [];
     if (!visibleProviders) return result;
-    recentModels.forEach(modelName => {
-      for (const provider of visibleProviders) {
-        const foundModel = provider.models.find(m => m.name === modelName);
-        if (foundModel) {
-          result.push({ provider, model: foundModel });
-          break;
-        }
-      }
+    recentModels.forEach(({ provider, modelId }) => {
+      const p = visibleProviders.find(v => v.name === provider);
+      const m = p?.models.find(mm => mm.name === modelId);
+      if (p && m) result.push({ provider: p, model: m });
     });
     return result;
   }, [visibleProviders, recentModels]);
@@ -247,7 +237,11 @@ export function ModelSelector({
   };
 
   const SENTINEL_VALUE = '__none__';
-  const selectValue = searchQuery ? SENTINEL_VALUE : (currentModelId || '');
+  const selectValue = searchQuery
+    ? SENTINEL_VALUE
+    : (currentProvider && currentModelId
+        ? `${currentProvider.name}::${currentModelId}`
+        : (currentModelId || ''));
 
   return (
     <>

@@ -343,10 +343,10 @@ export const specializedStorage = {
       StorageUtil.setItem(`${provider.toLowerCase()}_models`, models, 'provider-models.json'),
     getProviderModels: (provider: string) =>
       StorageUtil.getItem<string[]>(`${provider.toLowerCase()}_models`, [], 'provider-models.json'),
-    setRecentModels: (models: string[]) => 
-      StorageUtil.setItem('recentModels', models, 'model-usage.json'),
+    setRecentModels: (pairs: Array<{ provider: string; modelId: string }>) => 
+      StorageUtil.setItem('recentModels', pairs, 'model-usage.json'),
     getRecentModels: () => 
-      StorageUtil.getItem<string[]>('recentModels', [], 'model-usage.json'),
+      StorageUtil.getItem<Array<{ provider: string; modelId: string }>>('recentModels', [], 'model-usage.json'),
     setDownloadedModels: (models: Set<string>) => 
       StorageUtil.setItem('onnx-downloaded-models', Array.from(models), 'model-downloads.json'),
     getDownloadedModels: async () => {
