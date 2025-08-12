@@ -27,6 +27,8 @@ export const useModelSelection = () => {
   const [persistentLastModel, setPersistentLastModel] = useState<string | null>(null);
   const [persistentLastPair, setPersistentLastPair] = useState<{provider: string; modelId: string} | null>(null);
   const [currentProviderName, setCurrentProviderName] = useState<string>('');
+  // 标记是否已完成从存储读取的初始化，避免在初始化阶段把 provider 覆盖成“第一个匹配项”
+  const [storageInitialized, setStorageInitialized] = useState(false);
 
   // 统一来源：使用 providerMetaStore，并在读取时过滤不可见项，保证与设置页一致
   const allMetadataRaw = useProviderMetaStore((s)=>s.list as unknown as ProviderMetadata[]);
@@ -217,25 +219,45 @@ export const useModelSelection = () => {
           setPersistentLastPair(pair);
         }
       } catch (_) {}
+      // 无论是否读到，都视为已完成初始化
+      setStorageInitialized(true);
     })();
   }, [allMetadata]);
 
   // 每次 selectedModelId 变化时写入缓存（仅写 pair）
   useEffect(() => {
+    // 1) 需要一个明确的 selectedModelId
     if (!selectedModelId) return;
+    // 2) 避免在读取存储但 provider 还未确定时被覆盖
+    if (!storageInitialized) return;
+
     (async () => {
       try {
         const { specializedStorage } = await import('@/lib/storage');
-        const provider = allMetadata.find(p => p.models.some((m: any) => m.name === selectedModelId))?.name || '';
-        if (provider) {
-          await specializedStorage.models.setLastSelectedModelPair(provider, selectedModelId);
-          setPersistentLastPair({ provider, modelId: selectedModelId });
+
+        // 优先使用当前上下文中的 provider
+        let providerName: string | undefined;
+        if (currentProviderName && isModelValid(selectedModelId, allMetadata, currentProviderName)) {
+          providerName = currentProviderName;
+        } else if (persistentLastPair && persistentLastPair.modelId === selectedModelId) {
+          // 其次使用持久化的 provider（若匹配当前模型）
+          const ok = isModelValid(selectedModelId, allMetadata, persistentLastPair.provider);
+          providerName = ok ? persistentLastPair.provider : undefined;
         }
-        // 同步更新内存中的 persistentLastModel，防止初始模型逻辑覆盖用户选择
+
+        // 兜底：从元数据中找到第一个包含该模型的 provider（仅在以上两者都缺失时）
+        if (!providerName) {
+          providerName = allMetadata.find(p => p.models.some((m: any) => m.name === selectedModelId))?.name;
+        }
+
+        if (providerName) {
+          await specializedStorage.models.setLastSelectedModelPair(providerName, selectedModelId);
+          setPersistentLastPair({ provider: providerName, modelId: selectedModelId });
+        }
         setPersistentLastModel(selectedModelId);
       } catch (_) {}
     })();
-  }, [selectedModelId, allMetadata]);
+  }, [selectedModelId, allMetadata, currentProviderName, persistentLastPair, storageInitialized]);
 
   // Handle model change
   const handleModelChange = useCallback((value: string) => {

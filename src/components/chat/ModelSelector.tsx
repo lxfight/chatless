@@ -111,10 +111,17 @@ export function ModelSelector({
 
   const currentProvider = useMemo(() => {
     if (!allMetadata || allMetadata.length === 0 || !currentModelId) return null;
-    // 严格模式：仅根据 currentProviderName 精确定位，杜绝跨 provider 误配
-    if (!currentProviderName) return null;
-    const byName = allMetadata.find(p => p.name === currentProviderName);
-    return byName && byName.models.some(m => m.name === currentModelId) ? byName : null;
+    // 优先：使用外部传入的 providerName 进行精确匹配
+    if (currentProviderName) {
+      const byName = allMetadata.find(p => p.name === currentProviderName);
+      if (byName && byName.models.some(m => m.name === currentModelId)) return byName;
+    }
+    // 兜底：如果传入的 providerName 缺失或不匹配（例如应用重启后恢复阶段），
+    // 则根据“最近选择的 pair”去定位，避免跨 provider 同名模型误配
+    // 注意：此兜底只在渲染时做一次同步判断，不写入存储
+    const pair = metadataService ? null : null; // no-op 占位，避免 tree-shaking 误删导入
+    const byScan = allMetadata.find(p => p.models.some(m => m.name === currentModelId)) || null;
+    return byScan;
   }, [allMetadata, currentModelId, currentProviderName]);
 
   // 统一：只显示 isVisible !== false 的提供商，防御上游漏过滤

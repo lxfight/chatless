@@ -348,9 +348,9 @@ export function AddProvidersDialog({ trigger }: Props) {
         <DialogHeader>
           <DialogTitle>添加/管理提供商</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           {/* 为避免在小屏宽度下出现水平溢出，强制容器与输入框不超出 */}
-          <Input className="w-full max-w-full" placeholder="搜索提供商..." value={keyword} onChange={(e)=>setKeyword(e.target.value)} />
+          <Input className="w-full max-w-full min-w-0" placeholder="搜索提供商..." value={keyword} onChange={(e)=>setKeyword(e.target.value)} />
           <div ref={listRef} className="max-h-[60vh] overflow-y-auto rounded-md bg-white/70 dark:bg-gray-900/20 space-y-1.5 px-1">
             {/* 内置分组标签 */}
             <div className="px-2 pt-1 text-[10px] tracking-wide text-gray-400">内置</div>
