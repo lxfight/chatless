@@ -81,7 +81,8 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       const parts = text.split(/\s+/);
       token = parts[0].replace(/^\//,'');
       const rest = text.slice(parts[0].length).trim();
-      const varRe = /(\w+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/g;
+      // 支持中文键名：用 [^\s=]+ 代替 \w
+      const varRe = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/gu;
       let m: RegExpExecArray | null;
       while ((m = varRe.exec(rest))) {
         const key = m[1];
@@ -89,9 +90,10 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
         inlineVars[key] = val;
       }
       if (Object.keys(inlineVars).length === 0 && rest) {
-        // 位置参数模式：使用 | 作为分隔；若无 | 则将整个 rest 作为第一个位置参数
-        const positional = rest.includes('|')
-          ? rest.split('|').map(s => s.trim()).filter(Boolean)
+        // 位置参数模式：支持英文竖线 | 与全角竖线 ｜
+        const hasDelim = /[|｜]/.test(rest);
+        const positional = hasDelim
+          ? rest.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
           : [rest];
         setPendingVars({ __positional: positional });
       } else {
@@ -143,7 +145,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     if (parts.length < 2) return false;
     const rest = raw.slice(parts[0].length).trim();
     if (!rest) return false;
-    return !/(\w)\s*=/.test(rest);
+    return !/([^\s=]+)\s*=/u.test(rest);
   }, [queryText]);
 
   // 从元数据或模板内容推导变量定义顺序
@@ -152,7 +154,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     const metaKeys: string[] = (Array.isArray(p.variables) ? (p.variables as any[]).map(v=>v.key).filter(Boolean) : []) as string[];
     if (metaKeys.length > 0) return metaKeys;
     const content: string = String(p.content || '');
-    const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+    const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
     const keys: string[] = [];
     let m: RegExpExecArray | null;
     while ((m = pattern.exec(content))) {
@@ -201,7 +203,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
 
   // 将模板渲染为高亮 React 片段（高亮变量值）
   const renderHighlighted = (template: string, values: Record<string, string>) => {
-    const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+    const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
     const nodes: React.ReactNode[] = [];
     let lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -234,7 +236,14 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
         const id = (filtered[activeIndex] as any)?.p?.id || (filtered[activeIndex] as any)?.id;
         if (id) {
           try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ev); } catch {}
-          onSelect(id, { action: 'apply', mode: (e as any).altKey ? 'oneOff' : 'permanent' });
+          // 新规则：回车直接发送；Alt+回车应用为系统（Shift+Alt 为一次性）
+          const useApply = (e as any).altKey || (e as any).metaKey; // 允许 ⌘ 兼容
+          if (useApply) {
+            const oneOff = (e as any).shiftKey;
+            onSelect(id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
+          } else {
+            onSelect(id, { action: 'send' });
+          }
         }
       }
     };
@@ -257,7 +266,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       {/* 顶部提示：一行操作提示 + 一行位置参数提示（按需显示） */}
       <div className="px-3 pt-2 pb-1.5 relative">
         <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-          输入关键词、/指令 或 tag:分类；点击应用为 system，Alt+点击为一次性；闪电为直接发送
+          输入关键词、/指令 或 tag:分类；回车直接发送 · Alt+回车应用为系统（Shift+Alt 为一次性）；闪电为直接发送；位置参数可用 | 或 ｜ 分隔
         </div>
         {filtered.length === 0 && (
           <Button aria-label="添加提示词" variant="ghost" size="icon" className="absolute top-1.5 right-1.5 h-7 w-7 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>

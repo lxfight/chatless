@@ -14,17 +14,19 @@ export function PromptsEmptyState() {
 
   return (
     <div className="w-full flex items-center justify-center">
-      <div className="text-center max-w-md w-full bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-8 shadow-sm">
-        <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-md">
-          {ui?.searchQuery ? <Search className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
+      <div className="text-center max-w-md w-full p-6">
+        <div className="w-12 h-12 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
+          {ui?.searchQuery 
+            ? <Search className="w-6 h-6 text-gray-400 dark:text-gray-500" strokeWidth={1.5} /> 
+            : <Bookmark className="w-6 h-6 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />}
         </div>
-        <div className="text-lg font-medium text-gray-800 dark:text-gray-100 mb-1">
-          {ui?.searchQuery ? '未找到匹配的提示词' : '还没有提示词'}
+        <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+          {ui?.searchQuery ? '未找到匹配的提示词' : '暂无提示词'}
         </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           {ui?.searchQuery ? '尝试调整关键词或筛选条件' : '创建或导入提示词，快速在聊天中复用'}
         </div>
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2 mt-4">
           <Button size="sm" className="h-8" onClick={() => setOpen(true)}>新建提示词</Button>
           <PromptImportExport />
         </div>

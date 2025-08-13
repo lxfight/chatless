@@ -110,13 +110,14 @@ export const usePromptStore = create<PromptState & PromptActions>()(
         try {
           const repo = DatabaseService.getInstance().getPromptRepository();
           const toUpdate: any = { ...updates };
-          if (toUpdate.tags) toUpdate.tags = JSON.stringify(toUpdate.tags);
-          if (toUpdate.languages) toUpdate.languages = JSON.stringify(toUpdate.languages);
-          if (toUpdate.modelHints) toUpdate.model_hints = JSON.stringify(toUpdate.modelHints);
-          if (toUpdate.variables) toUpdate.variables = JSON.stringify(toUpdate.variables);
-          if (toUpdate.shortcuts) toUpdate.shortcuts = JSON.stringify(toUpdate.shortcuts);
-          if (typeof toUpdate.favorite === 'boolean') toUpdate.favorite = toUpdate.favorite ? 1 : 0;
-          if (toUpdate.stats) toUpdate.stats = JSON.stringify(toUpdate.stats);
+          // 注意：必须使用 `in` 判断并删除驼峰字段，避免生成无效列名
+          if ('tags' in toUpdate) { toUpdate.tags = JSON.stringify(toUpdate.tags || []); }
+          if ('languages' in toUpdate) { toUpdate.languages = JSON.stringify(toUpdate.languages || []); }
+          if ('modelHints' in toUpdate) { toUpdate.model_hints = JSON.stringify(toUpdate.modelHints || []); delete toUpdate.modelHints; }
+          if ('variables' in toUpdate) { toUpdate.variables = JSON.stringify(toUpdate.variables || []); }
+          if ('shortcuts' in toUpdate) { toUpdate.shortcuts = JSON.stringify(toUpdate.shortcuts || []); }
+          if (typeof toUpdate.favorite === 'boolean') { toUpdate.favorite = toUpdate.favorite ? 1 : 0; }
+          if ('stats' in toUpdate) { toUpdate.stats = JSON.stringify(toUpdate.stats || {}); }
           repo.update(id, toUpdate).catch(()=>{});
         } catch {}
       },

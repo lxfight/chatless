@@ -169,7 +169,8 @@ export function ChatInput({
 
   const slashTokens = useMemo(() => {
     const tokens: string[] = [];
-    const re = /(^|\s)\/([a-zA-Z0-9_\-]+)/g;
+    // 指令 token 支持中文
+    const re = /(^|\s)\/([^\s]+)/gu;
     let m: RegExpExecArray | null;
     while ((m = re.exec(inputValue))) {
       const token = m[2];
@@ -179,7 +180,8 @@ export function ChatInput({
   }, [inputValue]);
 
   const stripFirstSlashToken = (text: string): string => {
-    return text.replace(/(^|\s)\/[a-zA-Z0-9_\-]+/, (match) => (match.startsWith(' ') ? ' ' : ''));
+    // 去除首个 /token（支持中文）
+    return text.replace(/(^|\s)\/[^\s]+/u, (match) => (match.startsWith(' ') ? ' ' : ''));
   };
 
   // 斜杠面板开关逻辑：当输入框以 / 开头或包含以空格分隔的 /token 时打开
@@ -213,7 +215,55 @@ export function ChatInput({
       }
     }
 
-    const userMessage = inputValue.trim();
+    let userMessage = inputValue.trim();
+
+    // 兜底：若以 / 指令开头但未通过面板选择，尝试在发送前渲染提示词
+    if (userMessage.startsWith('/')) {
+      try {
+        const prompts = usePromptStore.getState().prompts as any[];
+        const parts = userMessage.split(/\s+/);
+        const token = parts[0].replace(/^\//, '').toLowerCase();
+        const rest = userMessage.slice(parts[0].length).trim();
+        // 精确匹配已保存的快捷词
+        let matched = prompts.find((p:any)=> (p.shortcuts||[]).some((s:string)=> s.toLowerCase()===token));
+        if (!matched) {
+          // 回退：根据名称/标签生成候选，选择第一个以 token 开头的项
+          matched = prompts.find((p:any)=> {
+            const hay = `${p.name} ${(p.tags||[]).join(' ')} ${(p.languages||[]).join(' ')}`.toLowerCase();
+            return hay.includes(token);
+          });
+        }
+        if (matched) {
+          // 解析变量：key=value 或 位置参数（支持 | 与 ｜）
+          const inline: Record<string,string> = {};
+          const varRe = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/gu;
+          let m: RegExpExecArray | null;
+          while ((m = varRe.exec(rest))) { inline[m[1]] = (m[3] ?? m[4] ?? m[5] ?? '').toString(); }
+          let values: Record<string,string> = {};
+          const keys: string[] = (() => {
+            // 优先元数据中定义的顺序
+            if (Array.isArray(matched.variables) && matched.variables.length>0) return matched.variables.map((v:any)=>v.key);
+            const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
+            const ks: string[] = []; let mm: RegExpExecArray | null;
+            while ((mm = pattern.exec(String(matched.content||'')))) { const k = mm[1]; if (k && !ks.includes(k)) ks.push(k); }
+            return ks;
+          })();
+          // 位置参数
+          if (Object.keys(inline).length === 0 && rest) {
+            const pos = /[|｜]/.test(rest) ? rest.split(/[|｜]/g).map(s=>s.trim()).filter(Boolean) : [rest];
+            values = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+          } else {
+            // 合并默认值
+            const defaults: Record<string,string> = Object.fromEntries((matched.variables||[]).map((v:any)=> [v.key, v.defaultValue ?? '']));
+            values = { ...defaults, ...inline };
+          }
+          const rendered = renderPromptContent(String(matched.content||''), values);
+          if (rendered && rendered.trim()) {
+            userMessage = rendered.trim();
+          }
+        }
+      } catch {}
+    }
     
     if (attachedImages.length > 0) {
       const imagesData = attachedImages.map(img => img.base64Data);
@@ -447,7 +497,7 @@ export function ChatInput({
                 const pos = (merged as any).__positional as string[] | undefined;
                 if (Array.isArray(pos)) {
                   // 优先使用模板中的 {{var}} 顺序推导键名
-                  const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+                  const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
                   const keys: string[] = [];
                   let m: RegExpExecArray | null;
                   while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
@@ -475,8 +525,8 @@ export function ChatInput({
               const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
               let variableValues: Record<string,string> = merged as any;
               const pos = (merged as any).__positional as string[] | undefined;
-              if (prompt && Array.isArray(pos)) {
-                const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+               if (prompt && Array.isArray(pos)) {
+                const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
                 const keys: string[] = [];
                 let m: RegExpExecArray | null;
                 while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
@@ -508,7 +558,7 @@ export function ChatInput({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息..."
+          placeholder="输入消息… 输入 / 唤起提示词"
           className="w-full pl-14 pr-14 py-3 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[52px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
           rows={3}
           disabled={disabled || isParsingDocument}

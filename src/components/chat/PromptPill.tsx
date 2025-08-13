@@ -5,6 +5,7 @@ import { usePromptStore } from '@/store/promptStore';
 import { useChatStore } from '@/store/chatStore';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { renderPromptContent } from '@/lib/prompt/render';
 
 export function PromptPill() {
   const currentConversationId = useChatStore((s) => s.currentConversationId);
@@ -16,6 +17,12 @@ export function PromptPill() {
   const current = useMemo(() => conversations.find((c) => c.id === currentConversationId) || null, [conversations, currentConversationId]);
   const applied = current?.system_prompt_applied || null;
   const prompt = useMemo(() => prompts.find((p) => p.id === applied?.promptId) || null, [prompts, applied]);
+  const rendered = useMemo(() => {
+    if (!prompt) return '';
+    const defaults: Record<string, string> = Object.fromEntries((prompt.variables || []).map((v: any) => [v.key, v.defaultValue ?? '']));
+    const vars = { ...defaults, ...(applied?.variableValues || {}) } as Record<string, string>;
+    try { return renderPromptContent(prompt.content || '', vars); } catch { return prompt.content || ''; }
+  }, [prompt, applied]);
 
   const clear = () => {
     if (!current) return;
@@ -36,7 +43,7 @@ export function PromptPill() {
       <DropdownMenuContent align="start" className="w-80 max-w-[28rem]">
         <div className="px-3 py-2">
           <div className="max-h-60 overflow-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 p-2 text-xs leading-5 whitespace-pre-wrap">
-            {prompt?.content || ''}
+            {rendered}
           </div>
         </div>
         <DropdownMenuSeparator />

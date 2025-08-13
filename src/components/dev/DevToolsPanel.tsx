@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ export function DevToolsPanel({ onClose }: DevToolsPanelProps) {
   const [lastAction, setLastAction] = useState<string>('');
   const [showEnvironmentInfo, setShowEnvironmentInfo] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  // 数据目录入口已移至 dev-tools 页面，这里不再显示
 
   const handleReset = async (withTestData: boolean = false) => {
     const action = withTestData ? 'reset-test' : 'reset';
@@ -102,6 +103,8 @@ export function DevToolsPanel({ onClose }: DevToolsPanelProps) {
       setLastAction('❌ 打开应用数据目录失败');
     }
   };
+
+  useEffect(() => {}, []);
 
   if (process.env.NODE_ENV !== 'development') {
     return null;
@@ -196,13 +199,6 @@ export function DevToolsPanel({ onClose }: DevToolsPanelProps) {
                           disabled={loading === 'check'}
                 >
                           {loading === 'check' ? '检查中...' : '检查数据库状态'}
-                </Button>
-                <Button 
-                  onClick={handleOpenAppDataDir} 
-                          variant="outline"
-                  size="sm"
-                >
-                          打开应用数据目录
                 </Button>
                       </div>
               </CardContent>

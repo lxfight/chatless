@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DevToolsPanel } from '@/components/dev/DevToolsPanel';
 import SampleDataManager from '@/components/dev/SampleDataManager';
 import { DatabaseRepairTool } from '@/components/dev/DatabaseRepairTool';
 import { PerformanceMonitor } from '@/components/dev/PerformanceMonitor';
 import { getDevToolsStatus } from '../../lib/utils/environment';
 import { Button } from '@/components/ui/button';
-import { Loader2, RotateCcw, RefreshCw, AlertTriangle, Database, FileText, Trash2, Download, Sparkles, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { Loader2, RotateCcw, RefreshCw, AlertTriangle, Database, FileText, Trash2, Download, Sparkles, ChevronDown, ChevronUp, Settings, FolderOpen } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -40,6 +39,7 @@ export default function DevToolsPage() {
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const [googleTestResult, setGoogleTestResult] = useState<string>('');
   const [isTestingGoogle, setIsTestingGoogle] = useState(false);
+  const [appDataPath, setAppDataPath] = useState<string>('');
 
   const handleResetSampleData = async () => {
     setIsResetting(true);
@@ -269,7 +269,32 @@ export default function DevToolsPage() {
     };
 
     checkEnvironment();
+    // 预读应用数据目录
+    (async () => {
+      try {
+        const { appDataDir } = await import('@tauri-apps/api/path');
+        const dir = await appDataDir();
+        setAppDataPath(dir);
+      } catch {}
+    })();
   }, []);
+
+  const handleOpenAppDataDir = async () => {
+    try {
+      const { appDataDir } = await import('@tauri-apps/api/path');
+      // @ts-ignore - opener 插件仅在 Tauri 环境存在
+      const { openPath, open } = await import('@tauri-apps/plugin-opener');
+      const dir = await appDataDir();
+      if (openPath) {
+        await openPath(dir);
+      } else if (open) {
+        await open(dir);
+      }
+    } catch (error) {
+      console.error('打开应用数据目录失败:', error);
+      alert('打开数据目录失败，请检查 Tauri 插件配置');
+    }
+  };
 
   if (loading) {
     return (
@@ -359,8 +384,21 @@ export default function DevToolsPage() {
         </AlertDescription>
       </Alert>
 
-      {/* 主要开发工具面板 */}
-      <DevToolsPanel />
+      {/* 数据目录 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2"><FolderOpen className="h-5 w-5" /> 数据目录</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleOpenAppDataDir}>打开目录</Button>
+          </div>
+          <CardDescription>
+            应用数据所在的系统目录（数据库、缓存等）
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground font-mono truncate">{appDataPath || '加载中…'}</div>
+        </CardContent>
+      </Card>
 
       {/* 示例数据管理器 */}
       <SampleDataManager />
