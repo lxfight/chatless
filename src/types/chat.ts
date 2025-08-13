@@ -60,4 +60,10 @@ export interface Conversation {
   is_starred?: boolean;
   /** AI 思考开始的时间戳 (毫秒) */
   thinking_start_time?: number;
+  /** 会话级提示词应用 */
+  system_prompt_applied?: {
+    promptId: string;
+    variableValues?: Record<string, string>;
+    mode?: 'permanent' | 'temporary' | 'oneOff';
+  } | null;
 } 

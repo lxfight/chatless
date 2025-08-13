@@ -141,25 +141,50 @@ export class OllamaProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
-            // Ollama 特定的数据解析逻辑
-            try {
-              const json = JSON.parse(rawData);
-              
-              // 检查是否为流结束信号
+            // Ollama SSE 通常以多行 \n 分隔，并带有 'data: ' 前缀，这里进行稳健解析
+            const processJson = (json: any) => {
+              if (!json) return;
               if (json.done === true) {
                 console.debug('[OllamaProvider] Stream completed, triggering onComplete');
                 cb.onComplete?.();
                 this.sseClient.stopConnection();
                 return;
               }
-              
-              // 处理正常token
               const token = json?.message?.content;
-              if (token) cb.onToken?.(token);
+              if (typeof token === 'string' && token.length > 0) {
+                cb.onToken?.(token);
+              }
+            };
+
+            try {
+              // 可能是单个 JSON，也可能包含多行 'data: {json}'
+              const text = String(rawData || '').trim();
+              if (!text) return;
+
+              // 情况一：原始就是 JSON
+              if (text[0] === '{' || text[0] === '[') {
+                try { processJson(JSON.parse(text)); return; } catch {}
+              }
+
+              // 情况二：拆分处理每一行的 data: 片段
+              const lines = text.split(/\r?\n/);
+              for (const line of lines) {
+                const l = line.trim();
+                if (!l) continue;
+                if (l.startsWith('data:')) {
+                  const payload = l.slice(5).trim();
+                  if (!payload || payload === '[DONE]') { continue; }
+                  try {
+                    const json = JSON.parse(payload);
+                    processJson(json);
+                  } catch (e) {
+                    // 跳过无法解析的片段（避免将原始JSON直接注入UI）
+                    console.debug('[OllamaProvider] skip non-JSON SSE line:', payload?.slice(0,120));
+                  }
+                }
+              }
             } catch (error) {
-              console.error('[OllamaProvider] Failed to parse SSE event:', error);
-              // 回退处理：将原始数据作为token
-              cb.onToken?.(rawData);
+              console.error('[OllamaProvider] Failed to handle SSE data:', error);
             }
           }
         }

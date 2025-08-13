@@ -10,6 +10,7 @@ import { EditableTitle } from './EditableTitle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { PromptPill } from './PromptPill';
 
 interface ChatHeaderProps {
   title: string;
@@ -90,6 +91,7 @@ export function ChatHeader({
             onModelChange={handleModelChange}
             disabled={isModelSelectorDisabled}
           />
+          <PromptPill />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -20,6 +20,8 @@ import { downloadService } from '@/lib/utils/downloadService';
 import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
 import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
+import { usePromptStore } from '@/store/promptStore';
+import { renderPromptContent } from '@/lib/prompt/render';
 
 type StoreMessage = any;
 
@@ -372,8 +374,21 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       }
     }
 
-    // 构建历史消息
+    // 构建历史消息（含系统提示词）
     const historyForLlm: LlmMessage[] = [];
+    try {
+      const conv = currentConversationId ? useChatStore.getState().conversations.find((c:any)=>c.id===currentConversationId) : null;
+      const applied = conv?.system_prompt_applied;
+      if (applied?.promptId) {
+        const prompt = usePromptStore.getState().prompts.find((p:any)=>p.id===applied.promptId);
+        if (prompt) {
+          const rendered = renderPromptContent(prompt.content, applied.variableValues);
+          if (rendered && rendered.trim()) {
+            historyForLlm.push({ role: 'system', content: rendered } as any);
+          }
+        }
+      }
+    } catch {}
     if (currentConversation?.messages) {
       // 只取最近的几条消息，避免上下文过长
       const recentMessages = currentConversation.messages.slice(-10);

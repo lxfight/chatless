@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Send, Image, Code, Paperclip, Square, FileText, Loader2, Database, X, StopCircle, CornerDownLeft, Settings } from "lucide-react";
 import { DocumentParser } from '@/lib/documentParser';
 import { DocumentParseResult } from '@/types/document';
@@ -18,6 +18,10 @@ import { SessionParametersDialog } from './SessionParametersDialog';
 import type { ModelParameters } from '@/types/model-params';
 import { createSafePreview } from '@/lib/utils/tokenBudget';
 import { getCurrentKnowledgeBaseConfig } from '@/lib/knowledgeBaseConfig';
+import { SlashPromptPanel } from './SlashPromptPanel';
+import { usePromptStore } from '@/store/promptStore';
+import { useChatStore } from '@/store/chatStore';
+import { renderPromptContent } from '@/lib/prompt/render';
 
 interface EditingMessageData {
   content: string;
@@ -92,6 +96,8 @@ export function ChatInput({
 }: ChatInputProps) {
   const [inputValue, setInputValue] = useState("");
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  // 直接应用提示词，无需弹窗
+  const inlineVarsRef = useRef<Record<string,string>>({});
   const [isParsingDocument, setIsParsingDocument] = useState(false);
   const [attachedDocument, setAttachedDocument] = useState<{
     name: string;
@@ -147,6 +153,41 @@ export function ChatInput({
 
   useEffect(() => {
     adjustTextareaHeight();
+  }, [inputValue]);
+
+  // 监听来自面板的内联变量赋值
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = (e as CustomEvent).detail as Record<string,string>;
+      if (detail && typeof detail === 'object') {
+        inlineVarsRef.current = detail;
+      }
+    };
+    window.addEventListener('prompt-inline-vars', handler as any);
+    return () => window.removeEventListener('prompt-inline-vars', handler as any);
+  }, []);
+
+  const slashTokens = useMemo(() => {
+    const tokens: string[] = [];
+    const re = /(^|\s)\/([a-zA-Z0-9_\-]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(inputValue))) {
+      const token = m[2];
+      if (token && !tokens.includes(token)) tokens.push(token);
+    }
+    return tokens;
+  }, [inputValue]);
+
+  const stripFirstSlashToken = (text: string): string => {
+    return text.replace(/(^|\s)\/[a-zA-Z0-9_\-]+/, (match) => (match.startsWith(' ') ? ' ' : ''));
+  };
+
+  // 斜杠面板开关逻辑：当输入框以 / 开头或包含以空格分隔的 /token 时打开
+  useEffect(() => {
+    const val = inputValue;
+    // 以 / 开头 或 光标前为 / 时唤起，但不改变输入框焦点
+    const open = val.startsWith('/') || /\s\/$/.test(val);
+    setIsPanelOpen(open);
   }, [inputValue]);
 
   // 当进入编辑模式时，预填充内容
@@ -223,12 +264,30 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+
+    // 如果会话提示词为 oneOff，则清除
+    try {
+      const convId = conversationId;
+      if (convId) {
+        const conv = useChatStore.getState().conversations.find((c:any)=>c.id===convId);
+        const applied = conv?.system_prompt_applied;
+        if (applied?.mode === 'oneOff') {
+          useChatStore.getState().updateConversation(convId, { system_prompt_applied: null } as any);
+        }
+      }
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
+      if (!isPanelOpen) {
+        e.preventDefault();
+        handleSend();
+      }
+    }
+    // 在打开面板时避免回车直接发送
+    if (isPanelOpen && e.key === 'Enter') {
       e.preventDefault();
-      handleSend();
     }
   };
 
@@ -372,6 +431,78 @@ export function ChatInput({
       )}
 
       <div className="relative mt-1">
+        <SlashPromptPanel
+          open={isPanelOpen}
+          onOpenChange={setIsPanelOpen}
+          onSelect={(id, opts) => {
+            if (!conversationId) { setIsPanelOpen(false); return; }
+            const merged = { ...(inlineVarsRef.current||{}) };
+            inlineVarsRef.current = {};
+            const action = opts?.action || 'apply';
+            if (action === 'send') {
+              // 直接发送一次：渲染提示词内容并发送
+              const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
+              if (prompt) {
+                let variableValues: Record<string,string> = merged as any;
+                const pos = (merged as any).__positional as string[] | undefined;
+                if (Array.isArray(pos)) {
+                  // 优先使用模板中的 {{var}} 顺序推导键名
+                  const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+                  const keys: string[] = [];
+                  let m: RegExpExecArray | null;
+                  while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
+                  if (keys.length > 0) {
+                    variableValues = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+                  } else if (prompt.variables && prompt.variables.length > 0) {
+                    variableValues = Object.fromEntries((prompt.variables||[]).map((v:any, idx:number)=> [v.key, pos[idx] ?? v.defaultValue ?? '']));
+                  }
+                }
+                const rendered = (renderPromptContent as any)(prompt.content, variableValues);
+                if (rendered && rendered.trim()) {
+                  setInputValue(rendered);
+                  // 移除输入框中的第一段 /指令，避免残留
+                  setInputValue(v => stripFirstSlashToken(v));
+                  // 立即发送
+                  setTimeout(() => { handleSend(); }, 0);
+                }
+              }
+              setIsPanelOpen(false);
+              return;
+            }
+            // 应用为 system：支持 permanent / oneOff
+            const mode = opts?.mode || 'permanent';
+            try {
+              const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
+              let variableValues: Record<string,string> = merged as any;
+              const pos = (merged as any).__positional as string[] | undefined;
+              if (prompt && Array.isArray(pos)) {
+                const pattern = /\{\{\s*([a-zA-Z0-9_\-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
+                const keys: string[] = [];
+                let m: RegExpExecArray | null;
+                while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
+                if (keys.length > 0) {
+                  variableValues = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+                } else if (prompt.variables && prompt.variables.length > 0) {
+                  variableValues = Object.fromEntries((prompt.variables||[]).map((v:any, idx:number)=> [v.key, pos[idx] ?? v.defaultValue ?? '']));
+                }
+              }
+              useChatStore.getState().updateConversation(conversationId, { system_prompt_applied: { promptId: id, variableValues, mode } as any });
+              setInputValue(v => stripFirstSlashToken(v));
+              toast.success(mode === 'oneOff' ? '已作为一次性系统提示词应用' : '已应用到当前会话');
+            } catch {}
+            setIsPanelOpen(false);
+          }}
+          anchorRef={textareaRef as any}
+          queryText={inputValue}
+        />
+        {/* {slashTokens.length > 0 && (
+          <div className="absolute -top-7 left-1 right-1 flex flex-wrap gap-2 items-center text-[11px]">
+            {slashTokens.slice(0,4).map((t) => (
+              <span key={t} className="px-2 py-0.5 rounded-full bg-indigo-50/80 text-indigo-600 border border-indigo-200 shadow-sm">/{t}</span>
+            ))}
+            <span className="text-gray-500">指令仅用于唤起提示词，不会发送</span>
+          </div>
+        )} */}
         <textarea
           ref={textareaRef}
           value={inputValue}
@@ -514,6 +645,7 @@ export function ChatInput({
           currentParameters={currentSessionParameters}
         />
       )}
+      {/* 已移除“应用范围”弹窗，选择即应用 */}
     </div>
   );
 } 

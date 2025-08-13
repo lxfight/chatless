@@ -155,3 +155,24 @@ export function SettingsIcon({ className, ...props }: React.SVGProps<SVGSVGEleme
 
 // 开发工具图标
 export { Wrench } from 'lucide-react'; 
+
+// 提示词库图标（书签样式）
+export function BookmarkIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      {...props}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3-7 3V5z"
+      />
+    </svg>
+  );
+}

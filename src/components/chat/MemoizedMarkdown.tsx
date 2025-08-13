@@ -18,11 +18,12 @@ interface MemoizedMarkdownProps {
 
 // 根据字号动态生成渲染器
 function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components> {
-  // 映射不同字号下的标题大小
+  // 更克制的标题字号映射（聊天场景不宜过大）
   const headingSizeMap = {
-    small: ['text-3xl', 'text-2xl', 'text-xl'],
-    medium: ['text-4xl', 'text-3xl', 'text-2xl'],
-    large: ['text-5xl', 'text-4xl', 'text-3xl'],
+    // h3 在各档位都略大于正文，且明显小于 h2
+    small: ['text-lg', 'text-base', 'text-[0.95rem]'],
+    medium: ['text-xl', 'text-lg', 'text-[1.05rem]'],
+    large: ['text-2xl', 'text-xl', 'text-[1.2rem]'],
   } as const;
 
   const paragraphSizeMap = {
@@ -35,10 +36,10 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
   const pClass = paragraphSizeMap[size];
 
   return {
-    // 标题
+    // 标题（更轻的字重与更小的上下间距）
     h1: ({ node, className, children, ...props }) => (
       <h1
-        className={cn('mt-8 mb-4 font-black text-black tracking-tight', h1Class, className)}
+        className={cn('mt-4 mb-3 font-semibold text-black dark:text-gray-100', h1Class, className)}
         {...props}
       >
         {children}
@@ -46,7 +47,7 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
     ),
     h2: ({ node, className, children, ...props }) => (
       <h2
-        className={cn('mt-6 mb-2 font-black text-black dark:text-gray-200 tracking-tight', h2Class, className)}
+        className={cn('mt-3 mb-2 font-semibold text-black dark:text-gray-100', h2Class, className)}
         {...props}
       >
         {children}
@@ -54,11 +55,20 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
     ),
     h3: ({ node, className, children, ...props }) => (
       <h3
-        className={cn('mt-5 mb-2 font-black text-black dark:text-gray-200 tracking-tight', h3Class, className)}
+        className={cn('mt-2.5 mb-1.5 font-semibold text-black dark:text-gray-100', h3Class, className)}
         {...props}
       >
         {children}
       </h3>
+    ),
+    h4: ({ node, className, children, ...props }) => (
+      <h4 className={cn('mt-2 mb-1 font-medium text-black dark:text-gray-100', size === 'large' ? 'text-base' : size === 'small' ? 'text-sm' : 'text-sm', className)} {...props}>{children}</h4>
+    ),
+    h5: ({ node, className, children, ...props }) => (
+      <h5 className={cn('mt-2 mb-1 font-medium text-black dark:text-gray-100', size === 'large' ? 'text-sm' : 'text-xs', className)} {...props}>{children}</h5>
+    ),
+    h6: ({ node, className, children, ...props }) => (
+      <h6 className={cn('mt-2 mb-1 font-medium text-black dark:text-gray-100 text-xs', className)} {...props}>{children}</h6>
     ),
 
     // 段落
@@ -70,12 +80,12 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
 
     // 列表
     ul: ({ node, className, children, ...props }) => (
-      <ul className={cn('list-disc ml-6 space-y-2 text-black dark:text-gray-200', className)} {...props}>
+      <ul className={cn('list-disc ml-5 space-y-1.5 text-black dark:text-gray-200', className)} {...props}>
         {children}
       </ul>
     ),
     ol: ({ node, className, children, ...props }) => (
-      <ol className={cn('list-decimal ml-6 space-y-2 text-black dark:text-gray-200', className)} {...props}>
+      <ol className={cn('list-decimal ml-5 space-y-1.5 text-black dark:text-gray-200', className)} {...props}>
         {children}
       </ol>
     ),
@@ -86,11 +96,16 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
     // 引用
     blockquote: ({ node, className, children, ...props }) => (
       <blockquote
-        className={cn('pl-6 border-l-4 border-[#007aff] dark:border-gray-600 text-black dark:text-gray-300 italic my-6', className)}
+        className={cn('pl-4 border-l-2 border-[#007aff] dark:border-gray-600 text-black dark:text-gray-300 italic my-4', className)}
         {...props}
       >
         {children}
       </blockquote>
+    ),
+
+    // 分隔线
+    hr: ({ node, className, ...props }) => (
+      <hr className={cn('my-4 border-t border-gray-200 dark:border-gray-700', className)} {...props} />
     ),
 
     // 链接
@@ -105,6 +120,11 @@ function createRenderers(size: 'small' | 'medium' | 'large'): Partial<Components
       >
         {children}
       </a>
+    ),
+
+    // 强调（加粗）——保持字号不变，仅提升字重，避免与 h3 视觉等大
+    strong: ({ node, className, children, ...props }) => (
+      <strong className={cn('font-semibold', className)} {...props}>{children}</strong>
     ),
 
     // 代码自定义保留不变（引用现有实现）

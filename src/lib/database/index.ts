@@ -20,6 +20,7 @@ export { ConversationRepository } from './repositories/ConversationRepository';
 export { DocumentRepository } from './repositories/DocumentRepository';
 export { KnowledgeBaseRepository } from './repositories/KnowledgeBaseRepository';
 export { MessageRepository } from './repositories/MessageRepository';
+export { PromptRepository } from './repositories/PromptRepository';
 
 // 配置
 export type { DatabaseConfig } from './core/DatabaseManager';
