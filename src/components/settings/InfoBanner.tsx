@@ -37,7 +37,7 @@ export function InfoBanner({ id, message, type = 'warning', className, ...rest }
 
   return (
     <div {...rest} className={cn("p-3 rounded-md flex items-start justify-between", className)}>
-      <div className={cn("w-1 rounded-sm mr-3 self-stretch", type==='warning' ? 'bg-yellow-300/60' : type==='error' ? 'bg-red-300/60' : 'bg-blue-300/60')} />
+      {/* <div className={cn("w-1 rounded-sm mr-3 self-stretch", type==='warning' ? 'bg-yellow-300/60' : type==='error' ? 'bg-red-300/60' : 'bg-blue-300/60')} /> */}
       <div className={cn("flex items-center gap-2 text-xs flex-1 border rounded-md px-3 py-2", colors[type])}>
         <AlertTriangle className="w-4 h-4 opacity-70 flex-shrink-0" />
         <span className="opacity-80 leading-snug">{message}</span>

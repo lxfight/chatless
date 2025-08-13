@@ -71,28 +71,33 @@ export function useProviderManagement() {
 
   // 替换同步 effect
   useEffect(() => {
-    
-    const converted = repoProviders
-      .map(mapToProviderWithStatus)
-      .filter((p:any) => p.isVisible !== false);
-    
-    // 按PROVIDER_ORDER排序
-    const { PROVIDER_ORDER } = require('@/lib/llm');
-    const sortedConverted = converted.sort((a, b) => {
-      const aIndex = PROVIDER_ORDER.indexOf(a.name);
-      const bIndex = PROVIDER_ORDER.indexOf(b.name);
-      if (aIndex === -1 && bIndex === -1) return 0;
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-      return aIndex - bIndex;
-    });
-    
-    setProviders(sortedConverted as any);
-    setIsLoading(repoLoading);
-    // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
-    try {
-      preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{});
-    } catch {}
+    (async () => {
+      const converted = repoProviders
+        .map(mapToProviderWithStatus)
+        .filter((p:any) => p.isVisible !== false);
+
+      // 使用用户自定义排序优先
+      const { providerRepository } = require('@/lib/provider/ProviderRepository');
+      let userOrder: string[] = [];
+      try { userOrder = await providerRepository.getUserOrder(); } catch {}
+      const { PROVIDER_ORDER } = require('@/lib/llm');
+      const sortedConverted = converted.sort((a, b) => {
+        const ua = userOrder.indexOf(a.name);
+        const ub = userOrder.indexOf(b.name);
+        if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
+        const aIndex = PROVIDER_ORDER.indexOf(a.name);
+        const bIndex = PROVIDER_ORDER.indexOf(b.name);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+
+      setProviders(sortedConverted as any);
+      setIsLoading(repoLoading);
+      // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
+      try { preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{}); } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoProviders, repoLoading]);
 

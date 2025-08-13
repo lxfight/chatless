@@ -16,6 +16,17 @@ export class ProviderRepository {
     return list ?? [];
   }
 
+  /** 读取用户自定义排序（按 provider.name 数组） */
+  async getUserOrder(): Promise<string[]> {
+    const order = await StorageUtil.getItem<string[]>("userProviderOrder", [], "providers-config.json");
+    return order || [];
+  }
+
+  /** 保存用户自定义排序（按 provider.name 数组） */
+  async setUserOrder(order: string[]): Promise<void> {
+    await StorageUtil.setItem("userProviderOrder", order, "providers-config.json");
+  }
+
   /** 覆盖写入完整列表 */
   async saveAll(list: ProviderEntity[]): Promise<void> {
     // 写入内存缓存

@@ -76,8 +76,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     const list = await providerRepository.getAll();
     console.log(`[ProviderStore] 最终获取到 ${list.length} 个提供商:`, list.map(p => p.name));
     
-    // 按PROVIDER_ORDER排序
+    // 读取用户自定义排序，若存在则优先生效，否则按 PROVIDER_ORDER
+    const userOrder = await providerRepository.getUserOrder();
     const sortedList = list.sort((a, b) => {
+      const ua = userOrder.indexOf(a.name);
+      const ub = userOrder.indexOf(b.name);
+      if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
       const aIndex = PROVIDER_ORDER.indexOf(a.name);
       const bIndex = PROVIDER_ORDER.indexOf(b.name);
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -120,8 +124,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     providerRepository.subscribe(async (updated) => {
       const combined = await Promise.all(updated.map(async (p) => ({ ...p, models: await modelRepository.get(p.name) ?? [] })));
       
-      // 按PROVIDER_ORDER排序
+      // 使用用户排序优先
+      const userOrder = await providerRepository.getUserOrder();
       const sortedCombined = combined.sort((a, b) => {
+        const ua = userOrder.indexOf(a.name);
+        const ub = userOrder.indexOf(b.name);
+        if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
         const aIndex = PROVIDER_ORDER.indexOf(a.name);
         const bIndex = PROVIDER_ORDER.indexOf(b.name);
         if (aIndex === -1 && bIndex === -1) return 0;
