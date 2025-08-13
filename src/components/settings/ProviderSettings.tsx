@@ -83,26 +83,39 @@ export function ProviderSettings({
   const providerKey = provider.name.toLowerCase();
   const docUrl = keyDocLinks[providerKey];
 
-  // 规范化 icon 字符串与回退链：data:image（自定义） → 目录图标（多扩展名） → 生成头像
+  // 规范化 icon 字符串与回退链：优先使用目录 Logo（依据名称推导）→ data:image → 绝对/相对 URL → 生成头像
   const iconStr = typeof provider.icon === 'string' ? provider.icon : '';
   const iconExts = ['png', 'svg', 'webp', 'jpeg', 'jpg'] as const; // 与 logoService 一致
   const iconIsData = !!(iconStr && iconStr.startsWith('data:image'));
   const iconIsCatalog = !!(iconStr && iconStr.startsWith('/llm-provider-icon/'));
   const [iconExtIdx, setIconExtIdx] = useState(0);
   const [iconError, setIconError] = useState(false);
-  const catalogBase = iconIsCatalog ? iconStr.replace(/\.(svg|png|webp|jpeg|jpg)$/i, '') : iconStr;
-  // 若是目录图标，先查询预加载映射；否则按当前扩展索引
+  // 构造候选 base（与管理提供商弹窗一致的优先级）：
+  // 1) 目录 id（来自 catalog） 2) provider.icon 指向的目录路径 3) 名称转 slug
+  const nameSlugBase = `/llm-provider-icon/${provider.name.toLowerCase().replace(/\s+/g, '-')}`;
+  const catalogDef = AVAILABLE_PROVIDERS_CATALOG.find((c) => c.name === provider.name);
+  const catalogIdBase = catalogDef ? `/llm-provider-icon/${catalogDef.id}` : null;
+  const iconBaseFromProp = iconIsCatalog ? iconStr.replace(/\.(svg|png|webp|jpeg|jpg)$/i, '') : null;
+  const candidateBases = [catalogIdBase, iconBaseFromProp, nameSlugBase].filter(Boolean) as string[];
+  React.useEffect(() => { ensureLogoCacheReady().catch(()=>{}); }, []);
   const resolvedIconSrc = iconIsData
     ? iconStr
-    : iconIsCatalog
-      ? (() => {
-          const mapped = getResolvedUrlForBase(catalogBase);
+    : (() => {
+        // 命中映射优先
+        for (const base of candidateBases) {
+          const mapped = getResolvedUrlForBase(base);
           if (mapped) return mapped;
-          let idx = iconExtIdx;
-          while (idx < iconExts.length && isUrlKnownMissing(`${catalogBase}.${iconExts[idx]}`)) idx++;
-          return `${catalogBase}.${iconExts[Math.min(idx, iconExts.length - 1)]}`;
-        })()
-      : iconStr;
+        }
+        // 顺序尝试可用扩展名，跳过已知缺失
+        for (const base of candidateBases) {
+          for (const ext of iconExts) {
+            const url = `${base}.${ext}`;
+            if (!isUrlKnownMissing(url)) return url;
+          }
+        }
+        // 全部失败：回退到名称 slug 的最后一种扩展
+        return `${candidateBases[candidateBases.length - 1]}.${iconExts[iconExts.length - 1]}`;
+      })();
   // 生成型头像 → 使用缓存，避免每次重算/字符串分配
   const [fallbackAvatarSrc, setFallbackAvatarSrc] = React.useState<string>(() => getAvatarSync(provider.name.toLowerCase(), provider.name, 20));
   React.useEffect(() => {
@@ -416,12 +429,11 @@ export function ProviderSettings({
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden bg-white/60 dark:bg-gray-800/30 hover:bg-gray-50/40 transition-colors">
-      <div className="flex items-center justify-between w-full p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden bg-white/70 dark:bg-gray-800/30 shadow-xs hover:shadow-sm hover:bg-gray-50/50 transition-colors">
+      <div className="flex items-center justify-between w-full px-3 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center gap-2 flex-grow min-w-0 mr-3">
             <div className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-md text-lg shadow-sm flex-shrink-0",
-              "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-100 dark:to-gray-200"
+              "flex items-center justify-center w-8 h-8 rounded-md text-lg flex-shrink-0 ring-1 ring-gray-200/80 dark:ring-gray-700/60 bg-white dark:bg-gray-800"
             )}>
               {/* 优先显示 provider.icon（支持 data:image 或 /llm-provider-icon 路径），失败回退到生成头像 */}
               {(() => {
@@ -462,9 +474,7 @@ export function ProviderSettings({
             <div className="flex-grow min-w-0">
               <span className="font-semibold text-base text-gray-800 dark:text-gray-200 block truncate">
                 {provider.name}
-                {provider.isUserAdded && (
-                  <span className="ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">新增</span>
-                )}
+                {/* 删除“新增”标志，保持干净 */}
               </span>
               <TooltipProvider delayDuration={100}>
                   <Tooltip>
@@ -637,7 +647,7 @@ export function ProviderSettings({
             )}
             {/* 标题 + 搜索 + 能力筛选 */}
             <div className="flex items-center justify-between mb-2 gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
                 <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">可用模型配置</h4>
                 {provider.models && (
                   <span className="text-[10px] text-gray-400 whitespace-nowrap">{provider.models.length} 个</span>
@@ -647,7 +657,7 @@ export function ProviderSettings({
                   <button
                     type="button"
                     onClick={()=>setFilterThinking(v=>!v)}
-                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterThinking? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterThinking? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持思考的模型"
                   >
                     <Brain className="w-3 h-3" />思考
@@ -655,7 +665,7 @@ export function ProviderSettings({
                   <button
                     type="button"
                     onClick={()=>setFilterTools(v=>!v)}
-                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterTools? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持工具调用的模型"
                   >
                     <Workflow className="w-3 h-3" />工具
@@ -663,7 +673,7 @@ export function ProviderSettings({
                   <button
                     type="button"
                     onClick={()=>setFilterVision(v=>!v)}
-                    className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterVision? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持视觉的模型"
                   >
                     <Camera className="w-3 h-3" />视觉
@@ -672,7 +682,7 @@ export function ProviderSettings({
                   <button
                     type="button"
                     onClick={()=>setShowDetailCaps(v=>!v)}
-                    className={`px-1.5 h-5 rounded-md text-[10px] ${showDetailCaps? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                  className={`px-1.5 h-5 rounded-md text-[10px] ${showDetailCaps? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="切换行内能力徽标的显示"
                   >
                     {showDetailCaps? '详细徽标' : '简洁模式'}
@@ -718,6 +728,7 @@ export function ProviderSettings({
                 <Button
                   type="button"
                   size="sm"
+                  variant="soft"
                   className="h-7 text-xs"
                   disabled={isAddingModel || isGloballyInitializing}
                   onClick={handleAddModel}
@@ -949,7 +960,7 @@ export function ProviderSettings({
                 )}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400 pl-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2">
                 {provider.models && provider.models.length === 0
                   ? (provider.displayStatus === 'CONNECTING' ? '正在加载模型...' : '未找到可用模型。')
                   : (provider.displayStatus === 'NO_KEY' ? '已显示已知/静态模型。配置 API 密钥后可拉取最新模型。' : '')}

@@ -52,9 +52,34 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
     name: 'New API',
     strategy: 'multi',
     requiresKey: true,
-    // 默认留空，用户在设置中填写；或可根据部署填入聚合网关地址
+    // 默认服务端口，根据部署填入聚合网关地址
     defaultUrl: 'http://localhost:3000'
   },
+  {
+    id: 'gptload-openai',
+    name: 'GPT-Load OpenAI',
+    strategy: 'openai-compatible',
+    requiresKey: true,
+    // 默认服务端口，根据部署填入聚合网关地址
+    defaultUrl: 'http://localhost:3001/proxy/openai'
+  },
+  {
+    id: 'gptload-gemini',
+    name: 'GPT-Load Gemini',
+    strategy: 'openai-compatible',
+    requiresKey: true,
+    // 默认服务端口，根据部署填入聚合网关地址
+    defaultUrl: 'http://localhost:3001/proxy/gemini/v1beta/openai'
+  },
+  {
+    id: 'gptload-anthropic',
+    name: 'GPT-Load Anthropic',
+    strategy: 'anthropic',
+    requiresKey: true,
+    // 默认服务端口，根据部署填入聚合网关地址
+    defaultUrl: 'http://localhost:3001/proxy/anthropic'
+  },
+
   // 兼容 OpenAI 的常见代理/聚合服务
   { id: '302ai', name: '302AI', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.302.ai/v1' },
   { id: 'aihubmix', name: 'AIHubMix', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.aihubmix.com/v1' },

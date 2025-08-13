@@ -55,7 +55,7 @@ export function GeneralSettings() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     StorageUtil.setItem(LANG_KEY, lang);
-    toast.info("语言已切换（仅演示，需刷新后生效）");
+    //toast.info("语言已切换（仅演示，需刷新后生效）");
   }, [lang]);
 
   return (

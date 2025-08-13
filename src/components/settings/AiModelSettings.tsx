@@ -179,7 +179,7 @@ export function AiModelSettings() {
       </div>
 
       {/* Provider 列表 */}
-      <div className="space-y-3 mt-6">
+      <div className="space-y-4 mt-6">
         {filteredProviders.map((provider) => (
            <ProviderSettings
               key={provider.name}
