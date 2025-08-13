@@ -9,7 +9,7 @@ export const STATIC_PROVIDER_MODELS = [
   {
     providerName: "DeepSeek",
     models: [
-    { id: "deepseek-chat", label: "DeepSeek Chat" },
+    { id: "deepseek-chat", label: "DeepSeek V3" },
     { id: "deepseek-reasoner", label: "DeepSeek R1" }
     ]
   },
@@ -520,6 +520,13 @@ export const STATIC_PROVIDER_MODELS = [
   {
     providerName: "Azure OpenAI",
     models: [
+      { id: "gpt-5", label: "GPT-5" },
+      { id: "gpt-5-nano", label: "GPT-5 Nano" },
+      { id: "gpt-5-mini", label: "GPT-5 Mini" },
+    
+      { id: "gpt-4.5", label: "GPT-4.5" },
+      { id: "gpt-4.5-preview", label: "GPT-4.5 Preview" },
+      
     { id: "gpt-4o", label: "GPT-4o" },
       { id: "gpt-4o-mini", label: "GPT-4o Mini" },
       { id: "gpt-4.1", label: "GPT-4.1" },
@@ -541,6 +548,27 @@ export const STATIC_PROVIDER_MODELS = [
     { id: "gpt-4o-mini", label: "GPT-4o Mini" }
     ]
   },
+{
+  providerName: "GPT-GOD",
+  models: [
+
+    { id: "gpt-5", label: "GPT-5" },
+    { id: "gpt-5-nano", label: "GPT-5 Nano" },
+    { id: "gpt-5-mini", label: "GPT-5 Mini" },
+   
+    { id: "gpt-4", label: "GPT-4" },
+    { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
+    { id: "gpt-4o", label: "GPT-4o" },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini" },
+    { id: "gpt-4.5", label: "GPT-4.5" },
+    { id: "gpt-4.5-preview", label: "GPT-4.5 Preview" },
+
+    { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    { id: "gpt-3.5-turbo-16k", label: "GPT-3.5 Turbo 16K" },
+
+  ]
+},
+
   {
     providerName: "VertexAI",
     models: [
@@ -584,7 +612,6 @@ export const STATIC_PROVIDER_MODELS = [
     providerName: "Poe",
     models: [
       // Poe 官方机器人名称即为 ID（保持大小写与连字符）
-      { id: "Assistant", label: "Assistant" },
       { id: "App-Creator", label: "App-Creator" },
       { id: "ChatGPT-5", label: "ChatGPT-5" },
       { id: "GPT-5", label: "GPT-5" },
@@ -710,15 +737,7 @@ export const STATIC_PROVIDER_MODELS = [
       { id: "Hailuo-Director-01", label: "Hailuo-Director-01" },
       { id: "Pixverse-v4.5", label: "Pixverse-v4.5" },
       { id: "FLUX-dev", label: "FLUX-dev" },
-      { id: "Lyria", label: "Lyria" },
-      { id: "Kling-1.6-Pro", label: "Kling-1.6-Pro" },
-      { id: "Ideogram", label: "Ideogram" },
-      { id: "Clarity-Upscaler", label: "Clarity-Upscaler" },
-      { id: "TopazLabs", label: "TopazLabs" },
-      { id: "Hailuo-02-Standard", label: "Hailuo-02-Standard" },
-      { id: "Veo-3", label: "Veo-3" },
-      { id: "Sora", label: "Sora" },
-      { id: "Runway-Gen-4-Turbo", label: "Runway-Gen-4-Turbo" }
+      
     ]
   }
 ] as const;

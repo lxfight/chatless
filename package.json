@@ -20,7 +20,9 @@
     "prebuild": "pnpm run generate:settings-index && pnpm run update:app-info && pnpm run icons:index",
     "pretauri": "pnpm run generate:settings-index && pnpm run update:app-info && pnpm run icons:index",
     "dev:db:reset": "tsx src/scripts/dev-db-reset.ts",
-    "dev:test:providers": "tsx src/scripts/test-providers.ts"
+    "dev:test:providers": "tsx src/scripts/test-providers.ts",
+    "update:generate": "node scripts/updater.mjs",
+    "version:set": "node scripts/set-version.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",
@@ -44,10 +46,11 @@
     "@tauri-apps/plugin-http": "^2.4.3",
     "@tauri-apps/plugin-log": "~2",
     "@tauri-apps/plugin-opener": "^2.2.6",
+    "@tauri-apps/plugin-process": "~2.3.0",
     "@tauri-apps/plugin-sql": "^2.2.0",
     "@tauri-apps/plugin-store": "~2",
-    "@tauri-apps/plugin-upload": "^2.2.2",
     "@tauri-apps/plugin-updater": "^2.2.2",
+    "@tauri-apps/plugin-upload": "^2.2.2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
@@ -103,6 +106,7 @@
     "tsx": "^4.19.1",
     "tw-animate-css": "^1.2.8",
     "typescript": "~5.8.3",
-    "typescript-eslint": "^8.30.1"
+    "typescript-eslint": "^8.30.1",
+    "@octokit/rest": "^21.1.1"
   }
 }

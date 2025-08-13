@@ -93,6 +93,7 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
   { id: 'baidu-cloud', name: 'Baidu Cloud', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://qianfan.baidubce.com/v2' },
   { id: 'voyageai', name: 'VoyageAI', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.voyageai.com' },
   { id: 'hyperbolic', name: 'Hyperbolic', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.hyperbolic.xyz' },
+  { id: 'gptgod', name: 'GPT-GOD', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://api.gptgod.online/v1' },
   { id: 'ph8', name: 'PH8', strategy: 'openai-compatible', requiresKey: true, defaultUrl: 'https://ph8.co' },
   { id: 'azure-openai', name: 'Azure OpenAI', strategy: 'openai-compatible', requiresKey: true, defaultUrl: '' },
   // 本地类

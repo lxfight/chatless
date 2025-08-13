@@ -67,7 +67,10 @@ export function AboutSupportSettings() {
       if ('downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
         // Windows 会在安装前自动退出应用（由系统安装器决定）
-        toast.success('更新已安装。部分平台需重启应用以生效。');
+        toast.success('更新已安装，将重启应用');
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        relaunch();
+
       } else {
         // 兼容性兜底：仅提示用户前往发布页
         await handleOpenLink(APP_INFO.releases);

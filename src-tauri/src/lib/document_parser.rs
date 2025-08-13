@@ -4,14 +4,14 @@ use pulldown_cmark::{Event, Options, Parser, Tag};
 use std::fs;
 use std::path::Path;
 // 额外格式依赖
+use calamine::{DataType, Reader, open_workbook_auto};
 use csv::ReaderBuilder;
-use calamine::{open_workbook_auto, DataType, Reader};
 use html2text::from_read as html_to_text_from_read;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::sync::Semaphore;
 use tokio::task::spawn_blocking;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 pub struct DocumentParser;
 
@@ -134,7 +134,8 @@ impl DocumentParser {
   /// JSON 文本提取（原样读取）
   fn extract_json_text(file_path_str: &str) -> Result<String> {
     let file_path = Path::new(file_path_str);
-    let text = fs::read_to_string(file_path).with_context(|| format!("无法读取 JSON 文件: {}", file_path_str))?;
+    let text = fs::read_to_string(file_path)
+      .with_context(|| format!("无法读取 JSON 文件: {}", file_path_str))?;
     Ok(text.trim().to_string())
   }
 
@@ -185,7 +186,8 @@ impl DocumentParser {
 
   /// HTML 文本提取
   fn extract_html_text(file_path_str: &str) -> Result<String> {
-    let bytes = fs::read(file_path_str).with_context(|| format!("无法读取 HTML 文件: {}", file_path_str))?;
+    let bytes =
+      fs::read(file_path_str).with_context(|| format!("无法读取 HTML 文件: {}", file_path_str))?;
     let cursor = std::io::Cursor::new(bytes);
     // 大宽度避免自动换行
     let text = html_to_text_from_read(cursor, 1_000_000);
@@ -194,7 +196,8 @@ impl DocumentParser {
 
   /// RTF 简易文本提取（基础剥离控制词）
   fn extract_rtf_text(file_path_str: &str) -> Result<String> {
-    let raw = fs::read_to_string(file_path_str).with_context(|| format!("无法读取 RTF 文件: {}", file_path_str))?;
+    let raw = fs::read_to_string(file_path_str)
+      .with_context(|| format!("无法读取 RTF 文件: {}", file_path_str))?;
     let mut out = String::new();
     let mut chars = raw.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -204,25 +207,41 @@ impl DocumentParser {
           // 跳过控制词/转义
           let mut word = String::new();
           while let Some(&c) = chars.peek() {
-            if c.is_alphabetic() { word.push(c); chars.next(); } else { break; }
+            if c.is_alphabetic() {
+              word.push(c);
+              chars.next();
+            } else {
+              break;
+            }
           }
           // 处理 \'hh 十六进制
           if word.is_empty() {
-            if let Some(&'\'') = chars.peek() { // backslash + ' pattern
+            if let Some(&'\'') = chars.peek() {
+              // backslash + ' pattern
               chars.next(); // consume '\''
               let h1 = chars.next();
               let h2 = chars.next();
               if let (Some(a), Some(b)) = (h1, h2) {
                 let hex = format!("{}{}", a, b);
-                if let Ok(v) = u8::from_str_radix(&hex, 16) { out.push(v as char); }
+                if let Ok(v) = u8::from_str_radix(&hex, 16) {
+                  out.push(v as char);
+                }
               }
             }
           } else {
             // 跳过可选的数字参数
-            while let Some(&c) = chars.peek() { if c.is_ascii_digit() || c=='-' { chars.next(); } else { break; } }
+            while let Some(&c) = chars.peek() {
+              if c.is_ascii_digit() || c == '-' {
+                chars.next();
+              } else {
+                break;
+              }
+            }
           }
           // 控制词通常以空格或非字母数字结束，若有空格需消耗
-          if let Some(&' ') = chars.peek() { chars.next(); }
+          if let Some(&' ') = chars.peek() {
+            chars.next();
+          }
         }
         _ => out.push(ch),
       }
@@ -347,18 +366,16 @@ async fn orchestrate_from_path(file_path: String) -> Result<String, String> {
   };
 
   match timeout(Duration::from_millis(ORCH_TIMEOUT_MS), fut).await {
-    Ok(r) => {
-      match r {
-        Ok(text) => {
-          info!("[DOC] 解析完成: {} ({} 字符)", label, text.len());
-          Ok(text)
-        }
-        Err(e) => {
-          error!("[DOC] 解析失败: {} => {}", label, e);
-          Err(e)
-        }
+    Ok(r) => match r {
+      Ok(text) => {
+        info!("[DOC] 解析完成: {} ({} 字符)", label, text.len());
+        Ok(text)
       }
-    }
+      Err(e) => {
+        error!("[DOC] 解析失败: {} => {}", label, e);
+        Err(e)
+      }
+    },
     Err(_) => {
       error!("[DOC] 解析超时: {}", label);
       Err("解析超时，请稍后重试".to_string())
@@ -366,14 +383,21 @@ async fn orchestrate_from_path(file_path: String) -> Result<String, String> {
   }
 }
 
-async fn orchestrate_from_binary(file_name: String, file_content: Vec<u8>) -> Result<String, String> {
+async fn orchestrate_from_binary(
+  file_name: String,
+  file_content: Vec<u8>,
+) -> Result<String, String> {
   let _permit = PARSE_SEMAPHORE
     .acquire()
     .await
     .map_err(|e| format!("获取解析许可失败: {}", e))?;
 
   let fname_for_log = file_name.clone();
-  info!("[DOC] 开始二进制解析: {} ({} bytes)", fname_for_log, file_content.len());
+  info!(
+    "[DOC] 开始二进制解析: {} ({} bytes)",
+    fname_for_log,
+    file_content.len()
+  );
 
   let fut = async move {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -388,11 +412,17 @@ async fn orchestrate_from_binary(file_name: String, file_content: Vec<u8>) -> Re
     let temp_dir = std::env::temp_dir();
     let temp_file_path = temp_dir.join(&temp_file_name);
 
-    struct TempFileGuard { path: std::path::PathBuf }
-    impl Drop for TempFileGuard {
-      fn drop(&mut self) { let _ = std::fs::remove_file(&self.path); }
+    struct TempFileGuard {
+      path: std::path::PathBuf,
     }
-    let guard = TempFileGuard { path: temp_file_path.clone() };
+    impl Drop for TempFileGuard {
+      fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+      }
+    }
+    let guard = TempFileGuard {
+      path: temp_file_path.clone(),
+    };
 
     // 将写入与解析放在阻塞线程中执行
     let res = spawn_blocking(move || {
@@ -414,15 +444,20 @@ async fn orchestrate_from_binary(file_name: String, file_content: Vec<u8>) -> Re
   };
 
   match timeout(Duration::from_millis(ORCH_TIMEOUT_MS), fut).await {
-    Ok(r) => {
-      match r {
-        Ok(text) => {
-          info!("[DOC] 二进制解析完成: {} ({} 字符)", fname_for_log, text.len());
-          Ok(text)
-        }
-        Err(e) => { error!("[DOC] 二进制解析失败: {} => {}", fname_for_log, e); Err(e) }
+    Ok(r) => match r {
+      Ok(text) => {
+        info!(
+          "[DOC] 二进制解析完成: {} ({} 字符)",
+          fname_for_log,
+          text.len()
+        );
+        Ok(text)
       }
-    }
+      Err(e) => {
+        error!("[DOC] 二进制解析失败: {} => {}", fname_for_log, e);
+        Err(e)
+      }
+    },
     Err(_) => {
       error!("[DOC] 二进制解析超时: {}", fname_for_log);
       Err("解析超时，请稍后重试".to_string())
@@ -480,13 +515,13 @@ pub fn get_supported_file_types() -> Vec<String> {
     "md".to_string(),
     "markdown".to_string(),
     "txt".to_string(),
-      "json".to_string(),
-      "csv".to_string(),
-      "xlsx".to_string(),
-      "xls".to_string(),
-      "html".to_string(),
-      "htm".to_string(),
-      "rtf".to_string(),
-      "epub".to_string(),
+    "json".to_string(),
+    "csv".to_string(),
+    "xlsx".to_string(),
+    "xls".to_string(),
+    "html".to_string(),
+    "htm".to_string(),
+    "rtf".to_string(),
+    "epub".to_string(),
   ]
 }

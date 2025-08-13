@@ -37,7 +37,8 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxMDAzMUQ1MUNFRjVCNEYKUldSUFcrOGMxVEVBOFVpR0hNMGtlbEZZbzZSYTFIclJzdzJsUXgxd3paK1pVYlFnSEoyWWk2QmUK",
       "endpoints": [
-        "https://api.github.com/repos/kamjin3086/chatless/releases/latest/latest.json"
+        "https://github.com/kamjin3086/chatless/releases/download/updater/update.json",
+        "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/download/updater/update-proxy.json"
       ]
     },
     "store": null,

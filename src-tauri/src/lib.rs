@@ -1,10 +1,10 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use anyhow::Result;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::path::BaseDirectory;
-use tauri::Manager;
-use tauri_plugin_log::{Target, TargetKind};
 use crc32fast;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
+use tauri::path::BaseDirectory;
+use tauri_plugin_log::{Target, TargetKind};
 
 #[tauri::command]
 fn exit(code: i32) {
@@ -50,10 +50,9 @@ fn generate_embedding_command(texts: Vec<String>) -> Result<Vec<Vec<f32>>, Strin
 
 pub fn run() {
   let _builder = tauri::Builder::default()
+    .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_log::Builder::new().build())
     .setup(|app| {
-
-
       // 根据当前操作系统选择正确的 ONNX Runtime 动态库文件名
       let lib_name = if cfg!(target_os = "windows") {
         "onnxruntime.dll"
@@ -92,15 +91,15 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(
       tauri_plugin_log::Builder::new()
-      .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-      .format(|out, message, record| {
-        out.finish(format_args!(
-          "[{} {}] {}",
-          record.level(),
-          record.target(),
-          message
-        ))
-      })
+        .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+        .format(|out, message, record| {
+          out.finish(format_args!(
+            "[{} {}] {}",
+            record.level(),
+            record.target(),
+            message
+          ))
+        })
         .targets([
           // 输出到终端
           Target::new(TargetKind::Stdout),

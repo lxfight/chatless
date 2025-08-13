@@ -74,6 +74,7 @@
     "updater:allow-check",
     "updater:allow-download-and-install",
     "updater:allow-download",
-    "updater:allow-install"
+    "updater:allow-install",
+    "process:default"
   ]
 }
