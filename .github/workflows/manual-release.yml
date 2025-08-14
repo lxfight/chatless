@@ -74,7 +74,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'pnpm'
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -112,7 +112,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'pnpm'
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -150,7 +150,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'pnpm'
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -198,7 +198,7 @@ jobs:
           body: ${{ github.event.inputs.release_notes }}
           files: artifacts/**/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.event.inputs.version, '-') }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -215,4 +215,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           UPDATER_PROXY_PREFIX: https://gh-proxy.com/
-        run: node scripts/updater.mjs
+        run: pnpm run update:generate
+      - name: Verify updater endpoints
+        env:
+          EXPECTED_VERSION: ${{ github.event.inputs.version }}
+          ENDPOINTS: |
+            https://github.com/${{ github.repository }}/releases/download/updater/update.json
+            https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/download/updater/update-proxy.json
+        run: pnpm run update:verify

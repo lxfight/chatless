@@ -22,6 +22,7 @@
     "dev:db:reset": "tsx src/scripts/dev-db-reset.ts",
     "dev:test:providers": "tsx src/scripts/test-providers.ts",
     "update:generate": "node scripts/updater.mjs",
+    "update:verify": "node scripts/updater-verify.mjs",
     "version:set": "node scripts/set-version.mjs"
   },
   "dependencies": {

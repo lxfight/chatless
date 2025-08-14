@@ -11,8 +11,9 @@ function assertSemver(v) {
 }
 
 try {
-  const version = process.env.VERSION;
+  let version = process.env.VERSION;
   if (!version) throw new Error("VERSION env is required");
+  if (version.startsWith('v')) version = version.slice(1);
   assertSemver(version);
 
   // package.json
