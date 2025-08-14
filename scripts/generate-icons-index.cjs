@@ -16,7 +16,9 @@ function main() {
       console.warn('[generate-icons-index] dir not found:', ICON_DIR);
       return;
     }
-    const files = fs.readdirSync(ICON_DIR).filter((f) => fs.statSync(path.join(ICON_DIR, f)).isFile());
+    const files = fs
+      .readdirSync(ICON_DIR)
+      .filter((f) => fs.statSync(path.join(ICON_DIR, f)).isFile() && f !== '_index.json');
     const data = { files };
     fs.writeFileSync(OUT_FILE, JSON.stringify(data, null, 2), 'utf-8');
     console.log(`[generate-icons-index] wrote ${files.length} entries to ${path.relative(ROOT, OUT_FILE)}`);

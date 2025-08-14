@@ -158,7 +158,7 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl h-[80vh] p-0 flex flex-col">
-        <DialogHeader className="px-6 pt-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+        <DialogHeader className="px-6 pt-4 pb-2 border-b border-gray-100 dark:border-gray-800/80">
           <DialogTitle>{(initial as any)?.id ? '编辑提示词' : '新建提示词'}</DialogTitle>
         </DialogHeader>
 
@@ -189,7 +189,7 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
               <Label htmlFor="prompt-content">内容</Label>
               <div className="text-xs text-gray-500">在文本中直接使用 {'{{变量}}'}，无需单独新增变量</div>
             </div>
-            <div className="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/40 min-h-[280px] max-h-[50vh] shadow-sm">
+            <div className="relative rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/70 bg-white/70 dark:bg-gray-800/40 min-h-[280px] max-h-[50vh] shadow-sm">
               <div
                 ref={previewRef}
                 className="absolute inset-0 overflow-auto p-4 text-sm leading-6 whitespace-pre-wrap pointer-events-none select-none text-gray-900 dark:text-gray-100 font-mono"
@@ -265,9 +265,9 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
             {/* 去掉额外“添加变量”UI，变量从内容中自动识别 */}
         </div>
 
-        <DialogFooter className="mt-2 px-6 py-3 border-t border-gray-200 dark:border-gray-800">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || !content.trim()}>保存</Button>
+        <DialogFooter className="mt-2 px-6 py-3 border-t border-gray-100 dark:border-gray-800/80">
+          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button variant="soft" onClick={handleSubmit} disabled={!name.trim() || !content.trim()}>保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

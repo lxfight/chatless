@@ -8,7 +8,7 @@ import { useState } from "react";
 import { usePromptStore } from "@/store/promptStore";
 import { PromptImportExport } from "./PromptImportExport";
 import { cn } from "@/lib/utils";
-import { IconButton } from "@/components/ui/icon-button";
+// import { IconButton } from "@/components/ui/icon-button";
 
 export function PromptsHeader() {
   const [open, setOpen] = useState(false);
@@ -40,7 +40,10 @@ export function PromptsHeader() {
           <Button variant={ui?.favoriteOnly ? "secondary" : "outline"} size="sm" className={cn('h-8', ui?.favoriteOnly ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100' : '')} onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}>只看收藏</Button>
           <PromptImportExport />
         </div>
-        <IconButton icon={Plus} title="新建提示词" onClick={() => setOpen(true)} />
+        <Button variant="soft" size="sm" className="h-8 px-3" onClick={() => setOpen(true)}>
+          <Plus className="w-4 h-4" />
+          新建提示词
+        </Button>
       </div>
       <PromptEditorDialog
         open={open}

@@ -23,7 +23,10 @@ pub mod sse;
 #[tauri::command]
 fn greet() -> String {
   let now = SystemTime::now();
-  let epoch_ms = now.duration_since(UNIX_EPOCH).unwrap().as_millis();
+  let epoch_ms = now
+    .duration_since(UNIX_EPOCH)
+    .map(|d| d.as_millis())
+    .unwrap_or(0);
   format!("Hello world from Rust! Current epoch: {}", epoch_ms)
 }
 
@@ -51,31 +54,42 @@ fn generate_embedding_command(texts: Vec<String>) -> Result<Vec<Vec<f32>>, Strin
 pub fn run() {
   let _builder = tauri::Builder::default()
     .plugin(tauri_plugin_process::init())
-    .plugin(tauri_plugin_log::Builder::new().build())
     .setup(|app| {
-      // 根据当前操作系统选择正确的 ONNX Runtime 动态库文件名
+      // 尝试在启动时初始化 ONNX Runtime，但不再因失败而中断应用
       let lib_name = if cfg!(target_os = "windows") {
         "onnxruntime.dll"
       } else if cfg!(target_os = "macos") {
         "libonnxruntime.dylib"
       } else {
-        // 其他平台统一按 Linux 处理
         "libonnxruntime.so"
       };
 
-      let resource_path = app
+      match app
         .path()
         .resolve(lib_name, BaseDirectory::Resource)
-        .expect("failed to resolve resource");
-
-      println!("Attempting to load {lib_name} from: {:?}", resource_path);
-
-      // 根据官方文档，在使用 `load-dynamic` 特性时必须先初始化
-      if let Err(e) = ort::init_from(resource_path.to_string_lossy().as_ref()).commit() {
-        panic!(
-          "Failed to initialize ONNX Runtime: {}. Please ensure {lib_name} is in the correct path.",
-          e
-        );
+      {
+        Ok(resource_path) => {
+          println!("Attempting to load {lib_name} from: {:?}", resource_path);
+          if resource_path.exists() {
+            if let Err(e) = ort::init_from(resource_path.to_string_lossy().as_ref()).commit() {
+              eprintln!(
+                "[WARN] Failed to initialize ONNX Runtime at startup: {}. Features depending on ORT may be unavailable until re-initialized.",
+                e
+              );
+            }
+          } else {
+            eprintln!(
+              "[WARN] ORT dynamic library not found at {:?}. You can still use the app without embedding features.",
+              resource_path
+            );
+          }
+        }
+        Err(e) => {
+          eprintln!(
+            "[WARN] Failed to resolve ORT resource path: {}. Skipping ORT init at startup.",
+            e
+          );
+        }
       }
 
       Ok(())

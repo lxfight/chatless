@@ -405,8 +405,8 @@ async fn orchestrate_from_binary(
     // 生成唯一的临时文件名
     let timestamp = SystemTime::now()
       .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis();
+      .map(|d| d.as_millis())
+      .unwrap_or(0);
 
     let temp_file_name = format!("tauri_doc_parse_{}_{}", timestamp, file_name);
     let temp_dir = std::env::temp_dir();
