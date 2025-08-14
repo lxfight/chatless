@@ -71,6 +71,7 @@ jobs:
           key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('next.config.ts') }}
           restore-keys: |
             ${{ runner.os }}-next-
+          retention-days: 21
       - name: Install system deps for Linux (Ubuntu 22.04)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: |
@@ -86,6 +87,7 @@ jobs:
           key: ${{ runner.os }}-tauri-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ hashFiles('src-tauri/tauri.conf.json') }}
           restore-keys: |
             ${{ runner.os }}-tauri-
+          retention-days: 21
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -99,6 +101,7 @@ jobs:
             ~/.cargo/git
             src-tauri/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          retention-days: 21
       - name: Build Tauri app
         run: pnpm tauri build
         env:
@@ -122,6 +125,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/**/*.sig
             src-tauri/target/release/bundle/**/*.sha256*
+          retention-days: 7
 
   release:
     needs: build
@@ -151,6 +155,10 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
