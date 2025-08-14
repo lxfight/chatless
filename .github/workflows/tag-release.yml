@@ -116,6 +116,7 @@ jobs:
         with:
           name: chatless-${{ matrix.os }}
           path: |
+            src-tauri/target/release/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.dmg
             src-tauri/target/release/bundle/macos/*.app.tar.gz
             src-tauri/target/release/bundle/appimage/*.AppImage
