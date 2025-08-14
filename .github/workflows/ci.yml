@@ -40,7 +40,7 @@ jobs:
   frontend-checks:
     # if: github.event_name != 'workflow_dispatch' || (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full')
     if: false  # ✅ 暂时禁用，后续可恢复上面的 if 条件
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
   backend-check:
     # if: github.event_name != 'workflow_dispatch' || (github.event.inputs.test_type == 'basic' || github.event.inputs.test_type == 'full')
     if: false  # ✅ 暂时禁用，后续可恢复上面的 if 条件
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,8 +85,11 @@ jobs:
     #   (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
     #   (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'ubuntu'))
     if: false  # ✅ 暂时禁用，后续可恢复上面的 if 条件
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    container: ubuntu:18.04
     steps:
+      - name: Prepare base tools in container
+        run: apt-get update && apt-get install -y git ca-certificates curl xz-utils
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Cache Rust dependencies
@@ -102,8 +105,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Install Rust system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Install Rust system dependencies (Ubuntu 18.04)
+        run: apt-get update && apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev librsvg2-dev
       - name: Build Tauri app (Debug)
         run: pnpm tauri build --debug
       - name: Upload build artifacts (if requested)
@@ -121,7 +124,7 @@ jobs:
     #   (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
     #   (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows'))
     if: false  # ✅ 暂时禁用，后续可恢复上面的 if 条件
-    runs-on: windows-latest
+    runs-on: windows-2019
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -155,7 +158,7 @@ jobs:
     #   (github.event.inputs.test_type == 'tauri-only' || github.event.inputs.test_type == 'full') &&
     #   (contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'macos'))
     if: false  # ✅ 暂时禁用，后续可恢复上面的 if 条件
-    runs-on: macos-latest
+    runs-on: macos-12
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

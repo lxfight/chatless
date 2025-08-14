@@ -28,7 +28,7 @@ on:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout latest main branch
         uses: actions/checkout@v4
@@ -59,9 +59,14 @@ jobs:
           git push
   build-ubuntu:
     if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'ubuntu') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    container: ubuntu:18.04
     needs: [prepare]
     steps:
+      - name: Prepare base tools in container
+        run: apt-get update && apt-get install -y git ca-certificates curl xz-utils
+      - name: Install Rust system dependencies (Ubuntu 18.04)
+        run: apt-get update && apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev librsvg2-dev
       - name: Checkout latest main branch
         uses: actions/checkout@v4
         with:
@@ -97,7 +102,7 @@ jobs:
 
   build-windows:
     if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows') }}
-    runs-on: windows-latest
+    runs-on: windows-2019
     needs: [prepare]
     steps:
       - name: Checkout latest main branch
@@ -135,7 +140,7 @@ jobs:
 
   build-macos:
     if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'macos') }}
-    runs-on: macos-latest
+    runs-on: macos-12
     needs: [prepare]
     steps:
       - name: Checkout latest main branch
@@ -171,7 +176,7 @@ jobs:
             src-tauri/target/release/bundle/**/updater/*
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
     needs: [build-ubuntu, build-windows, build-macos]
     steps:
