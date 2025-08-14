@@ -16,9 +16,9 @@ jobs:
       # Linux 使用系统 glibc (22.04) + corepack 管理 pnpm
       - name: Setup pnpm (Ubuntu 22.04)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
-        run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Setup pnpm
         if: ${{ matrix.os != 'ubuntu-22.04' }}
         uses: pnpm/action-setup@v2
@@ -58,9 +58,9 @@ jobs:
           ref: ${{ github.ref }}
       - name: Setup pnpm (Ubuntu 22.04)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
-        run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Setup pnpm
         if: ${{ matrix.os != 'ubuntu-22.04' }}
         uses: pnpm/action-setup@v2

@@ -53,17 +53,20 @@ export function DatabaseRepairTool() {
       const db = dbService.getDbManager().getDatabase();
       
       // 获取基本信息
-      const tables = await db.select(`
+      type TableRow = { name: string };
+      const tables = (await db.select(`
         SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-      `);
+      `)) as TableRow[];
       
       // 统计记录数
       let totalRecords = 0;
       for (const table of tables) {
         if (!table.name.startsWith('sqlite_')) {
           try {
-            const count = await db.select(`SELECT COUNT(*) as count FROM ${table.name}`);
-            totalRecords += count[0]?.count || 0;
+            const countRows = (await db.select(
+              `SELECT COUNT(*) as count FROM ${table.name}`,
+            )) as Array<{ count: number }>;
+            totalRecords += countRows[0]?.count || 0;
           } catch (e) {
             // 忽略计数错误
           }
