@@ -1,6 +1,5 @@
 import { Octokit } from "@octokit/rest";
 
-const UPDATE_TAG_NAME = "updater";
 const UPDATE_JSON_FILE = "update.json";
 const UPDATE_JSON_PROXY = "update-proxy.json";
 
@@ -17,21 +16,19 @@ async function main() {
   const { owner, repo } = resolveRepo();
   const octokit = new Octokit({ auth: token });
 
-  const tags = await fetchAllTags(octokit, owner, repo);
+  const explicitTag = process.env.RELEASE_TAG;
+  const tags = explicitTag
+    ? [{ name: explicitTag }]
+    : await fetchAllTags(octokit, owner, repo);
 
   const stableTagRegex = /^v\d+\.\d+\.\d+$/;
-  // e.g. v1.2.3-alpha.1 / v1.2.3-beta / v1.2.3-rc.0 / v1.2.3-pre
   const preReleaseRegex = /^v\d+\.\d+\.\d+-(alpha|beta|rc|pre)(\.[0-9]+)?$/i;
 
-  const stableTag = tags.find((t) => stableTagRegex.test(t.name));
-  const preReleaseTag = tags.find((t) => preReleaseRegex.test(t.name));
-
-  if (stableTag) {
-    await processRelease(octokit, { owner, repo }, stableTag, false);
-  }
-
-  if (preReleaseTag) {
-    await processRelease(octokit, { owner, repo }, preReleaseTag, true);
+  for (const t of tags) {
+    const isAlpha = preReleaseRegex.test(t.name);
+    const isStable = stableTagRegex.test(t.name);
+    if (!isAlpha && !isStable) continue;
+    await processRelease(octokit, { owner, repo }, t, isAlpha);
   }
 }
 
@@ -159,15 +156,19 @@ async function processRelease(octokit, options, tag, isAlpha) {
 
     const updateDataProxy = makeProxyData(updateData);
 
-    // 选择目标 release（稳定/预发布通道）
-    const releaseTag = isAlpha ? ALPHA_TAG_NAME : UPDATE_TAG_NAME;
+    // 选择目标 release（稳定：当前版本；预发布：updater-alpha 固定通道）
     const jsonFile = isAlpha ? ALPHA_UPDATE_JSON_FILE : UPDATE_JSON_FILE;
     const proxyFile = isAlpha ? ALPHA_UPDATE_JSON_PROXY : UPDATE_JSON_PROXY;
 
-    let updaterRelease = await getOrCreateRelease(octokit, options, releaseTag, isAlpha);
+    let targetRelease;
+    if (isAlpha) {
+      targetRelease = await getOrCreateRelease(octokit, options, ALPHA_TAG_NAME, true);
+    } else {
+      targetRelease = release; // 将 update.json 直接上传到当前稳定版的 Release
+    }
 
     // 删除同名旧资产
-    for (const asset of updaterRelease.assets) {
+    for (const asset of targetRelease.assets) {
       if (asset.name === jsonFile || asset.name === proxyFile) {
         try {
           await octokit.repos.deleteReleaseAsset({ ...options, asset_id: asset.id });
@@ -178,10 +179,12 @@ async function processRelease(octokit, options, tag, isAlpha) {
     }
 
     // 上传新的 JSON 资产
-    await uploadJsonAsset(octokit, options, updaterRelease.id, jsonFile, updateData);
-    await uploadJsonAsset(octokit, options, updaterRelease.id, proxyFile, updateDataProxy);
+    await uploadJsonAsset(octokit, options, targetRelease.id, jsonFile, updateData);
+    await uploadJsonAsset(octokit, options, targetRelease.id, proxyFile, updateDataProxy);
 
-    console.log(`Uploaded ${isAlpha ? "alpha" : "stable"} update files to ${releaseTag}`);
+    console.log(
+      `Uploaded ${isAlpha ? "alpha" : "stable"} update files to ${isAlpha ? ALPHA_TAG_NAME : tag.name}`
+    );
   } catch (error) {
     if (error.status === 404) {
       console.log(`Release not found for tag: ${tag.name}, skipping...`);
