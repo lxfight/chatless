@@ -192,8 +192,13 @@ async function processRelease(octokit, options, tag, isAlpha) {
 }
 
 function createEmptyUpdate(tagName, releaseBody) {
+  const normalizedVersion = typeof tagName === "string" && tagName.startsWith("v")
+    ? tagName.slice(1)
+    : tagName;
+
   return {
     name: tagName,
+    version: normalizedVersion,
     notes: releaseBody || "",
     pub_date: new Date().toISOString(),
     platforms: {

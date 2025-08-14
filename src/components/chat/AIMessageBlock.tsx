@@ -227,7 +227,7 @@ export function AIMessageBlock({
   const hasNoContent = !content && isStreaming && (!state || (!state.thinkingContent && !state.regularContent));
 
   return (
-    <div className="prose prose-slate dark:prose-invert max-w-none rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm">
+    <div className="prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">
@@ -254,7 +254,7 @@ export function AIMessageBlock({
 
       {/* 消息内容 */}
       {(state?.regularContent || (!hasNoContent && !isStreaming)) && (
-        <div className="min-w-0 max-w-full">
+        <div className="min-w-0 max-w-full w-full">
           <MemoizedMarkdown content={state?.regularContent || ''} />
         </div>
       )}

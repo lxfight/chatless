@@ -8,12 +8,14 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_INFO, getVersionInfo } from "@/config/app-info";
+import { isDevelopment } from "@/lib/utils/environment";
 import { linkOpener } from "@/lib/utils/linkOpener";
 import { toast } from "sonner";
 
 export function AboutSupportSettings() {
   const [showCopied, setShowCopied] = useState(false);
   const [versionInfo, setVersionInfo] = useState(getVersionInfo());
+  const [onlyCheckDev, setOnlyCheckDev] = useState(false);
 
   // 读取实际版本信息
   useEffect(() => {
@@ -34,6 +36,13 @@ export function AboutSupportSettings() {
     };
 
     getTauriVersion();
+
+    // Dev 环境：同步仅检查不安装标记（使用封装的环境检测）
+    if (isDevelopment() && typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatless_only_check_update') === '1';
+      setOnlyCheckDev(saved);
+      (window as any).__CHATLESS_ONLY_CHECK_UPDATE__ = saved;
+    }
   }, []);
 
   const handleOpenLink = async (url: string) => {
@@ -59,12 +68,17 @@ export function AboutSupportSettings() {
       }
 
       const version = (update as any).version ?? '新版本';
+
+      const onlyCheck = isDevelopment()
+        && typeof window !== 'undefined'
+        && (window as any).__CHATLESS_ONLY_CHECK_UPDATE__;
+
       toast.message(`检测到更新：${version}`, {
-        description: '正在下载并安装，请稍候…'
+        description: onlyCheck ? '（Dev）仅检查已验证，不执行安装' : '正在下载并安装，请稍候…'
       });
 
       // 若可用，一步到位：下载并安装
-      if ('downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
+      if (!onlyCheck && 'downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
         // Windows 会在安装前自动退出应用（由系统安装器决定）
         toast.success('更新已安装，将重启应用');
@@ -127,6 +141,23 @@ export function AboutSupportSettings() {
             >
               检查更新
             </Button>
+            {isDevelopment() && (
+              <label className="ml-3 inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyCheckDev}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setOnlyCheckDev(next);
+                    if (typeof window !== 'undefined') {
+                      (window as any).__CHATLESS_ONLY_CHECK_UPDATE__ = next;
+                      localStorage.setItem('chatless_only_check_update', next ? '1' : '0');
+                    }
+                  }}
+                />
+                仅检查不安装（Dev）
+              </label>
+            )}
           </div>
         </div>
       </section>
