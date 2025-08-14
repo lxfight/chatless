@@ -23,6 +23,11 @@ jobs:
           corepack prepare pnpm@9 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Lint (non-blocking)
+        run: pnpm lint
+        continue-on-error: true
+      - name: Type check
+        run: pnpm typecheck
       - name: Sync version from tag to files
         env:
           VERSION: ${{ github.ref_name }}

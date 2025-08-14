@@ -92,25 +92,25 @@ export class DatabaseDiagnostic {
     console.log('🔍 检查数据完整性...');
 
     // 检查会话数量
-    const conversationCount = await this.db.select("SELECT COUNT(*) as count FROM conversations");
-    console.log(`📊 总会话数: ${(conversationCount as any)[0]?.count || 0}`);
+    const conversationCount = await this.db.select<{ count: number }>("SELECT COUNT(*) as count FROM conversations");
+    console.log(`📊 总会话数: ${conversationCount[0]?.count || 0}`);
 
     // 检查消息数量
-    const messageCount = await this.db.select("SELECT COUNT(*) as count FROM messages");
-    console.log(`📊 总消息数: ${(messageCount as any)[0]?.count || 0}`);
+    const messageCount = await this.db.select<{ count: number }>("SELECT COUNT(*) as count FROM messages");
+    console.log(`📊 总消息数: ${messageCount[0]?.count || 0}`);
 
     // 检查孤立消息（没有对应会话的消息）
-    const orphanMessages = await this.db.select(`
+    const orphanMessages = await this.db.select<{ count: number }>(`
       SELECT COUNT(*) as count 
       FROM messages 
       WHERE conversation_id NOT IN (SELECT id FROM conversations)
     `);
-    console.log(`⚠️ 孤立消息数: ${(orphanMessages as any)[0]?.count || 0}`);
+    console.log(`⚠️ 孤立消息数: ${orphanMessages[0]?.count || 0}`);
 
     // 检查知识库数量
     try {
-      const knowledgeBaseCount = await this.db.select("SELECT COUNT(*) as count FROM knowledge_bases");
-      console.log(`📊 总知识库数: ${(knowledgeBaseCount as any)[0]?.count || 0}`);
+      const knowledgeBaseCount = await this.db.select<{ count: number }>("SELECT COUNT(*) as count FROM knowledge_bases");
+      console.log(`📊 总知识库数: ${knowledgeBaseCount[0]?.count || 0}`);
     } catch (error) {
       console.log('⚠️ 知识库表不存在或有问题');
     }

@@ -36,9 +36,9 @@ export async function diagnoseDatabaseIssues(db: Database): Promise<{
 
     // 检查表结构
     type TableRow = { name: string };
-    const tables = (await db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `)) as TableRow[];
+    const tables = await db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
+    );
     
     const tableNames = tables.map(t => t.name);
     console.log('📋 现有表:', tableNames);
@@ -232,9 +232,9 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     // Step 1: 获取所有表
     console.log('📋 获取现有表结构...');
     type TableRow = { name: string };
-    const tables = (await db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `)) as TableRow[];
+    const tables = await db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
+    );
     
     const userTables = tables.filter(t => !t.name.startsWith('sqlite_')).map(t => t.name);
     console.log(`   发现 ${userTables.length} 个用户表:`, userTables);
@@ -249,9 +249,9 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     steps.push('删除所有现有表');
 
     // Step 3: 验证删除结果
-    const remainingTables = (await db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'
-    `)) as TableRow[];
+    const remainingTables = await db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
+    );
     
     if (remainingTables.length > 0) {
       throw new Error(`删除表失败，仍有表存在: ${remainingTables.map(t => t.name).join(', ')}`);
@@ -266,9 +266,9 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     steps.push('从schema重新创建所有表');
 
     // Step 5: 验证重建结果
-    const newTables = (await db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
-    `)) as TableRow[];
+    const newTables = await db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+    );
     
     console.log(`数据库重建完成! 重新创建了 ${newTables.length} 个表:`);
     newTables.forEach(table => console.log(`   - ${table.name}`));
@@ -311,9 +311,9 @@ export async function clearDatabaseData(db: Database): Promise<RepairResult> {
     const steps: string[] = [];
 
     // 获取所有用户表
-    const tables = (await db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
-    `)) as TableRow[];
+    const tables = await db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+    );
 
     console.log(`📋 发现 ${tables.length} 个表需要清空:`, tables.map(t => t.name));
     steps.push(`发现 ${tables.length} 个表`);

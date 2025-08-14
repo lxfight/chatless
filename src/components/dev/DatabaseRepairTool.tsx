@@ -54,18 +54,18 @@ export function DatabaseRepairTool() {
       
       // 获取基本信息
       type TableRow = { name: string };
-      const tables = (await db.select(`
-        SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-      `));
+      const tables = await db.select<TableRow>(
+        `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
+      );
       
       // 统计记录数
       let totalRecords = 0;
       for (const table of tables) {
         if (!table.name.startsWith('sqlite_')) {
           try {
-            const countRows = (await db.select(
-              `SELECT COUNT(*) as count FROM ${table.name}`,
-            ));
+            const countRows = await db.select<{ count: number }>(
+              `SELECT COUNT(*) as count FROM ${table.name}`
+            );
             totalRecords += countRows[0]?.count || 0;
           } catch (e) {
             // 忽略计数错误
