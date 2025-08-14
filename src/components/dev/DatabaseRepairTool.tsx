@@ -56,7 +56,7 @@ export function DatabaseRepairTool() {
       type TableRow = { name: string };
       const tables = (await db.select(`
         SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-      `)) as TableRow[];
+      `));
       
       // 统计记录数
       let totalRecords = 0;
@@ -65,7 +65,7 @@ export function DatabaseRepairTool() {
           try {
             const countRows = (await db.select(
               `SELECT COUNT(*) as count FROM ${table.name}`,
-            )) as Array<{ count: number }>;
+            ));
             totalRecords += countRows[0]?.count || 0;
           } catch (e) {
             // 忽略计数错误

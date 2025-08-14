@@ -13,25 +13,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      # Linux 使用系统 glibc (22.04) + corepack 管理 pnpm
-      - name: Setup pnpm (Ubuntu 22.04)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-      - name: Setup pnpm
-        if: ${{ matrix.os != 'ubuntu-22.04' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: false
       - name: Setup Node.js
-        if: ${{ matrix.os != 'ubuntu-22.04' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Sync version from tag to files
@@ -48,7 +39,7 @@ jobs:
           - os: ubuntu-22.04
             container: ubuntu:22.04
           - os: windows-2022
-          - os: macos-12
+          - os: macos-latest
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     steps:
@@ -56,24 +47,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Setup pnpm (Ubuntu 22.04)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-      - name: Setup pnpm
-        if: ${{ matrix.os != 'ubuntu-22.04' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: false
       - name: Setup Node.js
-        if: ${{ matrix.os != 'ubuntu-22.04' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install system deps for Linux (Ubuntu 22.04)

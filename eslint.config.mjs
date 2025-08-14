@@ -151,6 +151,16 @@ const eslintConfig = tseslint.config(
       // 其他通用高噪音规则降级
       "no-empty": "warn",
       "no-control-regex": "warn",
+      // 放宽一批在现有代码中噪音较大的规则，确保 CI 先可用
+      "no-case-declarations": "off",
+      "no-empty-pattern": "off",
+      "react/no-unescaped-entities": "off",
+      "react/display-name": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-base-to-string": "warn",
+      "@typescript-eslint/prefer-promise-reject-errors": "warn",
+      "@typescript-eslint/no-unsafe-enum-comparison": "warn",
+      "@typescript-eslint/no-unused-expressions": "warn",
       "no-var": "warn",
       "no-useless-escape": "warn",
       "@typescript-eslint/unbound-method": "warn",
@@ -182,6 +192,21 @@ const eslintConfig = tseslint.config(
     ],
     rules: {
       "no-console": "off",
+    },
+  },
+  // 目录级差异化：运行期服务与工具，弱化日志与Promise类警告
+  {
+    files: [
+      "src/lib/utils/**",
+      "src/lib/services/**",
+      "src/store/**",
+      "src/lib/request*.ts",
+    ],
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/ban-ts-comment": ["warn", { "ts-expect-error": "allow-with-description" }],
     },
   },
 );

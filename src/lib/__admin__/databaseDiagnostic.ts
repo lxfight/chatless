@@ -33,7 +33,17 @@ export class DatabaseDiagnostic {
     console.log('🔍 检查数据库表结构...');
 
     // 检查 conversations 表
-    const conversationsSchema = await this.db.select("PRAGMA table_info(conversations)");
+    type TableInfoRow = {
+      cid: number;
+      name: string;
+      type: string;
+      notnull: 0 | 1;
+      dflt_value: unknown;
+      pk: 0 | 1;
+    };
+    const conversationsSchema = (await this.db.select(
+      "PRAGMA table_info(conversations)",
+    ));
 
     console.log('📋 Conversations 表结构:');
     conversationsSchema.forEach(col => {
@@ -41,7 +51,9 @@ export class DatabaseDiagnostic {
     });
 
     // 检查 messages 表
-    const messagesSchema = await this.db.select("PRAGMA table_info(messages)");
+    const messagesSchema = (await this.db.select(
+      "PRAGMA table_info(messages)",
+    ));
 
     console.log('📋 Messages 表结构:');
     messagesSchema.forEach(col => {
@@ -49,7 +61,19 @@ export class DatabaseDiagnostic {
     });
 
     // 检查外键关系
-    const foreignKeys = await this.db.select("PRAGMA foreign_key_list(messages)");
+    type ForeignKeyRow = {
+      id: number;
+      seq: number;
+      table: string;
+      from: string;
+      to: string;
+      on_update?: string;
+      on_delete?: string;
+      match?: string;
+    };
+    const foreignKeys = (await this.db.select(
+      "PRAGMA foreign_key_list(messages)",
+    ));
 
     console.log('🔗 Messages 表外键关系:');
     foreignKeys.forEach(fk => {
