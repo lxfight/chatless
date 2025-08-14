@@ -311,6 +311,7 @@ export async function clearDatabaseData(db: Database): Promise<RepairResult> {
     const steps: string[] = [];
 
     // 获取所有用户表
+    type TableRow = { name: string };
     const tables = await db.select<TableRow>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
     );
@@ -328,7 +329,7 @@ export async function clearDatabaseData(db: Database): Promise<RepairResult> {
     for (const table of tables) {
       try {
         // 获取记录数
-        const countResult = await db.select(`SELECT COUNT(*) as count FROM "${table.name}"`);
+        const countResult = await db.select<{ count: number }>(`SELECT COUNT(*) as count FROM "${table.name}"`);
         const recordCount = countResult[0]?.count || 0;
 
         if (recordCount > 0) {

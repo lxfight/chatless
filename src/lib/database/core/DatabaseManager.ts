@@ -513,8 +513,10 @@ export class DatabaseManager {
 
     try {
       // 执行完整性检查 - 直接使用 this.db，避免调用 this.select()
-      const integrityResult = await this.db.select("PRAGMA integrity_check");
-      const integrityStatus = (integrityResult as any[])[0]?.integrity_check;
+      const integrityResult = await this.db.select<{ integrity_check: string }>(
+        "PRAGMA integrity_check"
+      );
+      const integrityStatus = integrityResult[0]?.integrity_check;
 
       if (integrityStatus !== 'ok') {
         throw new DatabaseError(
@@ -525,10 +527,10 @@ export class DatabaseManager {
 
       // 检查关键表是否存在 - 直接使用 this.db，避免调用 this.select()
       const requiredTables = ['conversations', 'messages', 'documents'];
-      const existingTables = await this.db.select(`
-        SELECT name FROM sqlite_master WHERE type='table'
-      `);
-      const existingTableNames = existingTables.map(t => t.name);
+      const existingTables = await this.db.select<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table'`
+      );
+      const existingTableNames = existingTables.map((t) => t.name);
 
       const missingTables = requiredTables.filter(
         table => !existingTableNames.includes(table)

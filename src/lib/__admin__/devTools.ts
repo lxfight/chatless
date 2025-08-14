@@ -184,7 +184,7 @@ export async function devCheckDatabase(): Promise<void> {
     db = await Database.load(getDatabaseURI());
     
     // 检查表
-    const tables = await db.select<{name: string}[]>(
+    const tables = await db.select<{name: string}>(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     );
     
@@ -193,7 +193,7 @@ export async function devCheckDatabase(): Promise<void> {
     // 检查每个表的记录数
     for (const table of tables) {
       try {
-        const count = await db.select<{count: number}[]>(`SELECT COUNT(*) as count FROM ${table.name}`);
+        const count = await db.select<{count: number}>(`SELECT COUNT(*) as count FROM ${table.name}`);
         console.log(`   ${table.name}: ${count[0]?.count || 0} 条记录`);
       } catch (error) {
         console.log(`   ${table.name}: 无法查询记录数`);
@@ -202,9 +202,11 @@ export async function devCheckDatabase(): Promise<void> {
     
     // 检查数据库文件大小（近似）
     try {
-      const pragma = await db.select<{page_count: number, page_size: number}[]>("PRAGMA page_count, page_size");
+      const pragma = await db.select<{page_count: number} | {page_size: number}>("PRAGMA page_count, page_size");
       if (pragma.length >= 2) {
-        const sizeBytes = pragma[0].page_count * pragma[1].page_size;
+        const pageCount = (pragma[0] as any).page_count ?? (pragma[1] as any).page_count;
+        const pageSize = (pragma[0] as any).page_size ?? (pragma[1] as any).page_size;
+        const sizeBytes = pageCount * pageSize;
         const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
         console.log(`💾 数据库大小: ~${sizeMB} MB`);
       }
@@ -214,7 +216,7 @@ export async function devCheckDatabase(): Promise<void> {
     
     // 检查开发版本标记
     try {
-      const version = await db.select<{value: string}[]>("SELECT value FROM dev_schema_info WHERE key = 'schema_version'");
+      const version = await db.select<{value: string}>("SELECT value FROM dev_schema_info WHERE key = 'schema_version'");
       if (version.length > 0) {
         console.log(`🏷️ 数据库版本: ${version[0].value}`);
       }
@@ -284,7 +286,7 @@ async function optimizeDatabase(db: Database): Promise<void> {
  */
 async function clearAllTables(db: Database): Promise<void> {
   console.log("🗑️ 清理现有表...");
-  const tablesResult = await db.select<Array<{ name: string }>>(
+  const tablesResult = await db.select<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
   );
 
@@ -507,7 +509,7 @@ async function clearVectorStoreFunc(verbose: boolean): Promise<void> {
  */
 async function verifyReset(db: Database, verbose: boolean): Promise<void> {
   try {
-    const tables = await db.select<{name: string}[]>(
+    const tables = await db.select<{name: string}>(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     );
     

@@ -8,6 +8,7 @@ import { AbstractVectorStore, VectorStoreMetrics } from '../AbstractVectorStore'
 import { VectorStoreConfig, VectorStorePerformanceConfig } from '../VectorStoreConfig';
 import { SimilarityCalculator } from '../similarity';
 import { DatabaseService } from '../../database/services/DatabaseService';
+import type { DatabaseManager } from '../../database/core/DatabaseManager';
 
 /**
  * 优化的SQLite向量存储实现
@@ -15,7 +16,7 @@ import { DatabaseService } from '../../database/services/DatabaseService';
  * 使用新的DatabaseService替代旧的队列系统
  */
 export class OptimizedSQLiteVectorStore extends AbstractVectorStore {
-  private dbManager: any;
+  private dbManager!: DatabaseManager;
   private tableName: string;
   private indexName: string;
   private lastVacuumTime: number = 0;
@@ -176,17 +177,17 @@ export class OptimizedSQLiteVectorStore extends AbstractVectorStore {
 
     try {
       // 使用DatabaseService执行查询
-      const rows = await this.executeWithRetry(
-        () => this.dbManager.select(query, params),
+      const rows = await this.executeWithRetry<any[]>(
+        () => this.dbManager.select<any>(query, params),
         'vector_search_query'
       );
 
-      if (!rows || (rows as any[]).length === 0) {
+      if (!rows || rows.length === 0) {
         return [];
       }
 
       // 并行计算相似度
-      const results = await this.computeSimilaritiesParallel(queryEmbedding, rows as any[]);
+      const results = await this.computeSimilaritiesParallel(queryEmbedding, rows);
 
       // 按相似度排序并应用阈值
       let filteredResults = results.sort((a, b) => b.score - a.score);
@@ -350,18 +351,18 @@ export class OptimizedSQLiteVectorStore extends AbstractVectorStore {
     indexSize: number;
   }> {
     const countResult = await this.executeWithRetry(
-      () => this.dbManager.select(`SELECT COUNT(*) as count FROM ${this.tableName} WHERE is_deleted = 0`),
+      () => this.dbManager.select<{ count: number }>(`SELECT COUNT(*) as count FROM ${this.tableName} WHERE is_deleted = 0`),
       'get_vector_count'
     );
 
     const dimensionResult = await this.executeWithRetry(
-      () => this.dbManager.select(`SELECT DISTINCT dimension FROM ${this.tableName} WHERE is_deleted = 0 LIMIT 1`),
+      () => this.dbManager.select<{ dimension: number }>(`SELECT DISTINCT dimension FROM ${this.tableName} WHERE is_deleted = 0 LIMIT 1`),
       'get_dimension'
     );
 
     // 获取索引大小（估算）
     const sizeResult = await this.executeWithRetry(
-      () => this.dbManager.select(`SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()`),
+      () => this.dbManager.select<{ size: number }>(`SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()`),
       'get_db_size'
     );
 

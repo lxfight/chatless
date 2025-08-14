@@ -41,9 +41,9 @@ export class DatabaseDiagnostic {
       dflt_value: unknown;
       pk: 0 | 1;
     };
-    const conversationsSchema = (await this.db.select(
-      "PRAGMA table_info(conversations)",
-    ));
+    const conversationsSchema = await this.db.select<TableInfoRow>(
+      "PRAGMA table_info(conversations)"
+    );
 
     console.log('📋 Conversations 表结构:');
     conversationsSchema.forEach(col => {
@@ -51,9 +51,9 @@ export class DatabaseDiagnostic {
     });
 
     // 检查 messages 表
-    const messagesSchema = (await this.db.select(
-      "PRAGMA table_info(messages)",
-    ));
+    const messagesSchema = await this.db.select<TableInfoRow>(
+      "PRAGMA table_info(messages)"
+    );
 
     console.log('📋 Messages 表结构:');
     messagesSchema.forEach(col => {
@@ -71,9 +71,9 @@ export class DatabaseDiagnostic {
       on_delete?: string;
       match?: string;
     };
-    const foreignKeys = (await this.db.select(
-      "PRAGMA foreign_key_list(messages)",
-    ));
+    const foreignKeys = await this.db.select<ForeignKeyRow>(
+      "PRAGMA foreign_key_list(messages)"
+    );
 
     console.log('🔗 Messages 表外键关系:');
     foreignKeys.forEach(fk => {
@@ -126,18 +126,18 @@ export class DatabaseDiagnostic {
 
     console.log('🔧 修复孤立消息...');
 
-    const orphanMessages = await this.db.select(`
-      SELECT * 
-      FROM messages 
-      WHERE conversation_id NOT IN (SELECT id FROM conversations)
-    `);
+    const orphanMessages = await this.db.select(
+      `SELECT * 
+       FROM messages 
+       WHERE conversation_id NOT IN (SELECT id FROM conversations)`
+    );
 
-    if ((orphanMessages as any[]).length === 0) {
+    if (orphanMessages.length === 0) {
       console.log('没有发现孤立消息');
       return;
     }
 
-    console.log(`🔧 发现 ${(orphanMessages as any[]).length} 条孤立消息，开始修复...`);
+    console.log(`🔧 发现 ${orphanMessages.length} 条孤立消息，开始修复...`);
 
     
     // 删除孤立消息

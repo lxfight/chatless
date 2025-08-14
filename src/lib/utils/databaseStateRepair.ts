@@ -35,9 +35,9 @@ export class DatabaseStateRepair {
 
     // 检查所有现有表
     type TableRow = { name: string };
-    const allTables = (await this.db.select<TableRow>(`
-      SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `)) as TableRow[];
+    const allTables = await this.db.select<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
+    );
     
     const existingTables = allTables.map(t => t.name);
     console.log('📋 现有表:', existingTables);
@@ -52,7 +52,7 @@ export class DatabaseStateRepair {
     // 获取旧版本表的版本
     if (hasOldVersionTable) {
       try {
-        const result = (await this.db.select<{ version: number }>("SELECT version FROM schema_version ORDER BY created_at DESC LIMIT 1")) as { version: number }[];
+        const result = await this.db.select<{ version: number }>("SELECT version FROM schema_version ORDER BY created_at DESC LIMIT 1");
         versionFromOldTable = result[0]?.version || null;
         console.log('📊 旧版本表版本:', versionFromOldTable);
       } catch (error) {
@@ -63,7 +63,7 @@ export class DatabaseStateRepair {
     // 获取新迁移表的版本
     if (hasNewMigrationTable) {
       try {
-        const result = (await this.db.select<{ version: number }>("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1")) as { version: number }[];
+        const result = await this.db.select<{ version: number }>("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1");
         versionFromNewTable = result[0]?.version || null;
         console.log('📊 新迁移表版本:', versionFromNewTable);
       } catch (error) {
