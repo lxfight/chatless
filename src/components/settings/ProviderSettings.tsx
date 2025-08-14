@@ -433,7 +433,7 @@ export function ProviderSettings({
       <div className="flex items-center justify-between w-full px-3 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center gap-2 flex-grow min-w-0 mr-3">
             <div className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-md text-lg flex-shrink-0 ring-1 ring-gray-200/80 dark:ring-gray-700/60 bg-white dark:bg-gray-800"
+              "flex items-center justify-center w-8 h-8 rounded-md text-lg flex-shrink-0 ring-1 ring-gray-200/80 dark:ring-gray-700/60 bg-gray-200"
             )}>
               {/* 优先显示 provider.icon（支持 data:image 或 /llm-provider-icon 路径），失败回退到生成头像 */}
               {(() => {

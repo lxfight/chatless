@@ -70,7 +70,7 @@ function ProviderIcon({ id, name, size = 18, src }: { id?: string; name: string;
       alt={`${name} icon`}
       width={size}
       height={size}
-      className="shrink-0 rounded-sm ring-1 ring-black/5 dark:ring-white/10 bg-white/70 dark:bg-black/30 w-[18px] h-[18px]"
+      className="shrink-0 rounded-sm ring-1 ring-black/5 dark:ring-white/10 bg-gray-200 w-[18px] h-[18px]"
     />
   );
 }
