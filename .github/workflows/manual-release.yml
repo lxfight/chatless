@@ -102,7 +102,7 @@ jobs:
 
   build-windows:
     if: ${{ contains(github.event.inputs.platforms, 'all') || contains(github.event.inputs.platforms, 'windows') }}
-    runs-on: windows-2019
+    runs-on: windows-2022
     needs: [prepare]
     steps:
       - name: Checkout latest main branch
