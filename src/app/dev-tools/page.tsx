@@ -215,7 +215,7 @@ export default function DevToolsPage() {
       setGoogleTestResult('🔍 测试连接中...');
       const connectionResult = await provider.checkConnection();
       
-      if (!connectionResult.success) {
+      if (!connectionResult.ok) {
         setGoogleTestResult(`❌ 连接失败: ${connectionResult.message}`);
         return;
       }

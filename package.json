@@ -23,7 +23,8 @@
     "dev:test:providers": "tsx src/scripts/test-providers.ts",
     "update:generate": "node scripts/updater.mjs",
     "update:verify": "node scripts/updater-verify.mjs",
-    "version:set": "node scripts/set-version.mjs"
+    "version:set": "node scripts/set-version.mjs",
+    "tag:repush": "node scripts/repushtag.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.0.8",
