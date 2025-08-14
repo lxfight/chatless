@@ -10,6 +10,7 @@ import { EditableTitle } from './EditableTitle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { PromptPill } from './PromptPill';
 
 interface ChatHeaderProps {
   title: string;
@@ -20,6 +21,7 @@ interface ChatHeaderProps {
   onDelete: () => void;
   allMetadata: ProviderMetadata[];
   currentModelId: string | null;
+  currentProviderName?: string;
   onModelChange: (newModelId: string) => void;
   isModelSelectorDisabled?: boolean;
   tokenCount?: number;
@@ -34,6 +36,7 @@ export function ChatHeader({
   onDelete,
   allMetadata,
   currentModelId,
+  currentProviderName,
   onModelChange: handleModelChange,
   isModelSelectorDisabled = false,
   tokenCount = 0
@@ -84,9 +87,11 @@ export function ChatHeader({
           <ModelSelector 
             allMetadata={allMetadata}
             currentModelId={currentModelId}
+            currentProviderName={currentProviderName}
             onModelChange={handleModelChange}
             disabled={isModelSelectorDisabled}
           />
+          <PromptPill />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

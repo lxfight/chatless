@@ -1,5 +1,5 @@
 import { StorageUtil } from "@/lib/storage";
-import { ProviderEntity } from "./types";
+import { ProviderEntity, ProviderStatus } from "./types";
 import { defaultCacheManager } from "@/lib/cache/CacheManager";
 
 export class ProviderRepository {
@@ -14,6 +14,17 @@ export class ProviderRepository {
     // 写回内存缓存以便后续快速访问 & 触发订阅
     await defaultCacheManager.set("providers", list ?? []);
     return list ?? [];
+  }
+
+  /** 读取用户自定义排序（按 provider.name 数组） */
+  async getUserOrder(): Promise<string[]> {
+    const order = await StorageUtil.getItem<string[]>("userProviderOrder", [], "providers-config.json");
+    return order || [];
+  }
+
+  /** 保存用户自定义排序（按 provider.name 数组） */
+  async setUserOrder(order: string[]): Promise<void> {
+    await StorageUtil.setItem("userProviderOrder", order, "providers-config.json");
   }
 
   /** 覆盖写入完整列表 */
@@ -31,9 +42,46 @@ export class ProviderRepository {
     if (idx >= 0) {
       list[idx] = { ...list[idx], ...partial } as ProviderEntity;
     } else {
-      list.push(partial as ProviderEntity);
+      // 新增时补默认字段
+      list.push({
+        url: '',
+        requiresKey: true,
+        status: ProviderStatus.UNKNOWN,
+        lastChecked: 0,
+        isUserAdded: true,
+        isVisible: true,
+        ...(partial as any),
+      } as ProviderEntity);
     }
     await this.saveAll(list);
+  }
+
+  /** 设置 UI 可见性（不影响已配置项） */
+  async setVisibility(name: string, isVisible: boolean): Promise<void> {
+    const list = await this.getAll();
+    const idx = list.findIndex((p) => p.name === name);
+    if (idx < 0) return;
+    list[idx] = { ...list[idx], isVisible };
+    await this.saveAll(list);
+  }
+
+  /** 新增或更新完整实体（更语义化） */
+  async upsert(entity: ProviderEntity): Promise<void> {
+    const list = await this.getAll();
+    const idx = list.findIndex((p) => p.name === entity.name);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...entity };
+    } else {
+      list.push(entity);
+    }
+    await this.saveAll(list);
+  }
+
+  /** 按名称删除 Provider（谨慎使用） */
+  async deleteByName(name: string): Promise<void> {
+    const list = await this.getAll();
+    const next = list.filter(p => p.name !== name);
+    await this.saveAll(next);
   }
 
   /** 订阅全列表变化 */

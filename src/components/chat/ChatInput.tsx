@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Send, Image, Code, Paperclip, Square, FileText, Loader2, Database, X, StopCircle, CornerDownLeft, Settings } from "lucide-react";
 import { DocumentParser } from '@/lib/documentParser';
 import { DocumentParseResult } from '@/types/document';
@@ -16,6 +16,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { BrainCircuit } from 'lucide-react';
 import { SessionParametersDialog } from './SessionParametersDialog';
 import type { ModelParameters } from '@/types/model-params';
+import { createSafePreview } from '@/lib/utils/tokenBudget';
+import { getCurrentKnowledgeBaseConfig } from '@/lib/knowledgeBaseConfig';
+import { SlashPromptPanel } from './SlashPromptPanel';
+import { usePromptStore } from '@/store/promptStore';
+import { useChatStore } from '@/store/chatStore';
+import { renderPromptContent } from '@/lib/prompt/render';
 
 interface EditingMessageData {
   content: string;
@@ -90,6 +96,8 @@ export function ChatInput({
 }: ChatInputProps) {
   const [inputValue, setInputValue] = useState("");
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  // 直接应用提示词，无需弹窗
+  const inlineVarsRef = useRef<Record<string,string>>({});
   const [isParsingDocument, setIsParsingDocument] = useState(false);
   const [attachedDocument, setAttachedDocument] = useState<{
     name: string;
@@ -147,6 +155,43 @@ export function ChatInput({
     adjustTextareaHeight();
   }, [inputValue]);
 
+  // 监听来自面板的内联变量赋值
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = (e as CustomEvent).detail as Record<string,string>;
+      if (detail && typeof detail === 'object') {
+        inlineVarsRef.current = detail;
+      }
+    };
+    window.addEventListener('prompt-inline-vars', handler as any);
+    return () => window.removeEventListener('prompt-inline-vars', handler as any);
+  }, []);
+
+  const slashTokens = useMemo(() => {
+    const tokens: string[] = [];
+    // 指令 token 支持中文
+    const re = /(^|\s)\/([^\s]+)/gu;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(inputValue))) {
+      const token = m[2];
+      if (token && !tokens.includes(token)) tokens.push(token);
+    }
+    return tokens;
+  }, [inputValue]);
+
+  const stripFirstSlashToken = (text: string): string => {
+    // 去除首个 /token（支持中文）
+    return text.replace(/(^|\s)\/[^\s]+/u, (match) => (match.startsWith(' ') ? ' ' : ''));
+  };
+
+  // 斜杠面板开关逻辑：当输入框以 / 开头或包含以空格分隔的 /token 时打开
+  useEffect(() => {
+    const val = inputValue;
+    // 以 / 开头 或 光标前为 / 时唤起，但不改变输入框焦点
+    const open = val.startsWith('/') || /\s\/$/.test(val);
+    setIsPanelOpen(open);
+  }, [inputValue]);
+
   // 当进入编辑模式时，预填充内容
   useEffect(() => {
     if (editingMessage) {
@@ -170,7 +215,55 @@ export function ChatInput({
       }
     }
 
-    const userMessage = inputValue.trim();
+    let userMessage = inputValue.trim();
+
+    // 兜底：若以 / 指令开头但未通过面板选择，尝试在发送前渲染提示词
+    if (userMessage.startsWith('/')) {
+      try {
+        const prompts = usePromptStore.getState().prompts as any[];
+        const parts = userMessage.split(/\s+/);
+        const token = parts[0].replace(/^\//, '').toLowerCase();
+        const rest = userMessage.slice(parts[0].length).trim();
+        // 精确匹配已保存的快捷词
+        let matched = prompts.find((p:any)=> (p.shortcuts||[]).some((s:string)=> s.toLowerCase()===token));
+        if (!matched) {
+          // 回退：根据名称/标签生成候选，选择第一个以 token 开头的项
+          matched = prompts.find((p:any)=> {
+            const hay = `${p.name} ${(p.tags||[]).join(' ')} ${(p.languages||[]).join(' ')}`.toLowerCase();
+            return hay.includes(token);
+          });
+        }
+        if (matched) {
+          // 解析变量：key=value 或 位置参数（支持 | 与 ｜）
+          const inline: Record<string,string> = {};
+          const varRe = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/gu;
+          let m: RegExpExecArray | null;
+          while ((m = varRe.exec(rest))) { inline[m[1]] = (m[3] ?? m[4] ?? m[5] ?? '').toString(); }
+          let values: Record<string,string> = {};
+          const keys: string[] = (() => {
+            // 优先元数据中定义的顺序
+            if (Array.isArray(matched.variables) && matched.variables.length>0) return matched.variables.map((v:any)=>v.key);
+            const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
+            const ks: string[] = []; let mm: RegExpExecArray | null;
+            while ((mm = pattern.exec(String(matched.content||'')))) { const k = mm[1]; if (k && !ks.includes(k)) ks.push(k); }
+            return ks;
+          })();
+          // 位置参数
+          if (Object.keys(inline).length === 0 && rest) {
+            const pos = /[|｜]/.test(rest) ? rest.split(/[|｜]/g).map(s=>s.trim()).filter(Boolean) : [rest];
+            values = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+          } else {
+            // 合并默认值
+            const defaults: Record<string,string> = Object.fromEntries((matched.variables||[]).map((v:any)=> [v.key, v.defaultValue ?? '']));
+            values = { ...defaults, ...inline };
+          }
+          const rendered = renderPromptContent(String(matched.content||''), values);
+          if (rendered && rendered.trim()) {
+            userMessage = rendered.trim();
+          }
+        }
+      } catch {}
+    }
     
     if (attachedImages.length > 0) {
       const imagesData = attachedImages.map(img => img.base64Data);
@@ -191,7 +284,17 @@ export function ChatInput({
       // 退出编辑模式
       onCancelEdit?.();
     } else if (attachedDocument) {
-      onSendMessage(userMessage, {
+      // 可选：自动拼接文档预览到提示词
+      let contentToSend = userMessage;
+      try {
+        const cfg = getCurrentKnowledgeBaseConfig();
+        if (cfg.documentProcessing.autoAttachDocumentPreview) {
+          const { preview } = createSafePreview(attachedDocument.content, cfg.documentProcessing.previewTokenLimit);
+          contentToSend = `${userMessage}\n\n[Document Preview]\n${preview}`;
+        }
+      } catch {}
+
+      onSendMessage(contentToSend, {
         documentReference: {
           fileName: attachedDocument.name,
           fileType: attachedDocument.name.split('.').pop() || 'unknown',
@@ -211,12 +314,30 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+
+    // 如果会话提示词为 oneOff，则清除
+    try {
+      const convId = conversationId;
+      if (convId) {
+        const conv = useChatStore.getState().conversations.find((c:any)=>c.id===convId);
+        const applied = conv?.system_prompt_applied;
+        if (applied?.mode === 'oneOff') {
+          useChatStore.getState().updateConversation(convId, { system_prompt_applied: null } as any);
+        }
+      }
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
+      if (!isPanelOpen) {
+        e.preventDefault();
+        handleSend();
+      }
+    }
+    // 在打开面板时避免回车直接发送
+    if (isPanelOpen && e.key === 'Enter') {
       e.preventDefault();
-      handleSend();
     }
   };
 
@@ -253,7 +374,13 @@ export function ChatInput({
 
     // 检查是否是可解析的文档类型
     const fileExtension = file.name.toLowerCase().split('.').pop();
-    const supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt'];
+    const supportedTypes = ['pdf', 'docx', 'md', 'markdown', 'txt', 'json', 'csv', 'xlsx', 'xls', 'html', 'htm', 'rtf', 'epub'];
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB，与后端限制一致
+    if (file.size > MAX_SIZE) {
+      toast.error('文档过大', { description: `当前限制为 ${Math.round(MAX_SIZE/1024/1024)}MB，请拆分后再试` });
+      e.target.value = "";
+      return;
+    }
     
     if (supportedTypes.includes(fileExtension || '')) {
       // 处理文档解析
@@ -271,14 +398,16 @@ export function ChatInput({
     
     try {
       // 使用DocumentParser解析文件
-      const result = await DocumentParser.parseFileObject(file);
+      const result = await DocumentParser.parseFileObject(file, { maxFileSize: 20 * 1024 * 1024, timeoutMs: 30_000 });
       
       if (result.success && result.content) {
         const summary = DocumentParser.getDocumentSummary(result.content, 150);
-        
+        // 生成安全预览，防止误把超长文本拼进后续提示词
+        const { preview } = createSafePreview(result.content, 6000);
+
         setAttachedDocument({
           name: file.name,
-          content: DocumentParser.cleanDocumentContent(result.content),
+          content: DocumentParser.cleanDocumentContent(preview),
           summary,
           fileSize: file.size
         });
@@ -309,7 +438,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="input-area bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3">
+    <div className="input-area bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3 overflow-x-hidden">
       {/* 编辑模式提示栏 */}
       {editingMessage && (
         <div className="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 text-xs text-yellow-800 dark:text-yellow-200 rounded-md px-3 py-1 mb-2">
@@ -342,19 +471,94 @@ export function ChatInput({
       )}
 
       {attachedDocument && (
-        <AttachedDocumentView
-          document={attachedDocument}
-          onRemove={removeAttachedDocument}
-        />
+        <div className="w-full max-w-full overflow-hidden px-1">
+          <AttachedDocumentView
+            document={attachedDocument}
+            onRemove={removeAttachedDocument}
+            onIndexed={(kbId) => setSelectedKnowledgeBase(prev => prev || { id: kbId, name: '临时收纳箱' } as any)}
+          />
+        </div>
       )}
 
       <div className="relative mt-1">
+        <SlashPromptPanel
+          open={isPanelOpen}
+          onOpenChange={setIsPanelOpen}
+          onSelect={(id, opts) => {
+            if (!conversationId) { setIsPanelOpen(false); return; }
+            const merged = { ...(inlineVarsRef.current||{}) };
+            inlineVarsRef.current = {};
+            const action = opts?.action || 'apply';
+            if (action === 'send') {
+              // 直接发送一次：渲染提示词内容并发送
+              const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
+              if (prompt) {
+                let variableValues: Record<string,string> = merged as any;
+                const pos = (merged as any).__positional as string[] | undefined;
+                if (Array.isArray(pos)) {
+                  // 优先使用模板中的 {{var}} 顺序推导键名
+                  const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
+                  const keys: string[] = [];
+                  let m: RegExpExecArray | null;
+                  while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
+                  if (keys.length > 0) {
+                    variableValues = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+                  } else if (prompt.variables && prompt.variables.length > 0) {
+                    variableValues = Object.fromEntries((prompt.variables||[]).map((v:any, idx:number)=> [v.key, pos[idx] ?? v.defaultValue ?? '']));
+                  }
+                }
+                const rendered = (renderPromptContent as any)(prompt.content, variableValues);
+                if (rendered && rendered.trim()) {
+                  setInputValue(rendered);
+                  // 移除输入框中的第一段 /指令，避免残留
+                  setInputValue(v => stripFirstSlashToken(v));
+                  // 立即发送
+                  setTimeout(() => { handleSend(); }, 0);
+                }
+              }
+              setIsPanelOpen(false);
+              return;
+            }
+            // 应用为 system：支持 permanent / oneOff
+            const mode = opts?.mode || 'permanent';
+            try {
+              const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
+              let variableValues: Record<string,string> = merged as any;
+              const pos = (merged as any).__positional as string[] | undefined;
+               if (prompt && Array.isArray(pos)) {
+                const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
+                const keys: string[] = [];
+                let m: RegExpExecArray | null;
+                while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
+                if (keys.length > 0) {
+                  variableValues = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+                } else if (prompt.variables && prompt.variables.length > 0) {
+                  variableValues = Object.fromEntries((prompt.variables||[]).map((v:any, idx:number)=> [v.key, pos[idx] ?? v.defaultValue ?? '']));
+                }
+              }
+              useChatStore.getState().updateConversation(conversationId, { system_prompt_applied: { promptId: id, variableValues, mode } as any });
+              setInputValue(v => stripFirstSlashToken(v));
+              toast.success(mode === 'oneOff' ? '已作为一次性系统提示词应用' : '已应用到当前会话');
+            } catch {}
+            setIsPanelOpen(false);
+          }}
+          anchorRef={textareaRef as any}
+          queryText={inputValue}
+        />
+        {/* {slashTokens.length > 0 && (
+          <div className="absolute -top-7 left-1 right-1 flex flex-wrap gap-2 items-center text-[11px]">
+            {slashTokens.slice(0,4).map((t) => (
+              <span key={t} className="px-2 py-0.5 rounded-full bg-indigo-50/80 text-indigo-600 border border-indigo-200 shadow-sm">/{t}</span>
+            ))}
+            <span className="text-gray-500">指令仅用于唤起提示词，不会发送</span>
+          </div>
+        )} */}
         <textarea
           ref={textareaRef}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息..."
+          placeholder="输入消息… 输入 / 唤起提示词"
           className="w-full pl-14 pr-14 py-3 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[52px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
           rows={3}
           disabled={disabled || isParsingDocument}
@@ -433,7 +637,7 @@ export function ChatInput({
             ref={fileInputRef}
             onChange={handleFileUpload}
             className="hidden"
-            accept=".pdf, .docx, .md, .markdown, .txt"
+            accept=".pdf, .docx, .md, .markdown, .txt, .json, .csv, .xlsx, .xls, .html, .htm, .rtf, .epub"
             disabled={disabled}
           />
         </div>
@@ -491,6 +695,7 @@ export function ChatInput({
           currentParameters={currentSessionParameters}
         />
       )}
+      {/* 已移除“应用范围”弹窗，选择即应用 */}
     </div>
   );
 } 

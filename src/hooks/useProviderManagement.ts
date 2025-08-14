@@ -14,6 +14,7 @@ import { modelRepository } from '@/lib/provider/ModelRepository';
 import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { useProviderStore } from '@/store/providerStore';
 import { mapToProviderWithStatus } from '@/lib/provider/transform';
+import { preloadProviderAndModelLogos } from '@/lib/utils/logoPreloader';
 
 // Dev mode flag for debug logging (currently unused, can be removed if not needed)
 // const DEV_MODE = isDevelopmentEnvironment();
@@ -26,6 +27,8 @@ export interface ProviderWithStatus extends ProviderMetadata {
   statusTooltip?: string | null;
   healthCheckPath?: string;
   authenticatedHealthCheckPath?: string;
+  isUserAdded?: boolean;
+  isVisible?: boolean;
 }
 
 // --- 通用连接检查函数已抽离到 ProviderService，避免重复实现 ---
@@ -57,7 +60,9 @@ export function useProviderManagement() {
     isLoading: repoLoading,
     init: initProviders,
     refreshAll: storeRefreshAll,
+    refresh: storeRefresh,
   } = useProviderStore();
+  const setConnecting = useProviderMetaStore(s=>s.setConnecting);
 
   // 初始加载 - 调用 store.init()
   useEffect(() => {
@@ -66,22 +71,33 @@ export function useProviderManagement() {
 
   // 替换同步 effect
   useEffect(() => {
-    
-    const converted = repoProviders.map(mapToProviderWithStatus);
-    
-    // 按PROVIDER_ORDER排序
-    const { PROVIDER_ORDER } = require('@/lib/llm');
-    const sortedConverted = converted.sort((a, b) => {
-      const aIndex = PROVIDER_ORDER.indexOf(a.name);
-      const bIndex = PROVIDER_ORDER.indexOf(b.name);
-      if (aIndex === -1 && bIndex === -1) return 0;
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-      return aIndex - bIndex;
-    });
-    
-    setProviders(sortedConverted as any);
-    setIsLoading(repoLoading);
+    (async () => {
+      const converted = repoProviders
+        .map(mapToProviderWithStatus)
+        .filter((p:any) => p.isVisible !== false);
+
+      // 使用用户自定义排序优先
+      const { providerRepository } = require('@/lib/provider/ProviderRepository');
+      let userOrder: string[] = [];
+      try { userOrder = await providerRepository.getUserOrder(); } catch {}
+      const { PROVIDER_ORDER } = require('@/lib/llm');
+      const sortedConverted = converted.sort((a, b) => {
+        const ua = userOrder.indexOf(a.name);
+        const ub = userOrder.indexOf(b.name);
+        if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
+        const aIndex = PROVIDER_ORDER.indexOf(a.name);
+        const bIndex = PROVIDER_ORDER.indexOf(b.name);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+
+      setProviders(sortedConverted as any);
+      setIsLoading(repoLoading);
+      // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
+      try { preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{}); } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoProviders, repoLoading]);
 
@@ -90,17 +106,28 @@ export function useProviderManagement() {
     setGlobalQuickList(providers as any);
   }, [providers, setGlobalQuickList]);
 
+  // 保证隐藏项不进入 UI 列表（防御，若上游漏过滤）
+  useEffect(() => {
+    setProviders(prev => prev.filter((p:any)=> p.isVisible !== false));
+  }, []);
+
   // --- 数据加载 (loadData) ---
   // loadData 函数已废弃
 
   // --- 刷新单个 Provider (handleSingleProviderRefresh remains largely the same) ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
+    // 将显示名映射为仓库内部 id（自定义 Provider 的内部 id 存在 aliases[0]）
+    const repoName = provider.aliases?.[0] || provider.name;
     setConnectingProviderName(provider.name);
+    setConnecting(provider.name, true);
     // 先把 UI 标为正在检查
     setProviders(prev => prev.map(p => p.name === provider.name ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态...' } : p));
 
     try {
-      const updated = await providerService.refreshProviderStatus(provider.name);
+      await storeRefresh(repoName);
+      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+      const updatedList = await providerRepository.getAll();
+      const updated = updatedList.find(p=>p.name===repoName);
 
       if (!updated) throw new Error('无法刷新状态');
 
@@ -116,7 +143,7 @@ export function useProviderManagement() {
 
       // 重新加载最新的模型数据
       const { modelRepository } = await import('@/lib/provider/ModelRepository');
-      const latestModels = await modelRepository.get(provider.name);
+      const latestModels = await modelRepository.get(repoName);
       
       setProviders(prev => prev.map(p => p.name === provider.name ? { 
         ...p, 
@@ -135,7 +162,7 @@ export function useProviderManagement() {
       } : p));
 
       // 特殊：Ollama 成功后刷新模型列表
-      if (provider.name === 'Ollama' && updated.status === ProviderStatus.CONNECTED && updated.url) {
+      if (repoName === 'Ollama' && updated.status === ProviderStatus.CONNECTED && updated.url) {
         await refreshOllamaModels(updated.url);
       }
 
@@ -170,8 +197,9 @@ export function useProviderManagement() {
       }
     } finally {
       setConnectingProviderName(null);
+      setConnecting(provider.name, false);
     }
-  }, [refreshOllamaModels]);
+  }, [refreshOllamaModels, setConnecting, storeRefresh]);
 
   // --- EFFECT 1: Load Initial Data on Mount ---
   // Effect 1 被移除：首次连通性检查已在 loadData > runInitialChecks 完成。
@@ -460,7 +488,7 @@ export function useProviderManagement() {
         };
       }));
       
-      toast.success("已全量刷新 Provider 状态");
+      toast.success("提供商刷新完成");
     } catch (e:any) {
       console.error("Global refresh failed", e);
       toast.error("刷新失败", { description: e?.message || String(e) });

@@ -14,9 +14,13 @@ export interface DocumentParseOptions {
   maxFileSize?: number;
   // 是否保留格式信息
   preserveFormatting?: boolean;
+  // 解析超时（毫秒），默认 30s
+  timeoutMs?: number;
 }
 
-export type SupportedFileType = 'pdf' | 'docx' | 'md' | 'markdown' | 'txt';
+export type SupportedFileType =
+  | 'pdf' | 'docx' | 'md' | 'markdown' | 'txt'
+  | 'json' | 'csv' | 'xlsx' | 'xls' | 'html' | 'htm' | 'rtf' | 'epub';
 
 export interface DocumentMetadata {
   fileName: string;

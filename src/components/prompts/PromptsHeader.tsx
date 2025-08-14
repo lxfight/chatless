@@ -2,40 +2,57 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bookmark, Search, FileUp, FileDown, Plus } from "lucide-react";
+import { Search, Plus } from "lucide-react";
+import { PromptEditorDialog } from "./PromptEditorDialog";
+import { useState } from "react";
+import { usePromptStore } from "@/store/promptStore";
+import { PromptImportExport } from "./PromptImportExport";
+import { cn } from "@/lib/utils";
+// import { IconButton } from "@/components/ui/icon-button";
 
 export function PromptsHeader() {
-  // TODO: Add handlers for search, import, export, new
+  const [open, setOpen] = useState(false);
+  const createPrompt = usePromptStore((s) => s.createPrompt);
+  const ui = usePromptStore((s)=>s.ui);
+  const setSearchQuery = usePromptStore((s)=>s.setSearchQuery);
+  const setFavoriteOnly = usePromptStore((s)=>s.setFavoriteOnly);
+  const setTagFilter = usePromptStore((s)=>s.setTagFilter);
   return (
-    <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-900">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-md">
-            <Bookmark className="w-5 h-5" />
-          </div>
-          <span className="font-semibold text-lg text-gray-800 dark:text-gray-200">提示词库</span>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="px-4 py-4">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
             <Input 
               type="text" 
               placeholder="搜索提示词..." 
-              className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg w-64 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-2 h-9"
+              value={ui?.searchQuery || ''}
+              onChange={(e)=>setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg w-72 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-2 h-8"
             />
             {/* TODO: Add search suggestions dropdown */}
           </div>
-          <Button variant="outline" size="sm" className="h-9 flex items-center gap-1 bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300">
-            <FileUp className="h-4 w-4" /> 导入
-          </Button>
-          <Button variant="outline" size="sm" className="h-9 flex items-center gap-1 bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300">
-            <FileDown className="h-4 w-4" /> 导出
-          </Button>
-          <Button size="sm" className="h-9 flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white">
-            <Plus className="h-4 w-4" /> 新建提示词
-          </Button>
+          <div className="hidden md:flex items-center gap-2">
+            {['写作','编程','翻译'].map((t) => (
+              <button key={t} className={cn('px-3 py-1 rounded-full text-xs border transition-colors', ui?.tagFilter===t ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800')} onClick={()=>setTagFilter(ui?.tagFilter===t?null:t)}>{t}</button>
+            ))}
+          </div>
+          <Button variant={ui?.favoriteOnly ? "secondary" : "outline"} size="sm" className={cn('h-8', ui?.favoriteOnly ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100' : '')} onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}>只看收藏</Button>
+          <PromptImportExport />
         </div>
+        <Button variant="soft" size="sm" className="h-8 px-3" onClick={() => setOpen(true)}>
+          <Plus className="w-4 h-4" />
+          新建提示词
+        </Button>
       </div>
+      <PromptEditorDialog
+        open={open}
+        onOpenChange={setOpen}
+        initial={null}
+        onSubmit={(data) => {
+          createPrompt(data);
+        }}
+      />
     </div>
   );
 } 

@@ -51,7 +51,7 @@ class SystemTrayManager {
 
       // 创建系统托盘
       this.tray = await TrayIcon.new({
-        tooltip: 'Chatless',
+        tooltip: 'chatless',
         icon: icon || 'icons/icon.ico', // 提供默认图标
         menu,
         menuOnLeftClick: false, // 左键点击不显示菜单

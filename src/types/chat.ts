@@ -46,6 +46,10 @@ export interface Conversation {
   updated_at: number;
   messages: Message[];
   model_id: string;
+  /** 新增：精确保存 provider 名称 */
+  model_provider?: string;
+  /** 新增：如 provider/modelId 这样的全名 */
+  model_full_id?: string;
   is_important: boolean;
   /** 收藏标记 */
   is_favorite: boolean;
@@ -56,4 +60,10 @@ export interface Conversation {
   is_starred?: boolean;
   /** AI 思考开始的时间戳 (毫秒) */
   thinking_start_time?: number;
+  /** 会话级提示词应用 */
+  system_prompt_applied?: {
+    promptId: string;
+    variableValues?: Record<string, string>;
+    mode?: 'permanent' | 'temporary' | 'oneOff';
+  } | null;
 } 

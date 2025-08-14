@@ -205,7 +205,7 @@ export class LinkOpenerService {
    * 打开支持邮件
    */
   async openSupportEmail(): Promise<boolean> {
-    return this.openEmail('kamjindev@gmail.com', 'Chatless Support Request');
+    return this.openEmail('kamjindev@gmail.com', 'chatless Support Request');
   }
 }
 

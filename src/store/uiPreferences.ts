@@ -67,7 +67,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
   timezone: 'local',
 
   cmdPaletteEnabled: true,
-  cmdPaletteShortcut: 'alt+o',
+  cmdPaletteShortcut: 'ctrl+p',
 
   showCloseConfirmation: true,
 
@@ -133,7 +133,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<string>(TIMEZONE_KEY, 'local', 'user-preferences.json'),
     StorageUtil.getItem<IconSize>('ui_sidebar_icon_size', 'small', 'user-preferences.json'),
     StorageUtil.getItem<boolean>('ui_cmd_palette_enabled', true, 'user-preferences.json'),
-    StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'alt+o', 'user-preferences.json'),
+    StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'ctrl+p', 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
   ]);
 
@@ -146,7 +146,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     sidebarIconSize: (iconSize as IconSize) ?? 'small',
     timezone: tz || 'local',
     cmdPaletteEnabled: cpEnabled ?? true,
-    cmdPaletteShortcut: cpShortcut || 'alt+o',
+    cmdPaletteShortcut: cpShortcut || 'ctrl+p',
     showCloseConfirmation: showCloseConfirm ?? true,
     initialized: true,
   });

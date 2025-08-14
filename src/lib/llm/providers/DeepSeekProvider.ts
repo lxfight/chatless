@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 /**
@@ -15,10 +15,10 @@ export class DeepSeekProvider extends BaseProvider {
   }
 
   async checkConnection(): Promise<CheckResult> {
-    // DeepSeek 目前无公开健康端点；尝试获取模型列表或返回 NO_KEY 占位
+    // 暂不在线检查，仅判断是否配置密钥
     const key = await this.getApiKey();
-    if (!key) return { success: false, message: 'NO_KEY' };
-    return { success: true };
+    if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   /**
@@ -34,11 +34,19 @@ export class DeepSeekProvider extends BaseProvider {
     // 组合请求参数
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
+    const mapped: any = { ...opts };
+    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
+    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
+    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
+    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = opts.frequencyPenalty;
+    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = opts.presencePenalty;
+    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+
     const body = {
       model,
       stream: true,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      ...opts,
+      ...mapped,
     };
 
     // 准备请求头
@@ -47,7 +55,14 @@ export class DeepSeekProvider extends BaseProvider {
     };
 
     const apiKey = await this.getApiKey(model);
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    if (!apiKey) {
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（DeepSeek）。请在设置中配置密钥后重试';
+      cb.onError?.(err);
+      return;
+    }
+    headers['Authorization'] = `Bearer ${apiKey}`;
 
     try {
       await this.sseClient.startConnection(
@@ -91,11 +106,8 @@ export class DeepSeekProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['DeepSeek']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    const list = getStaticModels('DeepSeek');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   /**

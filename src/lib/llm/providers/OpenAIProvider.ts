@@ -1,62 +1,27 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
-import { tauriFetch } from '@/lib/request';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 export class OpenAIProvider extends BaseProvider {
   private sseClient: SSEClient;
 
-  constructor(baseUrl: string, apiKey?: string) {
-    super('OpenAI', baseUrl, apiKey);
+  constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI') {
+    super(displayName, baseUrl, apiKey);
     this.sseClient = new SSEClient('OpenAIProvider');
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['OpenAI']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    // 暂不进行在线拉取，统一使用静态模型清单；按 provider 名称读取对应静态清单
+    const key = this.name || 'OpenAI';
+    const list = getStaticModels(key);
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，仅判断是否配置密钥
     const apiKey = await this.getApiKey();
-    if (!apiKey) return { success: false, message: 'NO_KEY' };
-    
-    const url = `${this.baseUrl.replace(/\/$/, '')}/models`;
-    
-    try {
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        const resp = await tauriFetch(url, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${apiKey}` },
-          rawResponse: true,
-          timeout: 8000 // 同时设置tauriFetch的超时
-        }) as Response;
-        
-        clearTimeout(timeoutId);
-        return resp.ok ? { success: true } : { success: false, message: `HTTP ${resp.status}` };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[OpenAIProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败' };
-        }
-        return { success: false, message: error.message };
-      }
-      return { success: false, message: '未知错误' };
-    }
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   async chatStream(
@@ -67,16 +32,28 @@ export class OpenAIProvider extends BaseProvider {
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
-      cb.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥，请在“设置 → 模型与Provider”中为当前 Provider 或模型配置密钥';
+      cb.onError?.(err);
       return;
     }
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
+    // 将通用选项映射为 OpenAI 字段（snake_case）
+    const mapped: any = { ...opts };
+    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
+    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
+    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
+    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = opts.frequencyPenalty;
+    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = opts.presencePenalty;
+    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+
     const body = {
       model,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
       stream: true,
-      ...opts
+      ...mapped,
     };
 
     try {
@@ -95,7 +72,7 @@ export class OpenAIProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
-            // OpenAI 特定的数据解析逻辑
+            // 严格 OpenAI：只处理以 data: 开头的行
             if (!rawData.startsWith('data:')) return;
             const jsonStr = rawData.substring(5).trim();
             if (!jsonStr) return;

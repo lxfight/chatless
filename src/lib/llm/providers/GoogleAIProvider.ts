@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 export class GoogleAIProvider extends BaseProvider {
@@ -14,89 +14,67 @@ export class GoogleAIProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['Google AI']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    // 仅使用静态模型
+    const list = getStaticModels('Google AI');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，按是否配置密钥给出状态
     const apiKey = await this.getApiKey();
-    if (!apiKey) return { success: false, message: 'NO_KEY' };
-    
-    // 使用 request.ts 工具，它已经封装了 Tauri HTTP 插件，避免 CORS 问题
-    const url = `${this.baseUrl.replace(/\/$/, '')}/models?key=${apiKey}`;
-    
-    try {
-      const { request } = await import('@/lib/request');
-      
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        // 使用 request 工具发送请求
-        await request(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          },
-          rawResponse: true, // 获取原始 Response 对象
-          timeout: 8000 // 同时设置request的超时
-        });
-        
-        clearTimeout(timeoutId);
-        return { success: true };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[GoogleAIProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败' };
-        }
-        return { success: false, message: error.message };
-      }
-      return { success: false, message: '未知错误' };
-    }
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   async chatStream(
     model: string,
     messages: LlmMessage[],
     cb: StreamCallbacks,
-    _opts: Record<string, any> = {}
+    opts: Record<string, any> = {}
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
       console.error('[GoogleAIProvider] No API key provided');
-      cb.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（Google AI）。请在设置中配置密钥后重试';
+      cb.onError?.(err);
       return;
     }
     
     // 构造正确的 URL - 使用官方文档中的流式API端点
     const url = `${this.baseUrl.replace(/\/$/, '')}/models/${model}:streamGenerateContent?alt=sse`;
     
-    // 构造正确的请求体格式 - 根据官方文档添加role字段
-    const body = {
+    // 将通用选项映射到 Gemini generationConfig
+    const generationConfig: any = {
+      ...(opts.generationConfig || {}),
+    };
+    // 仅当未在 generationConfig 中出现时才从扁平字段映射
+    if (generationConfig.temperature === undefined && opts.temperature !== undefined) {
+      generationConfig.temperature = opts.temperature;
+    }
+    if (generationConfig.topP === undefined && opts.topP !== undefined) {
+      generationConfig.topP = opts.topP;
+    }
+    // OpenAI 风格的 maxTokens → Gemini 的 maxOutputTokens
+    if (generationConfig.maxOutputTokens === undefined) {
+      const flatMax = (opts as any).maxOutputTokens ?? (opts as any).maxTokens;
+      if (flatMax !== undefined) generationConfig.maxOutputTokens = flatMax;
+    }
+    if (generationConfig.stopSequences === undefined && (opts as any).stop) {
+      generationConfig.stopSequences = (opts as any).stop;
+    }
+
+    const body: any = {
       contents: messages.map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
       })),
-      generationConfig: { 
-        temperature: 0.7,
-        // 可选：禁用思考功能以节省成本
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
-      }
+      generationConfig,
     };
+    // 透传 Gemini 允许的其他顶层字段（若存在）
+    if ((opts as any).safetySettings) body.safetySettings = (opts as any).safetySettings;
+    if ((opts as any).tools) body.tools = (opts as any).tools;
 
     console.log('[GoogleAIProvider] Starting chat stream with:', {
       model,

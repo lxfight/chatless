@@ -67,9 +67,16 @@ export function PrivacySettings() {
     try {
       const dbService = DatabaseService.getInstance();
       await dbService.initialize();
-      await dbService.clearAllDocuments();
+      // 新增: 一站式清理知识库相关数据（文档、映射、知识片段）
+      if (typeof (dbService as any).clearKnowledgeData === 'function') {
+        // 新增方法 (v>=0.9.0)
+        await (dbService as any).clearKnowledgeData();
+      } else {
+        // 向后兼容旧版本：仍按旧流程执行
+        await dbService.clearAllDocuments();
+      }
 
-      // 清空向量索引
+      // 同时清理向量索引
       const store = new SQLiteVectorStore();
       await store.clear();
 

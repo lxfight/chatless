@@ -1,0 +1,81 @@
+import { BaseProvider } from './providers/BaseProvider';
+import { OpenAIProvider } from './providers/OpenAIProvider';
+import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider';
+import { AnthropicProvider } from './providers/AnthropicProvider';
+import { GoogleAIProvider } from './providers/GoogleAIProvider';
+import { DeepSeekProvider } from './providers/DeepSeekProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
+import type { CatalogProviderDef } from '@/lib/provider/catalog';
+
+/**
+ * 简易工厂：根据目录定义创建 Provider 实例。
+ * openai-compatible 默认复用 OpenAIProvider 行为（/v1/models、/v1/chat/completions）。
+ */
+export function createProviderInstance(def: CatalogProviderDef, url: string, apiKey?: string | null): BaseProvider {
+  const baseUrl = (url || '').trim();
+  class InlineMultiStrategyProvider extends BaseProvider {
+    constructor(displayName: string, base: string, key?: string | null) {
+      super(displayName, base, key);
+    }
+    async checkConnection() {
+      const key = await this.getApiKey();
+      if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' } as const;
+      return { ok: true } as const;
+    }
+    private async getModelStrategy(model: string): Promise<'openai'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'> {
+      try {
+        const { specializedStorage } = await import('@/lib/storage');
+        const override = await specializedStorage.models.getModelStrategy(this.name, model);
+        if (override && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
+        const def = await specializedStorage.models.getProviderDefaultStrategy(this.name);
+        if (def && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
+      } catch (_) {}
+      return 'openai-compatible';
+    }
+    private async createDelegate(strategy: string) {
+      const key = await this.getApiKey();
+      switch (strategy) {
+        case 'openai': { const p = new OpenAIProvider(this.baseUrl, key || undefined, this.name); (p as any).aliasProviderName = this.name; return p; }
+        case 'anthropic': { const p = new AnthropicProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
+        case 'gemini': { const p = new GoogleAIProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
+        case 'deepseek': { const p = new DeepSeekProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
+        case 'openai-compatible':
+        default: { const p = new OpenAICompatibleProvider(this.baseUrl, key || undefined, this.name); (p as any).aliasProviderName = this.name; return p; }
+      }
+    }
+    async chatStream(model: string, messages: any[], callbacks: any, options: Record<string, any> = {}) {
+      const strat = await this.getModelStrategy(model);
+      const delegate = await this.createDelegate(strat);
+      (delegate as any).baseUrl = this.baseUrl;
+      return delegate.chatStream(model, messages, callbacks, options);
+    }
+  }
+  switch (def.strategy) {
+    case 'openai':
+      return new OpenAIProvider(
+        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+        apiKey || undefined,
+        def.name
+      );
+    case 'openai-compatible':
+      return new OpenAICompatibleProvider(
+        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+        apiKey || undefined,
+        def.name
+      );
+    case 'anthropic':
+      return new AnthropicProvider(baseUrl || def.defaultUrl || 'https://api.anthropic.com/v1', apiKey || undefined);
+    case 'gemini':
+      return new GoogleAIProvider(baseUrl || def.defaultUrl || 'https://generativelanguage.googleapis.com/v1beta', apiKey || undefined);
+    case 'deepseek':
+      return new DeepSeekProvider(baseUrl || def.defaultUrl || 'https://api.deepseek.com', apiKey || undefined);
+    case 'ollama':
+      return new OllamaProvider(baseUrl || 'http://localhost:11434');
+    case 'multi':
+      return new InlineMultiStrategyProvider(def.name, baseUrl || def.defaultUrl || '', apiKey || undefined);
+    default:
+      return new OpenAICompatibleProvider(baseUrl || def.defaultUrl || 'https://api.openai.com/v1', apiKey || undefined);
+  }
+}
+
+

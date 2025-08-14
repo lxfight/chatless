@@ -2,6 +2,7 @@
 // 后续可提取为专用 Hook 或工具文件以符合文件规模规范。
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
+import { trimToastDescription } from '@/components/ui/sonner';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatStore } from "@/store/chatStore";
@@ -16,8 +17,11 @@ import { getDatabaseService } from "@/lib/db";
 import { getRAGService } from '@/lib/rag/ragServiceInstance';
 import { historyService } from '@/lib/historyService';
 import { downloadService } from '@/lib/utils/downloadService';
-import { messageUpdateManager } from '@/lib/chat/MessageUpdateManager';
+import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
+import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
+import { usePromptStore } from '@/store/promptStore';
+import { renderPromptContent } from '@/lib/prompt/render';
 
 type StoreMessage = any;
 
@@ -30,6 +34,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const updateMessageContentInMemory = useChatStore((state) => state.updateMessageContentInMemory);
   const updateConversation = useChatStore((state) => state.updateConversation);
   const renameConversation = useChatStore((state) => state.renameConversation);
   const deleteConversation = useChatStore((state) => state.deleteConversation);
@@ -75,6 +80,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   // 全局计时器引用，便于随时清理
   const renderIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const genTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaverRef = useRef<MessageAutoSaver | null>(null);
   
   // 添加内容变化检测变量
   const lastSavedContentRef = useRef('');
@@ -86,6 +92,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   const navigateToSettings = useCallback((tab: string = 'localModels') => {
     router.push(`/settings?tab=${tab}`);
   }, [router]);
+
+  // 将错误信息压缩为短文本，避免右下角提示过长
+  const briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
 
   const checkApiKeyValidity = useCallback(async (providerName: string, modelId: string): Promise<boolean> => {
     return true;
@@ -242,7 +251,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     
     if (!conversationId) {
       try {
-        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse);
+        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, currentProviderName);
       } catch (error) {
         console.error("Failed to create conversation:", error);
         toast.error('创建对话失败', { description: '无法创建新的对话，请重试。' });
@@ -315,43 +324,71 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           similarityThreshold: 0.7,
         });
 
-        let fullAnswer = '';
+        // 为 RAG 流初始化自动保存器
+        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+          await updateMessage(assistantMessageId, {
+            content: latest,
+            thinking_start_time: thinking_start_time,
+          });
+        }, 1000);
+
         for await (const chunk of ragStream) {
           if (chunk.type === 'answer') {
             const token = chunk.data as string;
             currentContentRef.current += token;
             pendingContentRef.current = currentContentRef.current;
-            
-            // 使用批量更新
-            batchUpdateMessage(assistantMessageId, currentContentRef.current, thinking_start_time);
+
+            // 即时内存更新 + UI 流畅
+            updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
             setTokenCount(prev => prev + 1);
+            // 定时保存
+            autoSaverRef.current?.update(currentContentRef.current);
           } else if (chunk.type === 'error') {
             throw chunk.data as Error;
           }
         }
 
-        // 最终更新，确保完整内容被保存
-        updateMessage(assistantMessageId, {
+        // 强制flush并最终落盘
+        autoSaverRef.current?.stop();
+        await autoSaverRef.current?.flush();
+        await updateMessage(assistantMessageId, {
           content: currentContentRef.current,
           status: 'sent',
           thinking_start_time: thinking_start_time,
           thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
         });
-
+        autoSaverRef.current = null;
         return;
       } catch (error) {
         console.error('RAG query failed:', error);
-        updateMessage(assistantMessageId, {
+        autoSaverRef.current?.stop();
+        await autoSaverRef.current?.flush();
+        autoSaverRef.current = null;
+        await updateMessage(assistantMessageId, {
           status: 'error',
-          content: error instanceof Error ? error.message : 'RAG查询失败',
+          content: currentContentRef.current || (error instanceof Error ? error.message : 'RAG查询失败'),
+          thinking_start_time: thinking_start_time,
           thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
         });
         return;
       }
     }
 
-    // 构建历史消息
+    // 构建历史消息（含系统提示词）
     const historyForLlm: LlmMessage[] = [];
+    try {
+      const conv = currentConversationId ? useChatStore.getState().conversations.find((c:any)=>c.id===currentConversationId) : null;
+      const applied = conv?.system_prompt_applied;
+      if (applied?.promptId) {
+        const prompt = usePromptStore.getState().prompts.find((p:any)=>p.id===applied.promptId);
+        if (prompt) {
+          const rendered = renderPromptContent(prompt.content, applied.variableValues);
+          if (rendered && rendered.trim()) {
+            historyForLlm.push({ role: 'system', content: rendered } as any);
+          }
+        }
+      }
+    } catch {}
     if (currentConversation?.messages) {
       // 只取最近的几条消息，避免上下文过长
       const recentMessages = currentConversation.messages.slice(-10);
@@ -371,23 +408,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       images: options?.images
     });
 
+    // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
+
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
         console.log(`[useChatActions] Starting stream for model: ${modelToUse}`);
-        
-        // 注册消息更新管理器
-        messageUpdateManager.registerUpdateCallback(assistantMessageId, (content) => {
-          // 立即更新UI状态，不等待数据库操作
-          setTokenCount(prev => prev + 1);
-        });
-        
-        messageUpdateManager.registerSaveCallback(assistantMessageId, async (content) => {
-          // 异步保存到数据库，不阻塞UI更新
-          await updateMessage(assistantMessageId, { 
-            content, 
-            thinking_start_time: thinking_start_time 
+
+        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+          await updateMessage(assistantMessageId, {
+            content: latest,
+            thinking_start_time: thinking_start_time,
           });
-        });
+        }, 1000);
 
         if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
         genTimeoutRef.current = setInterval(() => {
@@ -395,7 +427,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             console.warn('Generation timed out due to inactivity.');
             handleStopGeneration();
             updateMessage(assistantMessageId, { status: 'error', content: '响应超时', thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) });
-            toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
+          toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
             if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
           }
         }, 5000);
@@ -409,8 +441,11 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         performanceRef.current.tokenCount++;
         logPerformance();
         
-        // 使用消息更新管理器，分离UI更新和数据库操作
-        messageUpdateManager.updateMessage(assistantMessageId, currentContentRef.current);
+        // 1) 立即更新内存与界面，保证流畅
+        updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+        setTokenCount(prev => prev + 1);
+        // 2) 通知自动保存器按秒保存
+        autoSaverRef.current?.update(currentContentRef.current);
       },
       onComplete: () => {
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
@@ -423,13 +458,16 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         
         // 先更新UI状态
         setTokenCount(prev => prev + 1);
-        
-        // 然后保存到数据库
-        updateMessage(assistantMessageId, {
-          content: finalContent,
-          status: 'sent',
-          thinking_start_time: thinking_start_time,
-          thinking_duration: thinking_duration,
+        // 内存中已是最新，先停止自动保存并flush，避免定时器晚到覆盖
+        autoSaverRef.current?.stop();
+        autoSaverRef.current?.flush().finally(() => {
+          // 最终一次确认状态 & 内容
+          updateMessage(assistantMessageId, {
+            content: finalContent,
+            status: 'sent',
+            thinking_start_time: thinking_start_time,
+            thinking_duration: thinking_duration,
+          });
         });
         
         // 清理引用
@@ -443,21 +481,37 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setGenerationTimeout(null);
 
         const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        updateMessage(assistantMessageId, { 
-          status: 'error', 
-          content: error.message || "发生未知错误", 
-          thinking_start_time: thinking_start_time, 
-          thinking_duration: thinking_duration 
+        // 停止并尽量flush到最新，再标记错误
+        autoSaverRef.current?.stop();
+        autoSaverRef.current?.flush().finally(() => {
+          updateMessage(assistantMessageId, {
+            status: 'error',
+            content:
+              currentContentRef.current
+                || (error as any)?.userMessage
+                || (error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)))
+                || '发生未知错误',
+            thinking_start_time: thinking_start_time,
+            thinking_duration: thinking_duration,
+          });
         });
         
         // 清理引用
         currentContentRef.current = '';
         setTokenCount(0);
+        autoSaverRef.current = null;
         
-        // 清理消息更新管理器
-        messageUpdateManager.cleanup();
-        
-        toast.error('发生错误', { description: error.message || "与AI模型的通信失败。" });
+        const code = (error as any)?.code || (typeof error?.message === 'string' && error.message);
+        if (code === 'NO_KEY') {
+          toast.error('未配置 API 密钥', {
+            description:
+              (error as any)?.userMessage || '请在“设置 → 模型与Provider”中为当前 Provider 或模型配置密钥后重试。',
+          });
+        } else {
+          toast.error('发生错误', {
+            description: (error as any)?.userMessage || briefErrorText(error) || '与AI模型的通信失败。',
+          });
+        }
       },
     };
 
@@ -467,18 +521,20 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       
       try {
         if (sessionParameters) {
-          // 使用会话参数
+          // 会话参数（仅改动项）
           chatOptions = ModelParametersService.convertToChatOptions(sessionParameters);
         } else {
-          // 获取模型默认参数
-          const modelParameters = await ModelParametersService.getModelParameters(currentProviderName, modelToUse);
-          chatOptions = ModelParametersService.convertToChatOptions(modelParameters);
+          // 无会话参数：不下发通用参数，但允许策略引擎注入“模型级默认/必要高级参数”
+          chatOptions = {};
         }
         
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, chatOptions).catch(err => console.error("streamChat promise rejected:", err));
+        // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
+        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, chatOptions);
+        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
       } catch (error) {
         console.error('获取模型参数失败，使用默认参数:', error);
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, {}).catch(err => console.error("streamChat promise rejected:", err));
+        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, {});
+        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
       }
     } else {
        console.error("No model selected, cannot start chat.");
@@ -514,6 +570,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       console.error("Error canceling stream:", error);
     }
     
+    // 停止并尽量落盘当前内容，防止丢尾部
+    autoSaverRef.current?.stop();
+    autoSaverRef.current?.flush().catch(() => {}).finally(() => {
+      autoSaverRef.current = null;
+    });
+
     // 清理所有定时器
     if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
     if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
@@ -523,9 +585,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     // 清理引用
     currentContentRef.current = '';
     setTokenCount(0);
-    
-    // 清理消息更新管理器
-    messageUpdateManager.cleanup();
     
     // 更新当前消息状态为已停止
     if (currentConversation?.messages) {
@@ -553,8 +612,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
       if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
       if (debouncedTokenUpdateRef.current) clearTimeout(debouncedTokenUpdateRef.current);
-      // 清理消息更新管理器
-      messageUpdateManager.cleanup();
     };
   }, []);
 

@@ -42,13 +42,17 @@ pub async fn start_sse(
   body: Option<Value>,
 ) -> Result<(), String> {
   // 如果已有连接，先断开
-  if let Some(sender) = state.sse_shutdown_sender.lock().unwrap().take() {
-    let _ = sender.send(());
+  if let Ok(mut guard) = state.sse_shutdown_sender.lock() {
+    if let Some(sender) = guard.take() {
+      let _ = sender.send(());
+    }
   }
 
   // 新建广播通道用于优雅关闭
   let (shutdown_tx, mut shutdown_rx) = broadcast::channel(1);
-  *state.sse_shutdown_sender.lock().unwrap() = Some(shutdown_tx);
+  if let Ok(mut guard) = state.sse_shutdown_sender.lock() {
+    *guard = Some(shutdown_tx);
+  }
 
   let client = Client::new();
 
@@ -145,10 +149,15 @@ pub async fn start_sse(
 /// 停止 SSE 连接的命令
 #[tauri::command]
 pub async fn stop_sse(state: State<'_, AppState>) -> Result<(), String> {
-  if let Some(sender) = state.sse_shutdown_sender.lock().unwrap().take() {
-    sender.send(()).map_err(|e| e.to_string())?;
-    Ok(())
-  } else {
-    Err("No active SSE connection to stop.".into())
+  match state.sse_shutdown_sender.lock() {
+    Ok(mut guard) => {
+      if let Some(sender) = guard.take() {
+        sender.send(()).map_err(|e| e.to_string())?;
+        Ok(())
+      } else {
+        Err("No active SSE connection to stop.".into())
+      }
+    }
+    Err(e) => Err(format!("Failed to acquire lock: {}", e)),
   }
 }

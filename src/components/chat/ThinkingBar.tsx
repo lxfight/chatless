@@ -148,7 +148,8 @@ export const ThinkingBar = ({
       {isExpanded && hasContent && (
         <div className="px-3 pb-3 transition-all duration-300 ease-out">
           <div className="prose prose-sm dark:prose-invert max-w-full">
-            <MemoizedMarkdown content={thinkingContent} />
+            {/* 展开视图：字号比正文小一档 */}
+            <MemoizedMarkdown content={thinkingContent} sizeOverride="small" />
           </div>
         </div>
       )}

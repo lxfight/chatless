@@ -15,6 +15,10 @@
 import { create } from 'zustand';
 import { ProviderEntity } from '@/lib/provider/types';
 import { providerService } from '@/lib/provider/ProviderService';
+import { refreshProviderUseCase } from '@/lib/provider/usecases/RefreshProvider';
+import { refreshAllProvidersUseCase } from '@/lib/provider/usecases/RefreshAllProviders';
+import { updateProviderConfigUseCase } from '@/lib/provider/usecases/UpdateProviderConfig';
+import { updateModelKeyUseCase } from '@/lib/provider/usecases/UpdateModelKey';
 import { providerRepository } from '@/lib/provider/ProviderRepository';
 import { modelRepository } from '@/lib/provider/ModelRepository';
 
@@ -28,6 +32,8 @@ interface ProviderState {
   /** 刷新指定 provider 状态 */
   refresh: (name: string) => Promise<void>;
   refreshAll: () => Promise<void>;
+  updateConfig: (name: string, input: { url?: string; apiKey?: string | null }) => Promise<void>;
+  updateModelKey: (providerName: string, modelName: string, apiKey: string | null) => Promise<void>;
 }
 
 export const useProviderStore = create<ProviderState>((set, get) => ({
@@ -70,8 +76,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     const list = await providerRepository.getAll();
     console.log(`[ProviderStore] 最终获取到 ${list.length} 个提供商:`, list.map(p => p.name));
     
-    // 按PROVIDER_ORDER排序
+    // 读取用户自定义排序，若存在则优先生效，否则按 PROVIDER_ORDER
+    const userOrder = await providerRepository.getUserOrder();
     const sortedList = list.sort((a, b) => {
+      const ua = userOrder.indexOf(a.name);
+      const ub = userOrder.indexOf(b.name);
+      if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
       const aIndex = PROVIDER_ORDER.indexOf(a.name);
       const bIndex = PROVIDER_ORDER.indexOf(b.name);
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -114,8 +124,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     providerRepository.subscribe(async (updated) => {
       const combined = await Promise.all(updated.map(async (p) => ({ ...p, models: await modelRepository.get(p.name) ?? [] })));
       
-      // 按PROVIDER_ORDER排序
+      // 使用用户排序优先
+      const userOrder = await providerRepository.getUserOrder();
       const sortedCombined = combined.sort((a, b) => {
+        const ua = userOrder.indexOf(a.name);
+        const ub = userOrder.indexOf(b.name);
+        if (ua !== -1 || ub !== -1) return (ua === -1 ? Number.MAX_SAFE_INTEGER : ua) - (ub === -1 ? Number.MAX_SAFE_INTEGER : ub);
         const aIndex = PROVIDER_ORDER.indexOf(a.name);
         const bIndex = PROVIDER_ORDER.indexOf(b.name);
         if (aIndex === -1 && bIndex === -1) return 0;
@@ -125,6 +139,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       });
       
       set({ providers: sortedCombined });
+
+      // 同步 providerMetaStore
+      import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
+        const { mapToProviderWithStatus } = require('@/lib/provider/transform');
+        useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus));
+      }).catch(console.error);
     });
 
     // 订阅各 provider 模型变化
@@ -132,16 +152,30 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       modelRepository.subscribe(p.name, async () => {
         const current = get().providers;
         const newModels = await modelRepository.get(p.name) ?? [];
-        set({ providers: current.map((prov) => prov.name === p.name ? { ...prov, models: newModels } : prov) });
+        const next = current.map((prov) => prov.name === p.name ? { ...prov, models: newModels } : prov);
+        set({ providers: next });
+
+        // 同步 providerMetaStore
+        import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
+          const { mapToProviderWithStatus } = require('@/lib/provider/transform');
+          useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus));
+        }).catch(console.error);
       });
     });
   },
 
   refresh: async (name: string) => {
-    await providerService.refreshProviderStatus(name);
+    await refreshProviderUseCase.execute(name, { withModels: true });
   },
 
   refreshAll: async () => {
-    await providerService.refreshAll();
+    await refreshAllProvidersUseCase.execute();
+  },
+  
+  updateConfig: async (name: string, input: { url?: string; apiKey?: string | null }) => {
+    await updateProviderConfigUseCase.execute(name, input);
+  },
+  updateModelKey: async (providerName: string, modelName: string, apiKey: string | null) => {
+    await updateModelKeyUseCase.execute(providerName, modelName, apiKey);
   },
 })); 

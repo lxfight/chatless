@@ -1,5 +1,5 @@
 import { BaseProvider, CheckResult, StreamCallbacks, LlmMessage } from './BaseProvider';
-import { STATIC_PROVIDER_MODELS } from '../../provider/staticModels';
+import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 
 /**
@@ -15,58 +15,15 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    return STATIC_PROVIDER_MODELS['Anthropic']?.map((m)=>({
-      name: m.id,
-      label: m.label,
-      aliases: [m.id]
-    })) ?? null;
+    const list = getStaticModels('Anthropic');
+    return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }
 
   async checkConnection(): Promise<CheckResult> {
+    // 暂不在线检查，仅判断是否配置密钥
     const apiKey = await this.getApiKey();
-    if (!apiKey) {
-      return { success: false, message: 'NO_KEY' };
-    }
-    
-    try {
-      const url = `${this.baseUrl.replace(/\/$/, '')}/models`;
-      
-      // 添加超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-      
-      try {
-        const response = await this.fetchJson(url, {
-          method: 'GET',
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          rawResponse: true,
-          timeout: 8000 // 同时设置fetchJson的超时
-        } as any);
-        
-        clearTimeout(timeoutId);
-        return (response as Response).ok
-          ? { success: true }
-          : { success: false, message: `HTTP ${(response as Response).status} ${(response as Response).statusText}` };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-    } catch (error: any) {
-      console.error('[AnthropicProvider] checkConnection error:', error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError' || error.message.includes('timeout')) {
-          return { success: false, message: '连接超时' };
-        }
-        if (error.message.includes('fetch') || error.message.includes('network')) {
-          return { success: false, message: '网络连接失败' };
-        }
-        return { success: false, message: error.message };
-      }
-      return { success: false, message: '未知错误' };
-    }
+    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
+    return { ok: true };
   }
 
   /**
@@ -80,17 +37,26 @@ export class AnthropicProvider extends BaseProvider {
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
-      callbacks.onError?.(new Error('NO_KEY'));
+      const err = new Error('NO_KEY');
+      (err as any).code = 'NO_KEY';
+      (err as any).userMessage = '未配置 API 密钥（Anthropic）。请在设置中配置密钥后重试';
+      callbacks.onError?.(err);
       return;
     }
 
     // Claude expects messages as array of {role, content}
     const endpoint = `${this.baseUrl.replace(/\/$/, '')}/messages`;
+    const mapped: any = { ...options };
+    if (options.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxTokens;
+    if (options.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxOutputTokens;
+    if (options.stop !== undefined && mapped.stop_sequences === undefined) mapped.stop_sequences = options.stop;
+    if (options.topP !== undefined && mapped.top_p === undefined) mapped.top_p = options.topP;
+
     const body = {
       model,
       messages,
-      max_tokens: options?.maxOutputTokens ?? 1024,
       stream: true,
+      ...mapped,
     };
 
     try {

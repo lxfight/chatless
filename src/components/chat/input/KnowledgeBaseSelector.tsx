@@ -99,7 +99,7 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
                     <li key={kb.id}>
                       <button
                         onClick={() => handleSelect(kb)}
-                        className="w-full text-left p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer group hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                        className="w-full text-left p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 cursor-pointer group hover:shadow-md"
                       >
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center group-hover:from-blue-100 group-hover:to-indigo-100 dark:group-hover:from-blue-800/30 dark:group-hover:to-indigo-800/30 transition-all duration-200">

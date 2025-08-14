@@ -226,6 +226,53 @@ export function KnowledgeBaseSettings() {
             checked={settings.documentProcessing.enableOCR}
             onChange={(checked) => updateSettings('documentProcessing', 'enableOCR', checked)}
           />
+
+          {/* —— 新增：文档解析/拼接策略 —— */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2" />
+          <SettingsSectionHeader title="文档设置" />
+
+          <ToggleSwitch
+            label="自动将文档预览拼接到消息"
+            description="发送消息时，自动把解析后的文档预览（受 token 限制）附加到提示词末尾。默认关闭，推荐使用知识库/RAG。"
+            checked={settings.documentProcessing.autoAttachDocumentPreview}
+            onChange={(checked) => updateSettings('documentProcessing', 'autoAttachDocumentPreview', checked)}
+          />
+
+          <InputField
+            label="预览 token 上限"
+            type="number"
+            value={settings.documentProcessing.previewTokenLimit.toString()}
+            onChange={(e) => updateSettings('documentProcessing', 'previewTokenLimit', parseInt(e.target.value) || 4000)}
+            description="当自动拼接开启时，用于控制预览的最大 token 数，超出将按句子裁剪。"
+            min="1000"
+            max="16000"
+          />
+
+          <InputField
+            label="预览尾部保留比例"
+            type="number"
+            step="0.05"
+            value={settings.documentProcessing.previewKeepTailRatio.toString()}
+            onChange={(e) => updateSettings('documentProcessing', 'previewKeepTailRatio', Math.max(0, Math.min(0.5, parseFloat(e.target.value) || 0.2)))}
+            description="在截断时除保留开头内容外，按比例保留一部分结尾内容，范围 0 ~ 0.5。"
+            min="0"
+            max="0.5"
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="大文档文件大小阈值 (MB)"
+              type="number"
+              value={settings.documentProcessing.bigFileSizeMb.toString()}
+              onChange={(e) => updateSettings('documentProcessing', 'bigFileSizeMb', Math.max(1, parseInt(e.target.value) || 5))}
+              description="超过此大小将提示“转入知识库并引用”。"/>
+            <InputField
+              label="大文档 token 阈值"
+              type="number"
+              value={settings.documentProcessing.bigTokenThreshold.toString()}
+              onChange={(e) => updateSettings('documentProcessing', 'bigTokenThreshold', Math.max(1000, parseInt(e.target.value) || 8000))}
+              description="估算 token 超过此值将提示“转入知识库并引用”。"/>
+          </div>
         </div>
       </CollapsibleCard>
 

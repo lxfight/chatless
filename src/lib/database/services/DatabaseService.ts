@@ -3,7 +3,8 @@ import {
   ConversationRepository, 
   MessageRepository, 
   KnowledgeBaseRepository,
-  DocumentRepository
+  DocumentRepository,
+  PromptRepository
 } from '../index';
 import type { Conversation, Message } from '@/types/chat';
 import type { KnowledgeBase, DocKnowledgeMapping } from '../repositories/KnowledgeBaseRepository';
@@ -23,6 +24,7 @@ export class DatabaseService {
   private messageRepo: MessageRepository | null = null;
   private knowledgeBaseRepo: KnowledgeBaseRepository | null = null;
   private documentRepository: DocumentRepository | null = null;
+  private promptRepository: PromptRepository | null = null;
 
   private constructor() {}
 
@@ -89,6 +91,7 @@ export class DatabaseService {
       this.messageRepo = new MessageRepository(this.dbManager);
       this.knowledgeBaseRepo = new KnowledgeBaseRepository(this.dbManager);
       this.documentRepository = new DocumentRepository(this.dbManager);
+      this.promptRepository = new PromptRepository(this.dbManager);
 
       // 验证Repository实例创建成功
       if (!this.conversationRepo || !this.messageRepo) {
@@ -105,6 +108,7 @@ export class DatabaseService {
       this.messageRepo = null;
       this.knowledgeBaseRepo = null;
       this.documentRepository = null;
+      this.promptRepository = null;
       
       throw error;
     }
@@ -216,6 +220,20 @@ export class DatabaseService {
    */
   public async clearAllDocuments(): Promise<void> {
     return this.getDocumentRepository().clearAllDocuments();
+  }
+
+  /**
+   * 清空知识库相关数据（不删除知识库定义）
+   * - knowledge_chunks
+   * - doc_knowledge_mappings
+   * - documents（复用现有实现）
+   */
+  public async clearKnowledgeData(): Promise<void> {
+    const db = this.getDbManager();
+    // 先清空依赖于 documents 的表，避免残留外键/数据引用
+    await db.execute('DELETE FROM knowledge_chunks');
+    await db.execute('DELETE FROM doc_knowledge_mappings');
+    await this.clearAllDocuments();
   }
 
   /**
@@ -412,6 +430,14 @@ export class DatabaseService {
       throw new Error('数据库服务未初始化');
     }
     return this.documentRepository;
+  }
+
+  /** 提示词 Repository */
+  public getPromptRepository(): PromptRepository {
+    if (!this.promptRepository) {
+      throw new Error('数据库服务未初始化');
+    }
+    return this.promptRepository;
   }
 
   // === 统计和健康检查 ===

@@ -9,7 +9,8 @@ import {
   DatabaseIcon, 
   HistoryIcon, 
   AnalyticsIcon, 
-  SettingsIcon 
+  SettingsIcon,
+  BookmarkIcon,
 } from '@/components/icons/SidebarIcons';
 import { shouldShowDevTools } from '@/lib/utils/environment';
 import { useEffect, useState } from 'react';
@@ -18,6 +19,7 @@ import { useEffect, useState } from 'react';
 const baseNavItems = [
   { href: '/', label: '首页', icon: HomeIcon },
   { href: '/chat', label: '聊天会话', icon: ChatIcon },
+  { href: '/prompts', label: '提示词库', icon: BookmarkIcon },
   { href: '/resources', label: '知识资源', icon: FolderIcon },
   { href: '/knowledge', label: '知识库', icon: DatabaseIcon },
   { href: '/history', label: '历史记录', icon: HistoryIcon },

@@ -10,8 +10,10 @@ export interface LlmMessage {
 }
 
 export interface CheckResult {
-  success: boolean;
+  ok: boolean;
+  reason?: 'NO_KEY' | 'AUTH' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN';
   message?: string;
+  meta?: any;
 }
 
 export interface StreamCallbacks {
@@ -42,11 +44,13 @@ export abstract class BaseProvider {
 
   protected async getApiKey(model?: string): Promise<string | null> {
     const { KeyManager } = await import('../KeyManager');
+    // 支持别名：当作为聚合委派时，用 aliasProviderName 进行 key 查找
+    const aliasName: string = (this as any).aliasProviderName || this.name;
     if (model) {
-      const modelKey = await KeyManager.getModelKey(this.name, model);
+      const modelKey = await KeyManager.getModelKey(aliasName, model);
       if (modelKey) return modelKey;
     }
-    return await KeyManager.getProviderKey(this.name);
+    return await KeyManager.getProviderKey(aliasName);
   }
 
   /**

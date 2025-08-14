@@ -201,7 +201,14 @@ export class StorageUtil {
         'settings.json',
         'knowledge-config.json',
         'embedding-config.json',
-        'user-preferences.json'
+        'user-preferences.json',
+        // 新增：Provider/模型相关的持久化文件
+        'provider-models.json',
+        'provider-models-meta.json',
+        'provider-status.json',
+        'model-parameters.json',
+        'session-parameters.json',
+        'model-strategy.json'
       ];
 
       for (const storeFile of appStoreFiles) {
@@ -226,6 +233,7 @@ export class StorageUtil {
             key.startsWith('knowledge_') || 
             key.startsWith('embedding_') ||
             key.startsWith('chat_') ||
+            key === 'chat-store' || // Zustand 持久化默认键
             key.startsWith('sample_') ||
             key.includes('onnx') ||
             key.includes('ollama') ||
@@ -335,10 +343,10 @@ export const specializedStorage = {
       StorageUtil.setItem(`${provider.toLowerCase()}_models`, models, 'provider-models.json'),
     getProviderModels: (provider: string) =>
       StorageUtil.getItem<string[]>(`${provider.toLowerCase()}_models`, [], 'provider-models.json'),
-    setRecentModels: (models: string[]) => 
-      StorageUtil.setItem('recentModels', models, 'model-usage.json'),
+    setRecentModels: (pairs: Array<{ provider: string; modelId: string }>) => 
+      StorageUtil.setItem('recentModels', pairs, 'model-usage.json'),
     getRecentModels: () => 
-      StorageUtil.getItem<string[]>('recentModels', [], 'model-usage.json'),
+      StorageUtil.getItem<Array<{ provider: string; modelId: string }>>('recentModels', [], 'model-usage.json'),
     setDownloadedModels: (models: Set<string>) => 
       StorageUtil.setItem('onnx-downloaded-models', Array.from(models), 'model-downloads.json'),
     getDownloadedModels: async () => {
@@ -350,11 +358,21 @@ export const specializedStorage = {
     getModelManagerState: () => 
       StorageUtil.getItem('modelManagerState', null, 'model-manager.json'),
 
-    // Last selected model across sessions
-    setLastSelectedModel: (modelId: string) =>
-      StorageUtil.setItem('lastSelectedModel', modelId, 'model-usage.json'),
-    getLastSelectedModel: () =>
-      StorageUtil.getItem<string>('lastSelectedModel', null, 'model-usage.json'),
+    // 保存 provider + modelId 对，避免不同 provider 同名模型冲突
+    setLastSelectedModelPair: (provider: string, modelId: string) =>
+      StorageUtil.setItem('lastSelectedModelPair', { provider, modelId }, 'model-usage.json'),
+    getLastSelectedModelPair: () =>
+      StorageUtil.getItem<{ provider: string; modelId: string }>('lastSelectedModelPair', null, 'model-usage.json'),
+    removeLastSelectedModelPair: () =>
+      StorageUtil.removeItem('lastSelectedModelPair', 'model-usage.json'),
+
+    // 每个会话固定选择（不改动数据库 schema 的前提下）
+    setConversationSelectedModel: (conversationId: string, provider: string, modelId: string) =>
+      StorageUtil.setItem(`conv_${conversationId}_selected_model`, { provider, modelId }, 'model-usage.json'),
+    getConversationSelectedModel: (conversationId: string) =>
+      StorageUtil.getItem<{ provider: string; modelId: string }>(`conv_${conversationId}_selected_model`, null, 'model-usage.json'),
+    removeConversationSelectedModel: (conversationId: string) =>
+      StorageUtil.removeItem(`conv_${conversationId}_selected_model`, 'model-usage.json'),
 
             // 模型参数配置存储
         setModelParameters: (providerName: string, modelId: string, parameters: any) => {
@@ -388,6 +406,50 @@ export const specializedStorage = {
         removeSessionParameters: (conversationId: string) => {
           const key = `session_${conversationId}_params`;
           return StorageUtil.removeItem(key, 'session-parameters.json');
+        },
+
+        // —— 模型显示名（label）重命名覆盖 ——
+        setModelLabel: async (providerName: string, modelId: string, label: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          const record = (await StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json')) || {};
+          record[modelId] = label;
+          return StorageUtil.setItem(key, record, 'provider-models-meta.json');
+        },
+        getModelLabels: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          return StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json');
+        },
+        removeModelLabel: async (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_model_labels`;
+          const record = (await StorageUtil.getItem<Record<string, string>>(key, {}, 'provider-models-meta.json')) || {};
+          delete record[modelId];
+          return StorageUtil.setItem(key, record, 'provider-models-meta.json');
+        },
+
+        // —— 模型请求策略（per-provider、per-model）——
+        setModelStrategy: (providerName: string, modelId: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.setItem(key, strategy, 'model-strategy.json');
+        },
+        getModelStrategy: (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.getItem<string>(key, null, 'model-strategy.json');
+        },
+        removeModelStrategy: (providerName: string, modelId: string) => {
+          const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
+          return StorageUtil.removeItem(key, 'model-strategy.json');
+        },
+        setProviderDefaultStrategy: (providerName: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.setItem(key, strategy, 'model-strategy.json');
+        },
+        getProviderDefaultStrategy: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.getItem<string>(key, null, 'model-strategy.json');
+        },
+        removeProviderDefaultStrategy: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_default_strategy`;
+          return StorageUtil.removeItem(key, 'model-strategy.json');
         },
   },
 

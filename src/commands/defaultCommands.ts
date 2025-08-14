@@ -1,5 +1,5 @@
 import { registerCommand } from './commandRegistry';
-import { Home, MessageSquare, Database, History, Settings, PlusCircle } from 'lucide-react';
+import { Home, MessageSquare, Database, History, Settings, PlusCircle, Bookmark } from 'lucide-react';
 
 // 引入设置相关命令注册（侧效果）
 import './settingsCommands';
@@ -57,6 +57,16 @@ registerCommand({
   icon: Settings,
   keywords: ['设置', 'settings', 'prefs', 'preferences', 'config'],
   action: () => navigate('/settings'),
+});
+
+registerCommand({
+  id: 'nav-prompts',
+  titleI18n: 'command.prompts',
+  section: 'navigation',
+  hint: '/prompts',
+  icon: Bookmark,
+  keywords: ['提示词', 'prompts', 'prompt', '模板', '库', '书签'],
+  action: () => navigate('/prompts'),
 });
 
 // new chat command

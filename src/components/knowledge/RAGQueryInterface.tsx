@@ -211,13 +211,17 @@ export function RAGQueryInterface() {
             
             <div>
               <label className="text-sm font-medium">模型</label>
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <Select value={`${selectedProvider}::${selectedModel}`} onValueChange={(val)=>{
+                const parts = val.split('::');
+                const m = parts.length===2? parts[1]: val;
+                setSelectedModel(m);
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="选择模型" />
                 </SelectTrigger>
                 <SelectContent>
                   {getSelectedModels().map((model: any) => (
-                    <SelectItem key={model.name} value={model.name}>
+                    <SelectItem key={`${selectedProvider}::${model.name}`} value={`${selectedProvider}::${model.name}`}>
                       {model.name}
                     </SelectItem>
                   ))}

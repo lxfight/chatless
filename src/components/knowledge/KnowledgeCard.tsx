@@ -54,7 +54,7 @@ export function KnowledgeCard({
         <div className="flex-1 flex flex-col min-w-0"> 
           <h3 className="font-semibold text-lg mb-2 text-gray-800 dark:text-gray-200 truncate">{name}</h3>
           <div className="flex items-center gap-3 text-sm mb-3 flex-wrap">
-            <span className="tag px-2.5 py-1 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full text-gray-700 dark:text-gray-300">
+            <span className="tag px-2.5 py-1 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-100 dark:to-gray-200 rounded-full text-gray-700 dark:text-gray-300">
               {source}
             </span>
             {isEncrypted && (

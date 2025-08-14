@@ -63,13 +63,99 @@ export class ModelParametersService {
    * 将模型参数转换为聊天选项格式
    */
   static convertToChatOptions(parameters: ModelParameters): Record<string, any> {
+    // 仅当用户“启用”某参数或者值与默认不同，才传给 Provider
+    const opts: Record<string, any> = { ...(parameters.advancedOptions || {}) };
+    const def = DEFAULT_MODEL_PARAMETERS;
+
+    const shouldSet = (enabledFlag: boolean | undefined, value: any, defValue: any) => {
+      // 若显式关闭则不传；若与默认相同且未显式开启也不传
+      if (enabledFlag === false) return false;
+      if (enabledFlag === true) return true;
+      return value !== defValue;
+    };
+
+    if (shouldSet(parameters.enableTemperature, parameters.temperature, def.temperature)) {
+      opts.temperature = parameters.temperature;
+    }
+    if (shouldSet(parameters.enableMaxTokens, parameters.maxTokens, def.maxTokens)) {
+      opts.maxTokens = parameters.maxTokens;
+    }
+    if (shouldSet(parameters.enableTopP, parameters.topP, def.topP)) {
+      opts.topP = parameters.topP;
+    }
+    if (shouldSet(parameters.enableFrequencyPenalty, parameters.frequencyPenalty, def.frequencyPenalty)) {
+      opts.frequencyPenalty = parameters.frequencyPenalty;
+    }
+    if (shouldSet(parameters.enablePresencePenalty, parameters.presencePenalty, def.presencePenalty)) {
+      opts.presencePenalty = parameters.presencePenalty;
+    }
+    if (shouldSet(parameters.enableStopSequences, parameters.stopSequences.length, 0)) {
+      if (parameters.stopSequences.length > 0) {
+        opts.stop = parameters.stopSequences;
+      }
+    }
+    return opts;
+  }
+
+  /**
+   * 反向解析：将通用 ChatOptions 拆解回 ModelParameters 结构（基础参数 + 高级参数）
+   * - 会尽量从顶层或 generationConfig 中提取基础参数
+   * - 其余参数保留在 advancedOptions 中，且会移除与基础参数重复的字段
+   */
+  static parseFromChatOptions(options: Record<string, any> | null | undefined): ModelParameters {
+    const src: any = options || {};
+    const gen: any = (src.generationConfig && typeof src.generationConfig === 'object') ? src.generationConfig : {};
+
+    const temperature: number =
+      (typeof src.temperature === 'number' ? src.temperature :
+        (typeof gen.temperature === 'number' ? gen.temperature : DEFAULT_MODEL_PARAMETERS.temperature));
+
+    const maxTokens: number =
+      (typeof src.maxTokens === 'number' ? src.maxTokens :
+        (typeof src.maxOutputTokens === 'number' ? src.maxOutputTokens :
+          (typeof gen.maxOutputTokens === 'number' ? gen.maxOutputTokens : DEFAULT_MODEL_PARAMETERS.maxTokens)));
+
+    const topP: number =
+      (typeof src.topP === 'number' ? src.topP :
+        (typeof gen.topP === 'number' ? gen.topP : DEFAULT_MODEL_PARAMETERS.topP));
+
+    const frequencyPenalty: number =
+      (typeof src.frequencyPenalty === 'number' ? src.frequencyPenalty : DEFAULT_MODEL_PARAMETERS.frequencyPenalty);
+
+    const presencePenalty: number =
+      (typeof src.presencePenalty === 'number' ? src.presencePenalty : DEFAULT_MODEL_PARAMETERS.presencePenalty);
+
+    const stopSeq: string[] = Array.isArray(src.stop)
+      ? src.stop as string[]
+      : (Array.isArray(gen.stopSequences) ? gen.stopSequences as string[] : []);
+
+    // 构造 advancedOptions：从深拷贝的对象中移除基础字段
+    const advanced = JSON.parse(JSON.stringify(src || {}));
+    // 移除顶层基础字段
+    delete advanced.temperature;
+    delete advanced.maxTokens;
+    delete advanced.maxOutputTokens;
+    delete advanced.topP;
+    delete advanced.frequencyPenalty;
+    delete advanced.presencePenalty;
+    delete advanced.stop;
+    // 移除 generationConfig 中与基础字段重复的项
+    if (advanced.generationConfig && typeof advanced.generationConfig === 'object') {
+      if (advanced.generationConfig.temperature !== undefined) delete advanced.generationConfig.temperature;
+      if (advanced.generationConfig.maxOutputTokens !== undefined) delete advanced.generationConfig.maxOutputTokens;
+      if (advanced.generationConfig.topP !== undefined) delete advanced.generationConfig.topP;
+      if (advanced.generationConfig.stopSequences !== undefined) delete advanced.generationConfig.stopSequences;
+      // 如果 generationConfig 变空对象，保留（兼容后续可能新增字段），不特殊处理
+    }
+
     return {
-      temperature: parameters.temperature,
-      maxTokens: parameters.maxTokens,
-      topP: parameters.topP,
-      frequencyPenalty: parameters.frequencyPenalty,
-      presencePenalty: parameters.presencePenalty,
-      stop: parameters.stopSequences.length > 0 ? parameters.stopSequences : undefined,
+      temperature,
+      maxTokens,
+      topP,
+      frequencyPenalty,
+      presencePenalty,
+      stopSequences: stopSeq,
+      advancedOptions: advanced,
     };
   }
 

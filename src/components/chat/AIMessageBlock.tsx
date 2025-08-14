@@ -227,12 +227,11 @@ export function AIMessageBlock({
   const hasNoContent = !content && isStreaming && (!state || (!state.thinkingContent && !state.regularContent));
 
   return (
-    <div className="prose prose-slate dark:prose-invert max-w-none rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm">
+    <div className="prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
-            <Brain className="w-3.5 h-3.5 text-slate-400 animate-pulse" />
             <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
           </div>
           <div className="flex gap-1">
@@ -240,7 +239,7 @@ export function AIMessageBlock({
             <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
             <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
           </div>
-          <span className="text-sm text-slate-500 dark:text-slate-400">AI正在思考...</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">等待模型响应...</span>
         </div>
       )}
 
@@ -255,7 +254,7 @@ export function AIMessageBlock({
 
       {/* 消息内容 */}
       {(state?.regularContent || (!hasNoContent && !isStreaming)) && (
-        <div className="min-w-0 max-w-full">
+        <div className="min-w-0 max-w-full w-full">
           <MemoizedMarkdown content={state?.regularContent || ''} />
         </div>
       )}

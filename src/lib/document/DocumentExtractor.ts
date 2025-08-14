@@ -1,4 +1,4 @@
-import { DocumentExtractor, ExtractionResult, DocumentMetadata, ExtractionOptions, UnsupportedFileTypeError } from './types';
+import { DocumentExtractor, ExtractionResult, DocumentMetadata, ExtractionOptions, UnsupportedFileTypeError, FileTooLargeError } from './types';
 import { TauriDocumentExtractor } from './TauriDocumentExtractor';
 
 /**
@@ -103,6 +103,10 @@ export class DocumentExtractionService {
   ): Promise<ExtractionResult> {
     try {
       console.log(`开始提取文档（从buffer）: ${fileName}`);
+      // 大小校验
+      if (options?.maxFileSizeBytes && buffer.byteLength > options.maxFileSizeBytes) {
+        throw new FileTooLargeError(options.maxFileSizeBytes);
+      }
       
       const startTime = Date.now();
       const extractedDoc = await this.extractor.extractFromBuffer(buffer, fileName);

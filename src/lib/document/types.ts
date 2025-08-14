@@ -66,6 +66,8 @@ export interface ExtractionOptions {
   extractTables?: boolean;
   maxLength?: number;
   encoding?: string;
+  /** 允许的最大文件大小（字节），用于前端上传的 buffer 校验 */
+  maxFileSizeBytes?: number;
 }
 
 // 错误类型
@@ -89,3 +91,10 @@ export class FileReadError extends DocumentExtractionError {
     this.name = 'FileReadError';
   }
 } 
+
+export class FileTooLargeError extends DocumentExtractionError {
+  constructor(limitBytes: number) {
+    super(`文档过大，超过限制：${Math.round(limitBytes / (1024 * 1024))}MB`);
+    this.name = 'FileTooLargeError';
+  }
+}

@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
+import type React from 'react';
 import { Button } from "@/components/ui/button";
 import { 
   LayoutGrid, Star, Briefcase, Code, Pencil, GraduationCap, Lightbulb, Plus, BarChart, Languages 
