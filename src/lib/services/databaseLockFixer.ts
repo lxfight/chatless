@@ -208,7 +208,7 @@ export class DatabaseLockFixer {
 
       // 检查WAL文件大小
       try {
-        const walInfo = await this.db!.select('PRAGMA wal_checkpoint;') as WALCheckpointResult[];
+        const walInfo = await this.db!.select('PRAGMA wal_checkpoint;');
         if (walInfo[0]) {
           diagnostics.walFileSize = walInfo[0].log || 0;
           diagnostics.hasActiveSessions = walInfo[0].busy > 0;
@@ -273,12 +273,12 @@ export class DatabaseLockFixer {
 
     try {
       // 执行 RESTART 检查点 - 最激进的模式
-      const result = await this.db.select('PRAGMA wal_checkpoint(RESTART);') as WALCheckpointResult[];
+      const result = await this.db.select('PRAGMA wal_checkpoint(RESTART);');
       console.log('RESTART检查点执行完成:', result[0]);
 
       // 如果RESTART失败，尝试TRUNCATE
       if (result[0]?.busy > 0) {
-        const truncateResult = await this.db.select('PRAGMA wal_checkpoint(TRUNCATE);') as WALCheckpointResult[];
+        const truncateResult = await this.db.select('PRAGMA wal_checkpoint(TRUNCATE);');
         console.log('TRUNCATE检查点执行完成:', truncateResult[0]);
       }
     } catch (error) {
@@ -286,7 +286,7 @@ export class DatabaseLockFixer {
       
       // 退而求其次，使用FULL检查点
       try {
-        const result = await this.db.select('PRAGMA wal_checkpoint(FULL);') as WALCheckpointResult[];
+        const result = await this.db.select('PRAGMA wal_checkpoint(FULL);');
         console.log('FULL检查点执行完成:', result[0]);
       } catch (fallbackError) {
         console.warn('⚠️ FULL检查点也失败:', fallbackError);
@@ -342,15 +342,15 @@ export class DatabaseLockFixer {
 
     try {
       // 检查WAL模式状态
-      const journalMode = await this.db.select('PRAGMA journal_mode;') as PragmaResult[];
+      const journalMode = await this.db.select('PRAGMA journal_mode;');
       console.log('📊 日志模式:', journalMode[0]);
 
       // 检查锁模式
-      const lockingMode = await this.db.select('PRAGMA locking_mode;') as PragmaResult[];
+      const lockingMode = await this.db.select('PRAGMA locking_mode;');
       console.log('🔒 锁模式:', lockingMode[0]);
 
       // 检查忙等待超时
-      const busyTimeout = await this.db.select('PRAGMA busy_timeout;') as PragmaResult[];
+      const busyTimeout = await this.db.select('PRAGMA busy_timeout;');
       console.log('⏱️ 忙等待超时:', busyTimeout[0]);
 
       // 测试数据库可写性
@@ -376,7 +376,7 @@ export class DatabaseLockFixer {
 
     for (const strategy of strategies) {
       try {
-        const result = await this.db!.select(strategy.sql) as WALCheckpointResult[];
+        const result = await this.db!.select(strategy.sql);
         console.log(`${strategy.name}检查点执行完成:`, result[0]);
         
         // 如果检查点成功且没有繁忙连接，停止尝试
@@ -448,7 +448,7 @@ export class DatabaseLockFixer {
       console.log('数据库统计信息已更新');
 
       // 执行最终检查点
-      const result = await this.db!.select('PRAGMA wal_checkpoint(PASSIVE);') as WALCheckpointResult[];
+      const result = await this.db!.select('PRAGMA wal_checkpoint(PASSIVE);');
       console.log('最终检查点完成:', result[0]);
 
     } catch (error) {
@@ -474,7 +474,7 @@ export class DatabaseLockFixer {
 
       // 获取WAL信息
       try {
-        const walInfo = await this.db!.select('PRAGMA wal_checkpoint;') as WALCheckpointResult[];
+        const walInfo = await this.db!.select('PRAGMA wal_checkpoint;');
         if (walInfo[0]) {
           metrics.walSize = walInfo[0].log || 0;
         }

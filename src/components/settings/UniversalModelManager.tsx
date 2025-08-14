@@ -129,7 +129,7 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
       }
       
       const embeddingConfig: EmbeddingConfig = {
-        strategy: strategy as 'ollama' | 'local-onnx',
+        strategy: strategy,
         modelPath: knowledgeConfig.embedding.modelPath,
         modelName: knowledgeConfig.embedding.modelName,
         tokenizerPath: knowledgeConfig.embedding.tokenizerPath,
@@ -142,7 +142,7 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
       
       // 确保立即更新所有相关状态
       setCurrentEmbedding(embeddingConfig);
-      setSelectedStrategy(embeddingConfig.strategy as 'ollama' | 'local-onnx');
+      setSelectedStrategy(embeddingConfig.strategy);
       
       // 强制更新模型列表和选中状态
       await updateModelListWithConfig(embeddingConfig);
@@ -208,7 +208,7 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
   const updateModelListWithConfig = async (embeddingConfig: EmbeddingConfig) => {
     console.log('根据配置更新模型列表:', embeddingConfig);
     
-    const strategy = embeddingConfig.strategy as 'ollama' | 'local-onnx';
+    const strategy = embeddingConfig.strategy;
     
     // 确保selectedStrategy与配置一致
     if (selectedStrategy !== strategy) {
@@ -278,7 +278,7 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
         rawResponse: true,
         browserHeaders: true,
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
-      }) as Response;
+      });
 
       console.log('[checkOllamaModels] HTTP status', response.status, response.statusText);
       try {
@@ -695,7 +695,7 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
       };
       
       setCurrentEmbedding(embeddingConfig);
-      setSelectedStrategy(embeddingConfig.strategy as 'ollama' | 'local-onnx');
+      setSelectedStrategy(embeddingConfig.strategy);
       await updateModelListWithConfig(embeddingConfig);
     };
     

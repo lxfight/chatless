@@ -162,7 +162,7 @@ export class MessageRepository extends BaseRepository<Message> {
     pendingMessages: number;
     errorMessages: number;
   }> {
-    let conditions = [];
+    const conditions = [];
     if (conversationId) {
       conditions.push({ field: 'conversation_id', operator: '=' as const, value: conversationId });
     }

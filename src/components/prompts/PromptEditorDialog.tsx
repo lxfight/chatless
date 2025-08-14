@@ -59,7 +59,7 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
     while ((m = re.exec(text))) {
       const key = m[1];
       const d1 = m[2]; const d2 = m[3]; const d3 = m[4];
-      const def = (d1 ?? d2 ?? (d3 ? String(d3).trim() : '')) as string;
+      const def = (d1 ?? d2 ?? (d3 ? String(d3).trim() : ''));
       if (key && !map.has(key)) {
         map.set(key, { key, type: 'string', defaultValue: def });
       }

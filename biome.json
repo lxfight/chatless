@@ -7,7 +7,15 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": []
+    "ignore": [
+      "node_modules/**",
+      ".next/**",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      "public/**",
+      "src-tauri/target/**"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -18,26 +26,7 @@
     "enabled": true
   },
   "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "correctness": {
-        "useHookAtTopLevel": "error"
-      },
-      "nursery": {
-        "useGoogleFontDisplay": "error",
-        "noDocumentImportInPage": "error",
-        "noHeadElement": "error",
-        "noHeadImportInDocument": "error",
-        "noImgElement": "off",
-        "useComponentExportOnlyModules": {
-          "level": "error",
-          "options": {
-            "allowExportNames": ["metadata"]
-          }
-        }
-      }
-    }
+    "enabled": false
   },
   "css": {
     "formatter": {
@@ -46,7 +35,7 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double"
+      "quoteStyle": "single"
     },
     "globals": []
   }

@@ -228,7 +228,7 @@ export class HuggingFaceTokenizer {
     const normalizedText = text.toLowerCase().trim();
     const words = normalizedText.split(/\s+/);
     
-    let inputIds = [this.getTokenId('[CLS]')];
+    const inputIds = [this.getTokenId('[CLS]')];
     
     for (const word of words) {
       if (inputIds.length >= this.maxLength - 1) break;

@@ -212,7 +212,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         throw new Error(`无法找到刚插入的记录: ${this.tableName}, ID: ${id}`);
       }
       
-      return createdRecord as T;
+      return createdRecord;
     } catch (error) {
       const dbError = DatabaseErrorAnalyzer.analyze(error, {
         operation: 'create',

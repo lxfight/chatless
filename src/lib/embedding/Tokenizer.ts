@@ -68,7 +68,7 @@ export class SimpleTokenizer {
     const words = this.tokenize(normalizedText);
     
     // 转换为 token IDs
-    let inputIds = [this.clsTokenId]; // 开始 token
+    const inputIds = [this.clsTokenId]; // 开始 token
     
     for (const word of words) {
       if (inputIds.length >= this.maxLength - 1) { // 为 SEP token 预留空间

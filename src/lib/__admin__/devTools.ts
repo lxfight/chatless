@@ -271,7 +271,7 @@ async function optimizeDatabase(db: Database): Promise<void> {
     console.log('数据库统计信息已更新');
     
     // 执行最终的WAL检查点
-    const walResult = await db.select('PRAGMA wal_checkpoint(PASSIVE);') as Array<{ busy: number; log: number; checkpointed: number }>;
+    const walResult = await db.select('PRAGMA wal_checkpoint(PASSIVE);');
     console.log('最终WAL检查点完成:', walResult[0]);
     
   } catch (error) {

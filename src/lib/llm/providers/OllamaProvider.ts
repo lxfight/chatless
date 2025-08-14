@@ -29,7 +29,7 @@ export class OllamaProvider extends BaseProvider {
           browserHeaders: true,
           danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
           timeout: 8000 // 同时设置tauriFetch的超时
-        })) as Response;
+        }));
         console.log(`[OllamaProvider] tauriFetch 成功，状态码: ${resp.status}`);
         
         // 添加头部调试
@@ -212,7 +212,7 @@ export class OllamaProvider extends BaseProvider {
           browserHeaders: true,
           danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
           timeout: 8000 // 同时设置tauriFetch的超时
-        })) as Response;
+        }));
       } catch (fetchError) {
         // 如果tauriFetch失败，尝试使用原生fetch
         try {

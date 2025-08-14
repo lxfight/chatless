@@ -98,7 +98,7 @@ export class TauriDocumentExtractor implements DocumentExtractor {
       if (ext === 'json') {
         try {
           const decoder = new TextDecoder('utf-8');
-          const jsonText = decoder.decode(buffer as ArrayBuffer);
+          const jsonText = decoder.decode(buffer);
           // 压缩为单行文本，避免换行噪声
           content = jsonText.trim();
         } catch (e) {

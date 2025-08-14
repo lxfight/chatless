@@ -33,13 +33,7 @@ export class DatabaseDiagnostic {
     console.log('🔍 检查数据库表结构...');
 
     // 检查 conversations 表
-    const conversationsSchema = await this.db.select("PRAGMA table_info(conversations)") as Array<{
-      name: string;
-      type: string;
-      notnull: number;
-      dflt_value: any;
-      pk: number;
-    }>;
+    const conversationsSchema = await this.db.select("PRAGMA table_info(conversations)");
 
     console.log('📋 Conversations 表结构:');
     conversationsSchema.forEach(col => {
@@ -47,13 +41,7 @@ export class DatabaseDiagnostic {
     });
 
     // 检查 messages 表
-    const messagesSchema = await this.db.select("PRAGMA table_info(messages)") as Array<{
-      name: string;
-      type: string;
-      notnull: number;
-      dflt_value: any;
-      pk: number;
-    }>;
+    const messagesSchema = await this.db.select("PRAGMA table_info(messages)");
 
     console.log('📋 Messages 表结构:');
     messagesSchema.forEach(col => {
@@ -61,11 +49,7 @@ export class DatabaseDiagnostic {
     });
 
     // 检查外键关系
-    const foreignKeys = await this.db.select("PRAGMA foreign_key_list(messages)") as Array<{
-      table: string;
-      from: string;
-      to: string;
-    }>;
+    const foreignKeys = await this.db.select("PRAGMA foreign_key_list(messages)");
 
     console.log('🔗 Messages 表外键关系:');
     foreignKeys.forEach(fk => {
@@ -152,9 +136,7 @@ export class DatabaseDiagnostic {
     console.log('🔧 检查并修复数据库结构...');
 
     // 检查 messages 表是否有 knowledge_base_reference 字段
-    const messagesSchema = await this.db.select("PRAGMA table_info(messages)") as Array<{
-      name: string;
-    }>;
+    const messagesSchema = await this.db.select("PRAGMA table_info(messages)");
 
     const hasKnowledgeBaseRef = messagesSchema.some(col => col.name === 'knowledge_base_reference');
     if (!hasKnowledgeBaseRef) {
@@ -198,32 +180,21 @@ export class DatabaseDiagnostic {
 
     try {
       // 检查文档表
-      const documents = await this.db.select("SELECT id, title FROM documents LIMIT 10") as Array<{
-        id: string;
-        title: string;
-      }>;
+      const documents = await this.db.select("SELECT id, title FROM documents LIMIT 10");
       console.log(`📄 documents 表中有 ${documents.length} 个文档`);
       if (documents.length > 0) {
         console.log(`   样例文档ID: ${documents[0].id} (${documents[0].title})`);
       }
 
       // 检查知识库表
-      const knowledgeBases = await this.db.select("SELECT id, name FROM knowledge_bases LIMIT 10") as Array<{
-        id: string;
-        name: string;
-      }>;
+      const knowledgeBases = await this.db.select("SELECT id, name FROM knowledge_bases LIMIT 10");
       console.log(`📚 knowledge_bases 表中有 ${knowledgeBases.length} 个知识库`);
       if (knowledgeBases.length > 0) {
         console.log(`   样例知识库ID: ${knowledgeBases[0].id} (${knowledgeBases[0].name})`);
       }
 
       // 检查映射表
-      const mappings = await this.db.select("SELECT * FROM doc_knowledge_mappings LIMIT 10") as Array<{
-        id: string;
-        document_id: string;
-        knowledge_base_id: string;
-        status: string;
-      }>;
+      const mappings = await this.db.select("SELECT * FROM doc_knowledge_mappings LIMIT 10");
       console.log(`🔗 doc_knowledge_mappings 表中有 ${mappings.length} 个映射`);
 
       // 检查映射表中的外键是否有效
@@ -233,13 +204,13 @@ export class DatabaseDiagnostic {
           const docExists = await this.db.select(
             "SELECT 1 FROM documents WHERE id = ?", 
             [mapping.document_id]
-          ) as Array<any>;
+          );
           
           // 检查knowledge_base_id是否存在
           const kbExists = await this.db.select(
             "SELECT 1 FROM knowledge_bases WHERE id = ?", 
             [mapping.knowledge_base_id]
-          ) as Array<any>;
+          );
           
           if (docExists.length === 0) {
             console.error(`❌ 映射 ${mapping.id} 引用的文档 ${mapping.document_id} 不存在`);
@@ -252,16 +223,7 @@ export class DatabaseDiagnostic {
       }
 
       // 检查外键约束设置
-      const foreignKeys = await this.db.select("PRAGMA foreign_key_list(doc_knowledge_mappings)") as Array<{
-        id: number;
-        seq: number;
-        table: string;
-        from: string;
-        to: string;
-        on_update: string;
-        on_delete: string;
-        match: string;
-      }>;
+      const foreignKeys = await this.db.select("PRAGMA foreign_key_list(doc_knowledge_mappings)");
       
       console.log('🔗 doc_knowledge_mappings 表的外键约束:');
       foreignKeys.forEach(fk => {
@@ -269,7 +231,7 @@ export class DatabaseDiagnostic {
       });
 
       // 检查外键约束是否启用
-      const fkEnabled = await this.db.select("PRAGMA foreign_keys") as Array<{ foreign_keys: number }>;
+      const fkEnabled = await this.db.select("PRAGMA foreign_keys");
       console.log(`🔒 外键约束状态: ${fkEnabled[0]?.foreign_keys ? '启用' : '禁用'}`);
 
     } catch (error) {
@@ -296,11 +258,7 @@ export class DatabaseDiagnostic {
         LEFT JOIN documents d ON d.id = dkm.document_id
         LEFT JOIN knowledge_bases kb ON kb.id = dkm.knowledge_base_id
         WHERE d.id IS NULL OR kb.id IS NULL
-      `) as Array<{
-        id: string;
-        document_id: string;
-        knowledge_base_id: string;
-      }>;
+      `);
 
       if (invalidMappings.length > 0) {
         console.log(`🗑️ 发现 ${invalidMappings.length} 个无效的映射记录，准备删除:`);
@@ -325,11 +283,7 @@ export class DatabaseDiagnostic {
         LEFT JOIN documents d ON d.id = kc.document_id
         LEFT JOIN knowledge_bases kb ON kb.id = kc.knowledge_base_id
         WHERE d.id IS NULL OR kb.id IS NULL
-      `) as Array<{
-        id: string;
-        document_id: string;
-        knowledge_base_id: string;
-      }>;
+      `);
 
       if (invalidChunks.length > 0) {
         console.log(`🗑️ 发现 ${invalidChunks.length} 个无效的知识片段，准备删除:`);

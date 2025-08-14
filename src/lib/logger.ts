@@ -150,7 +150,7 @@ if (!globalThis.__APP_LOGGER__) {
   globalThis.__APP_LOGGER__ = new Logger();
 }
 
-export const logger = globalThis.__APP_LOGGER__!;
+export const logger = globalThis.__APP_LOGGER__;
 
 // 移除不再需要的导出函数，因为现在使用Tauri日志插件
 // 所有console调用都会自动转发到Tauri日志系统

@@ -518,7 +518,7 @@ export const KnowledgeService = {
               );
 
               if (docResult && docResult.length > 0) {
-                const row = docResult[0] as any;
+                const row = docResult[0];
                 document = {
                   id: row.id,
                   name: row.title, // 从数据库的title映射到UnifiedFile的name

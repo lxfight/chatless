@@ -39,7 +39,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         sidebarWidthRef.current = saved;
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // 同步 ref

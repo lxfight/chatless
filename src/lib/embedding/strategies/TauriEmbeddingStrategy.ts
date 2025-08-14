@@ -96,7 +96,7 @@ export class TauriEmbeddingStrategy implements EmbeddingStrategy {
           const embeddings = await invoke('generate_embeddings', {
             texts: batch,
             timeout: this.config?.timeout || 30000
-          }) as number[][];
+          });
           
           results.push(...embeddings);
         } catch (error) {

@@ -10,13 +10,7 @@ export async function fixMessagesTable(db: Database): Promise<void> {
   
   try {
     // 检查表结构
-    const tableInfo = await db.select("PRAGMA table_info(messages)") as Array<{
-      name: string;
-      type: string;
-      notnull: number;
-      dflt_value: any;
-      pk: number;
-    }>;
+    const tableInfo = await db.select("PRAGMA table_info(messages)");
 
     const hasDocumentReference = tableInfo.some(col => col.name === 'document_reference');
     const hasContextData = tableInfo.some(col => col.name === 'context_data');
@@ -46,10 +40,7 @@ export async function fixMessagesTable(db: Database): Promise<void> {
         console.log("messages表修复完成");
         
         // 验证修复结果
-        const newTableInfo = await db.select("PRAGMA table_info(messages)") as Array<{
-          name: string;
-          type: string;
-        }>;
+        const newTableInfo = await db.select("PRAGMA table_info(messages)");
         
         const columns = newTableInfo.map(col => col.name);
         console.log("修复后的表结构:", columns);
@@ -107,10 +98,7 @@ export async function rebuildMessagesTable(db: Database): Promise<void> {
       console.log("迁移现有数据...");
       
       // 获取旧表结构
-      const oldTableInfo = await db.select("PRAGMA table_info(messages)") as Array<{
-        name: string;
-        type: string;
-      }>;
+      const oldTableInfo = await db.select("PRAGMA table_info(messages)");
       
       const hasOldDocRef = oldTableInfo.some(col => col.name === 'document_reference');
       const hasOldContextData = oldTableInfo.some(col => col.name === 'context_data');
@@ -175,10 +163,7 @@ export async function rebuildMessagesTable(db: Database): Promise<void> {
     console.log("messages表重建完成");
     
     // 验证重建结果
-    const newTableInfo = await db.select("PRAGMA table_info(messages)") as Array<{
-      name: string;
-      type: string;
-    }>;
+    const newTableInfo = await db.select("PRAGMA table_info(messages)");
     
     const columns = newTableInfo.map(col => col.name);
     console.log("重建后的表结构:", columns);

@@ -39,7 +39,7 @@ function ProviderIcon({ id, name, size = 18, src }: { id?: string; name: string;
     const run = async () => {
       await ensureLogoCacheReady();
       const all = exts.map((ext) => `${base}.${ext}`).filter((u) => !isUrlKnownMissing(u));
-      let cancelled = false;
+      const cancelled = false;
       for (const url of all) {
         try {
           const ok = await new Promise<boolean>((resolve) => {

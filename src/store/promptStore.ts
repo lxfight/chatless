@@ -153,9 +153,9 @@ export const usePromptStore = create<PromptState & PromptActions>()(
               const now = Date.now();
               const prompt: PromptItem = {
                 id: raw.id || uuidv4(),
-                name: raw.name!,
+                name: raw.name,
                 description: raw.description || '',
-                content: raw.content!,
+                content: raw.content,
                 tags: raw.tags || [],
                 languages: raw.languages || [],
                 modelHints: raw.modelHints || [],

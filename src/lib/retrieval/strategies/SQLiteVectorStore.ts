@@ -92,7 +92,7 @@ export class SQLiteVectorStore implements RetrievalStrategy {
         WHERE ${whereClause}
       `;
 
-      const rows = await db.select(query, params) as any[];
+      const rows = await db.select(query, params);
       
       if (rows.length === 0) {
         return [];

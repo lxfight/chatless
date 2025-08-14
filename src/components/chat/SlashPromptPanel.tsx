@@ -76,7 +76,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     try { pref = (window as any).__prompt_pref_cache__ || {}; } catch {}
     // 内联变量赋值解析，格式 k=v k2="x y"，仅在以 / 指令开头时生效
     let token = '';
-    let inlineVars: Record<string,string> = {};
+    const inlineVars: Record<string,string> = {};
     if (text.startsWith('/')) {
       const parts = text.split(/\s+/);
       token = parts[0].replace(/^\//,'');
@@ -105,7 +105,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     }
     const list = prompts
       .filter((p) => {
-        const byTag = tagFilter ? (p.tags || []).some((t) => t.toLowerCase().includes(tagFilter!)) : true;
+        const byTag = tagFilter ? (p.tags || []).some((t) => t.toLowerCase().includes(tagFilter)) : true;
         if (!byTag) return false;
         if (!text) return true;
         const hay = `${p.name} ${(p.tags || []).join(' ')} ${p.description || ''}`.toLowerCase();
@@ -190,7 +190,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     const keys = getVariableKeys(p);
     if (keys.length === 0) return [];
     const values = computeVariableValues(p);
-    const providedKV = pendingVars as Record<string, any>;
+    const providedKV = pendingVars;
     const pos = (providedKV as any).__positional as string[] | undefined;
     return keys.map((k, idx) => {
       const v = values[k] ?? '';

@@ -298,7 +298,7 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
         // 从知识库中正确移除文档
         const success = await KnowledgeService.removeDocumentFromKnowledgeBase(
           itemToDelete.id, 
-          knowledgeBase!.id
+          knowledgeBase.id
         );
 
         if (success) {

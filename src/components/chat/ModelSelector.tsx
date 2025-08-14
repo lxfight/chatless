@@ -96,7 +96,7 @@ export function ModelSelector({
       (async () => {
         try {
           const { specializedStorage } = await import('@/lib/storage');
-          await specializedStorage.models.setLastSelectedModelPair(providerName!, modelId);
+          await specializedStorage.models.setLastSelectedModelPair(providerName, modelId);
         } catch (_) {}
       })();
       onModelChange(`${providerName}::${modelId}`);
@@ -179,7 +179,7 @@ export function ModelSelector({
     return `${providerBase}.${iconExts[Math.min(idx, iconExts.length - 1)]}`;
   })() : (currentProvider?.icon || '');
   const providerAvatarSrc = !providerIsCatalog && typeof currentProvider?.icon === 'string' && currentProvider.icon.startsWith('data:image')
-    ? (currentProvider.icon as string)
+    ? (currentProvider.icon)
     : generateAvatarDataUrl((currentProvider?.name || 'prov').toLowerCase(), currentProvider?.name || 'Provider', 20);
   const [useProviderIcon, setUseProviderIcon] = useState(false);
 

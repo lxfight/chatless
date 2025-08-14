@@ -514,8 +514,8 @@ export class HistoryService {
     markdown += `---\n\n`;
     
     messages.forEach((message, index) => {
-      const role = (message as any).role === 'user' ? '👤 用户' : '🤖 助手';
-      const timestamp = format(new Date(message.createdAt || (message as any).created_at), 'HH:mm:ss');
+      const role = (message).role === 'user' ? '👤 用户' : '🤖 助手';
+      const timestamp = format(new Date(message.createdAt || (message).created_at), 'HH:mm:ss');
       
       markdown += `## ${role} (${timestamp})\n\n`;
       markdown += `${message.content}\n\n`;
@@ -543,8 +543,8 @@ export class HistoryService {
     text += `${'='.repeat(50)}\n\n`;
     
     messages.forEach((message, index) => {
-      const role = (message as any).role === 'user' ? '用户' : '助手';
-      const timestamp = format(new Date(message.createdAt || (message as any).created_at), 'HH:mm:ss');
+      const role = (message).role === 'user' ? '用户' : '助手';
+      const timestamp = format(new Date(message.createdAt || (message).created_at), 'HH:mm:ss');
       
       text += `[${timestamp}] ${role}:\n`;
       text += `${message.content}\n\n`;

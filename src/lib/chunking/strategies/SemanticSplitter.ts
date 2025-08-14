@@ -76,7 +76,7 @@ export class SemanticSplitter implements ChunkingStrategy {
     const paragraphs: Array<{content: string, startIndex: number}> = [];
     const separators = options.paragraphSeparators || this.defaultParagraphSeparators;
     
-    let currentIndex = 0;
+    const currentIndex = 0;
     let lastIndex = 0;
 
     // 使用正则表达式找到所有段落分隔符

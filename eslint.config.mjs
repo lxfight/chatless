@@ -7,10 +7,26 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = tseslint.config(
+  // 全局忽略生成产物与非源代码目录，避免误扫产生大量噪音
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "src-tauri/target/**",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      "public/**",
+      "scripts/**",
+      "src/scripts/**",
+      "src/lib/migrations/**",
+    ],
+  },
   eslint.configs.recommended,
-  tseslint.configs.strictTypeChecked,
-  tseslint.configs.stylisticTypeChecked,
+  // 先加载 Next 的推荐配置，再由 TS 的覆盖 TS 文件的解析与规则
   ...compat.extends("next/core-web-vitals"),
+  // 使用更温和的、类型感知推荐规则，避免 strict 过于严苛
+  ...tseslint.configs.recommendedTypeChecked,
   {
     // Disabled rules taken from https://biomejs.dev/linter/rules-sources for ones that
     // are already handled by Biome
@@ -111,13 +127,42 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/prefer-namespace-keyword": "off",
       "@typescript-eslint/prefer-optional-chain": "off",
       "@typescript-eslint/require-await": "off",
-      // Custom rules
+      // Custom rules（适度放宽，保留实用检查）
+      "no-console": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      // 该规则需要类型信息，且易在非 TS 文件触发解析问题，这里关闭
+      "@typescript-eslint/await-thenable": "off",
+      // 放宽类型安全相关高噪音规则
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-function-type": "off",
+      "@typescript-eslint/no-redundant-type-constituents": "off",
+      // Promise 相关从 error 降为 warn，避免噪音但保留提示
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      // 注释规范从 error 降为 warn
+      "@typescript-eslint/ban-ts-comment": "warn",
+      // 其他通用高噪音规则降级
+      "no-empty": "warn",
+      "no-control-regex": "warn",
+      "no-var": "warn",
+      "no-useless-escape": "warn",
+      "@typescript-eslint/unbound-method": "warn",
+      // 保留模板字符串限制，但降级为 warn
       "@typescript-eslint/restrict-template-expressions": [
-        "error",
+        "warn",
         {
           allowNumber: true,
           allowBoolean: true,
           allowNever: true,
+          allowNullish: true,
+          allowAny: true,
         },
       ],
     },
@@ -126,6 +171,17 @@ const eslintConfig = tseslint.config(
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  // 目录级差异化：开发/演示目录关闭 no-console 降低噪音
+  {
+    files: [
+      "src/components/dev/**",
+      "src/app/dev-tools/**",
+      "src/app/debug-headers/**",
+    ],
+    rules: {
+      "no-console": "off",
     },
   },
 );

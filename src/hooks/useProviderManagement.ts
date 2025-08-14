@@ -98,7 +98,7 @@ export function useProviderManagement() {
       // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
       try { preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{}); } catch {}
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [repoProviders, repoLoading]);
 
   // ---- 将 providers 同步到全局 store (providerMetaStore) ----

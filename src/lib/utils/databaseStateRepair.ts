@@ -36,7 +36,7 @@ export class DatabaseStateRepair {
     // 检查所有现有表
     const allTables = await this.db.select(`
       SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `) as Array<{name: string}>;
+    `);
     
     const existingTables = allTables.map(t => t.name);
     console.log('📋 现有表:', existingTables);

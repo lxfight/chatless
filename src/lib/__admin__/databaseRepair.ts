@@ -37,7 +37,7 @@ export async function diagnoseDatabaseIssues(db: Database): Promise<{
     // 检查表结构
     const tables = await db.select(`
       SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `) as Array<{name: string}>;
+    `);
     
     const tableNames = tables.map(t => t.name);
     console.log('📋 现有表:', tableNames);
@@ -232,7 +232,7 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     console.log('📋 获取现有表结构...');
     const tables = await db.select(`
       SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-    `) as Array<{name: string}>;
+    `);
     
     const userTables = tables.filter(t => !t.name.startsWith('sqlite_')).map(t => t.name);
     console.log(`   发现 ${userTables.length} 个用户表:`, userTables);
@@ -249,7 +249,7 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     // Step 3: 验证删除结果
     const remainingTables = await db.select(`
       SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'
-    `) as Array<{name: string}>;
+    `);
     
     if (remainingTables.length > 0) {
       throw new Error(`删除表失败，仍有表存在: ${remainingTables.map(t => t.name).join(', ')}`);
@@ -266,7 +266,7 @@ export async function rebuildDatabase(db: Database): Promise<RepairResult> {
     // Step 5: 验证重建结果
     const newTables = await db.select(`
       SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
-    `) as Array<{name: string}>;
+    `);
     
     console.log(`数据库重建完成! 重新创建了 ${newTables.length} 个表:`);
     newTables.forEach(table => console.log(`   - ${table.name}`));
@@ -311,7 +311,7 @@ export async function clearDatabaseData(db: Database): Promise<RepairResult> {
     // 获取所有用户表
     const tables = await db.select(`
       SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
-    `) as Array<{name: string}>;
+    `);
 
     console.log(`📋 发现 ${tables.length} 个表需要清空:`, tables.map(t => t.name));
     steps.push(`发现 ${tables.length} 个表`);
@@ -326,7 +326,7 @@ export async function clearDatabaseData(db: Database): Promise<RepairResult> {
     for (const table of tables) {
       try {
         // 获取记录数
-        const countResult = await db.select(`SELECT COUNT(*) as count FROM "${table.name}"`) as Array<{count: number}>;
+        const countResult = await db.select(`SELECT COUNT(*) as count FROM "${table.name}"`);
         const recordCount = countResult[0]?.count || 0;
 
         if (recordCount > 0) {

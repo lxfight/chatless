@@ -60,10 +60,10 @@ export class ProviderStatusService {
 
         // 兼容旧的 checkConnection() 返回值，统一转换为 CheckResult
         const raw = await Promise.race([Promise.resolve(strategy.checkConnection() as any), timeoutPromise]);
-        const res: CheckResult = (raw as any)?.ok !== undefined
+        const res: CheckResult = (raw)?.ok !== undefined
           ? (raw as CheckResult)
-          : ("success" in (raw as any)
-              ? { ok: !!(raw as any).success, message: (raw as any).message }
+          : ("success" in (raw)
+              ? { ok: !!(raw).success, message: (raw).message }
               : { ok: false, reason: 'UNKNOWN', message: 'Invalid check result' });
 
         finalStatus = res.ok ? ProviderStatus.CONNECTED : ProviderStatus.NOT_CONNECTED;

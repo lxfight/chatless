@@ -127,7 +127,7 @@ export class DocumentParser {
       );
 
       // 主动释放引用，提示 GC
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       (fileBuffer as unknown as null);
 
       return {

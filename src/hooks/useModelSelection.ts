@@ -283,7 +283,7 @@ export const useModelSelection = () => {
     if (providerName) setCurrentProviderName(providerName);
 
     // 精确定位 provider：优先使用传入的 providerName
-    let provider = providerName
+    const provider = providerName
       ? allMetadata.find(p => p.name === providerName && p.models.some((m: any) => m.name === newModelId))
       : allMetadata.find(p => p.models.some((m: any) => m.name === newModelId));
 

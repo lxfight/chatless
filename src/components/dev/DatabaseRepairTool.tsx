@@ -55,14 +55,14 @@ export function DatabaseRepairTool() {
       // 获取基本信息
       const tables = await db.select(`
         SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-      `) as Array<{name: string}>;
+      `);
       
       // 统计记录数
       let totalRecords = 0;
       for (const table of tables) {
         if (!table.name.startsWith('sqlite_')) {
           try {
-            const count = await db.select(`SELECT COUNT(*) as count FROM ${table.name}`) as Array<{count: number}>;
+            const count = await db.select(`SELECT COUNT(*) as count FROM ${table.name}`);
             totalRecords += count[0]?.count || 0;
           } catch (e) {
             // 忽略计数错误

@@ -92,6 +92,3 @@ export class ParameterPolicyEngine {
   }
 }
 
-export type { ParameterRule };
-
-

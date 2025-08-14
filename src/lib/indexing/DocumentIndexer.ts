@@ -124,7 +124,7 @@ export class DocumentIndexer {
     options: IndexingOptions = {}
   ): Promise<IndexingResult> {
     const startTime = Date.now();
-    let task: IndexingTask = {
+    const task: IndexingTask = {
       id: generateId(),
       documentId,
       filePath,

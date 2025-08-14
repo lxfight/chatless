@@ -17,7 +17,7 @@ export const fetchOllamaModels: (url: string, apiKey?: string | null) => Promise
             rawResponse: true,
             browserHeaders: true,
             danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true }
-        }) as Response;
+        });
         if (!response.ok) {
             const errorBody = await response.text().catch(() => 'Could not read error body');
             console.error(`Ollama API request failed at ${endpoint}: ${response.status} ${response.statusText}`, errorBody);

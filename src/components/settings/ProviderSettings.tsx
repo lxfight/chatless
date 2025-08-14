@@ -441,14 +441,14 @@ export function ProviderSettings({
                 if (isImageSrc && !iconError && provider.icon) {
                   return (
                 <Image
-                    src={resolvedIconSrc as string}
+                    src={resolvedIconSrc}
                     alt={`${provider.name} 图标`}
                     width={20}
                     height={20}
                     className="w-5 h-5 text-gray-800 dark:text-gray-200"
                     onError={() => {
                       if (iconIsCatalog) {
-                        markUrlMissing(resolvedIconSrc as string);
+                        markUrlMissing(resolvedIconSrc);
                         if (iconExtIdx < iconExts.length - 1) {
                           setIconExtIdx((i) => i + 1);
                         } else {

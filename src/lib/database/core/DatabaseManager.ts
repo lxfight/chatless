@@ -233,7 +233,7 @@ export class DatabaseManager {
 
     try {
       console.debug("执行查询", sql, this.sanitizeParamsForLog(params));
-      const result = await db.select(sql, params) as T[];
+      const result = await db.select(sql, params);
       
       const duration = Date.now() - startTime;
       console.debug("查询执行完成", {
@@ -274,7 +274,7 @@ export class DatabaseManager {
         select: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
           // 直接使用数据库对象，避免调用外部包装方法
           console.debug("事务内查询执行", sql, this.sanitizeParamsForLog(params));
-          return await db.select(sql, params) as T[];
+          return await db.select(sql, params);
         },
         commit: async () => {
           await db.execute("COMMIT");
@@ -527,7 +527,7 @@ export class DatabaseManager {
       const requiredTables = ['conversations', 'messages', 'documents'];
       const existingTables = await this.db.select(`
         SELECT name FROM sqlite_master WHERE type='table'
-      `) as { name: string }[];
+      `);
       const existingTableNames = existingTables.map(t => t.name);
 
       const missingTables = requiredTables.filter(

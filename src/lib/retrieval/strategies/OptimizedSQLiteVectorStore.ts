@@ -352,18 +352,18 @@ export class OptimizedSQLiteVectorStore extends AbstractVectorStore {
     const countResult = await this.executeWithRetry(
       () => this.dbManager.select(`SELECT COUNT(*) as count FROM ${this.tableName} WHERE is_deleted = 0`),
       'get_vector_count'
-    ) as Array<{ count: number }>;
+    );
 
     const dimensionResult = await this.executeWithRetry(
       () => this.dbManager.select(`SELECT DISTINCT dimension FROM ${this.tableName} WHERE is_deleted = 0 LIMIT 1`),
       'get_dimension'
-    ) as Array<{ dimension: number }>;
+    );
 
     // 获取索引大小（估算）
     const sizeResult = await this.executeWithRetry(
       () => this.dbManager.select(`SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()`),
       'get_db_size'
-    ) as Array<{ size: number }>;
+    );
 
     return {
       totalVectors: countResult[0]?.count ?? 0,

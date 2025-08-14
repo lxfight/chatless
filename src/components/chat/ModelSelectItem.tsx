@@ -61,7 +61,7 @@ export function ModelSelectItem({
     return `${providerBase}.${iconExts[Math.min(idx, iconExts.length - 1)]}`;
   })() : provider.icon;
   const providerAvatarSrc = !providerIsCatalog && typeof provider.icon === 'string' && provider.icon.startsWith('data:image')
-    ? (provider.icon as string)
+    ? (provider.icon)
     : generateAvatarDataUrl(provider.name.toLowerCase(), provider.name, 20);
 
   // 渲染用状态：先尝试模型 logo，失败后切换到 provider 目录图标，再失败回退到 avatar
@@ -87,14 +87,14 @@ export function ModelSelectItem({
         isImgSrc(providerCatalogSrc) ? (
           <div className="w-5 h-5 dark:bg-gray-100 rounded-sm">
             <Image
-              src={providerCatalogSrc as string}
+              src={providerCatalogSrc}
               alt={`${provider.name}`}
               width={20}
               height={20}
               className="w-5 h-5 flex-shrink-0 rounded-sm"
               onError={() => {
                 if (providerIsCatalog) {
-                  markUrlMissing(providerCatalogSrc as string);
+                  markUrlMissing(providerCatalogSrc);
                   if (providerExtIdx < iconExts.length - 1) {
                     setProviderExtIdx((i) => i + 1);
                   } else {

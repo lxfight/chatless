@@ -753,7 +753,7 @@ export function getStaticModels(provider: ProviderName | string): StaticModelDef
 }
 
 // 工具常量：已收录的 Provider 名称（展示名）
-export const KNOWN_STATIC_MODEL_PROVIDERS: ProviderName[] = (STATIC_PROVIDER_MODELS.map(p => p.providerName) as ProviderName[]);
+export const KNOWN_STATIC_MODEL_PROVIDERS: ProviderName[] = (STATIC_PROVIDER_MODELS.map(p => p.providerName));
 
 // —— 模型能力归类（正则优先 + 手动补充）——
 
