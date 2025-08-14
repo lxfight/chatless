@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# 需要写权限以创建 Release。若仓库设置为默认只读，这里会显式请求写权限。
+permissions:
+  contents: write
+
 jobs:
   prepare:
     runs-on: ubuntu-22.04
