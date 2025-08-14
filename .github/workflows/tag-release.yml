@@ -17,12 +17,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
+      - name: Enable corepack and activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Sync version from tag to files
@@ -51,12 +49,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
+      - name: Enable corepack and activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install system deps for Linux (Ubuntu 22.04)
@@ -109,17 +105,14 @@ jobs:
           files: artifacts/**/*
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+      - name: Enable corepack and activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate updater JSON (stable/alpha channels)
