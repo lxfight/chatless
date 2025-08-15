@@ -7,6 +7,7 @@ import { initDatabaseService } from '@/lib/db';
 import { Sidebar } from './Sidebar';
 import { startupMonitor } from '@/lib/utils/startupPerformanceMonitor';
 import { ThemeInitializer } from './theme/ThemeInitializer';
+import { attachConsole } from '@tauri-apps/plugin-log';
 import { initializeSampleDataIfNeeded } from '@/lib/sampleDataInitializer';
 import { appCleanupService } from '@/lib/services/appCleanup';
 
@@ -21,6 +22,11 @@ export function TauriApp({ children }: TauriAppProps) {
   const initializationPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    // 将浏览器控制台日志转发到 Tauri 日志系统
+    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      attachConsole().catch(() => {/* 忽略错误 */});
+    }
+
     const initializeApp = async () => {
       // 防止重复初始化
       if (hasInitializedRef.current) {

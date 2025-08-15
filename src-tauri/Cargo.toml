@@ -41,6 +41,7 @@ tokenizers = { version = "0.19.1", default-features = false, features = ["onig"]
 ndarray = { version = "0.15", features = ["serde"] }
 ndarray-stats = "0.5.1"
 once_cell = "1.19.0"
+time = "0.3"
 rayon = "1.10.0"
 # Command line interface helper
 clap = { version = "4", features = ["derive"] }

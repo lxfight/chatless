@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri::path::BaseDirectory;
 use tauri_plugin_log::{Target, TargetKind};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 #[tauri::command]
 fn exit(code: i32) {
@@ -107,8 +108,12 @@ pub fn run() {
       tauri_plugin_log::Builder::new()
         .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
         .format(|out, message, record| {
+          // 生成本地时间戳，失败时退回到 UTC
+          let ts = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+          let ts_str = ts.format(&Rfc3339).unwrap_or_else(|_| "-".into());
           out.finish(format_args!(
-            "[{} {}] {}",
+            "[{}][{}][{}] {}",
+            ts_str,
             record.level(),
             record.target(),
             message
@@ -125,6 +130,8 @@ pub fn run() {
           }),
         ])
         .max_file_size(10 * 1024 * 1024) // 10MB
+        // 保留最近 7 个日志文件
+        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepNum(7))
         .build(),
     )
     .manage(onnx_logic::OnnxState {
