@@ -21,6 +21,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable
@@ -58,6 +60,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable
@@ -68,10 +72,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('next.config.ts') }}
+          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-next-
-          retention-days: 21
       - name: Install system deps for Linux (Ubuntu 22.04)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: |
@@ -84,10 +87,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/tauri
-          key: ${{ runner.os }}-tauri-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ hashFiles('src-tauri/tauri.conf.json') }}
+          key: ${{ runner.os }}-tauri-${{ hashFiles('src-tauri/tauri.conf.json') }}
           restore-keys: |
             ${{ runner.os }}-tauri-
-          retention-days: 21
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -100,8 +102,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
+            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          retention-days: 21
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Build Tauri app
         run: pnpm tauri build
         env:
@@ -164,6 +168,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable

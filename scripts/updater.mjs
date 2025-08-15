@@ -200,7 +200,6 @@ function createEmptyUpdate(tagName, releaseBody) {
     : tagName;
 
   return {
-    name: tagName,
     version: normalizedVersion,
     notes: releaseBody || "",
     pub_date: new Date().toISOString(),
