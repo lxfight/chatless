@@ -78,7 +78,7 @@ export function AboutSupportSettings() {
         && (window as any).__CHATLESS_ONLY_CHECK_UPDATE__;
 
       toast.message(`检测到更新：${version}`, {
-        description: onlyCheck ? '仅检查已验证，不执行自动安装' : '正在下载并安装，请稍候…'
+        description: onlyCheck ? '如需安装，请取消仅检查更新。' : '正在下载并安装，请稍候…'
       });
 
       // 若可用，一步到位：下载并安装
@@ -89,7 +89,7 @@ export function AboutSupportSettings() {
         const { relaunch } = await import('@tauri-apps/plugin-process');
         relaunch();
 
-      } else {
+      } else if (!onlyCheck){
         // 兼容性兜底：仅提示用户前往发布页
         await handleOpenLink(APP_INFO.releases);
       }
