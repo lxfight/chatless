@@ -1,7 +1,7 @@
 {
   "name": "chatless",
   "private": false,
-  "version": "0.1.0",
+  "version": "0.2.1",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -27,7 +27,8 @@
     "update:generate": "node scripts/updater.mjs",
     "update:verify": "node scripts/updater-verify.mjs",
     "version:set": "node scripts/set-version.mjs",
-    "tag:repush": "node scripts/repushtag.mjs"
+    "tag:repush": "node scripts/repushtag.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.0.8",
