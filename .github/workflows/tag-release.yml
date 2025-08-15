@@ -109,7 +109,8 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Inject commit SHA to env
-        run: echo "NEXT_PUBLIC_GIT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+        shell: bash
+        run: echo "NEXT_PUBLIC_GIT_SHA=${GITHUB_SHA::0:7}" >> $GITHUB_ENV
 
       - name: Build Tauri app
         run: pnpm tauri build
