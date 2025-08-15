@@ -12,12 +12,5 @@
     "resources": [
       "libonnxruntime.so"
     ]
-  },
-  "plugins": {
-    "updater": {
-      "windows": {
-        "installMode": "passive"
-      }
-    }
   }
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { 
   ExternalLink, 
   Check,
@@ -142,31 +144,35 @@ export function AboutSupportSettings() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               {APP_INFO.description}
             </p>
-            <Button 
-              onClick={handleCheckUpdate}
-              variant="outline"
-              size="sm"
-              className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              检查更新
-            </Button>
-            <label className="ml-3 inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 select-none">
-              <input
-                type="checkbox"
-                checked={onlyCheckDev}
-                onChange={async (e) => {
-                  const next = e.target.checked;
-                  setOnlyCheckDev(next);
-                  if (typeof window !== 'undefined') {
-                    (window as any).__CHATLESS_ONLY_CHECK_UPDATE__ = next;
-                  }
-                  try {
-                    await StorageUtil.setItem<boolean>('only_check_update', next, 'user-preferences.json');
-                  } catch {}
-                }}
-              />
-              仅检查更新，不自动安装
-            </label>
+            {/* 操作区：按钮 + 勾选框 */}
+            <div className="flex items-center flex-wrap gap-4 mt-3">
+              <Button 
+                onClick={handleCheckUpdate}
+                variant="outline"
+                size="sm"
+                className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                检查更新
+              </Button>
+
+              <Label htmlFor="only-check-update" className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500 select-none cursor-pointer">
+                <Checkbox
+                  id="only-check-update"
+                  checked={onlyCheckDev}
+                  onCheckedChange={async (next) => {
+                    const checked = Boolean(next);
+                    setOnlyCheckDev(checked);
+                    if (typeof window !== 'undefined') {
+                      (window as any).__CHATLESS_ONLY_CHECK_UPDATE__ = checked;
+                    }
+                    try {
+                      await StorageUtil.setItem<boolean>('only_check_update', checked, 'user-preferences.json');
+                    } catch {}
+                  }}
+                />
+                仅检查更新，不自动安装
+              </Label>
+            </div>
           </div>
         </div>
       </section>
@@ -233,7 +239,7 @@ export function AboutSupportSettings() {
       </section>
 
       {/* 法律信息 */}
-      <footer className="pt-4 text-center text-xs text-gray-400 dark:text-gray-500">
+      <footer className="pt-4 mt-20 text-center text-xs text-gray-400 dark:text-gray-500">
         <div className="space-x-3">
           <button
             onClick={() => handleOpenLink(APP_INFO.terms)}

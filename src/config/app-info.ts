@@ -23,6 +23,6 @@ import { version as pkgVersion } from "../../package.json" assert { type: "json"
 export function getVersionInfo() {
   const envVer = process.env.npm_package_version as string | undefined;
   const version = (pkgVersion as string | undefined) || envVer || "dev";
-  const build = (process.env.GITHUB_SHA as string | undefined)?.slice(0, 7) || (process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? "local");
+  const build = (process.env.GITHUB_SHA as string | undefined)?.slice(0, 7) || (process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? "release");
   return { version, build };
 } 
