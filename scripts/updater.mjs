@@ -104,12 +104,16 @@ async function processRelease(octokit, options, tag, isAlpha) {
         updateData.platforms.darwin.url = browser_download_url;
         updateData.platforms["darwin-intel"].url = browser_download_url;
         updateData.platforms["darwin-x86_64"].url = browser_download_url;
+        // 兼容 Apple Silicon：通用包亦可供 darwin-aarch64 使用
+        updateData.platforms["darwin-aarch64"].url = browser_download_url;
       }
       if (name.endsWith(".app.tar.gz.sig") && !name.includes("aarch")) {
         const sig = await getSignature(browser_download_url);
         updateData.platforms.darwin.signature = sig;
         updateData.platforms["darwin-intel"].signature = sig;
         updateData.platforms["darwin-x86_64"].signature = sig;
+        // 同步写入 Apple Silicon 签名
+        updateData.platforms["darwin-aarch64"].signature = sig;
       }
 
       // macOS Apple Silicon
