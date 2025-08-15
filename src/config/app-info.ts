@@ -13,14 +13,16 @@ export const APP_INFO = {
   privacy: "https://kamjin3086.github.io/chatless/privacy",
 };
 
+import { version as pkgVersion } from "../../package.json" assert { type: "json" };
+
 /**
  * 返回版本与内部构建号
  * version: package.json 的 version 字段；若不可用则为 'dev'
  * build:   CI 提供的 GITHUB_SHA 前 7 位；本地则为 'local'
  */
 export function getVersionInfo() {
-  // 在构建阶段，webpack / next.js 会把 process.env.npm_package_version 替换为字面量
-  const version = (process.env.npm_package_version as string | undefined) || "dev";
-  const build = (process.env.GITHUB_SHA as string | undefined)?.slice(0, 7) || "local";
+  const envVer = process.env.npm_package_version as string | undefined;
+  const version = (pkgVersion as string | undefined) || envVer || "dev";
+  const build = (process.env.GITHUB_SHA as string | undefined)?.slice(0, 7) || (process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? "local");
   return { version, build };
 } 

@@ -24,8 +24,13 @@ export function AboutSupportSettings() {
     const getTauriVersion = async () => {
       try {
         if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-          const { getVersion } = await import('@tauri-apps/api/app');
-          const tauriVersion = await getVersion();
+          let tauriVersion = 'dev';
+          try {
+            const { getVersion } = await import('@tauri-apps/api/app');
+            tauriVersion = await getVersion();
+          } catch {
+            tauriVersion = "unknown"
+          }
           setVersionInfo(prev => ({
             ...prev,
             version: tauriVersion
