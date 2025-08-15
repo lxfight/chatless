@@ -1,7 +1,7 @@
 // 应用信息配置
 export const APP_INFO = {
   name: "Chatless",
-  version: "0.1.0", // 这个值会在构建时被替换
+  version: "0.2.1", // 这个值会在构建时被替换
   description: "一个简洁实用的 AI 对话客户端。",
   author: "kamjin3086",
   repository: "https://github.com/kamjin3086/chatless",

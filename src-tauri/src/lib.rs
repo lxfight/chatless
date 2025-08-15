@@ -130,8 +130,7 @@ pub fn run() {
           }),
         ])
         .max_file_size(10 * 1024 * 1024) // 10MB
-        // 保留最近 7 个日志文件
-        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepNum(7))
+        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
         .build(),
     )
     .manage(onnx_logic::OnnxState {

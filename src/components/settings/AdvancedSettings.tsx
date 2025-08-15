@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { startupMonitor } from "@/lib/utils/startupPerformanceMonitor";
 import { downloadService } from "@/lib/utils/downloadService";
+import { detectTauriEnvironment } from "@/lib/utils/environment";
+// 在需要时动态导入 Tauri FS/Path API
 import { toast } from "sonner";
 
 export function AdvancedSettings() {
@@ -77,29 +79,63 @@ export function AdvancedSettings() {
 
   const exportLogs = async () => {
     try {
-      // 由于现在使用Tauri日志插件，日志直接写入文件
-      // 这里提供一个说明信息
-      const logInfo = `日志系统信息：
-Tauri日志系统已启用
+      const isTauri = await detectTauriEnvironment();
 
-日志文件位置：
-- Windows: %APPDATA%\\chatless\\logs\\app.log
-- macOS: ~/Library/Logs/chatless/app.log  
-- Linux: ~/.local/share/chatless/logs/app.log
+      if (isTauri) {
+        // 动态导入 Tauri FS API
+        const { readDir, readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
 
-日志已自动保存到上述位置，无需手动导出。
+        // 读取日志目录
+        const entries = await readDir('', { baseDir: BaseDirectory.AppLog });
 
-当前日志级别: ${logLevel}
-导出时间: ${new Date().toLocaleString()}
-`;
-      
-      const fileName = `log-info-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
-      const success = await downloadService.downloadText(fileName, logInfo);
-      
-      if (success) {
-        toast.success('日志信息已导出');
+        if (!entries || entries.length === 0) {
+          toast.error('未找到日志文件');
+          return;
+        }
+
+        // 过滤 .log 文件
+        const logFiles = entries.filter((e: any) => e.name && e.name.endsWith('.log'));
+
+        if (logFiles.length === 0) {
+          toast.error('未找到 .log 文件');
+          return;
+        }
+
+        // 若无mtime信息，则按文件名排序
+        logFiles.sort((a: any, b: any) => (b.name || '').localeCompare(a.name || ''));
+
+        // 合并内容
+        let combined = '';
+        for (const file of logFiles) {
+          try {
+            const content = await readTextFile(file.name, { baseDir: BaseDirectory.AppLog });
+            combined += `\n===== ${file.name} =====\n`;
+            combined += content;
+            combined += '\n';
+          } catch (e) {
+            console.warn('读取日志文件失败:', file.name, e);
+          }
+        }
+
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const fileName = `chatless-logs-${timestamp}.txt`;
+
+        const success = await downloadService.downloadText(fileName, combined);
+        if (success) {
+          toast.success('日志已导出');
+        } else {
+          toast.error('导出日志失败');
+        }
       } else {
-        toast.error('导出日志信息失败');
+        // 非 Tauri 环境：导出说明
+        const logInfo = `日志系统信息：\nTauri日志系统已启用\n\n日志已自动保存到系统日志目录。\n当前日志级别: ${logLevel}\n导出时间: ${new Date().toLocaleString()}\n`;
+        const fileName = `chatless-log-description-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+        const success = await downloadService.downloadText(fileName, logInfo);
+        if (success) {
+          toast.success('日志信息已导出');
+        } else {
+          toast.error('导出日志信息失败');
+        }
       }
     } catch (error) {
       console.error('导出日志信息失败:', error);
