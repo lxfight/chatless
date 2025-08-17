@@ -27,7 +27,10 @@ export class ModelRepository {
         await defaultCacheManager.set(this.key(provider), arr);
         return arr;
       }
-    } catch (_) {}
+    } catch (error) {
+      console.error(`Failed to get models for provider ${provider}:`, error);
+      // 不抛出错误，但记录日志以便调试
+    }
 
     // 不存在则返回空数组并写入缓存，减少上层判空复杂度
     await defaultCacheManager.set(this.key(provider), []);
@@ -38,7 +41,10 @@ export class ModelRepository {
     await defaultCacheManager.set(this.key(provider), models, { ttl });
     try {
       await specializedStorage.models.setProviderModels(provider, models.map(m=>m.name));
-    } catch (_) {}
+    } catch (error) {
+      console.error(`Failed to save models for provider ${provider}:`, error);
+      // 不抛出错误，但记录日志以便调试
+    }
 
     // notify
     this.listeners.forEach(l=>l(provider));
@@ -47,7 +53,12 @@ export class ModelRepository {
   /** 清空指定 provider 模型（保留键值结构） */
   async clear(provider: string) {
     await defaultCacheManager.set(this.key(provider), []);
-    try { await specializedStorage.models.setProviderModels(provider, []);} catch(_){}
+    try { 
+      await specializedStorage.models.setProviderModels(provider, []);
+    } catch (error) {
+      console.error(`Failed to clear models for provider ${provider}:`, error);
+      // 不抛出错误，但记录日志以便调试
+    }
     this.listeners.forEach(l=>l(provider));
   }
 

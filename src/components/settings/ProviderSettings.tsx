@@ -1,3 +1,4 @@
+"use client";
 import { useState, useRef } from 'react';
 import React from 'react';
 import { InputField } from './InputField';
