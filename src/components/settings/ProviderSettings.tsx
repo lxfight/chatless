@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import { InputField } from './InputField';
 import { CheckCircle, XCircle, KeyRound, RefreshCcw, ChevronDown, ChevronUp, Database, Loader2, AlertTriangle, HelpCircle, Search, ExternalLink, Settings, RotateCcw, Wifi, Undo2 } from 'lucide-react';
@@ -21,8 +21,10 @@ import type { ModelMetadata } from '@/lib/metadata/types';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
 import { linkOpener } from '@/lib/utils/linkOpener';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
+import { specializedStorage } from '@/lib/storage';
 import { toast } from 'sonner';
 import { modelRepository } from '@/lib/provider/ModelRepository';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 // 导入 ProviderWithStatus 类型
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
@@ -38,6 +40,7 @@ interface ProviderSettingsProps {
   onModelApiKeyChange: (modelName: string, apiKey: string) => void; // Model 也使用 name
   onModelApiKeyBlur: (modelName: string) => void;
   onRefresh: (provider: ProviderWithStatus) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ProviderSettings({
@@ -50,20 +53,57 @@ export function ProviderSettings({
   onDefaultApiKeyBlur,
   onModelApiKeyChange,
   onModelApiKeyBlur,
-  onRefresh
+  onRefresh,
+  onOpenChange
 }: ProviderSettingsProps) {
-  const [isOpen, setIsOpen] = useState(false); // 默认折叠
+  // 记住每个 provider 的展开状态，避免新增/编辑时因父级更新导致折叠
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const v = window.localStorage.getItem(`provider_open_${provider.name}`);
+      return v ? v === '1' : true; // 默认展开，减少“内容消失”的困惑
+    }
+    return true;
+  });
+  useEffect(() => {
+    try { if (typeof window !== 'undefined') window.localStorage.setItem(`provider_open_${provider.name}`, isOpen ? '1' : '0'); } catch {}
+  }, [isOpen, provider.name]);
   const [showModelSearch, setShowModelSearch] = useState(false); // 控制模型搜索输入框的显示
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
   const [modelsExpanded, setModelsExpanded] = useState(false); // 模型列表展开
   const [newModelId, setNewModelId] = useState(''); // 新增模型 ID
+  const newModelInputRef = useRef<HTMLInputElement | null>(null);
   const [isAddingModel, setIsAddingModel] = useState(false);
   const [filterThinking, setFilterThinking] = useState(false);
   const [filterTools, setFilterTools] = useState(false);
   const [filterVision, setFilterVision] = useState(false);
-  const [showDetailCaps, setShowDetailCaps] = useState(false); // 是否在行内展示所有能力徽标
+  const [showDetailCaps, setShowDetailCaps] = useState(true); // 默认直接展示能力图标，无需悬浮查看
   // 模型显示名内联重命名
   const [editingModel, setEditingModel] = useState<{ id: string | null; value: string }>({ id: null, value: '' });
+  const [groupExpanded, setGroupExpanded] = useState<{ custom: boolean; builtin: boolean }>({ custom: false, builtin: false });
+  const [lastUsedMap, setLastUsedMap] = useState<Record<string,string>>({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const recents = await specializedStorage.models.getRecentModels();
+        // 只显示在当前 provider 下最近使用且与模型名匹配的一个微摘要
+        const now = Date.now();
+        const format = (ts:number) => {
+          const diff = now - ts;
+          if (diff < 60_000) return '刚用过';
+          if (diff < 3600_000) return `${Math.floor(diff/60_000)} 分钟前`;
+          if (diff < 24*3600_000) return `${Math.floor(diff/3600_000)} 小时前`;
+          return `${Math.floor(diff/(24*3600_000))} 天前`;
+        };
+        const map: Record<string,string> = {};
+        // 可扩展：若未来记录时间戳，则读取；当前先用 lastSelectedModelPair 近似表示“最近使用”
+        const pair = await specializedStorage.models.getLastSelectedModelPair();
+        if (pair && pair.provider === provider.name) {
+          map[pair.modelId] = '刚用过';
+        }
+        setLastUsedMap(map);
+      } catch {}
+    })();
+  }, [provider.name]);
   
   // 模型参数设置弹窗状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -233,6 +273,32 @@ export function ProviderSettings({
     }
   );
 
+  // 订阅模型仓库，确保新增/删除/重命名后即时更新列表而不触发整卡刷新
+  const [localRepoModels, setLocalRepoModels] = useState<ModelMetadata[] | null>(null);
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    (async () => {
+      try {
+        const { modelRepository } = await import('@/lib/provider/ModelRepository');
+        const list = await modelRepository.get(provider.name);
+        if (list) {
+          setLocalRepoModels(list.map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m as any).apiKey })) as any);
+        }
+        unsubscribe = modelRepository.subscribe(provider.name, async () => {
+          const latest = await modelRepository.get(provider.name);
+          setLocalRepoModels((latest || []).map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m as any).apiKey })) as any);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      try { unsubscribe?.(); } catch {}
+    };
+  }, [provider.name]);
+
+  const modelsForDisplay: ModelMetadata[] = (localRepoModels ?? provider.models ?? []) as any;
+
   // 使用 ref 来跟踪是否是用户正在输入
   const isUserTypingRef = useRef(false);
   const lastProviderUrlRef = useRef(provider.api_base_url);
@@ -247,13 +313,13 @@ export function ProviderSettings({
     
     setLocalDefaultApiKey(provider.default_api_key || '');
     const obj: { [modelName: string]: string } = {};
-    if (provider.models) {
-      provider.models.forEach((model: ModelMetadata) => {
+    if (modelsForDisplay) {
+      modelsForDisplay.forEach((model: ModelMetadata) => {
         obj[model.name] = model.api_key || '';
       });
     }
     setLocalModelApiKeys(obj);
-  }, [provider.api_base_url, provider.default_api_key, provider.models]);
+  }, [provider.api_base_url, provider.default_api_key, modelsForDisplay]);
 
   // 是否显示 API Key 相关字段 (Ollama 等不需要)
   const showApiKeyFields = provider.requiresApiKey !== false;
@@ -295,9 +361,18 @@ export function ProviderSettings({
       return;
     }
     // 简单重复校验（对大小写不敏感）
-    const exists = (provider.models || []).some((m) => m.name.toLowerCase() === raw.toLowerCase());
-    if (exists) {
-      toast.error('模型已存在');
+    // 去重：仓库 + 当前展示列表双重校验
+    const lower = raw.toLowerCase();
+    const existsInDisplay = (modelsForDisplay || []).some((m:any)=> (m.name||'').toLowerCase() === lower);
+    if (existsInDisplay) {
+      toast.error('模型已存在', { description: raw });
+      return;
+    }
+    const { modelRepository } = await import('@/lib/provider/ModelRepository');
+    const repoList = (await modelRepository.get(provider.name)) || [];
+    const existsInRepo = repoList.some((m:any)=> (m.name||'').toLowerCase() === lower);
+    if (existsInRepo) {
+      toast.error('模型已存在', { description: raw });
       return;
     }
     setIsAddingModel(true);
@@ -309,9 +384,10 @@ export function ProviderSettings({
         { provider: provider.name, name: raw, label: raw, aliases: [raw] },
       ];
       await modelRepository.save(provider.name, next);
-      // 刷新上层 Provider 数据
-      await onRefresh(provider);
+      // 直接清空输入并提示，列表通过仓库订阅即时更新
       setNewModelId('');
+      // 保持焦点，便于连续添加
+      try { newModelInputRef.current?.focus(); } catch {}
       toast.success('已添加模型', { description: raw });
     } catch (err: any) {
       console.error(err);
@@ -346,7 +422,7 @@ export function ProviderSettings({
           <TooltipProvider key={i.key} delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-gray-100 dark:bg-gray-700/50">
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-gray-100 dark:bg-gray-700/50">
                   <i.Icon className="w-3.5 h-3.5" />
                 </span>
               </TooltipTrigger>
@@ -360,7 +436,7 @@ export function ProviderSettings({
           <TooltipProvider key={n.key} delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-red-50 dark:bg-red-900/30">
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-red-50 dark:bg-red-900/30">
                   <n.Icon className="w-3.5 h-3.5 text-red-500" />
                 </span>
               </TooltipTrigger>
@@ -373,6 +449,111 @@ export function ProviderSettings({
       </div>
     );
   };
+
+  // 搜索关键字高亮
+  const highlightText = (text: string, keyword: string) => {
+    if (!keyword) return text;
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const reg = new RegExp(escaped, 'ig');
+    return text.replace(reg, (m) => `<mark class="bg-yellow-200 dark:bg-yellow-800 text-current">${m}</mark>`);
+  };
+
+  // 重命名（组件级，供弹窗和菜单共用）
+  const commitRename = async (modelName: string, nextLabelRaw: string) => {
+    const nextLabel = (nextLabelRaw || '').trim();
+    if (!nextLabel) { toast.error('名称不可为空'); return; }
+    try {
+      const { modelRepository } = await import('@/lib/provider/ModelRepository');
+      const { specializedStorage } = await import('@/lib/storage');
+      const list = (await modelRepository.get(provider.name)) || [];
+      const updated = list.map((m: any) => (m.name === modelName ? { ...m, label: nextLabel } : m));
+      await modelRepository.save(provider.name, updated);
+      await specializedStorage.models.setModelLabel(provider.name, modelName, nextLabel);
+      toast.success('已重命名', { description: nextLabel });
+    } catch (err) {
+      console.error(err);
+      toast.error('重命名失败');
+    }
+  };
+
+  // 添加模型弹窗组件（名称 + ID）
+  function AddModelDialog({ providerName, onAdded }: { providerName: string; onAdded?: () => void }) {
+    const [open, setOpen] = useState(false);
+    const [form, setForm] = useState({ id: '', label: '' });
+    const [saving, setSaving] = useState(false);
+
+    const submit = async () => {
+      const id = (form.id || '').trim();
+      const label = (form.label || '').trim();
+      if (!id) { toast.error('请输入模型 ID'); return; }
+      setSaving(true);
+      try {
+        const list = (await modelRepository.get(providerName)) || [];
+        const exists = list.some((m: any)=> m.name.toLowerCase() === id.toLowerCase());
+        if (exists) { toast.error('模型已存在'); setSaving(false); return; }
+        const next = [...list, { provider: providerName, name: id, label: label || undefined, aliases: [id] } as any];
+        await modelRepository.save(providerName, next);
+        toast.success('已添加模型', { description: label || id });
+        setOpen(false); setForm({ id: '', label: '' }); onAdded?.();
+      } catch (e:any) {
+        console.error(e); toast.error('添加模型失败', { description: e?.message || String(e) });
+      }
+      setSaving(false);
+    };
+
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button type="button" size="sm" variant="soft" className="h-8 text-xs">添加模型</Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>添加模型</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">模型名称（显示名，可选）</label>
+              <input className="w-full h-9 px-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" value={form.label} onChange={e=>setForm(s=>({...s, label: e.target.value}))} placeholder="如：Gemini 2.5 Pro" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">模型 ID</label>
+              <input className="w-full h-9 px-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" value={form.id} onChange={e=>setForm(s=>({...s, id: e.target.value}))} placeholder="如：gemini-2.5-pro" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={()=>setOpen(false)} disabled={saving}>取消</Button>
+            <Button onClick={submit} disabled={saving}>{saving? '保存中…' : '确定添加'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  function RenameModelDialog({ providerName, modelName, currentLabel }: { providerName: string; modelName: string; currentLabel?: string }) {
+    const [open, setOpen] = useState(false);
+    const [value, setValue] = useState(currentLabel || '');
+    useEffect(()=>{ if(open) setValue(currentLabel || ''); }, [open, currentLabel]);
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <DropdownMenuItem onSelect={(e:any)=>e?.preventDefault?.()}>重命名</DropdownMenuItem>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>重命名模型</DialogTitle>
+          </DialogHeader>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">新名称</label>
+            <input className="w-full h-9 px-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" value={value} onChange={e=>setValue(e.target.value)} placeholder="输入新的显示名" />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={()=>setOpen(false)}>取消</Button>
+            <Button onClick={async()=>{ await commitRename(modelName, value); setOpen(false); }}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const renderCapabilitySummaryButton = (modelId: string) => {
     const caps = getModelCapabilities(modelId);
@@ -430,11 +611,11 @@ export function ProviderSettings({
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden bg-white/70 dark:bg-gray-800/30 shadow-xs hover:shadow-sm hover:bg-gray-50/50 transition-colors">
-      <div className="flex items-center justify-between w-full px-3 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+      <Collapsible open={isOpen} onOpenChange={(open)=>{ setIsOpen(open); onOpenChange?.(open); }} className="border border-gray-200/60 dark:border-gray-700/50 rounded-xl overflow-hidden bg-white/80 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-colors">
+      <div className="flex items-center justify-between w-full px-4 py-3 bg-white/80 dark:bg-gray-800/40 backdrop-blur-[2px] hover:bg-white/90 dark:hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center gap-2 flex-grow min-w-0 mr-3">
             <div className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-md text-lg flex-shrink-0 ring-1 ring-gray-200/80 dark:ring-gray-700/60 bg-gray-100"
+              "flex items-center justify-center w-8 h-8 rounded-lg text-lg flex-shrink-0 ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-gray-50"
             )}>
               {/* 优先显示 provider.icon（支持 data:image 或 /llm-provider-icon 路径），失败回退到生成头像 */}
               {(() => {
@@ -523,12 +704,12 @@ export function ProviderSettings({
 
       <CollapsibleContent className="px-4 pb-4 pt-3 bg-gray-50/50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-700">
         <div className="space-y-3">
-          {/* 服务地址输入框和重置按钮 */}
-          <div className="group mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          {/* 服务地址输入框和重置按钮（行内标签） */}
+          <div className="group mb-2 flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 w-28 mb-0">
               服务地址
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2">
               <div className="flex-1 relative">
                 <input
                   value={localUrl}
@@ -566,28 +747,28 @@ export function ProviderSettings({
             </div>
           </div>
           {showApiKeyFields && (
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <InputField
-                  label="默认 API Key"
-                  type="password"
-                  value={localDefaultApiKey}
-                  onChange={(e) => {
-                    setLocalDefaultApiKey(e.target.value);
-                    isUserTypingRef.current = true;
-                  }}
-                  onBlur={() => {
-                    const repoName = provider.aliases?.[0] || provider.name;
-                    onDefaultApiKeyChange(repoName, localDefaultApiKey);
-                    onDefaultApiKeyBlur(repoName);
-                    isUserTypingRef.current = false;
-                  }}
-                  placeholder="API Key"
-                  className="h-8 text-sm w-full"
-                  wrapperClassName="mb-0"
-                  icon={<KeyRound className="w-4 h-4 text-gray-400" />}
-                />
-              </div>
+            <div className="flex items-center gap-2">
+              <InputField
+                label="默认 API Key"
+                type="password"
+                value={localDefaultApiKey}
+                onChange={(e) => {
+                  setLocalDefaultApiKey(e.target.value);
+                  isUserTypingRef.current = true;
+                }}
+                onBlur={() => {
+                  const repoName = provider.aliases?.[0] || provider.name;
+                  onDefaultApiKeyChange(repoName, localDefaultApiKey);
+                  onDefaultApiKeyBlur(repoName);
+                  isUserTypingRef.current = false;
+                }}
+                placeholder="API Key"
+                className="h-8 text-sm w-full"
+                wrapperClassName="mb-0 flex-1"
+                icon={<KeyRound className="w-4 h-4 text-gray-400" />}
+                inline
+                labelWidthClassName="w-28"
+              />
               {docUrl && (
                 <button
                   type="button"
@@ -658,91 +839,51 @@ export function ProviderSettings({
                   <button
                     type="button"
                     onClick={()=>setFilterThinking(v=>!v)}
-                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterThinking? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterThinking? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持思考的模型"
                   >
-                    <Brain className="w-3 h-3" />思考
+                    <Brain className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={()=>setFilterTools(v=>!v)}
-                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持工具调用的模型"
                   >
-                    <Workflow className="w-3 h-3" />工具
+                    <Workflow className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={()=>setFilterVision(v=>!v)}
-                  className={`px-1.5 h-5 rounded-md text-[10px] flex items-center gap-1 ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
+                    className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
                     title="仅显示支持视觉的模型"
                   >
-                    <Camera className="w-3 h-3" />视觉
-                  </button>
-                  <span className="mx-1 text-gray-300 dark:text-gray-600">|</span>
-                  <button
-                    type="button"
-                    onClick={()=>setShowDetailCaps(v=>!v)}
-                  className={`px-1.5 h-5 rounded-md text-[10px] ${showDetailCaps? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`}
-                    title="切换行内能力徽标的显示"
-                  >
-                    {showDetailCaps? '详细徽标' : '简洁模式'}
+                    <Camera className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-              {/* 当模型较多时提供筛选 */}
-              {provider.models && provider.models.length > 8 && (
-                showModelSearch ? (
-                  <Input
-                    value={modelSearch}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModelSearch(e.target.value)}
-                    onBlur={() => {
-                      if (modelSearch.trim() === '') {
-                        setShowModelSearch(false);
-                      }
-                    }}
-                    placeholder="筛选模型..."
-                    className="h-6 w-32 text-xs"
-                    autoFocus
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowModelSearch(true)}
-                    className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    aria-label="筛选模型"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                )
-              )}
+              {/* 取消单独筛选入口：输入框即筛选 */}
             </div>
-            {/* 新增模型（除 Ollama） */}
+            {/* 添加模型 → 弹窗：名称 + ID；输入框保留为筛选 */}
             {canAddModels && (
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 my-2">
                 <Input
-                  value={newModelId}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewModelId(e.target.value)}
-                  placeholder="输入模型 ID，例如：gpt-4o 或 deepseek-r1"
-                  className="h-7 text-xs"
+                  ref={newModelInputRef as any}
+                  value={modelSearch}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setModelSearch(e.target.value); }}
+                  placeholder="输入以筛选模型…"
+                  className="h-8 text-sm"
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="soft"
-                  className="h-7 text-xs"
-                  disabled={isAddingModel || isGloballyInitializing}
-                  onClick={handleAddModel}
-                >
-                  {isAddingModel ? <Loader2 className="w-3 h-3 animate-spin" /> : '添加模型'}
-                </Button>
+                <AddModelDialog providerName={provider.name} onAdded={()=> setModelSearch('')} />
               </div>
             )}
-            {provider.models && provider.models.length > 0 ? (
+            {/* 始终显示全部自定义模型，避免“展开更多”造成困惑 */}
+            {modelsForDisplay && modelsForDisplay.length > 0 ? (
               <div className="space-y-3">
                 {(() => {
-                  const filtered = provider.models.filter((m: ModelMetadata) => {
-                    if (!m.name.toLowerCase().includes(modelSearch.toLowerCase())) return false;
+                  const filtered = modelsForDisplay.filter((m: ModelMetadata) => {
+                    const displayText = (m.label || m.name || '').toLowerCase();
+                    if (!displayText.includes(modelSearch.toLowerCase())) return false;
                     if (!filterThinking && !filterTools && !filterVision) return true;
                     const caps = getModelCapabilities(m.name);
                     if (filterThinking && !caps.supportsThinking) return false;
@@ -750,7 +891,7 @@ export function ProviderSettings({
                     if (filterVision && !caps.supportsVision) return false;
                     return true;
                   });
-                  const toShow = modelsExpanded ? filtered : filtered.slice(0, 6);
+                  const toShow = filtered; // 展示全部，取消“展开更多”
 
                   // 分组：静态模型 vs 自定义模型
                   const { getStaticModels } = require('@/lib/provider/staticModels');
@@ -771,7 +912,6 @@ export function ProviderSettings({
                       await modelRepository.save(provider.name, updated);
                       await specializedStorage.models.setModelLabel(provider.name, modelName, nextLabel);
                       toast.success('已重命名', { description: nextLabel });
-                      await onRefresh(provider);
                     } catch (err) {
                       console.error(err);
                       toast.error('重命名失败');
@@ -779,37 +919,18 @@ export function ProviderSettings({
                   };
 
                   const renderItem = (model: ModelMetadata) => (
-                    <div key={model.name} className="flex items-center gap-2 pl-2 border-l-2 border-indigo-200 dark:border-indigo-700 py-1">
-                      <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-2">
-                        {editingModel.id === model.name ? (
-                          <input
-                            value={editingModel.value}
-                            onChange={(e) => setEditingModel((prev) => ({ ...prev, value: e.target.value }))}
-                            onBlur={() => commitRename(model.name, editingModel.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                commitRename(model.name, editingModel.value);
-                              } else if (e.key === 'Escape') {
-                                setEditingModel({ id: null, value: '' });
-                              }
-                            }}
-                            autoFocus
-                            className="text-xs font-medium text-gray-800 dark:text-gray-100 bg-transparent border-b border-dashed border-gray-300 dark:border-gray-600 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 px-0 py-0.5 min-w-[6rem]"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="text-left text-xs font-medium text-gray-700 dark:text-gray-300 truncate hover:underline"
-                            title={model.label || model.name}
-                            onClick={() => setEditingModel({ id: model.name, value: model.label || model.name })}
-                          >
-                            {model.label || model.name}
-                          </button>
-                        )}
+                    <div key={model.name} className="flex items-center gap-1.5 pl-2 border-l-2 border-indigo-200 dark:border-indigo-700 py-0.5" style={{ paddingLeft: 6 }}>
+                      <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-1.5 text-[12px]">
+                        <button
+                          type="button"
+                          className="text-left text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate hover:underline"
+                          title={(model.label || model.name) + '（点击复制ID）'}
+                          onClick={async()=>{ try { await navigator.clipboard.writeText(model.name); toast.success('已复制模型 ID'); } catch { toast.error('复制失败'); } }}
+                          dangerouslySetInnerHTML={{ __html: highlightText(model.label || model.name, modelSearch) }}
+                        />
                         {isMultiStrategyProvider && (
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400">策略:</span>
+                            <span className="text-[10px] text-gray-400">策:</span>
                             <Select
                               value={modelStrategies[model.name] || defaultStrategy}
                               onValueChange={async (val) => {
@@ -824,7 +945,7 @@ export function ProviderSettings({
                                 }
                               }}
                             >
-                              <SelectTrigger className="h-6 w-64 text-[11px]">
+                              <SelectTrigger className="h-6 w-56 text-[11px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -839,20 +960,23 @@ export function ProviderSettings({
                         )}
                         <span className="text-gray-300 dark:text-gray-600">·</span>
                         {renderCapabilityIcons(model.name)}
-                        {renderCapabilitySummaryButton(model.name)}
+                        {lastUsedMap[model.name] && (
+                          <span className="text-[10px] text-gray-400 whitespace-nowrap">{lastUsedMap[model.name]}</span>
+                        )}
                       </div>
 
-                      {/* 三点菜单：模型参数设置 +（可选）删除模型 */}
+                      {/* 三点菜单：参数设置 / 重命名 / 删除 */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400">
+                          <button className="h-5 w-5 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400">
                             <MoreHorizontal className="w-4 h-4" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent side="bottom" align="end" className="min-w-[180px]">
                           <DropdownMenuItem onSelect={(e:any)=>{ e?.preventDefault?.(); handleOpenParameters(model.name, model.label); }}>
-                            模型参数设置
+                            <span className="inline-flex items-center gap-2 text-[12px]"><SlidersHorizontal className="w-3.5 h-3.5" /> 参数</span>
                           </DropdownMenuItem>
+                          <RenameModelDialog providerName={provider.name} modelName={model.name} currentLabel={model.label} />
                           {/* 仅允许删除“用户新增模型”，静态模型不显示删除 */}
                           {(() => {
                             const { getStaticModels } = require('@/lib/provider/staticModels');
@@ -883,7 +1007,6 @@ export function ProviderSettings({
                                             const next = list.filter((m: any) => m.name !== model.name);
                                             await modelRepository.save(provider.name, next);
                                             toast.success('已删除模型', { description: model.name });
-                                            await onRefresh(provider);
                                           } catch (e) {
                                             console.error(e);
                                             toast.error('删除模型失败');
@@ -928,37 +1051,40 @@ export function ProviderSettings({
                   return (
                     <>
                       {customModels.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-2">
                             <span className="font-medium">自定义模型</span>
                             <span className="opacity-60">· {customModels.length} 个</span>
                           </div>
-                          {customModels.map(renderItem)}
+                          {customModels.slice(0, 5).map(renderItem)}
+                          {customModels.length > 5 && (
+                            <button type="button" onClick={()=>setGroupExpanded(prev=>({ ...prev, custom: !prev.custom }))} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline pl-2">
+                              {groupExpanded.custom ? '收起' : `展开更多`}
+                            </button>
+                          )}
+                          {groupExpanded.custom && customModels.length > 5 && customModels.slice(5).map(renderItem)}
                           {staticModels.length > 0 && <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />}
                         </div>
                       )}
                       {staticModels.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-2">
                             <span className="font-medium">默认模型</span>
                             <span className="opacity-60">· {staticModels.length} 个</span>
                           </div>
-                          {staticModels.map(renderItem)}
+                          {staticModels.slice(0, 5).map(renderItem)}
+                          {staticModels.length > 5 && (
+                            <button type="button" onClick={()=>setGroupExpanded(prev=>({ ...prev, builtin: !prev.builtin }))} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline pl-2">
+                              {groupExpanded.builtin ? '收起' : `展开更多`}
+                            </button>
+                          )}
+                          {groupExpanded.builtin && staticModels.length > 5 && staticModels.slice(5).map(renderItem)}
                         </div>
                       )}
                     </>
                   );
                 })()}
-                {/* 展开/收起 */}
-                {provider.models.filter((m: ModelMetadata) => m.name.toLowerCase().includes(modelSearch.toLowerCase())).length > 6 && (
-                  <button
-                    type="button"
-                    onClick={() => setModelsExpanded(!modelsExpanded)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {modelsExpanded ? '收起' : `展开更多`}
-                  </button>
-                )}
+                {/* 展开/收起 已移除：始终展示全部模型，避免误解 */}
               </div>
             ) : (
               <p className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2">

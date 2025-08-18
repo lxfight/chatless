@@ -157,15 +157,30 @@ export function AiModelSettings() {
       transition,
       opacity: isDragging ? 0.6 : 1,
     };
+    // 由父级跟踪每个 provider 的展开态，用于隐藏把手
+    const [openMap, setOpenMap] = React.useState<Record<string, boolean>>({});
     return (
       <div ref={setNodeRef} style={style} className={"group transition-shadow duration-200 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
-        <div className="flex items-start">
-          <button aria-label="拖拽排序" className="mt-2 mr-2 h-6 w-6 rounded-md text-gray-400 hover:text-gray-700 dark:text-gray-400/90 dark:hover:text-gray-200 cursor-grab active:cursor-grabbing flex items-center justify-center border border-transparent hover:border-gray-200 dark:hover:border-gray-700 bg-white/80 dark:bg-gray-800/50 backdrop-blur-[1px] transition-colors"
-            {...attributes} {...listeners}>
-            <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="currentColor"><path d="M7 4h2v2H7V4zm4 0h2v2h-2V4zM7 9h2v2H7V9zm4 0h2v2h-2V9zM7 14h2v2H7v-2zm4 0h2v2h-2v-2z"/></svg>
-          </button>
-          <div className="flex-1">
-            {children}
+        <div className="relative">
+          {/* 竖向吸附把手：折叠时显示，展开后隐藏 */}
+          {!openMap[provider.name] && (
+            <button
+              aria-label="拖拽排序"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 cursor-grab active:cursor-grabbing text-gray-400/80 hover:text-gray-600 dark:text-gray-400/90 dark:hover:text-gray-200"
+              {...attributes} {...listeners}
+            >
+              <svg viewBox="0 0 6 24" width="6" height="24" fill="currentColor" aria-hidden>
+                <circle cx="3" cy="3" r="1"></circle>
+                <circle cx="3" cy="9" r="1"></circle>
+                <circle cx="3" cy="15" r="1"></circle>
+                <circle cx="3" cy="21" r="1"></circle>
+              </svg>
+            </button>
+          )}
+          <div className="flex-1 pl-1">
+            {React.cloneElement(children as any, {
+              onOpenChange: (open: boolean) => setOpenMap((m)=>({ ...m, [provider.name]: open }))
+            })}
           </div>
         </div>
       </div>

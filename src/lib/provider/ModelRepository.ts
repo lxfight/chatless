@@ -23,7 +23,23 @@ export class ModelRepository {
     try {
       const names = await specializedStorage.models.getProviderModels(provider);
       if (names && names.length) {
-        const arr: ModelEntity[] = names.map((n) => ({ provider, name: n, aliases: [n] }));
+        // 同步读取 label 覆盖，保证重启后仍能显示“名称”而非 id
+        const labelMap = await specializedStorage.models.getModelLabels?.(provider);
+        let arr: ModelEntity[] = names.map((n) => ({
+          provider,
+          name: n,
+          aliases: [n],
+          // @ts-ignore 保留 label 字段以便 UI 使用
+          label: labelMap && labelMap[n] ? labelMap[n] : undefined,
+        } as any));
+
+        // 进一步用静态模型的label进行补充（仅在 label 缺失时）
+        try {
+          const { getStaticModels } = await import('./staticModels');
+          const staticList = getStaticModels(provider) || [];
+          const labelById = new Map(staticList.map((m:any)=>[m.id, m.label]));
+          arr = arr.map((m:any)=> m.label ? m : ({ ...m, label: labelById.get(m.name) || m.label }));
+        } catch {}
         await defaultCacheManager.set(this.key(provider), arr);
         return arr;
       }
@@ -38,9 +54,23 @@ export class ModelRepository {
   }
 
   async save(provider: string, models: ModelEntity[], ttl: number = DEFAULT_TTL) {
-    await defaultCacheManager.set(this.key(provider), models, { ttl });
+    // 去重并规范：同一 id 只保留一个，名称与 id 一一对应
+    const uniqueById = new Map<string, any>();
+    for (const m of models as any[]) {
+      if (!uniqueById.has(m.name)) uniqueById.set(m.name, m);
+    }
+    const normalized = Array.from(uniqueById.values());
+
+    await defaultCacheManager.set(this.key(provider), normalized, { ttl });
     try {
-      await specializedStorage.models.setProviderModels(provider, models.map(m=>m.name));
+      await specializedStorage.models.setProviderModels(provider, normalized.map((m:any)=>m.name));
+      // 同步保存 label 覆盖（仅当 label 与 id 不同）
+      for (const m of normalized as any[]) {
+        const label = (m as any).label;
+        if (label && label !== m.name) {
+          try { await specializedStorage.models.setModelLabel(provider, m.name, label); } catch {}
+        }
+      }
     } catch (error) {
       console.error(`Failed to save models for provider ${provider}:`, error);
       // 不抛出错误，但记录日志以便调试

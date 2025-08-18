@@ -52,13 +52,17 @@ export class ProviderInitializationService {
           strategy: existingConfig?.strategy,
         };
 
-        // 写入静态模型列表（若有）。注意：无密钥时也保留静态模型用于展示。
+        // 写入静态模型列表（若有）。注意：仅在现有模型不存在时补充，避免覆盖用户自定义模型
         const staticList = getStaticModels(p.name);
         if (staticList?.length) {
-          await modelRepository.save(
-            p.name,
-            staticList.map((m) => ({ provider: p.name, name: m.id, label: m.label, aliases: [m.id] }))
-          );
+          const existing = (await modelRepository.get(p.name)) || [];
+          const byName = new Map<string, { provider: string; name: string; label?: string; aliases: string[] }>();
+          for (const m of existing) byName.set(m.name, m as any);
+          for (const s of staticList) {
+            if (!byName.has(s.id)) byName.set(s.id, { provider: p.name, name: s.id, label: s.label, aliases: [s.id] });
+          }
+          const merged = Array.from(byName.values());
+          await modelRepository.save(p.name, merged as any);
         }
         return entity;
       })
