@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 interface SlashPromptPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (promptId: string, opts?: { action?: 'apply' | 'send'; mode?: 'permanent' | 'oneOff' }) => void;
+  onSelect: (promptId: string, opts?: { action?: 'apply' | 'send' | 'fill'; mode?: 'permanent' | 'oneOff' }) => void;
   anchorRef?: React.RefObject<HTMLElement>;
   // 来自主输入框的文本，用于统一过滤，避免重复输入
   queryText?: string;
@@ -29,7 +29,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   const [anchorRect, setAnchorRect] = useState<{left:number; width:number; top:number} | null>(null);
   const [pendingVars, setPendingVars] = useState<Record<string, any>>({});
   const router = useRouter();
-  const [ctrlPreview, setCtrlPreview] = useState(false);
+  const [altPreview, setAltPreview] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -48,8 +48,8 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       calc();
       window.addEventListener('scroll', calc, true);
       window.addEventListener('resize', calc);
-      const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Control') setCtrlPreview(true); };
-      const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'Control') setCtrlPreview(false); };
+      const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltPreview(true); };
+      const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltPreview(false); };
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
       return () => {
@@ -91,11 +91,25 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       }
       if (Object.keys(inlineVars).length === 0 && rest) {
         // 位置参数模式：支持英文竖线 | 与全角竖线 ｜
-        const hasDelim = /[|｜]/.test(rest);
-        const positional = hasDelim
-          ? rest.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
-          : [rest];
-        setPendingVars({ __positional: positional });
+        // 若出现 "| "（竖线+空格）或 "｜ "，视为提示词填充部分结束；其后的内容作为后续补充文本 __postText
+        const asciiIdx = rest.indexOf('| ');
+        const fullIdx = rest.indexOf('｜ ');
+        const cutIdx = [asciiIdx, fullIdx].filter(v=>v>=0).sort((a,b)=>a-b)[0];
+        if (cutIdx !== undefined) {
+          const before = rest.slice(0, cutIdx);
+          const after = rest.slice(cutIdx + 2).trim();
+          const hasDelimBefore = /[|｜]/.test(before);
+          const positional = hasDelimBefore
+            ? before.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
+            : [before.trim()].filter(Boolean);
+          setPendingVars({ __positional: positional, __postText: after });
+        } else {
+          const hasDelim = /[|｜]/.test(rest);
+          const positional = hasDelim
+            ? rest.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
+            : [rest];
+          setPendingVars({ __positional: positional });
+        }
       } else {
         setPendingVars(inlineVars);
       }
@@ -265,8 +279,28 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     <div ref={containerRef} className="bg-white dark:bg-gray-900/95 shadow-md border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden" style={fixedStyle}>
       {/* 顶部提示：一行操作提示 + 一行位置参数提示（按需显示） */}
       <div className="px-3 pt-2 pb-1.5 relative">
-        <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-          输入关键词、/指令 或 tag:分类；回车直接发送 · Alt+回车应用为系统（Shift+Alt 为一次性）；闪电为直接发送；位置参数可用 | 或 ｜ 分隔
+        {/* 动态操作提示：默认发送（绿色），按住 Alt 变为应用为系统提示词（紫色） */}
+        <div
+          className={cn(
+            "inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px]",
+            altPreview
+              ? "text-purple-700 bg-purple-50 border-purple-200 dark:text-purple-200 dark:bg-purple-900/20 dark:border-purple-800"
+              : "text-green-700 bg-green-50 border-green-200 dark:text-green-200 dark:bg-green-900/20 dark:border-green-800"
+          )}
+        >
+          {altPreview ? (
+            <span>回车：将当前提示词设置为系统提示词</span>
+          ) : (
+            <span>回车：将直接发送当前提示词 + 输入内容，按住ALT设置为系统提示词</span>
+          )}
+        </div>
+        {/* 引导说明：为“指令/分隔符/标签筛选”等片段添加背景以区分文案 */}
+        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+          <span>匹配到提示词后，输入空格再输入内容即可代入变量；使用 </span>
+          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">|</span>
+          <span> 分隔位置参数；也可使用 </span>
+          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">tag:写作</span>
+          <span> 进行标签筛选</span>
         </div>
         {filtered.length === 0 && (
           <Button aria-label="添加提示词" variant="ghost" size="icon" className="absolute top-1.5 right-1.5 h-7 w-7 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>
@@ -317,8 +351,8 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  onMouseDown={(ev)=>{ ev.preventDefault(); try { const ce = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ce); } catch {} ; onSelect(item.p.id, { action: 'send' }); }}
-                  title="直接发送一次"
+                  onMouseDown={(ev)=>{ ev.preventDefault(); try { const ce = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ce); } catch {} ; onSelect(item.p.id, { action: 'fill' }); }}
+                  title="代入到输入框（不直接发送）"
                 >
                   <Zap className="w-3.5 h-3.5" />
                 </Button>

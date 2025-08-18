@@ -184,6 +184,60 @@ export function ChatInput({
     return text.replace(/(^|\s)\/[^\s]+/u, (match) => (match.startsWith(' ') ? ' ' : ''));
   };
 
+  // 解析起始的 /指令 及其参数与可选 “| ” 分隔后的后续文本
+  const parseLeadingSlash = (text: string):
+    | { leadingSpace: string; token: string; varPart: string; postText: string; hasDelimiter: boolean; prefixRaw: string; postRaw: string }
+    | null => {
+    const m = text.match(/^(\s*)\/([^\s]+)(.*)$/u);
+    if (!m) return null;
+    const leadingSpace = m[1] || '';
+    const token = m[2];
+    const tail = m[3] || '';
+    const idx1 = tail.indexOf('| ');
+    const idx2 = tail.indexOf('｜ ');
+    const idx = [idx1, idx2].filter((v) => v >= 0).sort((a, b) => a - b)[0];
+    if (idx !== undefined) {
+      const before = tail.slice(0, idx); // 原样保留（包含空格）
+      const afterRaw = tail.slice(idx + 2); // 原样保留
+      const varPart = before.trim();
+      const postText = afterRaw.trim();
+      return { leadingSpace, token, varPart, postText, hasDelimiter: true, prefixRaw: before, postRaw: afterRaw };
+    }
+    return { leadingSpace, token, varPart: tail.trim(), postText: '', hasDelimiter: false, prefixRaw: tail, postRaw: '' };
+  };
+
+  // 覆盖层与 textarea 使用一致字体度量，避免像素误差
+  const [overlayFont, setOverlayFont] = useState<string>('');
+  const [overlayFontSize, setOverlayFontSize] = useState<string>('');
+  const [overlayLineHeight, setOverlayLineHeight] = useState<string>('');
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    setOverlayFont(cs.fontFamily);
+    setOverlayFontSize(cs.fontSize);
+    setOverlayLineHeight(cs.lineHeight);
+  }, [textareaRef.current]);
+
+  // 用渲染结果替换 /指令与其变量片段；若存在 “| ”，会将其后的内容以换行附加在渲染结果后
+  const replaceSlashWithRendered = (text: string, rendered: string): string => {
+    const parsed = parseLeadingSlash(text);
+    if (!parsed) return text;
+    const { leadingSpace, varPart, postText, hasDelimiter } = parsed;
+    const after = hasDelimiter && postText ? `\n${postText}` : '';
+    // 构造要替换的前缀（/token + 可选空格 + varPart，不包含分隔符）
+    const prefix = new RegExp(`^${leadingSpace.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}\\/[^\s]+(?:\\s+[^|｜]*)?`, 'u');
+    return text.replace(prefix, `${leadingSpace}${rendered}${after}`);
+  };
+
+  // 从输入中移除 /指令与变量片段；若存在 “| ” 则保留其后的普通文本
+  const stripSlashTokenAndVars = (text: string): string => {
+    const parsed = parseLeadingSlash(text);
+    if (!parsed) return stripFirstSlashToken(text);
+    const { leadingSpace, postText, hasDelimiter } = parsed;
+    return hasDelimiter ? `${leadingSpace}${postText}` : leadingSpace;
+  };
+
   // 斜杠面板开关逻辑：当输入框以 / 开头或包含以空格分隔的 /token 时打开
   useEffect(() => {
     const val = inputValue;
@@ -489,6 +543,32 @@ export function ChatInput({
             const merged = { ...(inlineVarsRef.current||{}) };
             inlineVarsRef.current = {};
             const action = opts?.action || 'apply';
+            if (action === 'fill') {
+              const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
+              if (prompt) {
+                // 渲染内容
+                let variableValues: Record<string,string> = merged as any;
+                const pos = (merged as any).__positional as string[] | undefined;
+                if (Array.isArray(pos)) {
+                  const pattern = /\{\{\s*([^\s{}=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/gu;
+                  const keys: string[] = [];
+                  let m: RegExpExecArray | null;
+                  while ((m = pattern.exec(String(prompt.content||'')))) { const k = m[1]; if (k && !keys.includes(k)) keys.push(k); }
+                  if (keys.length > 0) {
+                    variableValues = Object.fromEntries(keys.map((k, idx)=> [k, pos[idx] ?? '']));
+                  } else if (prompt.variables && prompt.variables.length > 0) {
+                    variableValues = Object.fromEntries((prompt.variables||[]).map((v:any, idx:number)=> [v.key, pos[idx] ?? v.defaultValue ?? '']));
+                  }
+                }
+                const rendered = (renderPromptContent as any)(prompt.content, variableValues);
+                if (rendered && rendered.trim()) {
+                  // 用渲染结果替换 /指令+变量 片段（支持 | 分隔后文本拼接）
+                  setInputValue(v => replaceSlashWithRendered(v, rendered));
+                }
+              }
+              setIsPanelOpen(false);
+              return;
+            }
             if (action === 'send') {
               // 直接发送一次：渲染提示词内容并发送
               const prompt = usePromptStore.getState().prompts.find(p=>p.id===id);
@@ -509,9 +589,11 @@ export function ChatInput({
                 }
                 const rendered = (renderPromptContent as any)(prompt.content, variableValues);
                 if (rendered && rendered.trim()) {
-                  setInputValue(rendered);
-                  // 移除输入框中的第一段 /指令，避免残留
-                  setInputValue(v => stripFirstSlashToken(v));
+                  // 组装：若存在 "| " 分隔的后续文本，将其按换行拼接
+                  const parsed = parseLeadingSlash(inputValue);
+                  const after = parsed && parsed.hasDelimiter && parsed.postText ? `\n${parsed.postText}` : '';
+                  // 只设置一次，避免随后 strip 再次覆盖导致丢失后续文本
+                  setInputValue(`${rendered}${after}`);
                   // 立即发送
                   setTimeout(() => { handleSend(); }, 0);
                 }
@@ -545,21 +627,37 @@ export function ChatInput({
           anchorRef={textareaRef as any}
           queryText={inputValue}
         />
-        {/* {slashTokens.length > 0 && (
-          <div className="absolute -top-7 left-1 right-1 flex flex-wrap gap-2 items-center text-[11px]">
-            {slashTokens.slice(0,4).map((t) => (
-              <span key={t} className="px-2 py-0.5 rounded-full bg-indigo-50/80 text-indigo-600 border border-indigo-200 shadow-sm">/{t}</span>
-            ))}
-            <span className="text-gray-500">指令仅用于唤起提示词，不会发送</span>
-          </div>
-        )} */}
+        {/* 高亮覆盖层：与 textarea 完全重叠，渲染 “/指令 + 变量 + (可选) | + 后续文本”。
+            为避免重影，textarea 在有 /指令 时使用 text-transparent，仅显示插入符。 */}
+        {(() => {
+          const parsed = parseLeadingSlash(inputValue);
+          if (!parsed) return null;
+          const { leadingSpace, token, prefixRaw, hasDelimiter, postRaw } = parsed;
+          const prefixText = `/${token}${prefixRaw}${hasDelimiter ? ' | ' : ''}`;
+          return (
+            <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
+              <div className="pl-14 pr-14 py-[11px] whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+                {/* 保留前导空格 */}
+                {leadingSpace}
+                {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
+                <span className="rounded bg-yellow-100/70 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-100 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
+                {/* 竖线后的普通文本按原样展示（不高亮）*/}
+                {hasDelimiter && postRaw ? <>{postRaw}</> : null}
+              </div>
+            </div>
+          );
+        })()}
         <textarea
           ref={textareaRef}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入消息… 输入 / 唤起提示词"
-          className="w-full pl-14 pr-14 py-3 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[52px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
+          className={cn(
+            "relative z-[1] w-full pl-14 pr-14 py-[11px] resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[52px] placeholder:text-gray-400 dark:placeholder:text-gray-500",
+            parseLeadingSlash(inputValue) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
+          )}
+          style={undefined}
           rows={3}
           disabled={disabled || isParsingDocument}
         />
