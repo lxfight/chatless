@@ -32,6 +32,7 @@ interface ProviderSettingsProps {
   onModelApiKeyBlur: (modelName: string) => void;
   onRefresh: (provider: ProviderWithStatus) => void;
   onOpenChange?: (open: boolean) => void;
+  open?: boolean; // 受控展开状态（存在时启用受控模式）
 }
 
 export function ProviderSettings({
@@ -45,10 +46,17 @@ export function ProviderSettings({
   onModelApiKeyChange,
   onModelApiKeyBlur,
   onRefresh,
-  onOpenChange
+  onOpenChange,
+  open
 }: ProviderSettingsProps) {
-  // 记住每个 provider 的展开状态，避免新增/编辑时因父级更新导致折叠
-  const [isOpen, setIsOpen] = useState<boolean>(false); // 默认折叠，不持久化
+  // 受控/非受控展开状态：存在 open 则受控，否则本地管理
+  const isControlled = open !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState<boolean>(false);
+  const isOpen = isControlled ? (open as boolean) : uncontrolledOpen;
+  const setIsOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   // 保留最小状态集
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
   const lastUsedMap = useRecentModelsHint(provider.name);

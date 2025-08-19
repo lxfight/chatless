@@ -108,12 +108,15 @@ export function AiModelSettings() {
   // —— 拖拽排序：保存用户顺序 ——
   const [localList, setLocalList] = useState(filteredProviders);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // 由父级维护每个 provider 的展开状态，避免因列表刷新而丢失
+  const [providerOpenMap, setProviderOpenMap] = useState<Record<string, boolean>>({});
   // 仅在筛选/源数据长度或集合变化时同步，避免每次 render 都触发 setState
   const lastSyncRef = useRef<string>("");
   useEffect(() => {
     // 更细的签名：当名称、默认密钥、URL、模型数量或显示状态变化时，同步到本地列表
+    // 移除模型数量对父级列表同步的影响，避免新增模型时整个列表重建导致的折叠/滚动跳动
     const key = filteredProviders
-      .map(p => `${p.name}:${p.default_api_key ? '1' : '0'}:${p.api_base_url || ''}:${(p.models||[]).length}:${p.displayStatus || ''}`)
+      .map(p => `${p.name}:${p.default_api_key ? '1' : '0'}:${p.api_base_url || ''}:${p.displayStatus || ''}`)
       .join('|');
     if (lastSyncRef.current !== key) {
       lastSyncRef.current = key;
@@ -160,13 +163,12 @@ export function AiModelSettings() {
       transition,
       opacity: isDragging ? 0.6 : 1,
     };
-    // 由父级跟踪每个 provider 的展开态，用于隐藏把手
-    const [openMap, setOpenMap] = React.useState<Record<string, boolean>>({});
+    // 由顶层 openMap 控制展开态，默认折叠
     return (
       <div ref={setNodeRef} style={style} className={"group transition-shadow duration-200 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
         <div className="relative">
           {/* 竖向吸附把手：折叠时显示，展开后隐藏 */}
-          {!openMap[provider.name] && (
+          {!providerOpenMap[provider.name] && (
             <button
               aria-label="拖拽排序"
               className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 cursor-grab active:cursor-grabbing text-gray-400/80 hover:text-gray-600 dark:text-gray-400/90 dark:hover:text-gray-200"
@@ -182,7 +184,8 @@ export function AiModelSettings() {
           )}
           <div className="flex-1 pl-1">
             {React.cloneElement(children as any, {
-              onOpenChange: (open: boolean) => setOpenMap((m)=>({ ...m, [provider.name]: open }))
+              open: providerOpenMap[provider.name] ?? false,
+              onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open }))
             })}
           </div>
         </div>
