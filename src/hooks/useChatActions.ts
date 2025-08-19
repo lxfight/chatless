@@ -408,6 +408,17 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       images: options?.images
     });
 
+    // 调试日志：在开发环境打印即将发送给 LLM 的 system 提示词与历史长度
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        const systemMsg = historyForLlm.find((m: any) => m.role === 'system');
+        const sysPreview = systemMsg?.content ? String(systemMsg.content).slice(0, 500) : '(none)';
+        // 使用 console.debug 避免在普通日志中过于显眼
+        console.debug('[LLM Debug] system message preview:', sysPreview);
+        console.debug('[LLM Debug] history length:', historyForLlm.length);
+      }
+    } catch {}
+
     // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
 
     const streamCallbacks: StreamCallbacks = {

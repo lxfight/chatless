@@ -17,6 +17,7 @@ export function PromptsHeader() {
   const setSearchQuery = usePromptStore((s)=>s.setSearchQuery);
   const setFavoriteOnly = usePromptStore((s)=>s.setFavoriteOnly);
   const setTagFilter = usePromptStore((s)=>s.setTagFilter);
+  const setSortBy = usePromptStore((s)=>s.setSortBy);
   return (
     <div className="px-4 py-4">
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
@@ -39,6 +40,16 @@ export function PromptsHeader() {
           </div>
           <Button variant={ui?.favoriteOnly ? "secondary" : "outline"} size="sm" className={cn('h-8', ui?.favoriteOnly ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100' : '')} onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}>只看收藏</Button>
           <PromptImportExport />
+          <select
+            className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+            value={ui?.sortBy || 'recent'}
+            onChange={(e)=>setSortBy(e.target.value as any)}
+          >
+            <option value="recent">按最近更新</option>
+            <option value="created">按创建时间</option>
+            <option value="frequency">按使用次数</option>
+            <option value="name">按名称</option>
+          </select>
         </div>
         <Button variant="soft" size="sm" className="h-8 px-3" onClick={() => setOpen(true)}>
           <Plus className="w-4 h-4" />
@@ -50,7 +61,8 @@ export function PromptsHeader() {
         onOpenChange={setOpen}
         initial={null}
         onSubmit={(data) => {
-          createPrompt(data);
+          // 显式传递 shortcuts，避免某些情况下丢失可选字段
+          createPrompt({ ...(data as any), shortcuts: (data as any).shortcuts || [] } as any);
         }}
       />
     </div>

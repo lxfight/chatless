@@ -320,6 +320,8 @@ export function ChatInput({
           if (rendered && rendered.trim()) {
             // 同步“发送”动作的行为：若存在“| ”后的文本且模板未显式消化它，也要附加到末尾
             userMessage = `${rendered.trim()}${afterTail}`;
+            // 计数一次使用（兜底渲染也算使用）
+            try { usePromptStore.getState().touchUsage(matched.id as string); } catch {}
           }
         }
       } catch {}
@@ -570,6 +572,8 @@ export function ChatInput({
                 if (rendered && rendered.trim()) {
                   // 用渲染结果替换 /指令+变量 片段（支持 | 分隔后文本拼接）
                   setInputValue(v => replaceSlashWithRendered(v, rendered));
+                  // 计数一次使用（代入即视为使用）
+                  try { usePromptStore.getState().touchUsage(id as string); } catch {}
                 }
               }
               setIsPanelOpen(false);
@@ -600,6 +604,8 @@ export function ChatInput({
                   const after = parsed && parsed.hasDelimiter && parsed.postText ? `\n${parsed.postText}` : '';
                   // 只设置一次，避免随后 strip 再次覆盖导致丢失后续文本
                   setInputValue(`${rendered}${after}`);
+                  // 计数一次使用
+                  try { usePromptStore.getState().touchUsage(id as string); } catch {}
                   // 立即发送
                   setTimeout(() => { handleSend(); }, 0);
                 }

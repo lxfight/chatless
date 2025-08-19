@@ -257,12 +257,12 @@ export function AIMessageBlock({
         <div className="relative min-w-0 max-w-full w-full">
           <MemoizedMarkdown content={state?.regularContent || ''} />
           {/* 悬浮显示字数 */}
-          <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
+          {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
             {(() => {
               const text = state?.regularContent || '';
               return `字数: ${text.replace(/\s+/g,'').length}`;
             })()}
-          </div>
+          </div> */}
         </div>
       )}
     </div>

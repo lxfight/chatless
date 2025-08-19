@@ -10,6 +10,7 @@ export interface DbPromptItem {
   languages?: string; // JSON array
   model_hints?: string; // JSON array
   variables?: string; // JSON array
+  shortcuts?: string; // JSON array
   favorite?: number; // 0/1
   created_at: number;
   updated_at: number;

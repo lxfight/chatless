@@ -62,6 +62,7 @@ export const usePromptStore = create<PromptState & PromptActions>()(
       },
 
       createPrompt: (data) => {
+        const normalizeShortcuts = (arr?: string[]) => Array.from(new Set((arr || []).map((s) => String(s).trim().replace(/^\//, '').toLowerCase()).filter(Boolean)));
         const now = Date.now();
         const id = data.id || uuidv4();
         const prompt: PromptItem = {
@@ -73,6 +74,7 @@ export const usePromptStore = create<PromptState & PromptActions>()(
           languages: data.languages || [],
           modelHints: data.modelHints || [],
           variables: data.variables || [],
+          shortcuts: normalizeShortcuts((data as any).shortcuts),
           favorite: !!data.favorite,
           createdAt: now,
           updatedAt: now,
@@ -109,13 +111,14 @@ export const usePromptStore = create<PromptState & PromptActions>()(
         }));
         try {
           const repo = DatabaseService.getInstance().getPromptRepository();
+          const normalizeShortcuts = (arr?: string[]) => Array.from(new Set((arr || []).map((s) => String(s).trim().replace(/^\//, '').toLowerCase()).filter(Boolean)));
           const toUpdate: any = { ...updates };
           // 注意：必须使用 `in` 判断并删除驼峰字段，避免生成无效列名
           if ('tags' in toUpdate) { toUpdate.tags = JSON.stringify(toUpdate.tags || []); }
           if ('languages' in toUpdate) { toUpdate.languages = JSON.stringify(toUpdate.languages || []); }
           if ('modelHints' in toUpdate) { toUpdate.model_hints = JSON.stringify(toUpdate.modelHints || []); delete toUpdate.modelHints; }
           if ('variables' in toUpdate) { toUpdate.variables = JSON.stringify(toUpdate.variables || []); }
-          if ('shortcuts' in toUpdate) { toUpdate.shortcuts = JSON.stringify(toUpdate.shortcuts || []); }
+          if ('shortcuts' in toUpdate) { toUpdate.shortcuts = JSON.stringify(normalizeShortcuts(toUpdate.shortcuts)); }
           if (typeof toUpdate.favorite === 'boolean') { toUpdate.favorite = toUpdate.favorite ? 1 : 0; }
           if ('stats' in toUpdate) { toUpdate.stats = JSON.stringify(toUpdate.stats || {}); }
           repo.update(id, toUpdate).catch(()=>{});
@@ -160,6 +163,7 @@ export const usePromptStore = create<PromptState & PromptActions>()(
                 languages: raw.languages || [],
                 modelHints: raw.modelHints || [],
                 variables: raw.variables || [],
+                shortcuts: (raw as any).shortcuts || [],
                 favorite: !!raw.favorite,
                 createdAt: now,
                 updatedAt: now,

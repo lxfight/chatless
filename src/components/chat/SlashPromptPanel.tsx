@@ -31,9 +31,17 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   const router = useRouter();
   const [altPreview, setAltPreview] = useState(false);
 
+  // 使用 Ref 保存最新的 activeIndex / filtered / pendingVars，避免键盘事件闭包读取到旧值
+  const activeIndexRef = useRef(0);
+  useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
+  // filtered 的 Ref 需在其定义之后设置（见下方 useMemo）
+  const pendingVarsRef = useRef(pendingVars);
+  useEffect(() => { pendingVarsRef.current = pendingVars; }, [pendingVars]);
+
   useEffect(() => {
     if (open) {
       setActiveIndex(0);
+      activeIndexRef.current = 0;
       // 若还未加载提示词，尝试从数据库拉取
       try { if (prompts.length === 0 && typeof loadFromDatabase === 'function') { loadFromDatabase(); } } catch {}
       // 计算锚点位置
@@ -151,6 +159,10 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     return sorted.slice(0, 20).map(x=>({ p: x.p, note: x.suggestedHit && !x.hasSavedPrefix ? '(建议)' : '' }));
   }, [prompts, queryText]);
 
+  // 将最新的 filtered 列表写入 Ref，供键盘事件读取
+  const filteredRef = useRef<any[]>([]);
+  useEffect(() => { filteredRef.current = filtered as any[]; }, [filtered]);
+
   // 当列表变化时，纠正 activeIndex，避免键盘高亮与提交不一致
   useEffect(() => {
     setActiveIndex((i) => Math.max(0, Math.min(i, filtered.length - 1)));
@@ -247,13 +259,25 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     const handler = (e: KeyboardEvent) => {
       if (!open) return;
       if (e.key === 'Escape') { onOpenChange(false); return; }
-      if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, filtered.length - 1)); }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = Math.min(activeIndexRef.current + 1, (filteredRef.current as any[]).length - 1);
+        activeIndexRef.current = next;
+        setActiveIndex(next);
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = Math.max(activeIndexRef.current - 1, 0);
+        activeIndexRef.current = prev;
+        setActiveIndex(prev);
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const id = (filtered[activeIndex] as any)?.p?.id || (filtered[activeIndex] as any)?.id;
+        const list: any[] = filteredRef.current as any[];
+        const idx = Math.max(0, Math.min(activeIndexRef.current, list.length - 1));
+        const id = (list[idx] as any)?.p?.id || (list[idx] as any)?.id;
         if (id) {
-          try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ev); } catch {}
+          try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch {}
           // 新规则：回车直接发送；Alt+回车应用为系统（Shift+Alt 为一次性）
           const useApply = (e as any).altKey || (e as any).metaKey; // 允许 ⌘ 兼容
           if (useApply) {
@@ -267,7 +291,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, filtered, activeIndex, onSelect, onOpenChange, pendingVars]);
+  }, [open, onSelect, onOpenChange]);
 
   if (!open) return null;
 
@@ -317,7 +341,8 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       <ScrollArea className="max-h-60">
         <ul className="py-1">
           {filtered.map((item, idx) => (
-            <li key={item.p.id} className={cn('px-3 py-2 cursor-pointer text-sm flex items-center justify-between', idx === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60')} onMouseEnter={() => setActiveIndex(idx)} onClick={(e) => {
+            <li key={item.p.id} className={cn('px-3 py-2 cursor-pointer text-sm flex items-center justify-between', idx === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60')} onMouseEnter={() => setActiveIndex(idx)} onMouseDown={(e) => {
+              e.preventDefault();
               // 记忆本次选择的指令 -> 提示词映射
               const q = (queryText || '').trim().toLowerCase();
               const token = q.startsWith('/') ? q.replace(/^\//,'') : '';
@@ -331,10 +356,15 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
                   } catch {}
                 })();
               }
-              // 选择时把解析到的变量透传给父层（ChatInput 会存入 conversation.system_prompt_applied）
-              // 这里通过自定义事件发送，避免改动过多 props
+              // 选择时把解析到的变量透传给父层（用于代入渲染到输入框 / 应用为系统提示词）
               try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ev); } catch {}
-              onSelect(item.p.id, { action: 'apply', mode: (e as any).altKey ? 'oneOff' : 'permanent' });
+              const useApply = (e as any).altKey || (e as any).metaKey; // Alt 或 ⌘
+              if (useApply) {
+                const oneOff = (e as any).shiftKey;
+                onSelect(item.p.id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
+              } else {
+                onSelect(item.p.id, { action: 'fill' });
+              }
             }}>
               <div className="min-w-0">
                 <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">

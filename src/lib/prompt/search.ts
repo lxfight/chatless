@@ -22,7 +22,7 @@ export function scorePrompt(prompt: PromptItem, query: string): number {
   return score;
 }
 
-export function filterAndSortPrompts(prompts: PromptItem[], opts: { query?: string; favoriteOnly?: boolean; tag?: string | null; sortBy?: 'recent'|'frequency'|'name' }) {
+export function filterAndSortPrompts(prompts: PromptItem[], opts: { query?: string; favoriteOnly?: boolean; tag?: string | null; sortBy?: 'recent'|'frequency'|'name'|'created' }) {
   const { query = '', favoriteOnly = false, tag = null, sortBy = 'recent' } = opts || {};
   let list = prompts.filter((p) => {
     if (favoriteOnly && !p.favorite) return false;
@@ -36,6 +36,9 @@ export function filterAndSortPrompts(prompts: PromptItem[], opts: { query?: stri
       break;
     case 'name':
       list = list.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case 'created':
+      list = list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       break;
     default:
       list = list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));

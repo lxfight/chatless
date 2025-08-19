@@ -115,6 +115,7 @@ export function ChatMessage({
 
   const isUser = role === "user";
   const isStreaming = status === 'loading';
+  // 生成期间不显示时间与模型，避免视觉抖动；完成后再显示
   const formattedTime = isStreaming ? '' : formatTimestamp(timestamp);
 
   
@@ -199,8 +200,8 @@ export function ChatMessage({
           </motion.div>
         </ContextMenu>
 
-        {/* 时间戳和模型信息 */}
-        {(formattedTime || (!isUser && model)) && (
+        {/* 时间戳和模型信息：仅在非流式时显示，避免生成中抖动 */}
+        {!isStreaming && (formattedTime || (!isUser && model)) && (
           <div className={cn(
             "flex items-center text-xs text-slate-500 dark:text-slate-400 mt-1.5",
             isUser ? "self-end" : "self-start w-full"
@@ -226,15 +227,21 @@ export function ChatMessage({
                     <RefreshCcw className="w-3 h-3" />
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => (onCopy ? onCopy(content) : navigator.clipboard.writeText(content))}
-                  className="h-5 w-5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-                  title="复制"
-                >
-                  <Copy className="w-3 h-3" />
-                </Button>
+                <div className="relative group/copy">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => (onCopy ? onCopy(content) : navigator.clipboard.writeText(content))}
+                    className="h-5 w-5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                    title="复制"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                  {/* 复制按钮的 tip 展示字数 */}
+                  <div className="absolute right-0 -top-6 translate-y-[-2px] opacity-0 group-hover/copy:opacity-100 pointer-events-none select-none text-[11px] text-gray-500 bg-gray-50/90 dark:bg-gray-800/70 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">
+                    {`字数: ${(content || '').replace(/\s+/g,'').length}`}
+                  </div>
+                </div>
                 {onStar && (
                   <Button
                     variant="ghost"
