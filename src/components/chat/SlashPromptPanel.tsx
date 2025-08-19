@@ -61,6 +61,41 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     }
   }, [open]);
 
+  // 解析 queryText -> pendingVars（副作用，不要在渲染期间 setState）
+  useEffect(() => {
+    const q = (queryText || '').trim().toLowerCase();
+    let text = q;
+    const tagMatch = q.match(/tag:([^\s]+)/);
+    if (tagMatch) {
+      text = q.replace(tagMatch[0], '').trim();
+    }
+    if (!text.startsWith('/')) { setPendingVars({}); return; }
+    const parts = text.split(/\s+/);
+    const rest = text.slice(parts[0].length).trim();
+    const inlineVars: Record<string,string> = {};
+    const varRe = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/gu;
+    let m: RegExpExecArray | null;
+    while ((m = varRe.exec(rest))) { inlineVars[m[1]] = (m[3] ?? m[4] ?? m[5] ?? '').toString(); }
+    if (Object.keys(inlineVars).length === 0 && rest) {
+      const asciiIdx = rest.indexOf('| ');
+      const fullIdx = rest.indexOf('｜ ');
+      const cutIdx = [asciiIdx, fullIdx].filter(v=>v>=0).sort((a,b)=>a-b)[0];
+      if (cutIdx !== undefined) {
+        const before = rest.slice(0, cutIdx);
+        const after = rest.slice(cutIdx + 2).trim();
+        const hasDelimBefore = /[|｜]/.test(before);
+        const positional = hasDelimBefore ? before.split(/[|｜]/g).map(s=>s.trim()).filter(Boolean) : [before.trim()].filter(Boolean);
+        setPendingVars({ __positional: positional, __postText: after });
+      } else {
+        const hasDelim = /[|｜]/.test(rest);
+        const positional = hasDelim ? rest.split(/[|｜]/g).map(s=>s.trim()).filter(Boolean) : [rest];
+        setPendingVars({ __positional: positional });
+      }
+    } else {
+      setPendingVars(inlineVars);
+    }
+  }, [queryText]);
+
   const filtered = useMemo(() => {
     const q = (queryText || '').trim().toLowerCase();
     let tagFilter: string | null = null;
@@ -72,50 +107,14 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     }
     // 记忆选择（localStorage）
     let pref: Record<string,string> = {};
-    // 同步读取改为 StorageUtil：此处在 useMemo 内，统一保持同步读取为兜底
     try { pref = (window as any).__prompt_pref_cache__ || {}; } catch {}
-    // 内联变量赋值解析，格式 k=v k2="x y"，仅在以 / 指令开头时生效
+    // 仅用于过滤/排序的 token
     let token = '';
-    const inlineVars: Record<string,string> = {};
     if (text.startsWith('/')) {
       const parts = text.split(/\s+/);
       token = parts[0].replace(/^\//,'');
-      const rest = text.slice(parts[0].length).trim();
-      // 支持中文键名：用 [^\s=]+ 代替 \w
-      const varRe = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s]+))/gu;
-      let m: RegExpExecArray | null;
-      while ((m = varRe.exec(rest))) {
-        const key = m[1];
-        const val = (m[3] ?? m[4] ?? m[5] ?? '').toString();
-        inlineVars[key] = val;
-      }
-      if (Object.keys(inlineVars).length === 0 && rest) {
-        // 位置参数模式：支持英文竖线 | 与全角竖线 ｜
-        // 若出现 "| "（竖线+空格）或 "｜ "，视为提示词填充部分结束；其后的内容作为后续补充文本 __postText
-        const asciiIdx = rest.indexOf('| ');
-        const fullIdx = rest.indexOf('｜ ');
-        const cutIdx = [asciiIdx, fullIdx].filter(v=>v>=0).sort((a,b)=>a-b)[0];
-        if (cutIdx !== undefined) {
-          const before = rest.slice(0, cutIdx);
-          const after = rest.slice(cutIdx + 2).trim();
-          const hasDelimBefore = /[|｜]/.test(before);
-          const positional = hasDelimBefore
-            ? before.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
-            : [before.trim()].filter(Boolean);
-          setPendingVars({ __positional: positional, __postText: after });
-        } else {
-          const hasDelim = /[|｜]/.test(rest);
-          const positional = hasDelim
-            ? rest.split(/[|｜]/g).map(s => s.trim()).filter(Boolean)
-            : [rest];
-          setPendingVars({ __positional: positional });
-        }
-      } else {
-        setPendingVars(inlineVars);
-      }
     } else {
       token = text || '';
-      setPendingVars({});
     }
     const list = prompts
       .filter((p) => {
@@ -151,6 +150,11 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     });
     return sorted.slice(0, 20).map(x=>({ p: x.p, note: x.suggestedHit && !x.hasSavedPrefix ? '(建议)' : '' }));
   }, [prompts, queryText]);
+
+  // 当列表变化时，纠正 activeIndex，避免键盘高亮与提交不一致
+  useEffect(() => {
+    setActiveIndex((i) => Math.max(0, Math.min(i, filtered.length - 1)));
+  }, [filtered.length]);
 
   const isPositionalMode = useMemo(() => {
     const raw = (queryText || '').trim();
@@ -335,12 +339,31 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
               <div className="min-w-0">
                 <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
                   <span className="truncate">{item.p.name}</span>
+                  {/* 显示已绑定的快捷指令，最多展示3个 */}
+                  {Array.isArray((item.p as any).shortcuts) && (item.p as any).shortcuts.length > 0 && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {((item.p as any).shortcuts as string[]).slice(0,3).map(s => (
+                        <span key={s} className="px-1.5 py-0.5 rounded-md border border-indigo-200 bg-indigo-50/80 text-[11px] text-indigo-700">/{s}</span>
+                      ))}
+                      {((item.p as any).shortcuts as string[]).length > 3 && (
+                        <span className="text-[11px] text-indigo-600">+{((item.p as any).shortcuts as string[]).length - 3}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
+                {/* 标签以小徽章展示，过多时自动折行 */}
                 {item.p.tags && item.p.tags.length > 0 && (
-                  <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{item.p.tags.join(' · ')}</div>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {item.p.tags.slice(0,6).map((t:string) => (
+                      <span key={t} className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[11px] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">{t}</span>
+                    ))}
+                    {item.p.tags.length > 6 && (
+                      <span className="text-[11px] text-gray-500">+{item.p.tags.length - 6}</span>
+                    )}
+                  </div>
                 )}
-                {/* 内容占位预览：在模板中将 {{var}} 以灰色chip展示，若输入有值则显示值 */}
-                <div className="mt-1 rounded bg-gray-50/70 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[12px] leading-5 whitespace-pre-wrap">
+                {/* 内容占位预览：在模板中将 {{var}} 以灰色chip展示，若输入有值则显示值；限制最多三行，过长省略 */}
+                <div className="mt-1 rounded bg-gray-50/70 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
                   {renderHighlighted(item.p.content, computeVariableValues(item.p))}
                 </div>
               </div>

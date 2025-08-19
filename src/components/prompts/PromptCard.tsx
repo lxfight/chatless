@@ -12,6 +12,7 @@ export interface Prompt {
   description: string;
   content: string;
   tags: string[];
+  shortcuts?: string[];
   usageCount: number;
   lastUpdated: string; // e.g., "2小时前更新"
   isFavorite: boolean;
@@ -29,6 +30,7 @@ export function PromptCard({
   description,
   content,
   tags,
+  shortcuts = [],
   usageCount,
   lastUpdated,
   isFavorite,
@@ -59,6 +61,16 @@ export function PromptCard({
         </div>
         <div className="flex items-center justify-between mt-auto">
           <div className="flex flex-wrap gap-1">
+            {shortcuts && shortcuts.length > 0 && shortcuts.map((s) => (
+              <Badge
+                key={s}
+                variant="secondary"
+                className="px-2.5 py-1 rounded-lg text-xs font-normal cursor-default bg-indigo-50/80 text-indigo-600 border border-indigo-200"
+                title={`/${s}`}
+              >
+                /{s}
+              </Badge>
+            ))}
             {tags.map((tag, index) => (
               <Badge key={index} variant="secondary" className="tag px-2.5 py-1 rounded-lg text-xs font-normal cursor-default bg-slate-50 text-slate-600 border border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                 {tag}

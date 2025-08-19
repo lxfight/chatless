@@ -919,11 +919,11 @@ export function ProviderSettings({
                   };
 
                   const renderItem = (model: ModelMetadata) => (
-                    <div key={model.name} className="flex items-center gap-1.5 pl-2 border-l-2 border-indigo-200 dark:border-indigo-700 py-0.5" style={{ paddingLeft: 6 }}>
+                    <div key={model.name} className="flex items-center gap-1.5 pl-1.5 border-l border-indigo-200/70 dark:border-indigo-700/70 py-0.5" style={{ paddingLeft: 5 }}>
                       <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-1.5 text-[12px]">
                         <button
                           type="button"
-                          className="text-left text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate hover:underline"
+                          className="text-left text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate hover:bg-gray-100/60 dark:hover:bg-gray-800/60 rounded px-0.5"
                           title={(model.label || model.name) + '（点击复制ID）'}
                           onClick={async()=>{ try { await navigator.clipboard.writeText(model.name); toast.success('已复制模型 ID'); } catch { toast.error('复制失败'); } }}
                           dangerouslySetInnerHTML={{ __html: highlightText(model.label || model.name, modelSearch) }}

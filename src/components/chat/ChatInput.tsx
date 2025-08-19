@@ -278,6 +278,11 @@ export function ChatInput({
         const parts = userMessage.split(/\s+/);
         const token = parts[0].replace(/^\//, '').toLowerCase();
         const rest = userMessage.slice(parts[0].length).trim();
+        // 若用户使用了“| ”或“｜ ”分隔的后续文本（例如：/trans 英文 | 你好），兜底时也需要保留
+        const parsedForAfter = parseLeadingSlash(userMessage);
+        const afterTail = parsedForAfter && parsedForAfter.hasDelimiter && parsedForAfter.postText
+          ? `\n${parsedForAfter.postText}`
+          : '';
         // 精确匹配已保存的快捷词
         let matched = prompts.find((p:any)=> (p.shortcuts||[]).some((s:string)=> s.toLowerCase()===token));
         if (!matched) {
@@ -313,7 +318,8 @@ export function ChatInput({
           }
           const rendered = renderPromptContent(String(matched.content||''), values);
           if (rendered && rendered.trim()) {
-            userMessage = rendered.trim();
+            // 同步“发送”动作的行为：若存在“| ”后的文本且模板未显式消化它，也要附加到末尾
+            userMessage = `${rendered.trim()}${afterTail}`;
           }
         }
       } catch {}
@@ -636,7 +642,7 @@ export function ChatInput({
           const prefixText = `/${token}${prefixRaw}${hasDelimiter ? ' | ' : ''}`;
           return (
             <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-              <div className="pl-14 pr-14 py-[11px] whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+              <div className="pl-14 pr-16 py-[11px] pb-12 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
                 {/* 保留前导空格 */}
                 {leadingSpace}
                 {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
@@ -652,16 +658,16 @@ export function ChatInput({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息… 输入 / 唤起提示词"
+          placeholder="开始对话吧… 输入 / 可快速调用提示词"
           className={cn(
-            "relative z-[1] w-full pl-14 pr-14 py-[11px] resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[52px] placeholder:text-gray-400 dark:placeholder:text-gray-500",
+            "relative z-[1] w-full pl-14 pr-16 py-[10px] pb-10 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
             parseLeadingSlash(inputValue) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={undefined}
           rows={3}
           disabled={disabled || isParsingDocument}
         />
-        <div className="absolute left-2 bottom-4 flex items-center gap-1">
+        <div className="absolute left-2 bottom-4 z-[2] flex items-center gap-1">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -739,7 +745,7 @@ export function ChatInput({
             disabled={disabled}
           />
         </div>
-        <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
+        <div className="absolute right-3 bottom-3 z-[2] flex items-center gap-1.5">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

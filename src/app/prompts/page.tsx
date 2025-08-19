@@ -23,6 +23,7 @@ export default function PromptsPage() {
       description: p.description || '',
       content: p.content,
       tags: p.tags || [],
+      shortcuts: p.shortcuts || [],
       usageCount: p.stats?.uses || 0,
       lastUpdated: new Date(p.updatedAt).toLocaleString(),
       isFavorite: !!p.favorite,

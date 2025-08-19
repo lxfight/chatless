@@ -116,7 +116,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
 
   return (
     <div className={cn(
-      "relative w-full max-w-full overflow-hidden mx-3 mb-2 p-2.5 rounded-lg border border-indigo-200/80 dark:border-indigo-700/50", 
+      "relative w-full max-w-full overflow-hidden mb-2 p-2.5 rounded-lg border border-indigo-200/80 dark:border-indigo-700/50", 
       "bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-900/20 dark:to-purple-900/20",
       "shadow-sm hover:shadow-md transition-all duration-200",
       className
