@@ -95,7 +95,11 @@ export function PromptCard({
               </Badge>
             ))}
             {tags.map((tag, index) => (
-              <Badge key={index} variant="secondary" className="px-2 py-0.5 rounded-md text-[11px] font-normal cursor-default bg-slate-50 text-slate-600 border border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+              <Badge
+                key={index}
+                variant="secondary"
+                className="px-2 py-0.5 rounded-md text-[11px] font-normal cursor-default bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-700/70 dark:text-slate-200 dark:border-slate-600/60"
+              >
                 {tag}
               </Badge>
             ))}

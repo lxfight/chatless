@@ -49,6 +49,8 @@ export function ConversationItem({
     addSuffix: true,
     locale: zhCN,
   });
+  // 文案更紧凑：将“ 大约 ”替换为“ 约 ”
+  const compactTime = formattedTime.replace(/^大约\s*/, '约 ');
 
   return (
     <ContextMenu
@@ -65,7 +67,7 @@ export function ConversationItem({
     >
       <li
         className={cn(
-          "group relative flex flex-col gap-1 px-2 py-2.5 rounded-lg transition-all duration-200 cursor-pointer",
+          "group relative flex flex-col gap-1 px-2 py-2 rounded-lg transition-all duration-200 cursor-pointer",
           isCurrent
             ? "text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-500/10"
             : "text-slate-600 dark:text-slate-400 hover:bg-gray-50/80 dark:hover:bg-gray-800/30 hover:text-slate-900 dark:hover:text-slate-200 hover:shadow-sm"
@@ -98,9 +100,14 @@ export function ConversationItem({
         </div>
 
         <div className="flex items-center justify-between text-xs mt-0.5">
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-            <span className="text-xs">{formattedTime}</span>
-            <span className="text-xs opacity-75">{conversation.model_id}</span>
+          <div className="flex-1 min-w-0 flex items-center gap-2 pr-1 text-slate-500 dark:text-slate-400">
+            <span className="text-[11px] whitespace-nowrap">{compactTime}</span>
+            <span
+              className="text-[10px] opacity-60 whitespace-nowrap overflow-hidden text-ellipsis truncate max-w-[8.5rem] sm:max-w-[10.5rem]"
+              title={conversation.model_id}
+            >
+              {conversation.model_id}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">

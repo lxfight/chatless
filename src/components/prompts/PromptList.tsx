@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { PromptCard, Prompt } from "./PromptCard";
 import { usePromptStore } from "@/store/promptStore";
 import { useChatStore } from "@/store/chatStore";
@@ -46,16 +47,16 @@ export function PromptList({ prompts }: PromptListProps) {
 
   return (
     <>
-      <div className="flex items-center justify-end mb-3">
-        <select
-          className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-          value={ui?.sortBy || 'recent'}
-          onChange={(e)=> setSortBy(e.target.value as any)}
-        >
-          <option value="recent">按最近更新</option>
-          <option value="frequency">按使用次数</option>
-          <option value="name">按名称</option>
-        </select>
+      {/* 移除多余的排序下拉，统一在 Header 控制；若保留次入口，则使用同一封装组件 */}
+      <div className="flex items-center justify-end mb-3 hidden">
+        <Select value={ui?.sortBy || 'recent'} onValueChange={(v)=> setSortBy(v as any)}>
+          <SelectTrigger data-size="sm"><SelectValue placeholder="排序" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">按最近更新</SelectItem>
+            <SelectItem value="frequency">按使用次数</SelectItem>
+            <SelectItem value="name">按名称</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {prompts.map((prompt) => (

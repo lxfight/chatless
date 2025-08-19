@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { PromptEditorDialog } from "./PromptEditorDialog";
 import { useState } from "react";
 import { usePromptStore } from "@/store/promptStore";
@@ -35,21 +36,29 @@ export function PromptsHeader() {
           </div>
           <div className="hidden md:flex items-center gap-2">
             {['写作','编程','翻译'].map((t) => (
-              <button key={t} className={cn('px-3 py-1 rounded-full text-xs border transition-colors', ui?.tagFilter===t ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800')} onClick={()=>setTagFilter(ui?.tagFilter===t?null:t)}>{t}</button>
+              <button
+                key={t}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs border transition-colors',
+                  ui?.tagFilter===t
+                    ? 'bg-indigo-100/70 border-indigo-300 text-indigo-700 dark:bg-indigo-400/15 dark:border-indigo-500/40 dark:text-indigo-200'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-slate-800'
+                )}
+                onClick={()=>setTagFilter(ui?.tagFilter===t?null:t)}
+              >{t}</button>
             ))}
           </div>
           <Button variant={ui?.favoriteOnly ? "secondary" : "outline"} size="sm" className={cn('h-8', ui?.favoriteOnly ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100' : '')} onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}>只看收藏</Button>
           <PromptImportExport />
-          <select
-            className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-            value={ui?.sortBy || 'recent'}
-            onChange={(e)=>setSortBy(e.target.value as any)}
-          >
-            <option value="recent">按最近更新</option>
-            <option value="created">按创建时间</option>
-            <option value="frequency">按使用次数</option>
-            <option value="name">按名称</option>
-          </select>
+          <Select value={ui?.sortBy || 'recent'} onValueChange={(v)=>setSortBy(v as any)}>
+            <SelectTrigger data-size="sm"><SelectValue placeholder="排序" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">按最近更新</SelectItem>
+              <SelectItem value="created">按创建时间</SelectItem>
+              <SelectItem value="frequency">按使用次数</SelectItem>
+              <SelectItem value="name">按名称</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Button variant="soft" size="sm" className="h-8 px-3" onClick={() => setOpen(true)}>
           <Plus className="w-4 h-4" />

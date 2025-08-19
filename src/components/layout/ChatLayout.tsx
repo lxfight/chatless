@@ -233,17 +233,17 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <div className="flex items-center gap-3">
               {/* 搜索框 */}
               <div className="flex-1 min-w-0">
-                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-blue-500/20 dark:focus-within:ring-blue-400/20 transition-all duration-200">
+                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5">
                   <SearchInput
                     placeholder="搜索对话..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-full bg-transparent border-none focus:ring-0 text-sm"
+                    className="w-full bg-transparent border-none focus:ring-0 text-sm h-8"
                   />
                   {isSearching && (
                     <button 
                       onClick={handleClearSearch}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
                       aria-label="清除搜索"
                     >
                       <X className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />

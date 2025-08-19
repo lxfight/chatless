@@ -142,7 +142,7 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
   const removeShortcut = (s: string) => setShortcuts(prev => prev.filter(x => x !== s));
 
   const Chip = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
-    <span className="relative group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-green-200 bg-green-50 text-green-700 dark:bg-green-900/20 dark:border-green-700 dark:text-green-200">
+    <span className="relative group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-green-200 bg-green-50 text-green-700 dark:bg-emerald-500/15 dark:border-emerald-600/40 dark:text-emerald-200">
       {label}
       <button
         type="button"
@@ -218,7 +218,11 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
               </div>
               <div className="flex flex-wrap gap-2">
                 {['写作','编程','翻译','总结'].map(t => (
-                  <button key={t} className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={()=>setTags(prev=>Array.from(new Set([...prev, t])))}>{t}</button>
+                  <button
+                    key={t}
+                    className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                    onClick={()=>setTags(prev=>Array.from(new Set([...prev, t])))}
+                  >{t}</button>
                 ))}
               </div>
             </div>
