@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useUiPreferences } from '@/store/uiPreferences';
 
-const SCROLL_BOTTOM_THRESHOLD = 50; 
+// 放宽“接近底部”的阈值，减少来回切换造成的跳屏
+const SCROLL_BOTTOM_THRESHOLD = 120; 
 
 export const useScrollManagement = (
     messagesContainerRef: React.RefObject<HTMLDivElement | null>, 
@@ -16,6 +18,19 @@ export const useScrollManagement = (
   const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScrollTopRef = useRef(0);
   const previousConversationIdRef = useRef<string | null>(null);
+  // 跟随底部动画状态
+  const followStateRef = useRef<{
+    raf: number | null;
+    animating: boolean;
+    start: number;
+    from: number;
+    to: number;
+    duration: number;
+    last: number;
+    minMove: number; // 最小位移阈值（px）
+    maxVel: number;  // 速度上限（px/s）
+  }>({ raf: null, animating: false, start: 0, from: 0, to: 0, duration: 450, last: 0, minMove: 1.5, maxVel: 1200 });
+  const scrollSpeed = useUiPreferences((s)=> s.chatScrollSpeed);
 
   const isNearBottom = useCallback((container: HTMLElement) => {
     const { scrollTop, scrollHeight, clientHeight } = container;
@@ -24,19 +39,71 @@ export const useScrollManagement = (
 
   useEffect(() => {
     const isNewConversation = previousConversationIdRef.current !== currentConversationId;
-    
+    const endEl = messagesEndRef.current;
+    if (!endEl) {
+      previousConversationIdRef.current = currentConversationId;
+      return;
+    }
+
     if (isNewConversation) {
       setShouldAutoScroll(true);
       setIsUserScrolling(false);
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      }, 100);
+      // 新会话首次定位到底部，无动画，防止突兀
+      requestAnimationFrame(() => {
+        endEl.scrollIntoView({ behavior: 'auto' });
+      });
     } else if (shouldAutoScroll && !isUserScrolling && isLoading) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // 正在流式生成时，始终使用自定义“跟随到底部”动画（短距离也动画），避免瞬时跳变
+      const container = messagesContainerRef.current;
+      if (container) {
+        // 根据个性化设置映射速度
+        const base = scrollSpeed === 'calm' ? 650 : scrollSpeed === 'fast' ? 260 : 420;
+        followStateRef.current.duration = base;
+        // 个性化映射：越平缓速度上限越低、最小步长越小
+        if (scrollSpeed === 'calm') { followStateRef.current.maxVel = 900; followStateRef.current.minMove = 0.8; }
+        else if (scrollSpeed === 'fast') { followStateRef.current.maxVel = 1800; followStateRef.current.minMove = 1.2; }
+        else { followStateRef.current.maxVel = 1300; followStateRef.current.minMove = 1; }
+        const st = followStateRef.current;
+        const target = container.scrollHeight - container.clientHeight;
+        // 小距离直接对齐，避免轻微闪动
+        if (Math.abs(target - container.scrollTop) <= st.minMove) {
+          container.scrollTop = target;
+          return;
+        }
+        if (!st.animating) {
+          st.animating = true;
+          st.from = container.scrollTop;
+          st.start = performance.now();
+          st.last = st.start;
+          st.to = target;
+          const ease = (t:number) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+          const step = (now:number) => {
+            const p = Math.min(1, (now - st.start) / st.duration);
+            const yWanted = st.from + (st.to - st.from) * ease(p);
+            const current = container.scrollTop;
+            const dt = Math.max(1, now - st.last); // ms
+            const maxDelta = (st.maxVel * dt) / 1000; // px
+            const rawDelta = yWanted - current;
+            const delta = Math.abs(rawDelta) > maxDelta ? Math.sign(rawDelta) * maxDelta : rawDelta;
+            container.scrollTop = current + delta;
+            st.last = now;
+            if (p < 1 && Math.abs(container.scrollTop - st.to) > 1) {
+              st.raf = requestAnimationFrame(step);
+            } else {
+              container.scrollTop = st.to;
+              st.animating = false;
+              st.raf = null;
+            }
+          };
+          st.raf = requestAnimationFrame(step);
+        } else {
+          // 动画进行中，刷新目标，让跟随更顺滑
+          st.to = target;
+        }
+      }
     }
-    
     previousConversationIdRef.current = currentConversationId;
-  }, [messages, currentConversationId, shouldAutoScroll, isUserScrolling, isLoading]);
+  }, [messages, currentConversationId, shouldAutoScroll, isUserScrolling, isLoading, messagesContainerRef]);
 
   useEffect(() => {
     const container = messagesContainerRef.current;

@@ -611,8 +611,8 @@ export function ProviderSettings({
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={(open)=>{ setIsOpen(open); onOpenChange?.(open); }} className="border border-gray-200/60 dark:border-gray-700/50 rounded-xl overflow-hidden bg-white/80 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-colors">
-      <div className="flex items-center justify-between w-full px-4 py-3 bg-white/80 dark:bg-gray-800/40 backdrop-blur-[2px] hover:bg-white/90 dark:hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+      <Collapsible open={isOpen} onOpenChange={(open)=>{ setIsOpen(open); onOpenChange?.(open); }} className="border border-gray-200/60 dark:border-gray-700/50 rounded-xl overflow-hidden bg-white/80 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-all">
+      <div className="flex items-center justify-between w-full px-4 py-3 bg-white/80 dark:bg-gray-800/40 backdrop-blur-[2px] hover:bg-indigo-50/70 dark:hover:bg-indigo-900/20 hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-700 transition-all cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center gap-2 flex-grow min-w-0 mr-3">
             <div className={cn(
               "flex items-center justify-center w-8 h-8 rounded-lg text-lg flex-shrink-0 ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-gray-50"

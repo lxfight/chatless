@@ -114,9 +114,10 @@ export function ChatMessage({
   
 
   const isUser = role === "user";
-  const formattedTime = formatTimestamp(timestamp);
-
   const isStreaming = status === 'loading';
+  const formattedTime = isStreaming ? '' : formatTimestamp(timestamp);
+
+  
   // 仅对“正在生成/刚发送”的消息开启入场动画；历史消息不做入场动画，避免切换会话时整列表闪烁
   const shouldAnimateEnter = isStreaming || status === 'sending' || status === 'pending';
 

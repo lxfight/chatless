@@ -14,6 +14,8 @@ const SHOW_CLOSE_CONFIRMATION_KEY = "ui_show_close_confirmation";
 type SidebarWidth = 'narrow' | 'medium' | 'wide' | 'xwide';
 type IconSize = 'small' | 'medium' | 'large';
 
+type ScrollSpeed = 'calm' | 'normal' | 'fast';
+
 interface UiPreferencesState {
   // 基础
   initialized: boolean;
@@ -39,6 +41,9 @@ interface UiPreferencesState {
   // 应用行为
   showCloseConfirmation: boolean;
 
+  // 滚屏速度（个性化）
+  chatScrollSpeed: ScrollSpeed;
+
   // setter
   setShowSettingIcons: (show: boolean) => void;
   setSimpleMode: (flag: boolean) => void;
@@ -50,6 +55,7 @@ interface UiPreferencesState {
   setCmdPaletteEnabled: (flag: boolean) => void;
   setCmdPaletteShortcut: (sc: string) => void;
   setShowCloseConfirmation: (flag: boolean) => void;
+  setChatScrollSpeed: (v: ScrollSpeed) => void;
 }
 
 export const useUiPreferences = create<UiPreferencesState>((set) => ({
@@ -70,6 +76,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
   cmdPaletteShortcut: 'ctrl+p',
 
   showCloseConfirmation: true,
+  chatScrollSpeed: 'normal',
 
   setShowSettingIcons: (show) => {
     set({ showSettingIcons: show });
@@ -120,11 +127,15 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     set({ showCloseConfirmation: flag });
     StorageUtil.setItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, flag, 'user-preferences.json');
   },
+  setChatScrollSpeed: (v) => {
+    set({ chatScrollSpeed: v });
+    StorageUtil.setItem<ScrollSpeed>('ui_chat_scroll_speed', v, 'user-preferences.json');
+  },
 }));
 
 // 异步初始化首选项
 (async () => {
-  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm] = await Promise.all([
+  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed] = await Promise.all([
     StorageUtil.getItem<boolean>(SHOW_SETTING_ICONS_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SIMPLE_MODE_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(LOW_ANIMATION_KEY, false, 'user-preferences.json'),
@@ -135,6 +146,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<boolean>('ui_cmd_palette_enabled', true, 'user-preferences.json'),
     StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'ctrl+p', 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
+    StorageUtil.getItem<ScrollSpeed>('ui_chat_scroll_speed', 'normal', 'user-preferences.json'),
   ]);
 
   useUiPreferences.setState({
@@ -148,6 +160,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     cmdPaletteEnabled: cpEnabled ?? true,
     cmdPaletteShortcut: cpShortcut || 'ctrl+p',
     showCloseConfirmation: showCloseConfirm ?? true,
+    chatScrollSpeed: (scrollSpeed as ScrollSpeed) ?? 'normal',
     initialized: true,
   });
 })(); 

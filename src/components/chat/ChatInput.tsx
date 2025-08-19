@@ -755,8 +755,11 @@ export function ChatInput({
               </TooltipTrigger>
               <TooltipContent>Shift+Enter 换行</TooltipContent>
             </Tooltip>
+            {/* Token 指示：放在按钮左侧，等宽数字 + 最小宽度，样式 T: 277 */}
             {tokenCount > 0 && (
-              <span className="text-xs text-gray-500 mr-2 select-none">Tokens: {tokenCount}</span>
+              <span className="text-xs text-gray-500 mr-2 select-none font-mono tabular-nums inline-flex items-center justify-end min-w-[64px]">
+                T: {tokenCount}
+              </span>
             )}
             {isLoading ? (
              <Button
@@ -769,18 +772,20 @@ export function ChatInput({
                 <StopCircle className="w-5 h-5" />
              </Button>
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSend}
-              disabled={disabled || isLoading || (!inputValue.trim() && !attachedDocument)}
-              className={cn(
-                "h-8 w-8 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity",
-                (disabled || isLoading || (!inputValue.trim() && !attachedDocument)) && 'opacity-0 pointer-events-none'
-              )}
-            >
-              <Send className="w-5 h-5" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSend}
+                disabled={disabled || isLoading || (!inputValue.trim() && !attachedDocument)}
+                className={cn(
+                  "h-8 w-8 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity",
+                  (disabled || isLoading || (!inputValue.trim() && !attachedDocument)) && 'opacity-0 pointer-events-none'
+                )}
+              >
+                <Send className="w-5 h-5" />
+              </Button>
+            </>
           )}
           </TooltipProvider>
         </div>

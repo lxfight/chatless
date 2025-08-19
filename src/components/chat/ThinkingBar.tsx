@@ -35,21 +35,19 @@ export const ThinkingBar = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentElapsedTime, setCurrentElapsedTime] = useState(elapsedTime);
 
-             // 监听 elapsedTime 变化，确保 currentElapsedTime 同步
-           useEffect(() => {
-             setCurrentElapsedTime(elapsedTime);
-           }, [elapsedTime, isThinking, thinkingContent]);
+  // 同步外部 elapsedTime 到内部 state；仅在数值真正变化时更新，避免无意义的重复 setState
+  useEffect(() => {
+    setCurrentElapsedTime(prev => (prev !== elapsedTime ? elapsedTime : prev));
+  }, [elapsedTime, isThinking, thinkingContent]);
 
   // 实时更新计时器
   useEffect(() => {
-    if (isThinking) {
-      // 每秒更新一次
-      const interval = setInterval(() => {
-        setCurrentElapsedTime(prev => prev + 1000);
-      }, 1000);
-      
-      return () => clearInterval(interval);
-    }
+    if (!isThinking) return; // 仅在思考中才启动定时器
+    const interval = setInterval(() => {
+      // 仅在组件内部计时，避免与外部同步产生竞争
+      setCurrentElapsedTime(prev => prev + 1000);
+    }, 1000);
+    return () => clearInterval(interval);
   }, [isThinking]);
 
   const latestThought = useMemo(() => {

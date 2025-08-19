@@ -84,6 +84,18 @@ export function PersonalizationSettings() {
           value={ui.timezone}
           onChange={ui.setTimezone}
         />
+
+        {/* 滚屏速度 */}
+        <SelectField
+          label="聊天滚屏速度"
+          options={[
+            { value: 'calm', label: '平缓' },
+            { value: 'normal', label: '适中' },
+            { value: 'fast', label: '快速' },
+          ]}
+          value={ui.chatScrollSpeed as any}
+          onChange={(v) => ui.setChatScrollSpeed(v as any)}
+        />
       </div>
     </div>
   );
