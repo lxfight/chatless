@@ -111,7 +111,10 @@ export function AiModelSettings() {
   // 仅在筛选/源数据长度或集合变化时同步，避免每次 render 都触发 setState
   const lastSyncRef = useRef<string>("");
   useEffect(() => {
-    const key = filteredProviders.map(p=>p.name).join('|');
+    // 更细的签名：当名称、默认密钥、URL、模型数量或显示状态变化时，同步到本地列表
+    const key = filteredProviders
+      .map(p => `${p.name}:${p.default_api_key ? '1' : '0'}:${p.api_base_url || ''}:${(p.models||[]).length}:${p.displayStatus || ''}`)
+      .join('|');
     if (lastSyncRef.current !== key) {
       lastSyncRef.current = key;
       setLocalList(filteredProviders);
@@ -274,11 +277,11 @@ export function AiModelSettings() {
                   provider={provider}
                   isConnecting={connectingProviderName === provider.name}
                   isInitialChecking={isLoading}
-                  onUrlChange={(name, url) => updateConfig(name, { url }).catch(console.error)}
+                  onUrlChange={(name, url) => handleServiceUrlChange(name, url)}
                   onUrlBlur={handleUrlBlur}
-                  onDefaultApiKeyChange={(name, key) => updateConfig(name, { apiKey: key }).catch(console.error)}
+                  onDefaultApiKeyChange={(name, key) => handleProviderDefaultApiKeyChange(name, key)}
                   onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
-                  onModelApiKeyChange={(modelName, apiKey) => updateModelKey(provider.name, modelName, apiKey).catch(console.error)}
+                  onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
                   onModelApiKeyBlur={handleModelApiKeyBlur}
                   onRefresh={handleSingleProviderRefresh}
                 />

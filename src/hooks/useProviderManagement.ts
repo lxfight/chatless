@@ -337,7 +337,7 @@ export function useProviderManagement() {
   }, [refreshOllamaModels, handleSingleProviderRefresh, providers, updateProviderStatusAfterUrlChange]); 
 
   const handleProviderDefaultApiKeyChange = useCallback(async (providerName: string, apiKey: string) => {
-    const finalApiKey = apiKey || null;
+    const finalApiKey = apiKey && apiKey.trim() ? apiKey.trim() : null;
     let needsRefresh = false;
     
     setProviders(prev =>
@@ -366,14 +366,13 @@ export function useProviderManagement() {
     
     try {
       if (finalApiKey !== null) {
-      await KeyManager.setProviderKey(providerName, finalApiKey);
-    } else {
-      await KeyManager.removeProviderKey(providerName);
-    }
+        await KeyManager.setProviderKey(providerName, finalApiKey);
+      } else {
+        await KeyManager.removeProviderKey(providerName);
+      }
     // 更新仓库中的 apiKey 字段
     const { providerRepository } = await import('@/lib/provider/ProviderRepository');
     await providerRepository.update({ name: providerName, apiKey: finalApiKey });
-      toast.info("API 密钥已保存", { description: "更改将在下次状态检查时生效。" }); 
       
       if(needsRefresh) {
           const updatedProvider = providers.find(p => p.name === providerName);
@@ -403,11 +402,10 @@ export function useProviderManagement() {
     );
     try {
       if (finalApiKey !== null) {
-      await KeyManager.setModelKey(providerName, modelName, finalApiKey);
-    } else {
-      await KeyManager.removeModelKey(providerName, modelName);
-    }
-      toast.success("模型 API 密钥已保存");
+        await KeyManager.setModelKey(providerName, modelName, finalApiKey);
+      } else {
+        await KeyManager.removeModelKey(providerName, modelName);
+      }
     } catch (error: any) {
       console.error("更新 Model API Key 覆盖配置失败:", error);
       toast.error("更新模型 API 密钥失败", { description: error?.message || "无法保存密钥更改。" });

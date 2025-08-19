@@ -87,14 +87,5 @@ export const useProviderMetaStore = create<ProviderMetaState>((set, get) => ({
   },
 })); 
 
-// 订阅 providers 列表变化与细粒度事件，自动保持 UI 同步
-defaultCacheManager.subscribe(EVENTS.PROVIDERS_LIST, () => {
-  try {
-    const { providerRepository } = require('@/lib/provider/ProviderRepository');
-    const { mapToProviderWithStatus } = require('@/lib/provider/transform');
-    providerRepository.getAll().then((entities: any[]) => {
-      const mapped = entities.map(mapToProviderWithStatus) as unknown as QuickProviderMeta[];
-      useProviderMetaStore.getState().setList(mapped);
-    }).catch(console.error);
-  } catch (e) { console.error(e); }
-});
+// 注意：UI 同步由 providerStore 统一触发（init/repository/model 订阅处）。
+// 这里不再重复订阅 PROVIDERS_LIST，避免在开发环境下出现 HMR 重复导入与卡顿。
