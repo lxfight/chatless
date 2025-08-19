@@ -162,6 +162,8 @@ export class GoogleAIProvider extends BaseProvider {
                 if (candidate.finishReason === 'STOP') {
                   console.log('[GoogleAIProvider] Stream completed (finishReason: STOP)');
                   cb.onComplete?.();
+                  // 确保及时关闭并移除监听，避免后续开启的新流将事件冒泡到旧回调
+                  this.sseClient.stopConnection();
                 }
               }
               

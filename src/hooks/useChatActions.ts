@@ -309,6 +309,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     const thinking_start_time = Date.now();
     const assistantMessageId = uuidv4();
+    // 为本次生成定义一个“流实例ID”，并在回调中校验，避免并发/二次流导致的串写
+    const streamInstanceId = uuidv4();
     const assistantMessage: Message = {
       id: assistantMessageId,
       conversation_id: finalConversationId,
@@ -454,6 +456,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setGenerationTimeout(genTimeoutRef.current);
       },
       onToken: (token) => {
+        // 防串写保护：仅当仍然是当前流实例时才写入
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         currentContentRef.current += token;
         lastActivityTimeRef.current = Date.now();
         
@@ -468,6 +472,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         autoSaverRef.current?.update(currentContentRef.current);
       },
       onComplete: () => {
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
         setGenerationTimeout(null);
@@ -538,6 +543,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(0);
       },
       onError: (error) => {
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         console.error("streamChat promise rejected:", error);
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
@@ -577,6 +583,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         }
       },
     };
+
+    // 标记当前回调归属的流实例
+    (streamCallbacks as any).__instanceId = streamInstanceId;
 
     if (modelToUse) {
       // 参数优先级：会话参数 > 模型默认参数 > 系统默认参数

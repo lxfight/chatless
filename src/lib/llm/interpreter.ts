@@ -80,6 +80,9 @@ export class LLMInterpreter {
         .then(({ invoke }) => invoke('stop_sse').catch(() => {}))
         .catch(() => {});
     }
+
+    // 同时清理当前活跃 provider 的引用，避免后续误用
+    this.activeProvider = null;
   }
 
   /**
