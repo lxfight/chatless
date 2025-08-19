@@ -10,7 +10,8 @@
       "icons-macos/icon.ico"
     ],
     "resources": [
-      "libonnxruntime.dylib"
+      "libonnxruntime.dylib",
+      "icons-macos/tray-icon.png"
     ]
   }
 

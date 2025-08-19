@@ -2,7 +2,8 @@ import { TrayIcon } from '@tauri-apps/api/tray';
 import { Menu } from '@tauri-apps/api/menu';
 import { PredefinedMenuItem } from '@tauri-apps/api/menu';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { defaultWindowIcon } from '@tauri-apps/api/app';
+import { resolveResource } from '@tauri-apps/api/path';
+import { Image } from '@tauri-apps/api/image';
 
 // 系统托盘管理类
 class SystemTrayManager {
@@ -46,13 +47,21 @@ class SystemTrayManager {
         ]
       });
 
-      // 获取应用图标
-      const icon = await defaultWindowIcon();
+      // 统一使用打包资源中的 macOS 托盘图标
+      let iconPath: string | undefined = undefined;
+      try {
+        iconPath = await resolveResource('icons-macos/tray-icon.png');
+      } catch (_) {
+        // 忽略，走默认图标
+      }
+
+      // 将路径转换为 Image（期望 RGBA 数据）
+      const iconImage = iconPath ? await Image.fromPath(iconPath) : undefined;
 
       // 创建系统托盘
       this.tray = await TrayIcon.new({
         tooltip: 'chatless',
-        icon: icon || 'icons/icon.ico', // 提供默认图标
+        icon: iconImage,
         menu,
         menuOnLeftClick: false, // 左键点击不显示菜单
         action: (event) => {
@@ -175,7 +184,11 @@ class SystemTrayManager {
     if (!this.tray || !this.isInitialized) return;
 
     try {
-      await this.tray.setIcon(iconPath);
+      const path = iconPath.includes('/') || iconPath.includes('\\')
+        ? iconPath
+        : await resolveResource(iconPath);
+      const image = await Image.fromPath(path);
+      await this.tray.setIcon(image);
     } catch (error) {
       console.error('设置托盘图标失败:', error);
     }
