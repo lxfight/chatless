@@ -24,7 +24,7 @@ jobs:
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@9 --activate
+          corepack prepare pnpm@9.15.4 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Lint (non-blocking)
@@ -61,7 +61,7 @@ jobs:
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@9 --activate
+          corepack prepare pnpm@9.15.4 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -176,7 +176,7 @@ jobs:
       - name: Enable corepack and activate pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@9 --activate
+          corepack prepare pnpm@9.15.4 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate updater JSON (stable/alpha channels)
