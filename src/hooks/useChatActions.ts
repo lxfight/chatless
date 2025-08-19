@@ -22,6 +22,12 @@ import { ModelParametersService } from '@/lib/model-parameters';
 import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
 import { usePromptStore } from '@/store/promptStore';
 import { renderPromptContent } from '@/lib/prompt/render';
+import { 
+  generateTitleFromFirstMessage,
+  isDefaultTitle,
+  extractFirstUserMessageSeed,
+  shouldGenerateTitleAfterAssistantComplete,
+} from '@/lib/chat/TitleGenerator';
 
 type StoreMessage = any;
 
@@ -249,6 +255,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     let conversationId = options?.conversationId || currentConversationId;
     
+    const isCreatingNewConversation = !conversationId;
     if (!conversationId) {
       try {
         conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, currentProviderName);
@@ -284,6 +291,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       images: options?.images
     };
     await addMessage(newMessage);
+
+    // 标题生成改为在首次 AI 回复完成后触发，避免并发与限流压力。
 
     // 发送消息后立即滚动到底部
     if (scrollToBottomRef.current) {
@@ -479,6 +488,49 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             thinking_start_time: thinking_start_time,
             thinking_duration: thinking_duration,
           });
+
+          // 在首次 AI 回复完成后尝试生成标题（限流友好，不阻塞首条消息发送）。
+          (async () => {
+            try {
+              const state = useChatStore.getState();
+              const conv = state.conversations.find(c => c.id === finalConversationId);
+              if (!conv) return;
+              const stillDefault = shouldGenerateTitleAfterAssistantComplete(conv);
+              console.debug('[AutoTitle] 检查触发条件', {
+                convId: finalConversationId,
+                currentTitle: conv.title,
+                isDefault: stillDefault,
+                msgs: conv.messages?.length || 0,
+              });
+              if (!stillDefault) return;
+
+              // 由组件封装：提取首条用户消息作为种子
+              const seedContent = extractFirstUserMessageSeed(conv);
+              if (!seedContent.trim()) {
+                console.debug('[AutoTitle] 跳过：首条用户消息为空');
+                return;
+              }
+
+              console.debug('[AutoTitle] 开始生成', { provider: currentProviderName, model: modelToUse, seedLen: seedContent.length });
+              const gen = await generateTitleFromFirstMessage(
+                currentProviderName,
+                modelToUse,
+                seedContent,
+                { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
+              );
+
+              const state2 = useChatStore.getState();
+              const conv2 = state2.conversations.find(c => c.id === finalConversationId);
+              if (!conv2) return;
+              console.debug('[AutoTitle] 生成完成', { gen, stillDefault: isDefaultTitle(conv2.title) });
+              if (isDefaultTitle(conv2.title) && gen && gen.trim()) {
+                console.debug('[AutoTitle] 更新会话标题:', gen.trim());
+                await state2.renameConversation(finalConversationId!, gen.trim());
+              }
+            } catch (e) {
+              console.warn('[AutoTitle] 完成后自动生成标题失败:', e);
+            }
+          })();
         });
         
         // 清理引用

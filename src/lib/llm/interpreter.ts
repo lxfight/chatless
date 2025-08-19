@@ -23,16 +23,26 @@ export class LLMInterpreter {
     options: ChatOptions = {}
   ): Promise<{ content: string; raw: any }> {
     let content = '';
+    // 确保等待到 onComplete 后再返回，避免 Provider 流实现“立即 resolve”导致返回空字符串
+    let resolveDone: (() => void) | null = null;
+    let rejectDone: ((e: Error) => void) | null = null;
+    const donePromise = new Promise<void>((resolve, reject) => {
+      resolveDone = resolve; rejectDone = reject;
+    });
+
     await this.streamChat(
       provider,
       model,
       messages,
       {
         onToken: (t) => (content += t),
-        onError: () => {},
+        onComplete: () => { resolveDone && resolveDone(); },
+        onError: (e) => { rejectDone && rejectDone(e); },
       },
       options
-    );
+    ).catch(() => {});
+
+    try { await donePromise; } catch (_) { /* 忽略，交由上层回退 */ }
     return { content, raw: null };
   }
 
