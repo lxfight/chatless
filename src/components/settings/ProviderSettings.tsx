@@ -48,16 +48,7 @@ export function ProviderSettings({
   onOpenChange
 }: ProviderSettingsProps) {
   // 记住每个 provider 的展开状态，避免新增/编辑时因父级更新导致折叠
-  const [isOpen, setIsOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const v = window.localStorage.getItem(`provider_open_${provider.name}`);
-      return v ? v === '1' : true; // 默认展开，减少“内容消失”的困惑
-    }
-    return true;
-  });
-  useEffect(() => {
-    try { if (typeof window !== 'undefined') window.localStorage.setItem(`provider_open_${provider.name}`, isOpen ? '1' : '0'); } catch {}
-  }, [isOpen, provider.name]);
+  const [isOpen, setIsOpen] = useState<boolean>(false); // 默认折叠，不持久化
   // 保留最小状态集
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
   const lastUsedMap = useRecentModelsHint(provider.name);
