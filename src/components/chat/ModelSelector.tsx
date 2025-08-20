@@ -244,11 +244,14 @@ export function ModelSelector({
   };
 
   const SENTINEL_VALUE = '__none__';
+  const pairSelection = useMemo(() => {
+    if (currentProvider && currentModelId) return `${currentProvider.name}::${currentModelId}`;
+    return null;
+  }, [currentProvider, currentModelId]);
+
   const selectValue = searchQuery
     ? SENTINEL_VALUE
-    : (currentProvider && currentModelId
-        ? `${currentProvider.name}::${currentModelId}`
-        : (currentModelId || ''));
+    : (pairSelection || currentModelId || '');
 
   return (
     <>
@@ -317,6 +320,7 @@ export function ModelSelector({
           recentModelDetails={recentModelDetails}
           globalDefaultModel={globalDefaultModel}
           currentModelId={currentModelId}
+          currentSelection={pairSelection}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onSetDefault={handleSetDefault}

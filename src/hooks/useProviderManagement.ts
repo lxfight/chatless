@@ -93,7 +93,15 @@ export function useProviderManagement() {
         return aIndex - bIndex;
       });
 
-      setProviders(sortedConverted as any);
+      // 仅当内容确实发生变化时才更新，避免父级频繁重建导致滚动跳动
+      const next = sortedConverted as any;
+      const prev = providers;
+      const sameLength = prev.length === next.length;
+      const sameOrder = sameLength && prev.every((p, i) => p.name === next[i].name);
+      const sameBasic = sameOrder && prev.every((p, i) => p.api_base_url === next[i].api_base_url && p.default_api_key === next[i].default_api_key && p.displayStatus === next[i].displayStatus);
+      if (!sameBasic) {
+        setProviders(next);
+      }
       setIsLoading(repoLoading);
       // 后台预加载 Provider & 模型图标，提升后续界面切换的首屏渲染速度
       try { preloadProviderAndModelLogos(sortedConverted as any).catch(()=>{}); } catch {}
@@ -267,6 +275,7 @@ export function useProviderManagement() {
     try {
       // 处理空URL的情况
       const effectiveUrl = newUrl.trim() || (providerName === 'Ollama' ? 'http://localhost:11434' : '');
+      // 始终写入（避免因本地 state 未同步导致跳过写入的情况）
       
       // 保存到 ProviderRepository
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
@@ -339,6 +348,14 @@ export function useProviderManagement() {
   const handleProviderDefaultApiKeyChange = useCallback(async (providerName: string, apiKey: string) => {
     const finalApiKey = apiKey && apiKey.trim() ? apiKey.trim() : null;
     let needsRefresh = false;
+    // 若值与当前相同，则直接返回，避免无谓刷新/写入
+    const current = providers.find(p => p.name === providerName);
+    if (current) {
+      const currentNormalized = current.default_api_key && String(current.default_api_key).trim() ? String(current.default_api_key).trim() : null;
+      if (currentNormalized === finalApiKey) {
+        return;
+      }
+    }
     
     setProviders(prev =>
       prev.map(p => {

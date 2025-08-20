@@ -13,6 +13,7 @@ interface ModelSelectContentProps {
   recentModelDetails: { provider: ProviderMetadata, model: ModelMetadata }[];
   globalDefaultModel: string | null;
   currentModelId: string | null;
+  currentSelection?: string | null;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   onSetDefault: (e: React.MouseEvent, providerName: string, modelName: string) => void;
@@ -26,6 +27,7 @@ export function ModelSelectContent({
   recentModelDetails,
   globalDefaultModel,
   currentModelId,
+  currentSelection,
   searchQuery,
   setSearchQuery,
   onSetDefault,
@@ -118,6 +120,7 @@ export function ModelSelectContent({
               models={filteredModels}
               globalDefaultModel={globalDefaultModel}
               currentModelId={currentModelId}
+              currentSelection={currentSelection}
               searchQuery={searchQuery}
               onSetDefault={onSetDefault}
               onOpenParameters={onOpenParameters}

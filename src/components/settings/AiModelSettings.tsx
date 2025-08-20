@@ -313,12 +313,12 @@ export function AiModelSettings() {
         </DragOverlay>
         
         {/* 初始检查提示 */}
-        {connectingProviderName && (
+        {/* {connectingProviderName && (
             <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 正在连接 {connectingProviderName}...
             </div>
-        )}
+        )} */}
 
         {/* 空状态提示 */}
         {providers.length === 0 && !isLoading && !connectingProviderName && (

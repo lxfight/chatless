@@ -121,7 +121,6 @@ export function ProviderSettings({
     const defaultUrl = getDefaultUrl(provider.name);
     setLocalUrl(defaultUrl);
     onUrlChange(repoName, defaultUrl);
-    onUrlBlur(repoName);
     toast.success('已重置为默认地址', { description: defaultUrl });
   };
 
@@ -245,6 +244,28 @@ export function ProviderSettings({
   ];
   const [defaultStrategy, setDefaultStrategy] = useState<string>('openai-compatible');
   const [modelStrategies, setModelStrategies] = useState<Record<string, string>>({});
+  // 计算实际请求地址预览
+  const endpointPreview = React.useMemo(() => {
+    const base = (localUrl || '').replace(/\/$/, '');
+    const strategy = (isMultiStrategyProvider ? defaultStrategy : undefined) ||
+      (provider.name.toLowerCase()==='google ai' ? 'gemini' :
+       provider.name.toLowerCase()==='anthropic' ? 'anthropic' :
+       provider.name.toLowerCase()==='deepseek' ? 'deepseek' :
+       'openai-compatible');
+    if (!base) return '';
+    switch (strategy) {
+      case 'gemini':
+        return `${base}/models/{model}:streamGenerateContent?alt=sse`;
+      case 'anthropic':
+        return `${base}/messages`;
+      case 'deepseek':
+        return `${base}/chat/completions`;
+      case 'openai':
+      case 'openai-compatible':
+      default:
+        return `${base}/chat/completions`;
+    }
+  }, [localUrl, provider.name, isMultiStrategyProvider, defaultStrategy]);
 
   React.useEffect(() => {
     (async () => {
@@ -329,6 +350,7 @@ export function ProviderSettings({
             docUrl={docUrl}
             onDefaultApiKeyChange={onDefaultApiKeyChange}
             onDefaultApiKeyBlur={onDefaultApiKeyBlur}
+            endpointPreview={endpointPreview}
           />
 
           {/* 模型列表和配置 */}

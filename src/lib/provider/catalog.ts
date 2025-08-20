@@ -53,7 +53,7 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
     strategy: 'multi',
     requiresKey: true,
     // 默认服务端口，根据部署填入聚合网关地址
-    defaultUrl: 'http://localhost:3000'
+    defaultUrl: 'http://localhost:3000/v1'
   },
   {
     id: 'gptload-openai',

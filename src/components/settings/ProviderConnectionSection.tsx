@@ -19,6 +19,7 @@ interface ProviderConnectionSectionProps {
   docUrl?: string;
   onDefaultApiKeyChange: (providerName: string, apiKey: string) => void;
   onDefaultApiKeyBlur: (providerName: string) => void;
+  endpointPreview?: string; // 新增：展示实际请求地址示例
 }
 
 export function ProviderConnectionSection(props: ProviderConnectionSectionProps) {
@@ -35,6 +36,7 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
     docUrl,
     onDefaultApiKeyChange,
     onDefaultApiKeyBlur,
+    endpointPreview,
   } = props;
 
   return (
@@ -51,11 +53,16 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
               onBlur={() => {
                 const repoName = provider.aliases?.[0] || provider.name;
                 onUrlChange(repoName, localUrl);
-                onUrlBlur(repoName);
+                // 取消失焦即刷新，刷新会在保存逻辑中按需触发
               }}
               placeholder={provider.name.toLowerCase()==='ollama' ? 'http://localhost:11434' : '服务地址 (http://...)'}
               className="w-full p-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary focus:border-transparent transition-all duration-200 hover:border-primary dark:hover:border-primary dark:text-gray-200 h-8 text-sm"
             />
+            {endpointPreview && (
+              <p className="mt-1 text-[12px] text-gray-400 dark:text-gray-500 select-text break-all">
+                实际请求地址预览：{endpointPreview}
+              </p>
+            )}
           </div>
           <TooltipProvider>
             <Tooltip>

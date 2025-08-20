@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { SelectItem, SelectLabel, SelectGroup } from "@/components/ui/select";
 import { ChevronRight } from "lucide-react";
 import { ModelSelectItem } from "./ModelSelectItem";
@@ -12,6 +13,7 @@ interface ModelListProps {
   models: ProviderMetadata[];
   globalDefaultModel: string | null;
   currentModelId: string | null;
+  currentSelection?: string | null; // provider::model 形式，用于精确高亮
   searchQuery: string;
   onSetDefault: (e: React.MouseEvent, providerName: string, modelName: string) => void;
   onOpenParameters?: (providerName: string, modelId: string, modelLabel?: string) => void;
@@ -21,18 +23,36 @@ export function ModelList({
   models,
   globalDefaultModel,
   currentModelId,
+  currentSelection,
   searchQuery,
   onSetDefault,
   onOpenParameters,
 }: ModelListProps) {
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    if (currentModelId) {
+    if (currentSelection && currentSelection.includes('::')) {
+      const providerName = currentSelection.split('::')[0];
+      if (providerName) initial.add(providerName);
+    } else if (currentModelId) {
       const provider = models.find(p => p.models.some(m => m.name === currentModelId));
       if (provider) initial.add(provider.name);
     }
     return initial;
   });
+
+  // 当外部当前选择变化时，确保对应的 provider 被展开
+  // 保留已有展开项，但至少保证目标 provider 展开
+  React.useEffect(() => {
+    if (!currentSelection || !currentSelection.includes('::')) return;
+    const providerName = currentSelection.split('::')[0];
+    if (!providerName) return;
+    setExpandedProviders(prev => {
+      if (prev.has(providerName)) return prev;
+      const next = new Set(prev);
+      next.add(providerName);
+      return next;
+    });
+  }, [currentSelection]);
 
   const toggleProvider = (name: string) => {
     setExpandedProviders(prev => {
@@ -76,12 +96,12 @@ export function ModelList({
               <ChevronRight className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")}/>
             </div>
             {expanded && provider.models.map((model) => (
-              <SelectItem key={model.name} value={`${provider.name}::${model.name}`} className="p-0 focus:bg-transparent">
+              <SelectItem key={`${provider.name}::${model.name}`} value={`${provider.name}::${model.name}`} className="p-0 focus:bg-transparent">
                 <ModelSelectItem
                   provider={provider}
                   model={model}
                   isDefault={globalDefaultModel === `${provider.name}/${model.name}`}
-                  isSelected={currentModelId === model.name}
+                  isSelected={currentSelection ? currentSelection === `${provider.name}::${model.name}` : (currentModelId === model.name)}
                   onSetDefault={onSetDefault}
                   onOpenParameters={onOpenParameters}
                 />
