@@ -86,7 +86,8 @@ pnpm tauri dev
 
 说明：应用依赖的原生库（如 Tauri/ONNX 等）在 Windows 上需要 MSVC 运行库支持，缺失时可能导致闪退。
 
-感谢`@ukhack`，在[issue#23](https://github.com/kamjin3086/chatless/issues/23)提供该方法
+ 感谢`@ukhack`，在[issue#23](https://github.com/kamjin3086/chatless/issues/23)提供该方法
+
 ---
 
 ## 🎯 开发计划
