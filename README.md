@@ -91,13 +91,6 @@ pnpm tauri dev
 
 ## 🎯 开发计划
 
-- [ ] 支持更多AI提供商和模型
-- [ ] 完善HTTP/SOCKS5代理功能
-- [ ] 自动更新功能
-- [ ] 系统提示词设置
-- [ ] 会话标题生成
-- [ ] 多语言支持
-
 详细查看 [Project](https://github.com/users/kamjin3086/projects/1)
 
 ---

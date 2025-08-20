@@ -90,12 +90,7 @@ Thanks to @ukhack for providing this method in [issue#23](https://github.com/kam
 
 ## 🎯 Development Plan
 
-- [ ] Support more AI providers and models
-- [ ] Complete HTTP/SOCKS5 proxy functionality
-- [ ] Auto-update feature
-- [ ] System prompt settings
-- [ ] Session title generation
-- [ ] Multi-language support
+Detail to see: [Project](https://github.com/users/kamjin3086/projects/1)
 
 ---
 
