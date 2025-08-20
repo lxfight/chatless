@@ -85,7 +85,7 @@ On some Windows systems, the app may immediately exit/crash if the Microsoft Vis
 
 Note: Native dependencies (e.g., Tauri/ONNX) on Windows rely on the MSVC runtime; when missing, startup crashes can occur.
 
- Thanks to @ukhack for providing this method in [issue#23](https://github.com/kamjin3086/chatless/issues/23).
+ Thanks to @ukhack for providing this method in https://github.com/kamjin3086/chatless/issues/23#issuecomment-3203662395 .
  
 ---
 
