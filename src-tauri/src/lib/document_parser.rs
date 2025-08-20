@@ -4,14 +4,14 @@ use pulldown_cmark::{Event, Options, Parser, Tag};
 use std::fs;
 use std::path::Path;
 // 额外格式依赖
-use calamine::{DataType, Reader, open_workbook_auto};
+use calamine::{open_workbook_auto, DataType, Reader};
 use csv::ReaderBuilder;
 use html2text::from_read as html_to_text_from_read;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::sync::Semaphore;
 use tokio::task::spawn_blocking;
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 
 pub struct DocumentParser;
 

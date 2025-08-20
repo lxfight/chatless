@@ -4,6 +4,8 @@ import { PredefinedMenuItem } from '@tauri-apps/api/menu';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { resolveResource } from '@tauri-apps/api/path';
 import { Image } from '@tauri-apps/api/image';
+import { defaultWindowIcon } from '@tauri-apps/api/app';
+import { platform } from '@tauri-apps/plugin-os';
 
 // 系统托盘管理类
 class SystemTrayManager {
@@ -47,13 +49,18 @@ class SystemTrayManager {
         ]
       });
 
-      // 统一使用打包资源中的 macOS 托盘图标
+  
       let iconPath: string | undefined = undefined;
       try {
-        iconPath = await resolveResource('icons-macos/tray-icon.png');
+        // macos使用打包资源中额外的托盘图标，windows使用默认图标
+        if (platform() === 'macos') {
+          iconPath = await resolveResource('icons-macos/tray-icon.png');
+        }
       } catch (_) {
         // 忽略，走默认图标
       }
+
+      const defaultIcon = await defaultWindowIcon()
 
       // 将路径转换为 Image（期望 RGBA 数据）
       const iconImage = iconPath ? await Image.fromPath(iconPath) : undefined;
@@ -61,7 +68,7 @@ class SystemTrayManager {
       // 创建系统托盘
       this.tray = await TrayIcon.new({
         tooltip: 'chatless',
-        icon: iconImage,
+        icon: iconImage || defaultIcon || 'icons/icon.ico',
         menu,
         menuOnLeftClick: false, // 左键点击不显示菜单
         action: (event) => {

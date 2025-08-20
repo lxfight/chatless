@@ -2,10 +2,10 @@
 use anyhow::Result;
 use crc32fast;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::Manager;
 use tauri::path::BaseDirectory;
+use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[tauri::command]
 fn exit(code: i32) {
@@ -54,6 +54,7 @@ fn generate_embedding_command(texts: Vec<String>) -> Result<Vec<Vec<f32>>, Strin
 
 pub fn run() {
   let _builder = tauri::Builder::default()
+    .plugin(tauri_plugin_os::init())
     .plugin(tauri_plugin_process::init())
     .setup(|app| {
       // 尝试在启动时初始化 ONNX Runtime，但不再因失败而中断应用

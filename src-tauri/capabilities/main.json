@@ -76,6 +76,7 @@
     "updater:allow-download",
     "updater:allow-install",
     "process:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "os:default"
   ]
 }
