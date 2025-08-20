@@ -22,8 +22,6 @@ import {
   updateModelApiKeyOverride,
   updateOllamaModelsCache,
 */
-// 从新模块导入 providerFetchers
-import { providerFetchers } from '@/lib/ai-providers';
 import { toast } from "sonner"; // <-- 导入 sonner 的 toast
 import { Input } from "@/components/ui/input";
 // 不再需要直接导入 tauriFetch

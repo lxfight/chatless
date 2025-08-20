@@ -75,7 +75,7 @@ export function ProviderHeader(props: ProviderHeaderProps) {
               );
             }
             return (
-              <Image src={fallbackAvatarSrc} alt={`${provider.name} 图标`} width={20} height={20} className="w-5 h-5 text-gray-800 dark:text-gray-200 rounded-sm" />
+              <Image src={fallbackAvatarSrc} alt={`${provider.name} 图标`} width={20} height={20} className="w-8 h-8 text-gray-800 dark:text-gray-200 rounded-sm" />
             );
           })()}
         </div>

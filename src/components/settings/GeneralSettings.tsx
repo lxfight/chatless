@@ -140,43 +140,7 @@ export function GeneralSettings() {
                     onChange={ui.setCmdPaletteShortcut}
                     description="按下组合键以设置；需包含 Ctrl/⌘/Alt/Shift 且避免常用系统快捷键"
                   />
-                  
-                  {/* 快捷键测试区域 */}
-                  <div className="flex items-start gap-8 py-3 group hover:bg-gray-50/40 dark:hover:bg-gray-800/30 rounded-md transition-colors duration-200 -mx-3 px-3">
-                    <div className="w-32 flex-shrink-0 pt-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 leading-relaxed">
-                        测试快捷键（开发期间）
-                      </label>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              当前设置: <span className="font-mono text-blue-600 dark:text-blue-400">{ui.cmdPaletteShortcut}</span>
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-xs text-green-600 dark:text-green-400">正常</span>
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            请尝试按下上述快捷键来测试是否正常工作
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            // 临时显示命令面板来测试
-                            const event = new CustomEvent('test-command-palette');
-                            window.dispatchEvent(event);
-                          }}
-                          className="px-3 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                        >
-                          测试
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                
                 </>
               )}
             </>

@@ -45,7 +45,7 @@ export interface ProviderWithStatus extends ProviderMetadata {
 // --- 主 Hook ---
 export function useProviderManagement() {
   const { statuses: storedStatuses, setStatus: setStoredStatus } = useProviderStatusStore();
-  const { models: ollamaModels, refreshModels: refreshOllamaModels } = useOllamaStore();
+  const { models: ollamaModels, refreshModels: refreshOllamaModels, hasOnlineFetched } = useOllamaStore();
   const globalQuickList = useProviderMetaStore(s=>s.list);
   const setGlobalQuickList = useProviderMetaStore(s=>s.setList);
   const [providers, setProviders] = useState<ProviderWithStatus[]>(globalQuickList as any);
@@ -217,6 +217,14 @@ export function useProviderManagement() {
   // --- EFFECT 3: Sync internal providers state with ollamaStore ---
   useEffect(() => {
     console.log("[useProviderManagement] Effect 3: Ollama models sync START", ollamaModels);
+    // 覆盖策略：
+    // - 若从未在线拉取过（hasOnlineFetched=false），并且 store 为空：不覆盖，保持仓库/静态模型，避免误清空。
+    // - 一旦进行过在线拉取（无论结果是否为空），则以 store 为准覆盖到 UI，保证“空列表”也能反映真实状态；
+    //   这可以解决从地址 A(20 个) 切换到地址 B(3 个) 后，旧模型残留的问题。
+    if (!hasOnlineFetched && (!ollamaModels || ollamaModels.length === 0)) {
+      console.log("[useProviderManagement] Effect 3: no online fetch yet and store empty, keep current provider models.");
+      return;
+    }
     setProviders(currentProviders => {
         const ollamaProvider = currentProviders.find(p => p.name === 'Ollama');
         if (!ollamaProvider) return currentProviders; // Ollama provider might not exist yet
@@ -245,7 +253,7 @@ export function useProviderManagement() {
         });
     });
     console.log("[useProviderManagement] Effect 3: Ollama models sync END");
-  }, [ollamaModels]);
+  }, [ollamaModels, hasOnlineFetched]);
 
   // --- 其他处理函数 ---
   

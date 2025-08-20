@@ -2,6 +2,7 @@ import { ProviderEntity } from "./types";
 import { providerInitializationService } from "./services/ProviderInitializationService";
 import { providerStatusService } from "./services/ProviderStatusService";
 import { providerRepository } from "./ProviderRepository";
+import { providerModelService } from "./services/ProviderModelService";
 
 /**
  * Service 层：负责将 ProviderRepository、ModelRepository 与策略层粘合。
@@ -28,7 +29,13 @@ export class ProviderService {
    */
   async refreshAll() {
     const providers = await providerRepository.getAll();
-    await Promise.all(providers.map((p) => this.refreshProviderStatus(p.name)));
+    await Promise.all(
+      providers.map(async (p) => {
+        await this.refreshProviderStatus(p.name);
+        // 刷新状态后，顺带尝试拉取（或更新）模型列表
+        await providerModelService.fetchIfNeeded(p.name);
+      })
+    );
   }
 }
 

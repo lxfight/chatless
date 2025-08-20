@@ -70,6 +70,14 @@ export abstract class BaseProvider {
 
   /**
    * （可选）拉取模型列表
+   *
+   * 统一约定（非常重要）：
+   * - 成功时返回“权威列表”数组，允许返回空数组（表示在线端没有可用模型）；
+   * - 返回 null 表示暂不支持或调用失败（网络/权限等），上层会自动回退到
+   *   “缓存 ∪ 静态模型”的并集，避免界面空白；
+   * - 不需要做排序/去重/持久化，这些由 ProviderModelService 统一处理；
+   * - 若 provider 需要使用自定义 baseUrl，请确保在构造后设置好（上层会在调用前
+   *   尝试同步最新 URL）。
    */
   fetchModels?(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null>;
 
