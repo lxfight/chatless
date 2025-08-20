@@ -22,11 +22,6 @@ export function TauriApp({ children }: TauriAppProps) {
   const initializationPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    // 将浏览器控制台日志转发到 Tauri 日志系统
-    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-      attachConsole().catch(() => {/* 忽略错误 */});
-    }
-
     const initializeApp = async () => {
       // 防止重复初始化
       if (hasInitializedRef.current) {
@@ -62,6 +57,15 @@ export function TauriApp({ children }: TauriAppProps) {
 
     const performInitialization = async (): Promise<void> => {
       try {
+        // 先确保将浏览器控制台日志转发到 Tauri 日志系统（避免初始化阶段日志丢失）
+        if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+          try {
+            await attachConsole();
+          } catch {
+            // 忽略 attach 失败
+          }
+        }
+
         // 测试Tauri日志系统
         console.log('🚀 [TauriApp] 应用启动中...');
         console.info('📋 [TauriApp] 初始化...');

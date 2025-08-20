@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
+use log::LevelFilter;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[tauri::command]
@@ -110,6 +111,8 @@ pub fn run() {
     .plugin(
       tauri_plugin_log::Builder::new()
         .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+        // 设置日志等级：开发环境 Debug，生产环境 Info（屏蔽 trace/debug 噪音）
+        .level(if cfg!(debug_assertions) { LevelFilter::Debug } else { LevelFilter::Info })
         .format(|out, message, record| {
           // 生成本地时间戳，失败时退回到 UTC
           let ts = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
@@ -133,7 +136,9 @@ pub fn run() {
           }),
         ])
         .max_file_size(10 * 1024 * 1024) // 10MB
-        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+        // 日志轮转与保留策略：限制单文件大小，并仅保留当前日志文件（旧文件在轮转时删除）
+        .max_file_size(2 * 1024 * 1024) // 2MB 每个日志文件
+        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
         .build(),
     )
     .manage(onnx_logic::OnnxState {
@@ -146,6 +151,7 @@ pub fn run() {
       greet,
       generate_embedding_command,
       exit,
+      set_log_level,
       // Document parser commands
       document_parser::parse_document_text,
       document_parser::parse_document_from_binary,
@@ -162,4 +168,21 @@ pub fn run() {
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+/// 动态设置日志级别（支持在运行时从前端调整）
+#[tauri::command]
+fn set_log_level(level: &str) -> Result<(), String> {
+  let lvl = match level.to_lowercase().as_str() {
+    "trace" => LevelFilter::Trace,
+    "debug" => LevelFilter::Debug,
+    "info" => LevelFilter::Info,
+    "warn" => LevelFilter::Warn,
+    "error" => LevelFilter::Error,
+    "none" => LevelFilter::Off,
+    _ => LevelFilter::Info,
+  };
+
+  log::set_max_level(lvl);
+  Ok(())
 }

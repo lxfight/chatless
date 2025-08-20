@@ -72,9 +72,24 @@ export function AdvancedSettings() {
   const handleLevelChange = async (val:string) => {
     const lvl = val as 'none'|'error'|'warn'|'info'|'debug';
     setLogLevelState(lvl);
-    // 由于使用Tauri日志插件，日志级别由系统控制
     console.log(`日志级别已设置为: ${lvl}`);
     setLogInfo('Tauri日志系统已启用，日志自动保存到系统日志目录');
+
+    try {
+      const isTauri = await detectTauriEnvironment();
+      if (isTauri) {
+        // 运行时调整后端日志等级，立即影响写入到文件的内容
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('set_log_level', { level: lvl });
+        toast.success(`已应用日志级别: ${lvl}`);
+      } else {
+        // 浏览器环境仅更新前端显示
+        toast.info(`已设置日志级别(浏览器环境): ${lvl}`);
+      }
+    } catch (e) {
+      console.warn('设置日志级别失败:', e);
+      toast.error('设置日志级别失败');
+    }
   };
 
   const exportLogs = async () => {
@@ -85,35 +100,47 @@ export function AdvancedSettings() {
         // 动态导入 Tauri FS API
         const { readDir, readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
 
-        // 读取日志目录
-        const entries = await readDir('', { baseDir: BaseDirectory.AppLog });
+        // 递归收集日志文件（兼容日志保存在子目录的情况）
+        const collectLogFiles = async (dir: string): Promise<string[]> => {
+          const files: string[] = [];
+          const list = await readDir(dir, { baseDir: BaseDirectory.AppLog });
+          for (const entry of list) {
+            const name = entry.name as string | undefined;
+            if (!name) continue;
+            if ((entry as any).isDirectory) {
+              const subDir = dir ? `${dir}/${name}` : name;
+              const subFiles = await collectLogFiles(subDir);
+              files.push(...subFiles);
+            } else {
+              // 仅收集常见日志扩展名；未知扩展也尝试收集以防插件文件名无扩展
+              if (name.endsWith('.log') || name.endsWith('.txt') || !name.includes('.')) {
+                const fullPath = dir ? `${dir}/${name}` : name;
+                files.push(fullPath);
+              }
+            }
+          }
+          return files;
+        };
 
-        if (!entries || entries.length === 0) {
+        const logFilePaths = await collectLogFiles('');
+        if (!logFilePaths || logFilePaths.length === 0) {
           toast.error('未找到日志文件');
           return;
         }
 
-        // 过滤 .log 文件
-        const logFiles = entries.filter((e: any) => e.name && e.name.endsWith('.log'));
-
-        if (logFiles.length === 0) {
-          toast.error('未找到 .log 文件');
-          return;
-        }
-
-        // 若无mtime信息，则按文件名排序
-        logFiles.sort((a: any, b: any) => (b.name || '').localeCompare(a.name || ''));
+        // 排序：文件名降序（通常包含时间戳/序号）
+        logFilePaths.sort((a, b) => b.localeCompare(a));
 
         // 合并内容
         let combined = '';
-        for (const file of logFiles) {
+        for (const relPath of logFilePaths) {
           try {
-            const content = await readTextFile(file.name, { baseDir: BaseDirectory.AppLog });
-            combined += `\n===== ${file.name} =====\n`;
+            const content = await readTextFile(relPath, { baseDir: BaseDirectory.AppLog });
+            combined += `\n===== ${relPath} =====\n`;
             combined += content;
             combined += '\n';
           } catch (e) {
-            console.warn('读取日志文件失败:', file.name, e);
+            console.warn('读取日志文件失败:', relPath, e);
           }
         }
 

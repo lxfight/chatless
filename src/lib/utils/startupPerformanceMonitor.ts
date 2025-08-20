@@ -24,7 +24,12 @@ class StartupPerformanceMonitor {
   private metrics: Map<string, PerformanceMetric> = new Map();
   private currentPhase: string | null = null;
   private phaseStack: string[] = [];
-  private isEnabled = process.env.NODE_ENV === 'development';
+  // 在生产环境也启用监控；仅在开发环境输出控制台日志
+  private isEnabled = true;
+
+  private shouldLog(): boolean {
+    return process.env.NODE_ENV === 'development';
+  }
 
   /**
    * 开始监测一个阶段
@@ -44,7 +49,9 @@ class StartupPerformanceMonitor {
     this.currentPhase = name;
     this.phaseStack.push(name);
 
-    console.log(`🚀 [PERF] 开始阶段: ${name}`);
+    if (this.shouldLog()) {
+      console.log(`🚀 [PERF] 开始阶段: ${name}`);
+    }
   }
 
   /**
@@ -71,7 +78,9 @@ class StartupPerformanceMonitor {
     // 更新当前阶段
     this.currentPhase = this.phaseStack[this.phaseStack.length - 1] || null;
 
-    console.log(`✅ [PERF] 完成阶段: ${phaseName} (${metric.duration.toFixed(2)}ms)`);
+    if (this.shouldLog()) {
+      console.log(`✅ [PERF] 完成阶段: ${phaseName} (${metric.duration.toFixed(2)}ms)`);
+    }
   }
 
   /**
@@ -94,7 +103,9 @@ class StartupPerformanceMonitor {
     parent.children = parent.children || [];
     parent.children.push(subPhase);
 
-    console.log(`📊 [PERF] 子阶段: ${parentName} > ${subPhaseName} (${duration.toFixed(2)}ms)`);
+    if (this.shouldLog()) {
+      console.log(`📊 [PERF] 子阶段: ${parentName} > ${subPhaseName} (${duration.toFixed(2)}ms)`);
+    }
   }
 
   /**
@@ -104,7 +115,9 @@ class StartupPerformanceMonitor {
     if (!this.isEnabled) return;
 
     const time = performance.now();
-    console.log(`📍 [PERF] 标记: ${name} (${time.toFixed(2)}ms)`, metadata);
+    if (this.shouldLog()) {
+      console.log(`📍 [PERF] 标记: ${name} (${time.toFixed(2)}ms)`, metadata);
+    }
   }
 
   /**
@@ -169,6 +182,8 @@ class StartupPerformanceMonitor {
 
     const report = this.generateReport();
     
+    if (!this.shouldLog()) return;
+
     console.group('📊 启动性能报告');
     console.log(`总耗时: ${report.totalDuration.toFixed(2)}ms`);
     console.log(`阶段数: ${report.phases.length}`);

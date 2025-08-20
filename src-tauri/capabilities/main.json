@@ -14,6 +14,8 @@
     "fs:allow-exists",
     "fs:allow-appconfig-write",
     "fs:allow-appconfig-write-recursive",
+    "fs:allow-applog-read-recursive",
+    "fs:allow-applog-meta-recursive",
     {
       "identifier": "fs:scope",
       "allow": [
@@ -22,6 +24,21 @@
         },
         {
           "path": "$APPDATA/**/*"
+        },
+        {
+          "path": "$APPLOG"
+        },
+        {
+          "path": "$APPLOG/**/*"
+        },
+        {
+          "path": "$DOWNLOAD/**/*"
+        },
+        {
+          "path": "$DESKTOP/**/*"
+        },
+        {
+          "path": "$DOCUMENT/**/*"
         }
       ]
     },
