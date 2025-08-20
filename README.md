@@ -73,6 +73,22 @@ pnpm tauri dev
 
 ---
 
+## ⚠️ Windows 闪退问题（需要 VC++ 运行库）
+
+部分 Windows 环境可能因缺少 Microsoft Visual C++ 运行库而出现启动即退出/闪退。可按以下步骤修复：
+
+1. 下载并安装最新的 Microsoft Visual C++ 2015–2022 Redistributable (x64)：
+   - 直接下载链接：<https://aka.ms/vs/17/release/vc_redist.x64.exe>
+2. 安装完成后重启应用（必要时重启系统）。
+3. 若仍有问题：
+   - 在「设置 → 应用 → 已安装的应用」中搜索“Visual C++ 2015-2022 Redistributable (x64)”确认已安装。
+   - 通过应用内「设置 → 反馈」提交日志与问题描述。
+
+说明：应用依赖的原生库（如 Tauri/ONNX 等）在 Windows 上需要 MSVC 运行库支持，缺失时可能导致闪退。
+
+感谢`@ukhack`，在[issue#23](https://github.com/kamjin3086/chatless/issues/23)提供该方法
+---
+
 ## 🎯 开发计划
 
 - [ ] 支持更多AI提供商和模型

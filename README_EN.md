@@ -72,6 +72,22 @@ pnpm tauri dev
 
 ---
 
+## ⚠️ Windows Crash on Startup (VC++ runtime required)
+
+On some Windows systems, the app may immediately exit/crash if the Microsoft Visual C++ runtime is missing. Fix it with these steps:
+
+1. Download and install the latest Microsoft Visual C++ 2015–2022 Redistributable (x64):
+   - Direct link: <https://aka.ms/vs/17/release/vc_redist.x64.exe>
+2. After installation, relaunch the app (restart Windows if needed).
+3. If the issue persists:
+   - Verify “Visual C++ 2015–2022 Redistributable (x64)” is installed under Settings → Apps → Installed apps.
+   - Send logs and a brief description via in-app “Settings → Feedback”.
+
+Note: Native dependencies (e.g., Tauri/ONNX) on Windows rely on the MSVC runtime; when missing, startup crashes can occur.
+
+Thanks to @ukhack for providing this method in [issue#23](https://github.com/kamjin3086/chatless/issues/23).
+---
+
 ## 🎯 Development Plan
 
 - [ ] Support more AI providers and models
