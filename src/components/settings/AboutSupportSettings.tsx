@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_INFO, getVersionInfo } from "@/config/app-info";
+import { getUpdateAvailability } from "@/lib/update/update-notifier";
 import { isDevelopment } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { linkOpener } from "@/lib/utils/linkOpener";
@@ -19,6 +20,7 @@ export function AboutSupportSettings() {
   const [showCopied, setShowCopied] = useState(false);
   const [versionInfo, setVersionInfo] = useState(getVersionInfo());
   const [onlyCheckDev, setOnlyCheckDev] = useState(false);
+  const [notLatest, setNotLatest] = useState<{version: string}|null>(null);
 
   // 读取实际版本信息
   useEffect(() => {
@@ -44,6 +46,14 @@ export function AboutSupportSettings() {
     };
 
     getTauriVersion();
+
+    // 读取是否存在新版本（用于显示“当前不是最新版本”）
+    (async () => {
+      const info = await getUpdateAvailability();
+      if (info.available && info.version) {
+        setNotLatest({ version: info.version });
+      }
+    })();
 
     // 同步“仅检查不安装”偏好（生产与开发环境均可用）
     (async () => {
@@ -140,6 +150,12 @@ export function AboutSupportSettings() {
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               v{versionInfo.version} · Build {versionInfo.build}
+              {notLatest && (
+                <span className="ml-2 inline-flex items-center gap-1 text-blue-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                  当前不是最新版本（可用：{notLatest.version}）
+                </span>
+              )}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               {APP_INFO.description}

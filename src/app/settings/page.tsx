@@ -9,6 +9,7 @@ import { AdvancedSettings } from "@/components/settings/AdvancedSettings";
 import { AboutSupportSettings } from "@/components/settings/AboutSupportSettings";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { recordAboutViewed } from "@/lib/update/update-notifier";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -35,6 +36,8 @@ export default function SettingsPage() {
       case "advanced":
         return <AdvancedSettings />;
       case "aboutSupport":
+        // 记录进入关于页的时间（用于蓝点冷却）
+        setTimeout(() => { recordAboutViewed().catch(() => {}); }, 0);
         return <AboutSupportSettings />;
       default:
         return <GeneralSettings />;

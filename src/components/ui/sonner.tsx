@@ -24,23 +24,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
-      style={
-        {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-        } as React.CSSProperties
-      }
+      // 使用更高对比度且更轻盈的样式，确保亮色模式可读性
       position={props.position || "bottom-right"}
       toastOptions={{
         ...props.toastOptions,
         classNames: {
           ...props.toastOptions?.classNames,
-          toast: "rounded-md border bg-[var(--normal-bg)] text-[var(--normal-text)] border-[var(--normal-border)] shadow-md",
-          title: "text-sm font-medium",
-          description: "text-xs opacity-90",
-          actionButton: "text-xs",
-          cancelButton: "text-xs",
+          toast:
+            "rounded-lg border px-3 py-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.08)] " +
+            "bg-white/90 text-slate-800 border-slate-200 " +
+            "dark:bg-slate-900/90 dark:text-slate-100 dark:border-slate-700",
+          title: "text-[13px] font-semibold",
+          description: "text-[12px] text-slate-600 dark:text-slate-300",
+          actionButton: "text-[12px]",
+          cancelButton: "text-[12px]",
         },
       }}
       {...props}

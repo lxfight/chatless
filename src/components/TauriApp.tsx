@@ -10,6 +10,7 @@ import { ThemeInitializer } from './theme/ThemeInitializer';
 import { attachConsole } from '@tauri-apps/plugin-log';
 import { initializeSampleDataIfNeeded } from '@/lib/sampleDataInitializer';
 import { appCleanupService } from '@/lib/services/appCleanup';
+import { scheduleBackgroundUpdateChecks } from '@/lib/update/update-notifier';
 
 interface TauriAppProps {
   children: React.ReactNode;
@@ -124,6 +125,11 @@ export function TauriApp({ children }: TauriAppProps) {
             console.error('❌ [TauriApp] 环境检查失败:', error);
           }
         }, 200);
+
+        // 启用后台更新检查（无弹窗，仅记录状态）
+        try {
+          scheduleBackgroundUpdateChecks();
+        } catch {}
 
         // 加载会话数据
         startupMonitor.startPhase('会话加载');
