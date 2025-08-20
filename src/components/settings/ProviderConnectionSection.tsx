@@ -60,7 +60,7 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
             />
             {endpointPreview && (
               <p className="mt-1 text-[12px] text-gray-400 dark:text-gray-500 select-text break-all">
-                实际请求地址预览：{endpointPreview}
+                地址预览：{endpointPreview}
               </p>
             )}
           </div>

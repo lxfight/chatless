@@ -237,10 +237,10 @@ export function ModelSelector({
 
   const getCurrentModelDisplayText = () => {
     if (!currentModelId || !currentProvider) return "选择模型";
-    const maxLength = 12;
-    return currentModelId.length > maxLength
-      ? `${currentModelId.substring(0, maxLength)}...`
-      : currentModelId;
+    const model = currentProvider.models.find(m => m.name === currentModelId);
+    const text = model?.label || currentModelId;
+    const maxLength = 16;
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
   const SENTINEL_VALUE = '__none__';
@@ -306,7 +306,7 @@ export function ModelSelector({
             <span>
               {currentModelId
                 ? currentProvider
-                  ? `${currentModelId} (${currentProvider.name})`
+                  ? `${(currentProvider.models.find(m=>m.name===currentModelId)?.label) || currentModelId} (${currentProvider.name})`
                   : currentModelId
                 : allMetadata.length === 0
                   ? '加载模型中...'

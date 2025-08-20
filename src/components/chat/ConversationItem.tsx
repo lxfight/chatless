@@ -9,6 +9,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/types/chat";
+import { useProviderMetaStore } from '@/store/providerMetaStore';
+import type { ProviderMetadata } from '@/lib/metadata/types';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -102,12 +104,7 @@ export function ConversationItem({
         <div className="flex items-center justify-between text-xs mt-0.5">
           <div className="flex-1 min-w-0 flex items-center gap-2 pr-1 text-slate-500 dark:text-slate-400">
             <span className="text-[11px] whitespace-nowrap">{compactTime}</span>
-            <span
-              className="text-[10px] opacity-60 whitespace-nowrap overflow-hidden text-ellipsis truncate max-w-[8.5rem] sm:max-w-[10.5rem]"
-              title={conversation.model_id}
-            >
-              {conversation.model_id}
-            </span>
+            <ModelLabelSpan conversation={conversation} />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -137,3 +134,31 @@ export function ConversationItem({
     </ContextMenu>
   );
 } 
+
+function ModelLabelSpan({ conversation }: { conversation: Conversation }) {
+  const metadata = useProviderMetaStore((s)=> s.list as unknown as ProviderMetadata[]);
+  // 统一解析：始终从元数据按 provider+model_id（或仅 model_id）解析 label，不再读取会话里的临时字段
+  const prov = (conversation as any).model_provider as string | undefined;
+  const id = conversation.model_id;
+  let label: string | undefined = undefined;
+  if (prov) {
+    const p = (metadata || []).find(pp => pp.name === prov);
+    const m = p?.models?.find((mm: any) => mm.name === id);
+    label = m?.label;
+  }
+  if (!label) {
+    for (const p of (metadata || [])) {
+      const m = p.models?.find((mm:any)=> mm.name === id);
+      if (m?.label) { label = m.label as string; break; }
+    }
+  }
+  const display = label || conversation.model_id;
+  return (
+    <span
+      className="text-[10px] opacity-60 whitespace-nowrap overflow-hidden text-ellipsis truncate max-w-[8.5rem] sm:max-w-[10.5rem]"
+      title={(conversation as any).model_full_id || conversation.model_id}
+    >
+      {display}
+    </span>
+  );
+}
