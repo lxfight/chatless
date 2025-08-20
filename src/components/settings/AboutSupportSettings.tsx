@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_INFO, getVersionInfo } from "@/config/app-info";
-import { getUpdateAvailability } from "@/lib/update/update-notifier";
+import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, checkForUpdatesSilently, clearUpdateAvailable } from "@/lib/update/update-notifier";
 import { isDevelopment } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { linkOpener } from "@/lib/utils/linkOpener";
@@ -22,7 +22,7 @@ export function AboutSupportSettings() {
   const [onlyCheckDev, setOnlyCheckDev] = useState(false);
   const [notLatest, setNotLatest] = useState<{version: string}|null>(null);
 
-  // 读取实际版本信息
+  // 读取实际版本信息，并订阅更新可用性事件
   useEffect(() => {
     // 尝试从Tauri获取应用版本信息
     const getTauriVersion = async () => {
@@ -47,13 +47,27 @@ export function AboutSupportSettings() {
 
     getTauriVersion();
 
-    // 读取是否存在新版本（用于显示“当前不是最新版本”）
-    (async () => {
+    // 读取是否存在新版本（用于显示“当前不是最新版本”），并在事件触发时同步
+    let mounted = true;
+    const refreshAvailability = async () => {
       const info = await getUpdateAvailability();
-      if (info.available && info.version) {
-        setNotLatest({ version: info.version });
-      }
-    })();
+      if (!mounted) return;
+      if (info.available && info.version) setNotLatest({ version: info.version });
+      else setNotLatest(null);
+    };
+    refreshAvailability();
+
+    // 进入页面时触发一次静默检查，确保状态最新
+    checkForUpdatesSilently(true).finally(() => {});
+
+    if (typeof window !== 'undefined') {
+      const handler = () => { refreshAvailability().catch(() => {}); };
+      window.addEventListener(UPDATE_AVAILABILITY_EVENT, handler as EventListener);
+      return () => {
+        mounted = false;
+        window.removeEventListener(UPDATE_AVAILABILITY_EVENT, handler as EventListener);
+      };
+    }
 
     // 同步“仅检查不安装”偏好（生产与开发环境均可用）
     (async () => {
@@ -86,6 +100,9 @@ export function AboutSupportSettings() {
 
       if (!update || !('available' in update) || !update.available) {
         toast.success('已是最新版本');
+        // 同步清除可能残留的可用版本提示
+        try { await clearUpdateAvailable(); } catch {}
+        setNotLatest(null);
         return;
       }
 
