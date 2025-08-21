@@ -5,6 +5,7 @@ import { AnthropicProvider } from './providers/AnthropicProvider';
 import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { DeepSeekProvider } from './providers/DeepSeekProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
+import { OpenAIResponsesProvider } from './providers/OpenAIResponsesProvider';
 import type { CatalogProviderDef } from '@/lib/provider/catalog';
 
 /**
@@ -22,13 +23,13 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
       if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' } as const;
       return { ok: true } as const;
     }
-    private async getModelStrategy(model: string): Promise<'openai'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'> {
+    private async getModelStrategy(model: string): Promise<'openai'|'openai-responses'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'> {
       try {
         const { specializedStorage } = await import('@/lib/storage');
         const override = await specializedStorage.models.getModelStrategy(this.name, model);
-        if (override && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
+        if (override && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
         const def = await specializedStorage.models.getProviderDefaultStrategy(this.name);
-        if (def && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
+        if (def && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
       } catch (_) {}
       return 'openai-compatible';
     }
@@ -36,6 +37,7 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
       const key = await this.getApiKey();
       switch (strategy) {
         case 'openai': { const p = new OpenAIProvider(this.baseUrl, key || undefined, this.name); (p as any).aliasProviderName = this.name; return p; }
+        case 'openai-responses': { const p = new OpenAIResponsesProvider(this.baseUrl, key || undefined, this.name); (p as any).aliasProviderName = this.name; return p; }
         case 'anthropic': { const p = new AnthropicProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
         case 'gemini': { const p = new GoogleAIProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
         case 'deepseek': { const p = new DeepSeekProvider(this.baseUrl, key || undefined); (p as any).aliasProviderName = this.name; return p; }
@@ -53,6 +55,12 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
   switch (def.strategy) {
     case 'openai':
       return new OpenAIProvider(
+        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+        apiKey || undefined,
+        def.name
+      );
+    case 'openai-responses':
+      return new OpenAIResponsesProvider(
         baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
         apiKey || undefined,
         def.name

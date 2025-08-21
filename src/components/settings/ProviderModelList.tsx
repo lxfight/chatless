@@ -8,6 +8,9 @@ import { Brain, Workflow, Camera } from "lucide-react";
 import { getModelCapabilities } from "@/lib/provider/staticModels";
 import { ProviderModelItem } from "./ProviderModelItem";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ProviderModelListProps {
   provider: ProviderWithStatus;
@@ -29,9 +32,68 @@ export function ProviderModelList(props: ProviderModelListProps) {
     onModelApiKeyChange, onModelApiKeyBlur, onOpenParameters,
   } = props;
 
+  // 批量策略入口对所有 Provider 可见（便于统一批量覆盖）
+  const isMultiStrategyProvider = true;
+
+  // —— 批量策略设置（轻量） ——
+  const [batchMode, setBatchMode] = React.useState(false);
+  const [checked, setChecked] = React.useState<Record<string, boolean>>({});
+  const [batchStrategy, setBatchStrategy] = React.useState<'openai'|'openai-responses'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'>('openai-compatible');
+  const [strategyMap, setStrategyMap] = React.useState<Record<string, string | null>>({});
+
+  const toggleChecked = (id: string) => setChecked(prev => ({ ...prev, [id]: !prev[id] }));
+  const setAll = (ids: string[], v: boolean) => setChecked(prev => ({ ...prev, ...Object.fromEntries(ids.map(i => [i, v])) }));
+
+  const applyBatch = async (overrideStrategy?: string) => {
+    try {
+      const ids = Object.keys(checked).filter(k => checked[k]);
+      if (ids.length === 0) { toast.error('请先选择模型'); return; }
+      const { specializedStorage } = await import('@/lib/storage');
+      const value = (overrideStrategy || batchStrategy) as any;
+      await Promise.all(ids.map(id => specializedStorage.models.setModelStrategy(props.provider.name, id, value)));
+      setStrategyMap(prev => ({ ...prev, ...Object.fromEntries(ids.map(id => [id, value])) }));
+      toast.success(`已为 ${ids.length} 个模型设置策略`);
+    } catch (e) {
+      console.error(e);
+      toast.error('批量设置失败');
+    }
+  };
+
+  const clearBatch = async () => {
+    try {
+      const ids = Object.keys(checked).filter(k => checked[k]);
+      if (ids.length === 0) { toast.error('请先选择模型'); return; }
+      const { specializedStorage } = await import('@/lib/storage');
+      await Promise.all(ids.map(id => specializedStorage.models.removeModelStrategy(props.provider.name, id)));
+      setStrategyMap(prev => ({ ...prev, ...Object.fromEntries(ids.map(id => [id, null])) }));
+      toast.success(`已清除 ${ids.length} 个模型的策略覆盖`);
+    } catch (e) {
+      console.error(e);
+      toast.error('清除覆盖失败');
+    }
+  };
+
+  // 载入策略覆盖，用于回显
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { specializedStorage } = await import('@/lib/storage');
+        const map: Record<string, string | null> = {};
+        for (const m of modelsForDisplay) {
+          map[m.name] = await specializedStorage.models.getModelStrategy(provider.name, m.name);
+        }
+        setStrategyMap(map);
+      } catch (e) { console.warn(e); }
+    })();
+  }, [provider.name, modelsForDisplay]);
+
   const renderItem = (model: ModelMetadata) => (
-    <ProviderModelItem
-      key={model.name}
+    <div key={model.name} className="flex items-center gap-2 w-full">
+      {batchMode && (
+        <Checkbox checked={!!checked[model.name]} onCheckedChange={()=>toggleChecked(model.name)} className="h-3.5 w-3.5" />
+      )}
+      <div className="flex-1 min-w-0">
+      <ProviderModelItem
       providerName={provider.name}
       model={model}
       showApiKeyFields={showApiKeyFields}
@@ -40,6 +102,9 @@ export function ProviderModelList(props: ProviderModelListProps) {
       onModelApiKeyChange={onModelApiKeyChange}
       onModelApiKeyBlur={onModelApiKeyBlur}
       onOpenParameters={onOpenParameters}
+      showStrategyBadge={batchMode}
+      strategy={strategyMap[model.name] || null}
+      onStrategyChange={(s: string | null)=>setStrategyMap(prev => ({ ...prev, [model.name]: s }))}
       onRename={async (modelName, nextLabelRaw) => {
         const nextLabel = (nextLabelRaw || '').trim();
         if (!nextLabel) { toast.error('名称不可为空'); return; }
@@ -65,6 +130,8 @@ export function ProviderModelList(props: ProviderModelListProps) {
         toast.success('已删除模型', { description: model.name });
       }}
     />
+    </div>
+    </div>
   );
 
   const [filterThinking, setFilterThinking] = React.useState(false);
@@ -123,7 +190,32 @@ export function ProviderModelList(props: ProviderModelListProps) {
           </div>
           <Input value={modelSearch} onChange={(e) => setModelSearch(e.target.value)} placeholder="输入以筛选模型…" className="h-8 text-sm w-64" />
         </div>
-        <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+        <div className="flex items-center gap-2">
+          {isMultiStrategyProvider && (
+            <Button variant="outline" className="h-7 px-2 text-xs" onClick={()=>setBatchMode(v=>!v)}>{batchMode? '退出批量' : '批量设置策略'}</Button>
+          )}
+          {isMultiStrategyProvider && batchMode && (
+            <>
+              <Select value={batchStrategy} onValueChange={(v:any)=>{ if (v === '__clear__') { const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void clearBatch(); } return; } setBatchStrategy(v); const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void applyBatch(v); } }}>
+                <SelectTrigger className="w-56 h-7 text-xs"><SelectValue placeholder="选择策略"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai-compatible" className="text-xs">OpenAI Compatible (/v1/chat/completions)</SelectItem>
+                  <SelectItem value="openai-responses" className="text-xs">OpenAI Responses (/v1/responses)</SelectItem>
+                  <SelectItem value="openai" className="text-xs">OpenAI Strict</SelectItem>
+                  <SelectItem value="anthropic" className="text-xs">Anthropic (messages)</SelectItem>
+                  <SelectItem value="gemini" className="text-xs">Google Gemini (generateContent)</SelectItem>
+                  <SelectItem value="deepseek" className="text-xs">DeepSeek (chat/completions)</SelectItem>
+                  <SelectItem value="__clear__" className="text-xs text-red-600">清除覆盖（恢复默认）</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button className="h-7 px-3 text-xs" onClick={() => applyBatch()}>应用到选中</Button>
+              <Button variant="secondary" className="h-7 px-3 text-xs" onClick={clearBatch}>清除覆盖</Button>
+              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setAll(modelsForDisplay.map(m=>m.name), true)}>全选</Button>
+              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setChecked({})}>清空</Button>
+            </>
+          )}
+          <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+        </div>
       </div>
 
       <div className="space-y-3">

@@ -1,5 +1,6 @@
 export type CatalogStrategy =
   | 'openai'               // OpenAI 官方
+  | 'openai-responses'     // OpenAI Responses (/responses)
   | 'openai-compatible'    // 兼容 OpenAI 接口的聚合/代理
   | 'anthropic'            // Claude
   | 'gemini'               // Google AI
@@ -25,6 +26,14 @@ export const AVAILABLE_PROVIDERS_CATALOG: CatalogProviderDef[] = [
     strategy: 'openai',
     requiresKey: true,
     defaultUrl: 'https://api.openai.com/v1',
+  },
+  {
+    id: 'openai-responses',
+    name: 'OpenAI (Responses)',
+    strategy: 'openai-responses',
+    requiresKey: true,
+    defaultUrl: 'https://api.openai.com/v1',
+    notes: '使用 /responses 端点，支持 reasoning 与工具调用预留',
   },
   {
     id: 'anthropic',

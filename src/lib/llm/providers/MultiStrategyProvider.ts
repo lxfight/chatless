@@ -4,6 +4,7 @@ import { OpenAICompatibleProvider } from './OpenAICompatibleProvider';
 import { AnthropicProvider } from './AnthropicProvider';
 import { GoogleAIProvider } from './GoogleAIProvider';
 import { DeepSeekProvider } from './DeepSeekProvider';
+import { OpenAIResponsesProvider } from './OpenAIResponsesProvider';
 import { SSEClient } from '@/lib/sse-client';
 
 /**
@@ -56,13 +57,13 @@ export class MultiStrategyProvider extends BaseProvider {
   /**
    * 获取模型级策略覆盖；若不存在则回退到 openai-compatible
    */
-  private async getModelStrategy(model: string): Promise<'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek'> {
+  private async getModelStrategy(model: string): Promise<'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek'> {
     try {
       const { specializedStorage } = await import('@/lib/storage');
       const override = await specializedStorage.models.getModelStrategy(this.name, model);
-      if (override && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
+      if (override && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
       const def = await specializedStorage.models.getProviderDefaultStrategy(this.name);
-      if (def && (['openai','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
+      if (def && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
     } catch (_) {}
     return 'openai-compatible';
   }
@@ -72,6 +73,8 @@ export class MultiStrategyProvider extends BaseProvider {
     switch (strategy) {
       case 'openai':
         return new OpenAIProvider(this.baseUrl, key || undefined, this.name);
+      case 'openai-responses':
+        return new OpenAIResponsesProvider(this.baseUrl, key || undefined, this.name);
       case 'anthropic':
         return new AnthropicProvider(this.baseUrl, key || undefined);
       case 'gemini':

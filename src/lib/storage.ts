@@ -427,7 +427,7 @@ export const specializedStorage = {
         },
 
         // —— 模型请求策略（per-provider、per-model）——
-        setModelStrategy: (providerName: string, modelId: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+        setModelStrategy: (providerName: string, modelId: string, strategy: 'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
           const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
           return StorageUtil.setItem(key, strategy, 'model-strategy.json');
         },
@@ -439,7 +439,7 @@ export const specializedStorage = {
           const key = `${providerName.toLowerCase()}_${modelId.toLowerCase()}_strategy`;
           return StorageUtil.removeItem(key, 'model-strategy.json');
         },
-        setProviderDefaultStrategy: (providerName: string, strategy: 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
+        setProviderDefaultStrategy: (providerName: string, strategy: 'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek') => {
           const key = `${providerName.toLowerCase()}_default_strategy`;
           return StorageUtil.setItem(key, strategy, 'model-strategy.json');
         },

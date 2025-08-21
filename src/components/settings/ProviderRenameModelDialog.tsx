@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -12,7 +13,9 @@ export function ProviderRenameModelDialog({ providerName, modelName, currentLabe
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e:any)=>e?.preventDefault?.()}>重命名</DropdownMenuItem>
+        <DropdownMenuItem className="text-xs" onSelect={(e:any)=>e?.preventDefault?.()}>
+          <span className="inline-flex items-center gap-2 w-full">重命名</span>
+        </DropdownMenuItem>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>

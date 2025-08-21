@@ -3,10 +3,11 @@ import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-type Strategy = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek';
+type Strategy = 'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek';
 
 const STRATEGY_OPTIONS: Array<{ value: Strategy; label: string }> = [
   { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
+  { value: 'openai-responses', label: 'OpenAI Responses (/v1/responses)' },
   { value: 'openai', label: 'OpenAI Strict' },
   { value: 'anthropic', label: 'Anthropic (messages)' },
   { value: 'gemini', label: 'Google Gemini (generateContent)' },
