@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronUp, Loader2, Wifi } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Wifi, BugPlay } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProviderWithStatus } from "@/hooks/useProviderManagement";
 
@@ -27,6 +27,8 @@ interface ProviderHeaderProps {
   fallbackAvatarSrc: string;
   onOpenToggle: () => void;
   onRefresh: (provider: ProviderWithStatus) => void;
+  onOpenFetchDebugger?: (provider: ProviderWithStatus) => void;
+  hasFetchRule?: boolean;
 }
 
 export function ProviderHeader(props: ProviderHeaderProps) {
@@ -100,6 +102,16 @@ export function ProviderHeader(props: ProviderHeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+        {props.onOpenFetchDebugger && (
+          <button
+            onClick={(e) => { e.stopPropagation(); props.onOpenFetchDebugger?.(provider); }}
+            className={cn("p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800",
+              props.hasFetchRule ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400")}
+            title="模型获取调试器"
+          >
+            <BugPlay className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onRefresh(provider); }}
           disabled={isConnecting || isGloballyInitializing}

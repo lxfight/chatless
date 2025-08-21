@@ -28,7 +28,8 @@
     "update:verify": "node scripts/updater-verify.mjs",
     "version:set": "node scripts/set-version.mjs",
     "tag:repush": "node scripts/repushtag.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "export:model-rules": "node scripts/export-model-fetch-rules.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.0.8",

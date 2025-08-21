@@ -5,6 +5,8 @@ import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, HelpCircle } fr
 import { ProviderStrategySelector } from './ProviderStrategySelector';
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"; // 使用 shadcn 折叠组件
 import { ProviderHeader } from "./ProviderHeader";
+import { isDevelopmentEnvironment } from '@/lib/utils/environment';
+import ModelFetchDebugger from './ModelFetchDebugger';
 import { markResolvedBase, markUrlMissing } from '@/lib/utils/logoService';
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
@@ -68,6 +70,34 @@ export function ProviderSettings({
     modelId: string;
     modelLabel?: string;
   } | null>(null);
+
+  // —— 模型获取调试器状态 ——
+  const [fetchDebuggerOpen, setFetchDebuggerOpen] = useState(false);
+  const [hasFetchRule, setHasFetchRule] = useState<boolean>(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { specializedStorage } = await import('@/lib/storage');
+        const rule = await specializedStorage.models.getProviderFetchDebugRule(provider.name);
+        setHasFetchRule(!!rule);
+      } catch {}
+    })();
+  }, [provider.name]);
+
+  useEffect(() => {
+    if (!fetchDebuggerOpen) {
+      (async () => {
+        try {
+          const { specializedStorage } = await import('@/lib/storage');
+          const rule = await specializedStorage.models.getProviderFetchDebugRule(provider.name);
+          setHasFetchRule(!!rule);
+        } catch {}
+      })();
+    }
+  }, [fetchDebuggerOpen, provider.name]);
+
+  const openFetchDebugger = () => setFetchDebuggerOpen(true);
 
   // provider-specific API key doc links
   const keyDocLinks: Record<string, string> = {
@@ -333,6 +363,8 @@ export function ProviderSettings({
           fallbackAvatarSrc={fallbackAvatarSrc}
           onOpenToggle={() => setIsOpen(!isOpen)}
           onRefresh={onRefresh}
+          onOpenFetchDebugger={isDevelopmentEnvironment() ? (() => setFetchDebuggerOpen(true)) : undefined}
+          hasFetchRule={hasFetchRule}
         />
 
       <CollapsibleContent className="px-4 pb-4 pt-3 bg-gray-50/50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-700">
@@ -387,6 +419,9 @@ export function ProviderSettings({
         modelLabel={selectedModelForParams.modelLabel}
       />
     )}
+
+    {/* 模型获取调试器弹窗（独立组件） */}
+    <ModelFetchDebugger open={fetchDebuggerOpen} onOpenChange={setFetchDebuggerOpen} provider={provider} baseUrl={localUrl || provider.api_base_url || ''} />
   </>
   );
 }

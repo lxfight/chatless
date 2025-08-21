@@ -16,6 +16,26 @@ export class OpenAICompatibleProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{ name: string; label?: string; aliases?: string[] }> | null> {
+    // 通用兜底：按 OpenAI 兼容协议拉取 /models
+    try {
+      const apiKey = await this.getApiKey();
+      const base = (this as any).baseUrl?.replace(/\/$/, '') || '';
+      if (!base) throw new Error('no base url');
+      const url = `${base}/models`;
+      const { tauriFetch } = await import('@/lib/request');
+      const resp: any = await tauriFetch(url, { method: 'GET', headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} });
+      const items = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
+      if (Array.isArray(items) && items.length) {
+        return items.map((it: any) => {
+          const id = it?.id || it?.name;
+          const label = it?.label || it?.id || it?.name;
+          return { name: String(id), label: String(label), aliases: [String(id)] };
+        });
+      }
+    } catch (e) {
+      // 静态兜底，避免界面空白
+      console.warn('[OpenAICompatibleProvider] fetchModels fallback to static list', e);
+    }
     const key = this.name || 'OpenAI-Compatible';
     const list = getStaticModels(key);
     return list?.map((m) => ({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;

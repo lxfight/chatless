@@ -14,7 +14,25 @@ export class GoogleAIProvider extends BaseProvider {
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
-    // 仅使用静态模型
+    // Google AI 特殊：支持通过 query 参数 ?key=API_KEY 获取
+    // curl https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY
+    try {
+      const apiKey = await this.getApiKey();
+      const base = (this as any).baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com/v1beta';
+      const url = `${base}/models${apiKey ? `?key=${encodeURIComponent(apiKey)}` : ''}`;
+      const resp: any = await (await import('@/lib/request')).tauriFetch(url, { method: 'GET' });
+      const items = Array.isArray(resp?.models) ? resp.models : (Array.isArray(resp?.data) ? resp.data : []);
+      if (Array.isArray(items) && items.length) {
+        return items.map((it: any)=>{
+          const id = it?.name || it?.id;
+          const label = it?.display_name || it?.label || id;
+          return { name: String(id), label: String(label), aliases: [String(id)] };
+        });
+      }
+    } catch (e) {
+      // 网络或鉴权失败时回退静态模型
+      console.warn('[GoogleAIProvider] fetchModels via query key failed, fallback to static list', e);
+    }
     const list = getStaticModels('Google AI');
     return list?.map((m)=>({ name: m.id, label: m.label, aliases: [m.id] })) ?? null;
   }

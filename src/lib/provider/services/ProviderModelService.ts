@@ -5,6 +5,9 @@ import { defaultCacheManager } from "@/lib/cache/CacheManager";
 import { EVENTS } from "../events/keys";
 import { getStaticModels } from "../staticModels";
 import { ProviderRegistry } from "@/lib/llm";
+import { specializedStorage } from "@/lib/storage";
+import { MODEL_FETCH_RULES, type ModelFetchRule } from "@/config/modelFetchRules";
+import { tauriFetch } from "@/lib/request";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000;
 
@@ -64,6 +67,94 @@ export class ProviderModelService {
   }
 
   private async _fetchImpl(name: string, ttl: number): Promise<void> {
+    // 0) 若存在“用户覆盖/调试规则”或“内置规则（纳入版本控制）”，优先按规则拉取
+    try {
+      const userRule = await specializedStorage.models.getProviderFetchDebugRule(name);
+      // 允许以显示名称或唯一ID作为键；按精确与不区分大小写回退匹配
+      const providers = await providerRepository.getAll();
+      const target = providers.find((p) => p.name === name);
+      const candidateKeys: string[] = [];
+      if (name) candidateKeys.push(name);
+      // 若存在 provider 唯一ID（假设字段为 id），加入候选
+      const targetId = (target as any)?.id;
+      if (targetId) candidateKeys.push(String(targetId));
+      // 大小写不敏感回退键
+      const insensitiveKeys = candidateKeys.map(k => k.toLowerCase());
+
+      let builtInRule: ModelFetchRule | undefined = undefined;
+      for (const key of candidateKeys) {
+        if (MODEL_FETCH_RULES[key] !== undefined) { builtInRule = MODEL_FETCH_RULES[key]; break; }
+      }
+      if (!builtInRule) {
+        // 回退到不区分大小写匹配
+        const mapLower = new Map<string, ModelFetchRule>();
+        for (const [k, v] of Object.entries(MODEL_FETCH_RULES)) {
+          mapLower.set(k.toLowerCase(), v);
+        }
+        for (const low of insensitiveKeys) {
+          if (mapLower.has(low)) { builtInRule = mapLower.get(low); break; }
+        }
+      }
+
+      const rule = userRule || builtInRule;
+      if (rule) {
+        const base0 = (target?.url?.trim() || '').replace(/\/$/, '');
+        const base = rule.useV1 && !/\/v1\b/.test(base0) ? `${base0}/v1` : base0;
+        const url = base + (rule.endpointSuffix || '/models');
+        const headers: Record<string, string> = {};
+        if (target?.requiresKey) {
+          try { const { KeyManager } = await import('@/lib/llm/KeyManager'); const k = await KeyManager.getProviderKey(name); if (k) headers['Authorization'] = `Bearer ${k}`; } catch {}
+        }
+        let onlineList: any[] = [];
+        let ruleSuccess = false;
+        try {
+          const res: any = await tauriFetch(url, { method: 'GET', headers });
+          const pickByPath = (obj: any, path?: string) => {
+            if (!path) return undefined;
+            return path.split('.').reduce((acc: any, key: string) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+          };
+          const arr: any[] = Array.isArray(pickByPath(res, rule.modelsArrayPath || 'data')) ? pickByPath(res, rule.modelsArrayPath || 'data') : (Array.isArray(res) ? res : []);
+          const toTitleFromId = (s: string) => {
+            if (!s) return s as any;
+            let spaced = s.replace(/([a-z])([A-Z])/g, '$1 $2');
+            spaced = spaced.replace(/[_\-:.\/]+/g, ' ');
+            spaced = spaced.replace(/\s+/g, ' ').trim();
+            return spaced.split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1)) : w).join(' ');
+          };
+          onlineList = arr.map((it) => {
+            const id = (pickByPath(it, rule.idPath || 'id') ?? it?.id ?? it?.model ?? it?.name);
+            let label = (pickByPath(it, rule.labelPath || '') ?? it?.label ?? it?.name);
+            if ((label === undefined || label === null || String(label).trim() === '') && rule.autoLabelFromId) {
+              label = toTitleFromId(String(id));
+            }
+            if (label === undefined || label === null || String(label).trim() === '') {
+              label = String(id);
+            }
+            return { name: String(id), label: String(label), aliases: [String(id)] };
+          }).filter((m) => m.name);
+          ruleSuccess = true;
+          // 将结果写入调试结果文件
+          try { await specializedStorage.models.setProviderFetchDebugResult(name, onlineList.map(m=>({ name: m.name, label: m.label })) ); } catch {}
+        } catch (e) {
+          // 规则拉取失败则继续走常规逻辑
+          console.warn('[ProviderModelService] 调试规则拉取失败，回退常规逻辑', e);
+          try {
+            const cached = await specializedStorage.models.getProviderFetchDebugResult(name);
+            if (cached && Array.isArray(cached)) {
+              onlineList = cached.map((m:any)=>({ name: m.name, label: m.label, aliases: [m.name] }));
+              ruleSuccess = true;
+            }
+          } catch {}
+        }
+        if (ruleSuccess) {
+          // 规则存在即认为其为权威来源（允许空数组）
+          await modelRepository.save(name, onlineList as any, ttl);
+          await defaultCacheManager.set(EVENTS.providerModels(name), true);
+          return;
+        }
+      }
+    } catch {}
+
     // 1) 在线拉取（若策略支持），优先使用网络结果
     //    目前 OllamaProvider 实现了 fetchModels，会访问 /api/tags。
     let online: Array<{ name: string; label?: string; aliases?: string[] }> | null = null;

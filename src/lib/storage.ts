@@ -451,6 +451,44 @@ export const specializedStorage = {
           const key = `${providerName.toLowerCase()}_default_strategy`;
           return StorageUtil.removeItem(key, 'model-strategy.json');
         },
+
+        // —— Provider 模型获取调试规则 ——
+        /**
+         * 保存指定 Provider 的模型获取调试规则
+         * 规则示例：
+         * {
+         *   useV1: true,
+         *   endpointSuffix: "/models",
+         *   modelsArrayPath: "data",            // JSON 路径（点号语法）
+         *   idPath: "id",                        // 相对 item 的路径
+         *   labelPath: "name"                    // 可选
+         * }
+         */
+        setProviderFetchDebugRule: (providerName: string, rule: any) => {
+          const key = `${providerName.toLowerCase()}_fetch_rule`;
+          return StorageUtil.setItem(key, rule, 'model-fetch-debug.json');
+        },
+        /** 读取指定 Provider 的模型获取调试规则 */
+        getProviderFetchDebugRule: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_fetch_rule`;
+          return StorageUtil.getItem<any>(key, null, 'model-fetch-debug.json');
+        },
+        /** 删除指定 Provider 的模型获取调试规则 */
+        removeProviderFetchDebugRule: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_fetch_rule`;
+          return StorageUtil.removeItem(key, 'model-fetch-debug.json');
+        },
+
+        /** 保存调试获取的最新结果（仅用于开发调试记录） */
+        setProviderFetchDebugResult: (providerName: string, models: Array<{ name: string; label?: string }>) => {
+          const key = `${providerName.toLowerCase()}_fetch_result`;
+          return StorageUtil.setItem(key, models, 'model-fetch-debug.json');
+        },
+        /** 读取调试获取的最新结果 */
+        getProviderFetchDebugResult: (providerName: string) => {
+          const key = `${providerName.toLowerCase()}_fetch_result`;
+          return StorageUtil.getItem<Array<{ name: string; label?: string }>>(key, [], 'model-fetch-debug.json');
+        },
   },
 
   /**
