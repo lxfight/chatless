@@ -51,9 +51,16 @@ export function ModelBrandLogo({ modelId, providerName, size = 18, fallbackSrc, 
           markUrlMissing(url);
         }
       }
+      // 候选均失败时，回退到提供的 fallbackSrc
+      if (!cancelled && fallbackSrc) setSrc(fallbackSrc);
     })();
     return () => { cancelled = true; };
   }, [base]);
+
+  // 当仅 fallbackSrc 变化时（base 未变或为空），确保回退资源也能更新
+  React.useEffect(() => {
+    if (!base && fallbackSrc) setSrc(fallbackSrc);
+  }, [fallbackSrc, base]);
 
   return (
     <img
@@ -62,6 +69,10 @@ export function ModelBrandLogo({ modelId, providerName, size = 18, fallbackSrc, 
       width={size}
       height={size}
       className={className}
+      onError={() => {
+        try { if (src) markUrlMissing(src); } catch {}
+        if (fallbackSrc && src !== fallbackSrc) setSrc(fallbackSrc);
+      }}
     />
   );
 }

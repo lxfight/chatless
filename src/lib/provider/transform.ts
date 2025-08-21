@@ -1,5 +1,6 @@
 import { ProviderEntity, ProviderStatus, ModelEntity } from './types';
 import { getAvatarSync } from '@/lib/utils/logoService';
+import { AVAILABLE_PROVIDERS_CATALOG } from './catalog';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
 import { getStaticModels } from './staticModels';
 
@@ -11,7 +12,9 @@ export function mapToProviderWithStatus(
 ): ProviderWithStatus {
   const displayName = entity.displayName || entity.name;
   // 若存在 avatarSeed，则用生成头像替代默认 icon
-  const defaultIcon = `/llm-provider-icon/${entity.name.toLowerCase().replace(/\s+/g, '-')}.png`;
+  const catalog = AVAILABLE_PROVIDERS_CATALOG.find((c) => c.name === displayName);
+  const baseName = catalog ? catalog.id : entity.name.toLowerCase().replace(/\s+/g, '-');
+  const defaultIcon = `/llm-provider-icon/${baseName}.png`;
   const icon = entity.avatarSeed
     ? getAvatarSync(entity.avatarSeed, displayName, 20)
     : defaultIcon;

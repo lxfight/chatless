@@ -2,6 +2,7 @@ import { providerRepository } from "@/lib/provider/ProviderRepository";
 import { modelRepository } from "@/lib/provider/ModelRepository";
 import type { ProviderMetadata, ModelMetadata } from "./types";
 import { getAvatarSync } from '@/lib/utils/logoService';
+import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 
 class MetadataService {
   private cache: ProviderMetadata[] = [];
@@ -19,10 +20,13 @@ class MetadataService {
       providers.map(async (p) => {
         const displayName = (p as any).displayName || p.name;
         const slug = String(displayName).toLowerCase().replace(/\s+/g, '-');
+        // 若在目录中存在 catalog 定义，则优先使用其 id 作为图标基名
+        const catalog = AVAILABLE_PROVIDERS_CATALOG.find(c => c.name === displayName);
+        const iconBase = catalog ? catalog.id : slug;
         // 默认优先 png，减少首次 404；用户自定义走缓存头像
         const icon = p.avatarSeed
           ? getAvatarSync(p.avatarSeed, displayName, 20)
-          : `/llm-provider-icon/${slug}.png`;
+          : `/llm-provider-icon/${iconBase}.png`;
 
         const rawModels = (await modelRepository.get(p.name)) ?? [];
         const models: ModelMetadata[] = rawModels.map((m: any) => ({
