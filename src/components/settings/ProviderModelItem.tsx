@@ -24,6 +24,8 @@ interface ProviderModelItemProps {
   showStrategyBadge?: boolean;
   strategy?: string | null;
   onStrategyChange?: (s: string | null) => void;
+  allowStrategyActions?: boolean;
+  allowDelete?: boolean;
 }
 
 export function ProviderModelItem(props: ProviderModelItemProps) {
@@ -42,6 +44,8 @@ export function ProviderModelItem(props: ProviderModelItemProps) {
     showStrategyBadge,
     strategy,
     onStrategyChange,
+    allowStrategyActions = true,
+    allowDelete = true,
   } = props;
 
   return (
@@ -102,19 +106,20 @@ export function ProviderModelItem(props: ProviderModelItemProps) {
             <DropdownMenuItem className="text-xs" onSelect={(e:any)=>{ e?.preventDefault?.(); onOpenParameters(model.name, model.label); }}>
               <span className="inline-flex items-center gap-2 w-full"><SlidersHorizontal className="w-3.5 h-3.5" /> 参数</span>
             </DropdownMenuItem>
-            {/* 策略选择（行内单项设置） */}
-            <div className="px-3 py-2">
-              <label className="block text-xs text-gray-500 mb-1">请求策略</label>
-              <div className="flex flex-wrap gap-1.5">
-                {['openai-compatible','openai-responses','openai','anthropic','gemini','deepseek'].map((s)=> (
-                  <button key={s} className={`px-2 py-0.5 rounded border text-[11px] ${strategy===s? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
-                    onClick={async(e)=>{ e.preventDefault(); try { const { specializedStorage } = await import('@/lib/storage'); await specializedStorage.models.setModelStrategy(providerName, model.name, s as any); onStrategyChange?.(s); toast.success('已更新策略'); } catch(err){ console.error(err); toast.error('更新策略失败'); } }}>
-                    {s}
-                  </button>
-                ))}
-                <button className="px-2 py-0.5 rounded border text-[11px] border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300" onClick={async(e)=>{ e.preventDefault(); try { const { specializedStorage } = await import('@/lib/storage'); await specializedStorage.models.removeModelStrategy(providerName, model.name); onStrategyChange?.(null); toast.success('已清除覆盖'); } catch(err){ console.error(err); toast.error('清除失败'); } }}>清除</button>
+            {allowStrategyActions && (
+              <div className="px-3 py-2">
+                <label className="block text-xs text-gray-500 mb-1">请求策略</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['openai-compatible','openai-responses','openai','anthropic','gemini','deepseek'].map((s)=> (
+                    <button key={s} className={`px-2 py-0.5 rounded border text-[11px] ${strategy===s? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
+                      onClick={async(e)=>{ e.preventDefault(); try { const { specializedStorage } = await import('@/lib/storage'); await specializedStorage.models.setModelStrategy(providerName, model.name, s as any); onStrategyChange?.(s); toast.success('已更新策略'); } catch(err){ console.error(err); toast.error('更新策略失败'); } }}>
+                      {s}
+                    </button>
+                  ))}
+                  <button className="px-2 py-0.5 rounded border text-[11px] border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300" onClick={async(e)=>{ e.preventDefault(); try { const { specializedStorage } = await import('@/lib/storage'); await specializedStorage.models.removeModelStrategy(providerName, model.name); onStrategyChange?.(null); toast.success('已清除覆盖'); } catch(err){ console.error(err); toast.error('清除失败'); } }}>清除</button>
+                </div>
               </div>
-            </div>
+            )}
             {/* 重命名 */}
             <div className="px-2 py-1">
               {(() => {
@@ -127,7 +132,7 @@ export function ProviderModelItem(props: ProviderModelItemProps) {
                 );
               })()}
             </div>
-            {canDelete && (
+            {canDelete && allowDelete && (
               <>
                 <DropdownMenuSeparator />
                 <AlertDialog>

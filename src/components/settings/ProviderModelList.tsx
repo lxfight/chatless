@@ -32,8 +32,10 @@ export function ProviderModelList(props: ProviderModelListProps) {
     onModelApiKeyChange, onModelApiKeyBlur, onOpenParameters,
   } = props;
 
-  // 批量策略入口对所有 Provider 可见（便于统一批量覆盖）
-  const isMultiStrategyProvider = true;
+  // Provider 特性
+  const isOllama = (provider.name || '').toLowerCase().includes('ollama');
+  // 批量策略入口（Ollama 不支持策略设置）
+  const isMultiStrategyProvider = !isOllama;
 
   // —— 批量策略设置（轻量） ——
   const [batchMode, setBatchMode] = React.useState(false);
@@ -89,7 +91,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
 
   const renderItem = (model: ModelMetadata) => (
     <div key={model.name} className="flex items-center gap-2 w-full">
-      {batchMode && (
+      {batchMode && isMultiStrategyProvider && (
         <Checkbox checked={!!checked[model.name]} onCheckedChange={()=>toggleChecked(model.name)} className="h-3.5 w-3.5" />
       )}
       <div className="flex-1 min-w-0">
@@ -102,9 +104,11 @@ export function ProviderModelList(props: ProviderModelListProps) {
       onModelApiKeyChange={onModelApiKeyChange}
       onModelApiKeyBlur={onModelApiKeyBlur}
       onOpenParameters={onOpenParameters}
-      showStrategyBadge={batchMode}
+      showStrategyBadge={batchMode && isMultiStrategyProvider}
       strategy={strategyMap[model.name] || null}
       onStrategyChange={(s: string | null)=>setStrategyMap(prev => ({ ...prev, [model.name]: s }))}
+      allowStrategyActions={!isOllama}
+      allowDelete={!isOllama}
       onRename={async (modelName, nextLabelRaw) => {
         const nextLabel = (nextLabelRaw || '').trim();
         if (!nextLabel) { toast.error('名称不可为空'); return; }
@@ -214,7 +218,9 @@ export function ProviderModelList(props: ProviderModelListProps) {
               <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setChecked({})}>清空</Button>
             </>
           )}
-          <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+          {!isOllama && (
+            <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+          )}
         </div>
       </div>
 

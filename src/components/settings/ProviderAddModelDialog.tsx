@@ -78,7 +78,7 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
       <DialogTrigger asChild>
         <Button type="button" size="sm" variant="outline" className="h-8 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">添加模型</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle>添加模型</DialogTitle>
         </DialogHeader>
@@ -102,7 +102,7 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
               <div className="col-span-3">
                 <label className="block text-xs text-gray-500 mb-1">请求策略</label>
                 <Select value={row.strategy} onValueChange={(v:any)=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, strategy: v } : r))}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="跟随默认" />
                   </SelectTrigger>
                   <SelectContent>
@@ -113,15 +113,15 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
                 </Select>
               </div>
               <div className="col-span-1 flex items-end gap-1">
-                <Button type="button" variant="outline" className="h-9 w-9 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200" onClick={addRow}>+</Button>
-                <Button type="button" variant="outline" className="h-9 w-9 text-gray-500" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
+                <Button type="button" variant="outline" className="h-7 w-7 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 p-0" onClick={addRow}>+</Button>
+                <Button type="button" variant="outline" className="h-7 w-7 rounded-md text-gray-500 p-0" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
               </div>
             </div>
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" className="bg-white text-gray-600" onClick={()=>setOpen(false)} disabled={saving}>取消</Button>
-          <Button className="bg-blue-500/80 hover:bg-blue-500 text-white" onClick={submit} disabled={saving || !canSubmit}>{saving? '保存中…' : '批量添加/更新'}</Button>
+          <Button variant="outline" className="bg-white text-gray-600 h-8 px-3" onClick={()=>setOpen(false)} disabled={saving}>取消</Button>
+          <Button className="bg-blue-500/80 hover:bg-blue-500 text-white h-8 px-3" onClick={submit} disabled={saving || !canSubmit}>{saving? '保存中…' : '批量添加/更新'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
