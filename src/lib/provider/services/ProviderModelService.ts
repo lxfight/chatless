@@ -12,20 +12,46 @@ import { tauriFetch } from "@/lib/request";
 const DEFAULT_TTL = 24 * 60 * 60 * 1000;
 
 // ---- 辅助：解析模型名用于排序（尽量鲁棒，解析失败则返回默认值） ----
-function parseModelNameForSort(name: string): {
-  base: string;          // 冒号前的基名，例如 "qwen2.5"
-  sizeScore: number;     // 规模分数，越大越靠前（按 b/m/k 估计）
-  isLatest: boolean;     // 是否包含 latest 标签
+function parseModelNameForSort(name: string, label?: string): {
+  brand: string;         // 品牌/系列（gemini/gpt/qwen/...）
+  versionScore: number;  // 版本号分数（如 2.5 > 1.5）
+  variantRank: number;   // 变体权重（pro > flash > turbo > nano 等）
+  sizeScore: number;     // 规模分数（b/m/k）
+  revisionScore: number; // 修订号分数（如 010 > 002）
+  isLatest: boolean;     // 是否 latest
   lower: string;         // 全名小写
 } {
   try {
     const lower = String(name || '').toLowerCase();
-    const [baseRaw, tagRaw] = lower.split(':');
-    const base = baseRaw || lower;
-    const tag = tagRaw || '';
+    const text = `${(label || '').toLowerCase()} ${lower}`.trim();
+    // 品牌/系列
+    const known = ['gemini','gpt','deepseek','qwen','grok','claude','llama','mistral','glm','gemma','kimi','moonshot','yi','openai','google'];
+    const brand = known.find(k => text.includes(k)) || (text.split(/[^a-z0-9]+/)[0] || '');
 
-    // 尝试从 tag 或整体名中解析出规模，如 70b、7b、3.8b、500m、50k 等
-    const target = tag || lower;
+    // 版本号（取第一个 x.y 或 x）
+    let versionScore = 0;
+    const ver = text.match(/\b(\d+(?:\.\d+)?)(?:\s*|\b)/);
+    if (ver) {
+      const v = parseFloat(ver[1]);
+      if (isFinite(v)) versionScore = Math.round(v * 1000); // 2.5 → 2500
+    }
+
+    // 变体权重：pro > flash > turbo > mini > nano > instruct > preview
+    const order: Record<string, number> = {
+      pro: 100,
+      flash: 90,
+      turbo: 80,
+      ultra: 75,
+      mini: 60,
+      nano: 50,
+      instruct: 40,
+      preview: 10,
+    };
+    let variantRank = 0;
+    for (const [k, w] of Object.entries(order)) { if (text.includes(k)) variantRank = Math.max(variantRank, w); }
+
+    // 规模（b/m/k）
+    const target = text;
     const match = target.match(/(\d+(?:\.\d+)?)([bmk])\b/); // 仅识别 b/m/k
     let sizeScore = 0;
     if (match) {
@@ -35,13 +61,18 @@ function parseModelNameForSort(name: string): {
       sizeScore = isFinite(num) ? num * mul : 0;
     }
 
+    // latest 与修订号
     const isLatest = /\blatest\b/.test(target);
-    // 若 latest 且未解析出数值，给一个温和的权重，确保不至于排在最末
-    if (isLatest && sizeScore === 0) sizeScore = 500_000; // 介于 k 与 m 之间，经验值
+    let revisionScore = 0;
+    const rev = target.match(/(?:^|[^a-z])([0-9]{2,4})(?:[^a-z]|$)/);
+    if (rev) {
+      const r = parseInt(rev[1]);
+      if (isFinite(r)) revisionScore = r;
+    }
 
-    return { base, sizeScore, isLatest, lower };
+    return { brand, versionScore, variantRank, sizeScore, revisionScore, isLatest, lower };
   } catch {
-    return { base: String(name || ''), sizeScore: 0, isLatest: false, lower: String(name || '').toLowerCase() };
+    return { brand: '', versionScore: 0, variantRank: 0, sizeScore: 0, revisionScore: 0, isLatest: false, lower: String(name || '').toLowerCase() };
   }
 }
 
@@ -203,16 +234,20 @@ export class ProviderModelService {
     // 2) 不同 baseName 按 baseName 升序
     try {
       const keyCache = new Map<string, ReturnType<typeof parseModelNameForSort>>();
-      const getKey = (n: string) => {
-        if (!keyCache.has(n)) keyCache.set(n, parseModelNameForSort(n));
-        return keyCache.get(n)!;
+      const getKey = (n: string, lbl?: string) => {
+        const key = lbl ? `${n}|${lbl}` : n;
+        if (!keyCache.has(key)) keyCache.set(key, parseModelNameForSort(n, lbl));
+        return keyCache.get(key)!;
       };
       merged = merged.sort((a, b) => {
-        const ka = getKey(a.name);
-        const kb = getKey(b.name);
-        if (ka.base !== kb.base) return ka.base.localeCompare(kb.base);
-        if (ka.sizeScore !== kb.sizeScore) return kb.sizeScore - ka.sizeScore; // 大优先
-        if (ka.isLatest !== kb.isLatest) return Number(kb.isLatest) - Number(ka.isLatest); // latest 次序
+        const ka = getKey(a.name, (a as any).label);
+        const kb = getKey(b.name, (b as any).label);
+        if (ka.brand !== kb.brand) return ka.brand.localeCompare(kb.brand);
+        if (ka.versionScore !== kb.versionScore) return kb.versionScore - ka.versionScore; // 新版本靠前
+        if (ka.variantRank !== kb.variantRank) return kb.variantRank - ka.variantRank; // pro/flash 等权重
+        if (ka.isLatest !== kb.isLatest) return Number(kb.isLatest) - Number(ka.isLatest); // latest 靠前
+        if (ka.sizeScore !== kb.sizeScore) return kb.sizeScore - ka.sizeScore; // 大模型靠前
+        if (ka.revisionScore !== kb.revisionScore) return kb.revisionScore - ka.revisionScore; // 010 > 002
         return ka.lower.localeCompare(kb.lower);
       });
     } catch {

@@ -7,6 +7,7 @@ import { Search, Clock, X } from 'lucide-react';
 import { ModelList } from './ModelList';
 import { RecentModelsList } from './RecentModelsList';
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 interface ModelSelectContentProps {
   filteredModels: ProviderMetadata[];
@@ -55,10 +56,11 @@ export function ModelSelectContent({
   };
 
   return (
-    <SelectContent
-      onFocusCapture={handleFocusCapture}
-      className="max-h-[560px] w-[500px] p-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
-    >
+    <TooltipProvider delayDuration={150}>
+      <SelectContent
+        onFocusCapture={handleFocusCapture}
+        className="max-h-[560px] w-[500px] p-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+      >
       {/* 搜索栏 */}
       <div className="sticky top-0 z-10 p-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="relative">
@@ -137,6 +139,7 @@ export function ModelSelectContent({
           />
         </TabsContent>
       </Tabs>
-    </SelectContent>
+      </SelectContent>
+    </TooltipProvider>
   );
 } 

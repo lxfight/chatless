@@ -207,6 +207,41 @@ export function ProviderModelList(props: ProviderModelListProps) {
     return '未归类';
   };
 
+  // —— 列表排序：与 Provider 侧保持一致的前端兜底排序 ——
+  const variantOrder: Record<string, number> = { pro: 100, flash: 90, turbo: 80, ultra: 75, mini: 60, nano: 50, instruct: 40, preview: 10 };
+  const extractVersion = (text: string): number => {
+    const m = text.match(/\b(\d+(?:\.\d+)?)/);
+    if (!m) return 0;
+    const v = parseFloat(m[1]);
+    return isFinite(v) ? Math.round(v * 1000) : 0;
+  };
+  const buildKey = (m: ModelMetadata) => {
+    const t = `${(m.label || '').toLowerCase()} ${(m.name || '').toLowerCase()}`;
+    const isLatest = /\blatest\b/.test(t);
+    let variant = 0; for (const [k,w] of Object.entries(variantOrder)) if (t.includes(k)) variant = Math.max(variant, w);
+    const brand = (()=>{
+      const known = ['gemini','gpt','deepseek','qwen','grok','claude','llama','mistral','glm','gemma','kimi','moonshot','yi'];
+      return known.find(k=>t.includes(k)) || '';
+    })();
+    // 首数字版本，优先确保 Gemini 2.5 > 1.5
+    const version = extractVersion(t);
+    // 规模分数（b/m/k）
+    let sizeScore = 0; const ms = t.match(/(\d+(?:\.\d+)?)([bmk])\b/); if (ms) { const num = parseFloat(ms[1]); const unit = ms[2]; const mul = unit==='b'?1_000_000_000:unit==='m'?1_000_000:1_000; sizeScore = isFinite(num)? num*mul:0; }
+    // 修订号
+    let rev = 0; const rv = t.match(/(?:^|[^a-z])([0-9]{2,4})(?:[^a-z]|$)/); if (rv) { const r=parseInt(rv[1]); if (isFinite(r)) rev=r; }
+    return { brand, version, variant, isLatest, sizeScore, rev, lower: t };
+  };
+  const compareModels = (a: ModelMetadata, b: ModelMetadata) => {
+    const ka = buildKey(a); const kb = buildKey(b);
+    if (ka.brand !== kb.brand) return ka.brand.localeCompare(kb.brand);
+    if (ka.version !== kb.version) return kb.version - ka.version;
+    if (ka.variant !== kb.variant) return kb.variant - ka.variant;
+    if (ka.isLatest !== kb.isLatest) return Number(kb.isLatest) - Number(ka.isLatest);
+    if (ka.sizeScore !== kb.sizeScore) return kb.sizeScore - ka.sizeScore;
+    if (ka.rev !== kb.rev) return kb.rev - ka.rev;
+    return ka.lower.localeCompare(kb.lower);
+  };
+
   return (
     <div ref={rootRef} className="space-y-3">
       <div className="flex items-center justify-between my-2">
@@ -301,7 +336,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
               if (filterTools && !caps.supportsFunctionCalling) return false;
               if (filterVision && !caps.supportsVision) return false;
               return true;
-            });
+            }).sort(compareModels);
 
             const total = filtered.length;
             const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -336,7 +371,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
                     <div key={series} className="mt-2">
                       <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-2 py-1">{series}</div>
                       <div className="space-y-2">
-                        {list.map(renderItem)}
+                        {list.sort(compareModels).map(renderItem)}
                       </div>
                     </div>
                   );

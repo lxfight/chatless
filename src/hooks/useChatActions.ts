@@ -602,11 +602,26 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         
         // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
         const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, chatOptions);
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
+        // 强约束：始终使用“最后一次用户显式选择的 provider/model”成对调用
+        try {
+          const { specializedStorage } = await import('@/lib/storage');
+          const lastPair = await specializedStorage.models.getLastSelectedModelPair();
+          const effectiveProvider = lastPair?.modelId === modelToUse && lastPair?.provider ? lastPair.provider : currentProviderName;
+          await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        } catch {
+          await streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        }
       } catch (error) {
         console.error('获取模型参数失败，使用默认参数:', error);
         const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, {});
-        streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions).catch(err => console.error("streamChat promise rejected:", err));
+        try {
+          const { specializedStorage } = await import('@/lib/storage');
+          const lastPair = await specializedStorage.models.getLastSelectedModelPair();
+          const effectiveProvider = lastPair?.modelId === modelToUse && lastPair?.provider ? lastPair.provider : currentProviderName;
+          await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        } catch {
+          await streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        }
       }
     } else {
        console.error("No model selected, cannot start chat.");

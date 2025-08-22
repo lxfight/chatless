@@ -4,9 +4,7 @@ import { SSEClient } from '@/lib/sse-client';
 
 export class GoogleAIProvider extends BaseProvider {
   private sseClient: SSEClient;
-  private lastContentLength: number = 0; // 记录上一次内容的长度
-  private processedChunks: Set<string> = new Set(); // 防止重复处理
-  private currentResponseId: string | null = null; // 当前响应的ID
+  private processedPayloads: Set<string> = new Set(); // 防止重复处理（按原始payload去重）
 
   constructor(baseUrl: string, apiKey?: string) {
     super('Google AI', baseUrl, apiKey);
@@ -60,8 +58,10 @@ export class GoogleAIProvider extends BaseProvider {
       return;
     }
     
+    // 规范化模型ID：去除可能的 "models/" 前缀，避免重复拼接
+    const normalizedModel = model.startsWith('models/') ? model.slice('models/'.length) : model;
     // 构造正确的 URL - 使用官方文档中的流式API端点
-    const url = `${this.baseUrl.replace(/\/$/, '')}/models/${model}:streamGenerateContent?alt=sse`;
+    const url = `${this.baseUrl.replace(/\/$/, '')}/models/${normalizedModel}:streamGenerateContent?alt=sse`;
     
     // 将通用选项映射到 Gemini generationConfig
     const generationConfig: any = {
@@ -95,16 +95,14 @@ export class GoogleAIProvider extends BaseProvider {
     if ((opts as any).tools) body.tools = (opts as any).tools;
 
     console.log('[GoogleAIProvider] Starting chat stream with:', {
-      model,
+      model: normalizedModel,
       url,
       hasApiKey: !!apiKey,
       messageCount: messages.length
     });
 
-    // 重置累积内容长度和已处理chunk集合
-    this.lastContentLength = 0;
-    this.processedChunks.clear();
-    this.currentResponseId = null;
+    // 重置已处理集合
+    this.processedPayloads.clear();
 
     try {
       await this.sseClient.startConnection(
@@ -133,28 +131,14 @@ export class GoogleAIProvider extends BaseProvider {
           onData: (rawData: string) => {
             console.debug('[GoogleAIProvider] Received raw data:', rawData);
             
-            // Google AI的流式响应直接是JSON格式，不是标准SSE格式
+            // Google AI 的流式响应为 JSON，每个事件包含候选增量文本
             try {
-              const parsedData = JSON.parse(rawData);
-              //console.debug('[GoogleAIProvider] Parsed chunk:', parsedData);
-              
-              // 检查响应ID，确保是同一个响应
-              if (parsedData.responseId) {
-                if (this.currentResponseId && this.currentResponseId !== parsedData.responseId) {
-                  console.debug('[GoogleAIProvider] New response ID detected, resetting state');
-                  this.lastContentLength = 0;
-                  this.processedChunks.clear();
-                }
-                this.currentResponseId = parsedData.responseId;
-              }
-              
-              // 使用响应ID和内容长度作为唯一标识，防止重复处理
-              const chunkKey = `${this.currentResponseId}-${parsedData.candidates?.[0]?.content?.parts?.[0]?.text?.length || 0}`;
-              if (this.processedChunks.has(chunkKey)) {
-                console.debug('[GoogleAIProvider] Skipping duplicate chunk:', chunkKey);
-                return;
-              }
-              this.processedChunks.add(chunkKey);
+              // 某些实现会把 JSON 前面加 "data:" 或在同一事件中拼接多个 JSON
+              const payload = rawData.startsWith('data:') ? rawData.substring(5).trim() : rawData.trim();
+              if (!payload) return;
+              if (this.processedPayloads.has(payload)) return; // 完全重复的 payload 直接跳过
+              this.processedPayloads.add(payload);
+              const parsedData = JSON.parse(payload);
               
               // 检查是否有candidates数组
               if (parsedData.candidates && Array.isArray(parsedData.candidates) && parsedData.candidates.length > 0) {
@@ -163,16 +147,8 @@ export class GoogleAIProvider extends BaseProvider {
                 // 提取文本内容
                 if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
                   for (const part of candidate.content.parts) {
-                    if (part.text) {
-                      // Google AI的流式响应是增量式的，每个chunk只包含新增内容
-                      // 直接使用当前chunk的文本内容，不需要计算增量
-                      const newContent = part.text;
-                      
-                      if (newContent.length > 0) {
-                        console.debug('[GoogleAIProvider] Emitting incremental token:', newContent);
-                        cb.onToken?.(newContent);
-                      }
-                    }
+                    const piece = typeof part.text === 'string' ? part.text : undefined;
+                    if (piece && piece.length > 0) cb.onToken?.(piece);
                   }
                 }
                 
@@ -209,9 +185,7 @@ export class GoogleAIProvider extends BaseProvider {
    * 清理资源
    */
   async destroy(): Promise<void> {
-    this.lastContentLength = 0;
-    this.processedChunks.clear();
-    this.currentResponseId = null;
+    this.processedPayloads.clear();
     await this.sseClient.destroy();
   }
 

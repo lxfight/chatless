@@ -9,6 +9,7 @@ import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
 import { PROVIDER_ICON_EXTS, getModelBrandLogoSrc, getResolvedUrlForBase, isUrlKnownMissing, markUrlMissing } from '@/lib/utils/logoService';
 import { ModelBrandLogo } from './ModelBrandLogo';
 import { generateAvatarDataUrl } from '@/lib/avatar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ModelSelectItemProps {
   provider: ProviderMetadata;
@@ -68,10 +69,12 @@ export function ModelSelectItem({
   const [useProviderIcon, setUseProviderIcon] = useState(false);
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer",
-      isSelected ? "bg-blue-100 dark:bg-blue-600/40" : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
-    )}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={cn(
+          "flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer",
+          isSelected ? "bg-blue-100 dark:bg-blue-600/40" : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
+        )}>
       {(!useProviderIcon) ? (
         <div className="w-5 h-5 bg-gray-100 dark:bg-gray-200 rounded-sm">
         <ModelBrandLogo
@@ -126,6 +129,14 @@ export function ModelSelectItem({
       </div>
 
       <div className="flex items-center gap-1" />
-    </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={6} avoidCollisions={false} className="max-w-[520px] break-words text-xs">
+        <div className="space-y-1">
+          <div><span className="text-gray-400 mr-1">ID:</span>{model.name}</div>
+          <div className="text-gray-400">{provider.name}</div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 } 

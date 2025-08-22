@@ -95,9 +95,11 @@ export class LLMInterpreter {
     callbacks: StreamCallbacks,
     options: ChatOptions = {}
   ): Promise<void> {
-    const strategy = ProviderRegistry.get(provider);
+    let useProvider = provider; // 不做魔法纠正，维持调用方选择
+
+    const strategy = ProviderRegistry.get(useProvider);
     if (!strategy) {
-      const err = new Error(`Provider '${provider}' 未注册`);
+      const err = new Error(`Provider '${useProvider}' 未注册`);
       callbacks.onError?.(err);
       throw err;
     }
@@ -105,14 +107,14 @@ export class LLMInterpreter {
     try {
       // 计算参数策略应用时的“有效 Provider 名称”
       // 场景：New API 这类多策略聚合，根据模型选择下游协议，需要把策略引擎视作对应的真实 Provider
-      let policyProviderName = provider;
+      let policyProviderName = useProvider;
       try {
-        const lower = provider.toLowerCase();
+        const lower = useProvider.toLowerCase();
         const isMulti = lower === 'new api' || lower === 'newapi';
         if (isMulti) {
           const { specializedStorage } = await import('@/lib/storage');
-          const s = (await specializedStorage.models.getModelStrategy(provider, model))
-            || (await specializedStorage.models.getProviderDefaultStrategy(provider))
+          const s = (await specializedStorage.models.getModelStrategy(useProvider, model))
+            || (await specializedStorage.models.getProviderDefaultStrategy(useProvider))
             || 'openai-compatible';
           policyProviderName = ((): string => {
             switch (s) {

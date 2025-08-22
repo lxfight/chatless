@@ -93,16 +93,16 @@ export function CommandPalette() {
       // 调试模式：在开发环境下输出快捷键信息
       if (process.env.NODE_ENV === 'development') {
         const isMac = navigator.platform.includes('Mac');
-        console.log('快捷键调试:', {
-          key: e.key,
-          ctrlKey: e.ctrlKey,
-          metaKey: e.metaKey,
-          shiftKey: e.shiftKey,
-          altKey: e.altKey,
-          isMac,
-          expectedShortcut: cmdPaletteShortcut,
-          target: e.target
-        });
+        // console.debug('快捷键调试:', {
+        //   key: e.key,
+        //   ctrlKey: e.ctrlKey,
+        //   metaKey: e.metaKey,
+        //   shiftKey: e.shiftKey,
+        //   altKey: e.altKey,
+        //   isMac,
+        //   expectedShortcut: cmdPaletteShortcut,
+        //   target: e.target
+        // });
       }
 
       // 如果当前焦点在输入框、textarea或contenteditable元素中，且不是我们自己的输入框，则跳过
