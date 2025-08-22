@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { addRecentRoute, getRecentRoutes } from '@/lib/recentRoutes';
 import SampleDataManager from '@/components/dev/SampleDataManager';
 import { DatabaseRepairTool } from '@/components/dev/DatabaseRepairTool';
 import { PerformanceMonitor } from '@/components/dev/PerformanceMonitor';
@@ -22,6 +24,7 @@ interface DevToolsStatus {
 }
 
 export default function DevToolsPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<DevToolsStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
@@ -40,6 +43,23 @@ export default function DevToolsPage() {
   const [googleTestResult, setGoogleTestResult] = useState<string>('');
   const [isTestingGoogle, setIsTestingGoogle] = useState(false);
   const [appDataPath, setAppDataPath] = useState<string>('');
+  const [jumpPath, setJumpPath] = useState<string>('');
+  const [recents, setRecents] = useState<{ path: string; title?: string; ts: number }[]>([]);
+
+  const handleNavigate = () => {
+    const p = (jumpPath || '').trim();
+    if (!p) return;
+    // 只允许站内相对路径
+    if (p.startsWith('http://') || p.startsWith('https://')) return;
+    const dest = p.startsWith('/') ? p : `/${p}`;
+    addRecentRoute(dest);
+    setRecents(getRecentRoutes());
+    router.push(dest);
+  };
+
+  useEffect(() => {
+    setRecents(getRecentRoutes());
+  }, []);
 
   const handleResetSampleData = async () => {
     setIsResetting(true);
@@ -463,6 +483,51 @@ export default function DevToolsPage() {
             )}
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {/* 地址跳转 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <FolderOpen className="h-5 w-5" />
+                    <span>页面跳转</span>
+                  </CardTitle>
+                  <CardDescription>
+                    输入站内路径并跳转，例如：/dev-tools/mcp-test
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="border px-2 py-1 rounded w-full"
+                      placeholder="/dev-tools/mcp-test"
+                      value={jumpPath}
+                      onChange={(e)=>setJumpPath(e.target.value)}
+                    />
+                    <Button onClick={handleNavigate} variant="default">跳转</Button>
+                  </div>
+                  {recents.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium">最近打开</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {recents.map((r) => (
+                          <Button
+                            key={`${r.path}-${r.ts}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              addRecentRoute(r.path, r.title);
+                              setRecents(getRecentRoutes());
+                              router.push(r.path);
+                            }}
+                          >
+                            {r.title ?? r.path}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* 数据清理工具 */}
               <Card>
                 <CardHeader>

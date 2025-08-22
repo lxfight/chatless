@@ -8,6 +8,9 @@ use tauri_plugin_log::{Target, TargetKind};
 use log::LevelFilter;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+#[path = "mcp/mod.rs"]
+pub mod mcp;
+
 #[tauri::command]
 fn exit(code: i32) {
   std::process::exit(code);
@@ -147,11 +150,21 @@ pub fn run() {
       token_type_ids: Default::default(),
     })
     .manage(sse::AppState::new())
+    .manage(mcp::state::McpState::new())
     .invoke_handler(tauri::generate_handler![
       greet,
       generate_embedding_command,
       exit,
       set_log_level,
+      // —— MCP Commands ——
+      mcp::commands::mcp_connect,
+      mcp::commands::mcp_disconnect,
+      mcp::commands::mcp_list_tools,
+      mcp::commands::mcp_call_tool,
+      mcp::commands::mcp_list_resources,
+      mcp::commands::mcp_read_resource,
+      mcp::commands::mcp_list_prompts,
+      mcp::commands::mcp_get_prompt,
       // Document parser commands
       document_parser::parse_document_text,
       document_parser::parse_document_from_binary,
