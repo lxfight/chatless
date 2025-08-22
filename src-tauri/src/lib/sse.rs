@@ -7,6 +7,14 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::broadcast;
+use tokio::net::TcpListener;
+use tokio::io::AsyncWriteExt;
+use rmcp::{
+  ServerHandler,
+  model::{ServerCapabilities, ServerInfo},
+  service::{RoleServer, Service},
+  transport::sse_server::SseServer,
+};
 
 lazy_static! {
     // 可选：如果需要本地测试服务器，这里保留子进程句柄
@@ -160,4 +168,68 @@ pub async fn stop_sse(state: State<'_, AppState>) -> Result<(), String> {
     }
     Err(e) => Err(format!("Failed to acquire lock: {}", e)),
   }
+}
+
+/// 启动一个极简本地 SSE 测试服务（仅开发用途）
+/// - address: 例如 "127.0.0.1:8787"
+/// 端点：/sse 返回 `text/event-stream`，每秒发送一条计数数据
+#[tauri::command]
+pub async fn start_local_sse_server(address: String) -> Result<(), String> {
+  let listener = TcpListener::bind(&address)
+    .await
+    .map_err(|e| format!("bind {} failed: {}", address, e))?;
+
+  tauri::async_runtime::spawn(async move {
+    let mut counter: u64 = 0;
+    loop {
+      let Ok((mut socket, _)) = listener.accept().await else { continue };
+      tauri::async_runtime::spawn(async move {
+        let mut buf = [0u8; 1024];
+        // 读取一次请求（忽略请求体与路径解析，简单匹配 /sse）
+        let _ = socket.readable().await;
+        let _ = socket.try_read(&mut buf);
+
+        let _ = socket
+          .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+          .await;
+
+        // 简单循环发送事件
+        loop {
+          counter += 1;
+          let line = format!("data: test-event {}\n\n", counter);
+          if socket.write_all(line.as_bytes()).await.is_err() {
+            break;
+          }
+          tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        }
+      });
+    }
+  });
+
+  Ok(())
+}
+
+/// 启动一个“最小 MCP SSE 服务器”（工具为空，仅用于握手验证）
+#[tauri::command]
+pub async fn start_local_mcp_sse(address: String) -> Result<(), String> {
+  // 使用 rmcp 的 SseServer（真实 MCP SSE 管道），提供一个空 ServerHandler
+  struct Dummy;
+  impl ServerHandler for Dummy {
+    fn get_info(&self) -> ServerInfo {
+      ServerInfo {
+        capabilities: ServerCapabilities::builder().enable_tools().build(),
+        instructions: Some("Dummy MCP SSE server".into()),
+        ..Default::default()
+      }
+    }
+  }
+
+  let bind: std::net::SocketAddr = address
+    .parse()
+    .map_err(|e| format!("invalid address {}: {}", address, e))?;
+  let sse = SseServer::serve(bind)
+    .await
+    .map_err(|e| format!("start sse failed: {}", e))?;
+  let _ct = sse.with_service::<Dummy, _>(|| Dummy);
+  Ok(())
 }

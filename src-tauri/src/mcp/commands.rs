@@ -3,8 +3,13 @@ use crate::mcp::types::McpServerConfig;
 use rmcp::{
   model::{CallToolRequestParam, Tool, ListToolsResult, ReadResourceRequestParam, GetPromptRequestParam},
   service::ServiceExt,
-  transport::{TokioChildProcess, ConfigureCommandExt},
+  transport::{
+    TokioChildProcess, ConfigureCommandExt,
+    sse_client::{SseClientTransport, SseClientConfig},
+    streamable_http_client::{StreamableHttpClientTransport, StreamableHttpClientTransportConfig},
+  },
 };
+// use std::sync::Arc; // no longer needed after using with_uri
 use tauri::State;
 use tokio::process::Command;
 
@@ -21,9 +26,37 @@ pub async fn mcp_connect(
   match config.r#type.as_str() {
     "stdio" => {
       let cmd_name = config.command.clone().ok_or_else(|| "command required for stdio".to_string())?;
-      let mut cmd = Command::new(cmd_name);
+      // —— 基础安全校验：仅允许白名单命令或显式路径 ——
+      let is_path = cmd_name.contains('/') || cmd_name.contains('\\');
+      if !is_path {
+        const ALLOW: [&str; 3] = ["npx", "uvx", "bunx"];
+        if !ALLOW.contains(&cmd_name.as_str()) {
+          return Err(format!(
+            "command '{}' is not allowed. use one of: npx, uvx, bunx or an absolute path",
+            cmd_name
+          ));
+        }
+      }
+      let mut cmd = Command::new(&cmd_name);
       if let Some(args) = &config.args { cmd.args(args); }
       if let Some(envs) = &config.env { for (k,v) in envs { cmd.env(k, v); } }
+      // —— 参数校验，避免简单的 shell 注入字符 ——
+      if let Some(args) = &config.args {
+        let joined = args.join(" ");
+        if joined.len() > 2048 {
+          return Err("args too long".to_string());
+        }
+        if joined.contains('|') || joined.contains('&') || joined.contains(';') || joined.contains('>') || joined.contains('<') {
+          return Err("args contains forbidden shell characters".to_string());
+        }
+      }
+      // 若使用 npx 启动，静默其安装日志，避免污染 MCP STDIO 握手
+      // 这里直接基于传入的可执行文件名判断（tokio::process::Command 无 get_program 方法）
+      if cmd_name == "npx" {
+        cmd.env("NPM_CONFIG_LOGLEVEL", "silent");
+        cmd.env("NO_COLOR", "1");
+        cmd.env("NPX_Y", "1");
+      }
 
       let service: McpService = ()
         .serve(TokioChildProcess::new(cmd.configure(|_c| {})).map_err(|e| e.to_string())?)
@@ -33,8 +66,29 @@ pub async fn mcp_connect(
       state.0.insert(name, service);
       Ok(())
     }
-    "sse" | "http" => {
-      Err("sse/http 传输将在后续里程碑中实现".to_string())
+    "sse" => {
+      let base = config.base_url.clone().ok_or_else(|| "baseUrl required for sse".to_string())?;
+      let req = reqwest::Client::new();
+      let cfg = SseClientConfig { sse_endpoint: base.into(), ..Default::default() };
+      let transport = SseClientTransport::start_with_client(req, cfg).await.map_err(|e| e.to_string())?;
+      let service: McpService = ()
+        .serve(transport)
+        .await
+        .map_err(|e| e.to_string())?;
+      state.0.insert(name, service);
+      Ok(())
+    }
+    "http" => {
+      let base = config.base_url.clone().ok_or_else(|| "baseUrl required for http".to_string())?;
+      let req = reqwest::Client::new();
+      let cfg = StreamableHttpClientTransportConfig::with_uri(base);
+      let transport = StreamableHttpClientTransport::with_client(req, cfg);
+      let service: McpService = ()
+        .serve(transport)
+        .await
+        .map_err(|e| e.to_string())?;
+      state.0.insert(name, service);
+      Ok(())
     }
     _ => Err("Unsupported transport type".to_string()),
   }

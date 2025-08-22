@@ -397,6 +397,55 @@ export default function DevToolsPage() {
         <Badge variant="outline">仅用于开发和测试</Badge>
       </div>
 
+      {/* 顶部快速路由跳转（本地化） */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2"><FolderOpen className="h-5 w-5" /> 快速跳转</CardTitle>
+            <CardDescription>输入站内相对路径或选择最近访问页面</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              className="border px-2 py-1 rounded w-full"
+              placeholder="/dev-tools/mcp-test"
+              value={jumpPath}
+              onChange={(e)=>setJumpPath(e.target.value)}
+            />
+            <Button onClick={handleNavigate} variant="default">跳转</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {/* 常用入口本地化 */}
+            <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/mcp-test'); handleNavigate(); }}>MCP 测试</Button>
+            <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/chat-layout-preview'); handleNavigate(); }}>Chat 布局预览</Button>
+            <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/dialog-test'); handleNavigate(); }}>对话框测试</Button>
+            <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/download-test'); handleNavigate(); }}>下载测试</Button>
+          </div>
+          {recents.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="font-medium">最近打开</h4>
+              <div className="flex flex-wrap gap-2">
+                {recents.map((r) => (
+                  <Button
+                    key={`${r.path}-${r.ts}`}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      addRecentRoute(r.path, r.title);
+                      setRecents(getRecentRoutes());
+                      router.push(r.path);
+                    }}
+                  >
+                    {r.title ?? r.path}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
@@ -426,7 +475,7 @@ export default function DevToolsPage() {
       {/* 数据库修复工具 */}
       <DatabaseRepairTool />
 
-      {/* 高级工具切换 */}
+      {/* 保留原高级工具（去掉其中的页面跳转块） */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -483,111 +532,6 @@ export default function DevToolsPage() {
             )}
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {/* 地址跳转 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FolderOpen className="h-5 w-5" />
-                    <span>页面跳转</span>
-                  </CardTitle>
-                  <CardDescription>
-                    输入站内路径并跳转，例如：/dev-tools/mcp-test
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      className="border px-2 py-1 rounded w-full"
-                      placeholder="/dev-tools/mcp-test"
-                      value={jumpPath}
-                      onChange={(e)=>setJumpPath(e.target.value)}
-                    />
-                    <Button onClick={handleNavigate} variant="default">跳转</Button>
-                  </div>
-                  {recents.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium">最近打开</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {recents.map((r) => (
-                          <Button
-                            key={`${r.path}-${r.ts}`}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              addRecentRoute(r.path, r.title);
-                              setRecents(getRecentRoutes());
-                              router.push(r.path);
-                            }}
-                          >
-                            {r.title ?? r.path}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* 数据清理工具 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Sparkles className="h-5 w-5" />
-                    <span>数据清理</span>
-                  </CardTitle>
-                  <CardDescription>
-                    强制清理所有重复的知识库和文档数据
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">清理重复数据</h4>
-                    <p className="text-sm text-muted-foreground">
-                      扫描并删除重复的知识库和文档，只保留最早创建的版本
-                    </p>
-                                    <Button 
-                  onClick={handleCleanupDuplicates} 
-                  variant="outline"
-                  disabled={isAnyOperationRunning}
-                  className="w-full"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  强制清理重复数据
-                </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 示例数据管理 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5" />
-                    <span>示例数据管理</span>
-                  </CardTitle>
-                  <CardDescription>
-                    管理示例知识库和文档
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">重新初始化示例数据</h4>
-                    <p className="text-sm text-muted-foreground">
-                      重新创建咖啡文化完全指南等示例数据
-                    </p>
-                    <Button 
-                      onClick={handleReinitialize} 
-                      variant="outline"
-                      disabled={isAnyOperationRunning}
-                      className="w-full"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      重新初始化示例数据
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* 锁管理工具 */}
               <Card>
                 <CardHeader>

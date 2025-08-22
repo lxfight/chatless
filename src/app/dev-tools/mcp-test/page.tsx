@@ -1,11 +1,18 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { serverManager } from '@/lib/mcp/ServerManager';
+import { invoke } from '@tauri-apps/api/core';
 
 export default function McpTestPage() {
   const [name, setName] = useState('git');
-  const [command, setCommand] = useState('uvx');
-  const [args, setArgs] = useState('mcp-server-git');
+  const [transport, setTransport] = useState<'stdio' | 'sse' | 'http'>('stdio');
+  // stdio
+  const [command, setCommand] = useState('npx');
+  const [args, setArgs] = useState('-y @modelcontextprotocol/server-git');
+  const [envText, setEnvText] = useState('');
+  // sse/http
+  const [baseUrl, setBaseUrl] = useState('');
+  const [headersText, setHeadersText] = useState('');
   const [status, setStatus] = useState('disconnected');
   const [tools, setTools] = useState<any[]>([]);
   const [log, setLog] = useState<string>('');
@@ -31,27 +38,80 @@ export default function McpTestPage() {
     return () => { off(); };
   }, [name]);
 
-  const cfg = useMemo(() => ({
-    type: 'stdio' as const,
-    command,
-    args: args.trim().length ? args.split(' ').filter(Boolean) : [],
-  }), [command, args]);
+  const parsePairs = useCallback((text: string) => {
+    const items = text.split(/\n|,/g).map(s => s.trim()).filter(Boolean);
+    const pairs: [string, string][] = [];
+    for (const it of items) {
+      const idx = it.indexOf('=');
+      if (idx > 0) pairs.push([it.slice(0, idx).trim(), it.slice(idx + 1).trim()]);
+    }
+    return pairs;
+  }, []);
+
+  const cfg = useMemo(() => {
+    if (transport === 'stdio') {
+      return {
+        type: 'stdio' as const,
+        command,
+        args: args.trim().length ? args.split(' ').filter(Boolean) : [],
+        env: parsePairs(envText),
+      };
+    }
+    return {
+      type: transport,
+      baseUrl: baseUrl.trim(),
+      headers: parsePairs(headersText),
+    } as const;
+  }, [transport, command, args, envText, baseUrl, headersText, parsePairs]);
 
   const useEverythingPreset = useCallback(() => {
+    setTransport('stdio');
     setName('everything');
-    setCommand('uvx');
-    setArgs('@modelcontextprotocol/server-everything');
-    setLog((l)=> l + `\nApplied preset: everything test server`);
+    setCommand('npx');
+    setArgs('-y @modelcontextprotocol/server-everything');
+    setEnvText('');
+    setLog((l)=> l + `\nApplied preset: everything (stdio)`);
+  }, []);
+
+  const useGitPreset = useCallback(() => {
+    setTransport('stdio');
+    setName('git');
+    setCommand('npx');
+    setArgs('-y @modelcontextprotocol/server-git');
+    setEnvText('');
+    setLog((l)=> l + `\nApplied preset: git (stdio)`);
+  }, []);
+
+  const useSseTemplate = useCallback(() => {
+    setTransport('sse');
+    setName('sse');
+    setBaseUrl('http://127.0.0.1:8789/sse');
+    setHeadersText('');
+    setLog((l)=> l + `\nApplied template: SSE`);
+  }, []);
+
+  const useHttpTemplate = useCallback(() => {
+    setTransport('http');
+    setName('http');
+    setBaseUrl('http://localhost:8790/mcp');
+    setHeadersText('');
+    setLog((l)=> l + `\nApplied template: HTTP`);
   }, []);
 
   const connect = useCallback(async () => {
     try {
+      if (transport !== 'stdio') {
+        if (!baseUrl.trim()) {
+          setLog((l)=> l + `\nERROR: baseUrl 为空，请先输入有效 URL（例：http://127.0.0.1:8787/sse）`);
+          return;
+        }
+      }
       await serverManager.startServer(name, cfg);
       setLog((l) => l + `\nConnected ${name}`);
     } catch (e) {
       setLog((l) => l + `\nConnect failed: ${String(e)}`);
     }
-  }, [name, cfg]);
+  }, [name, cfg, transport, baseUrl]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -142,20 +202,74 @@ export default function McpTestPage() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">MCP Test</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      {/* 本地测试服务器控制 */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="px-3 py-1 rounded bg-teal-600 text-white"
+          onClick={async ()=>{
+            try {
+              await invoke('start_local_sse_server', { address: '127.0.0.1:8787' });
+              alert('已启动本地简单 SSE 服务：127.0.0.1:8787/sse');
+            } catch(e){ alert('启动失败: '+ String(e)); }
+          }}
+        >启动简单 SSE 服务(事件流)</button>
+        <button
+          className="px-3 py-1 rounded bg-teal-700 text-white"
+          onClick={async ()=>{
+            try {
+              await invoke('start_local_mcp_sse', { address: '127.0.0.1:8788' });
+              alert('已启动本地最小 MCP SSE 服务：127.0.0.1:8788/sse');
+            } catch(e){ alert('启动失败: '+ String(e)); }
+          }}
+        >启动最小 MCP SSE 服务</button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
         <label className="flex items-center gap-2">
           <span className="w-24">Name</span>
           <input className="border px-2 py-1 rounded w-full" value={name} onChange={(e)=>setName(e.target.value)} />
         </label>
         <label className="flex items-center gap-2">
-          <span className="w-24">Command</span>
-          <input className="border px-2 py-1 rounded w-full" value={command} onChange={(e)=>setCommand(e.target.value)} />
+          <span className="w-24">Transport</span>
+          <select className="border px-2 py-1 rounded w-full" value={transport} onChange={(e)=>setTransport(e.target.value as any)}>
+            <option value="stdio">stdio</option>
+            <option value="sse">sse</option>
+            <option value="http">http</option>
+          </select>
         </label>
-        <label className="flex items-center gap-2">
-          <span className="w-24">Args</span>
-          <input className="border px-2 py-1 rounded w-full" value={args} onChange={(e)=>setArgs(e.target.value)} />
-        </label>
+        {transport === 'stdio' ? (
+          <>
+            <label className="flex items-center gap-2">
+              <span className="w-24">Command</span>
+              <input className="border px-2 py-1 rounded w-full" value={command} onChange={(e)=>setCommand(e.target.value)} />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-24">Args</span>
+              <input className="border px-2 py-1 rounded w-full" value={args} onChange={(e)=>setArgs(e.target.value)} />
+            </label>
+          </>
+        ) : (
+          <label className="flex items-center gap-2 md:col-span-2">
+            <span className="w-24">Base URL</span>
+            <input className="border px-2 py-1 rounded w-full" placeholder="http(s)://..." value={baseUrl} onChange={(e)=>setBaseUrl(e.target.value)} />
+          </label>
+        )}
       </div>
+
+      {transport === 'stdio' ? (
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-2">
+          <label className="flex items-center gap-2">
+            <span className="w-24">Env</span>
+            <input className="border px-2 py-1 rounded w-full" placeholder="KEY=VALUE,KEY2=VALUE2 或换行分隔" value={envText} onChange={(e)=>setEnvText(e.target.value)} />
+          </label>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-2">
+          <label className="flex items-center gap-2">
+            <span className="w-24">Headers</span>
+            <input className="border px-2 py-1 rounded w-full" placeholder="Authorization=Bearer xxx, X-Api-Key=xxx" value={headersText} onChange={(e)=>setHeadersText(e.target.value)} />
+          </label>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button className="px-3 py-1 rounded bg-blue-600 text-white" onClick={connect}>Connect</button>
@@ -174,7 +288,10 @@ export default function McpTestPage() {
           <button className="px-3 py-1 rounded bg-orange-600 text-white" onClick={callSelectedTool} disabled={!tools.length}>Call Tool</button>
         </div>
         <span className="px-2 py-1 border rounded">Status: {status}</span>
-        <button className="px-3 py-1 rounded bg-fuchsia-600 text-white" onClick={useEverythingPreset}>Use Everything Preset</button>
+        <button className="px-3 py-1 rounded bg-fuchsia-600 text-white" onClick={useEverythingPreset}>Preset: Everything</button>
+        <button className="px-3 py-1 rounded bg-fuchsia-600 text-white" onClick={useGitPreset}>Preset: Git</button>
+        <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={useSseTemplate}>Template: SSE</button>
+        <button className="px-3 py-1 rounded bg-indigo-700 text-white" onClick={useHttpTemplate}>Template: HTTP</button>
       </div>
 
       <div>

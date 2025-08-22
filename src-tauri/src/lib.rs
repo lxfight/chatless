@@ -177,7 +177,9 @@ pub fn run() {
       onnx_logic::release_onnx_session,
       // —— SSE Commands ——
       sse::start_sse,
-      sse::stop_sse
+      sse::stop_sse,
+      sse::start_local_sse_server,
+      sse::start_local_mcp_sse
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

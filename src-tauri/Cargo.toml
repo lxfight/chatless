@@ -36,7 +36,14 @@ lazy_static = "1"
 image = { version = "0.25", default-features = false, features = ["png", "ico", "jpeg"] }
 
 # —— MCP Client (rmcp) ——
-rmcp = { version = "0.6", features = ["client", "transport-child-process"] }
+# 启用 stdio 子进程、SSE 客户端与可流式 HTTP 客户端（reqwest 实现）
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = [
+  "client",
+  "transport-child-process",
+  "transport-sse-client-reqwest",
+  "transport-streamable-http-client-reqwest",
+  "transport-sse-server"
+] }
 dashmap = "5.5"
 
 
