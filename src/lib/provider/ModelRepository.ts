@@ -63,11 +63,18 @@ export class ModelRepository {
 
     await defaultCacheManager.set(this.key(provider), normalized, { ttl });
     try {
-      await specializedStorage.models.setProviderModels(provider, normalized.map((m:any)=>m.name));
-      // 同步保存 label 覆盖（仅当 label 与 id 不同）
+      // 仅当 providerModels 变化时才写入
+      const existingNames = await specializedStorage.models.getProviderModels(provider) || [];
+      const nextNames = normalized.map((m:any)=>m.name);
+      const equal = existingNames.length === nextNames.length && existingNames.every((n:string, i:number)=> n === nextNames[i]);
+      if (!equal) {
+        await specializedStorage.models.setProviderModels(provider, nextNames);
+      }
+      // 同步保存 label 覆盖（仅当 label 与 id 不同且值有变化）
+      const labelMap = await specializedStorage.models.getModelLabels?.(provider) || {};
       for (const m of normalized as any[]) {
         const label = (m as any).label;
-        if (label && label !== m.name) {
+        if (label && label !== m.name && labelMap[m.name] !== label) {
           try { await specializedStorage.models.setModelLabel(provider, m.name, label); } catch {}
         }
       }

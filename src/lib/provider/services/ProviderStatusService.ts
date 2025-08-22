@@ -31,6 +31,7 @@ export class ProviderStatusService {
     if (!target) return undefined;
 
     const latestKey = target.requiresKey ? await KeyManager.getProviderKey(name) : null;
+    // 无密钥：直接回写 NO_KEY，且不触发模型拉取
     if (target.requiresKey && !(latestKey && latestKey.trim())) {
       // 更新状态为 NO_KEY，但不清理模型缓存，以便在无密钥时也能展示静态模型/已知模型
       await providerRepository.update({ name, status: ProviderStatus.NO_KEY, lastChecked: Date.now(), apiKey: null });

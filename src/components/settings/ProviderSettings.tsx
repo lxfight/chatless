@@ -368,6 +368,7 @@ export function ProviderSettings({
         />
 
       <CollapsibleContent className="px-4 pb-4 pt-3 bg-gray-50/50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-700">
+        
         <div className="space-y-3">
           <ProviderConnectionSection
             provider={provider}

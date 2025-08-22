@@ -32,6 +32,29 @@ export function ProviderModelList(props: ProviderModelListProps) {
     onModelApiKeyChange, onModelApiKeyBlur, onOpenParameters,
   } = props;
 
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const getScroller = () => {
+    let node: HTMLElement | null = rootRef.current;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      const oy = style.overflowY;
+      if (oy === 'auto' || oy === 'scroll') return node;
+      node = node.parentElement;
+    }
+    return (document.scrollingElement as HTMLElement) || document.documentElement;
+  };
+
+  const restoreScroll = (node: HTMLElement, top: number) => {
+    let tries = 0;
+    const maxTries = 30; // ~500ms @ 60fps
+    const tick = () => {
+      if (tries++ >= maxTries) return;
+      if (Math.abs(node.scrollTop - top) > 1) node.scrollTop = top;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
   // Provider 特性
   const isOllama = (provider.name || '').toLowerCase().includes('ollama');
   // 批量策略入口（Ollama 不支持策略设置）
@@ -143,10 +166,11 @@ export function ProviderModelList(props: ProviderModelListProps) {
   const [filterVision, setFilterVision] = React.useState(false);
 
   // —— 分页 ——
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 12; // 一页更少条目，避免内部滚动条，滚动交给页面
   const [page, setPage] = React.useState(1);
 
-  React.useEffect(() => { setPage(1); }, [modelSearch, filterThinking, filterTools, filterVision, modelsForDisplay, provider.name]);
+  // 仅在筛选条件变化时重置分页，刷新模型列表时保持当前页，避免视觉跳动
+  React.useEffect(() => { setPage(1); }, [modelSearch, filterThinking, filterTools, filterVision]);
 
   // —— 归类 ——
   const SERIES_ORDER = [
@@ -184,7 +208,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       <div className="flex items-center justify-between my-2">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -219,7 +243,48 @@ export function ProviderModelList(props: ProviderModelListProps) {
             </>
           )}
           {!isOllama && (
-            <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+            <div className="flex items-center gap-2">
+              <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
+              {provider.displayStatus === 'CONNECTED' && (
+                <Button
+                  variant="secondary"
+                  className="h-7 px-2 text-xs"
+                  onClick={async ()=>{
+                    try {
+                      const scroller = getScroller();
+                      const prevY = scroller.scrollTop;
+                      // 冻结列表容器高度，避免布局变化导致的回弹
+                      const root = rootRef.current as HTMLElement | null;
+                      const prevMinH = root ? root.style.minHeight : '';
+                      if (root) root.style.minHeight = `${root.offsetHeight}px`;
+                      // 在刷新窗口内锁定滚动位置，若发生变化立即还原
+                      let keep = true; let setting = false;
+                      const onScroll = () => {
+                        if (!keep || setting) return;
+                        if (Math.abs(scroller.scrollTop - prevY) > 1) {
+                          setting = true; scroller.scrollTop = prevY; setting = false;
+                        }
+                      };
+                      scroller.addEventListener('scroll', onScroll, { passive: true });
+                      const { providerModelService } = await import('@/lib/provider/services/ProviderModelService');
+                      await providerModelService.fetchIfNeeded(provider.name);
+                      const { modelRepository } = await import('@/lib/provider/ModelRepository');
+                      const latest = await modelRepository.get(provider.name);
+                      toast.success('已刷新模型列表', { description: `${latest?.length || 0} 个模型` });
+                      // 多帧恢复，覆盖可能的后续渲染导致的跳动
+                      restoreScroll(scroller, prevY);
+                      // 解锁与样式恢复
+                      setTimeout(() => {
+                        keep = false; scroller.removeEventListener('scroll', onScroll);
+                        if (root) root.style.minHeight = prevMinH;
+                      }, 600);
+                    } catch (e:any) {
+                      toast.error('刷新模型失败', { description: e?.message || String(e) });
+                    }
+                  }}
+                >刷新</Button>
+              )}
+            </div>
           )}
         </div>
       </div>

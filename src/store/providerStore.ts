@@ -21,6 +21,10 @@ import { updateProviderConfigUseCase } from '@/lib/provider/usecases/UpdateProvi
 import { updateModelKeyUseCase } from '@/lib/provider/usecases/UpdateModelKey';
 import { providerRepository } from '@/lib/provider/ProviderRepository';
 import { modelRepository } from '@/lib/provider/ModelRepository';
+// 静态导入，避免 HMR 期间的动态导入警告与重复实例化
+import { useProviderMetaStore } from '@/store/providerMetaStore';
+import { mapToProviderWithStatus } from '@/lib/provider/transform';
+import { ProviderRegistry } from '@/lib/llm';
 
 type ProviderWithModels = ProviderEntity & { models?: ReturnType<typeof modelRepository.get> extends Promise<infer R> ? R : any };
 
@@ -99,13 +103,10 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     console.log('[ProviderStore] 初始化完成');
 
     // ---- 同步 providerMetaStore ----
-    import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
-      const { mapToProviderWithStatus } = require('@/lib/provider/transform');
-      useProviderMetaStore.getState().setList(withModels.map(mapToProviderWithStatus));
-    });
+    useProviderMetaStore.getState().setList(withModels.map(mapToProviderWithStatus) as any);
 
     // ------ 同步 ProviderRegistry baseUrl ------
-    import('@/lib/llm').then(({ ProviderRegistry }) => {
+    try {
       list.forEach(p => {
         const strat = ProviderRegistry.get(p.name);
         if (strat && (strat as any).baseUrl !== p.url) {
@@ -113,12 +114,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
           console.log(`[ProviderStore] 已同步 ${p.name} 的 baseUrl: ${p.url}`);
         }
       });
-    }).catch(console.error);
+    } catch (e) { console.error(e); }
 
-    // 后台刷新所有 provider 状态，延迟执行避免阻塞主界面
-    setTimeout(() => {
-      providerService.refreshAll().catch(console.error);
-    }, 2000); // 延迟2秒执行，让主界面先完全加载
+    // 取消自动后台刷新：仅在用户主动点击“检查状态”时再触发
 
     // 订阅后续变化
     providerRepository.subscribe(async (updated) => {
@@ -141,10 +139,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       set({ providers: sortedCombined });
 
       // 同步 providerMetaStore
-      import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
-        const { mapToProviderWithStatus } = require('@/lib/provider/transform');
-        useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus));
-      }).catch(console.error);
+      try { useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
     });
 
     // 订阅各 provider 模型变化
@@ -156,10 +151,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         set({ providers: next });
 
         // 同步 providerMetaStore
-        import('@/store/providerMetaStore').then(({ useProviderMetaStore })=>{
-          const { mapToProviderWithStatus } = require('@/lib/provider/transform');
-          useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus));
-        }).catch(console.error);
+        try { useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
       });
     });
   },

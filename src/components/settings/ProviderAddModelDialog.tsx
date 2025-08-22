@@ -76,7 +76,7 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="outline" className="h-8 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">添加模型</Button>
+        <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-xs">添加</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>

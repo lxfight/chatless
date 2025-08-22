@@ -55,7 +55,8 @@ function buildQuickList(): QuickProviderMeta[] {
       api_base_url: (p as any).baseUrl ?? '',
       requiresApiKey: requiresKey,
       models: [],
-      displayStatus: p.name === 'Ollama' ? 'CONNECTING' : requiresKey ? 'UNKNOWN' : 'CONNECTING',
+      // 初始状态使用 UNKNOWN，避免误导性的“检查中”常驻显示
+      displayStatus: 'UNKNOWN',
       statusTooltip: '初始化中…',
     };
   });

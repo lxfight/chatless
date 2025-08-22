@@ -4,22 +4,13 @@ import { providerRepository } from "../ProviderRepository";
 
 export class RefreshAllProvidersUseCase {
   async execute(): Promise<void> {
+    // 按你的需求：默认不做自动批量刷新；保留方法供将来可能的手动入口调用
     const list = await providerRepository.getAll();
-    const concurrency = 3;
-    const queue = [...list];
-    const workers: Array<Promise<void>> = [];
-    const runWorker = async () => {
-      while (queue.length) {
-        const p = queue.shift()!;
-        await providerStatusService.refresh(p.name);
-        // 无论连接状态如何，都写入静态模型，确保界面可见
-        await providerModelService.fetchIfNeeded(p.name);
-      }
-    };
-    for (let i = 0; i < Math.min(concurrency, list.length); i += 1) {
-      workers.push(runWorker());
+    for (const p of list) {
+      await providerStatusService.refresh(p.name);
+      // 仅在已连接时才尝试拉取模型
+      // 实际是否拉取由上层手动控制；此处不做 fetch，避免额外请求
     }
-    await Promise.all(workers);
   }
 }
 

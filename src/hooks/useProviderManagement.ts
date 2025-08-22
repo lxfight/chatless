@@ -64,6 +64,14 @@ export function useProviderManagement() {
   } = useProviderStore();
   const setConnecting = useProviderMetaStore(s=>s.setConnecting);
 
+  // 全局串行检查队列 + 页面卸载取消
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const cancelledRef = useRef<boolean>(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => { cancelledRef.current = true; };
+  }, []);
+
   // 初始加载 - 调用 store.init()
   useEffect(() => {
     initProviders().catch(console.error);
@@ -124,14 +132,27 @@ export function useProviderManagement() {
 
   // --- 刷新单个 Provider (handleSingleProviderRefresh remains largely the same) ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
+    // 入队串行执行
+    const run = async () => {
     // 将显示名映射为仓库内部 id（自定义 Provider 的内部 id 存在 aliases[0]）
     const repoName = provider.aliases?.[0] || provider.name;
     setConnectingProviderName(provider.name);
     setConnecting(provider.name, true);
     // 先把 UI 标为正在检查
     setProviders(prev => prev.map(p => p.name === provider.name ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态...' } : p));
+    // 超时回落保护：若 12 秒后仍未被最终状态覆盖，则回落为 UNKNOWN/NO_KEY，避免常驻“检查中”
+    setTimeout(() => {
+      setProviders(prev => prev.map(p => {
+        if (p.name !== provider.name) return p;
+        if (p.displayStatus !== 'CONNECTING') return p;
+        const fallback = p.requiresApiKey && !(p.default_api_key && String(p.default_api_key).trim()) ? 'NO_KEY' : 'UNKNOWN';
+        const tip = fallback === 'NO_KEY' ? '未配置 API 密钥' : '检查超时，请稍后重试或手动刷新';
+        return { ...p, displayStatus: fallback, statusTooltip: tip };
+      }));
+    }, 12000);
 
     try {
+      if (cancelledRef.current) return;
       await storeRefresh(repoName);
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       const updatedList = await providerRepository.getAll();
@@ -207,6 +228,9 @@ export function useProviderManagement() {
       setConnectingProviderName(null);
       setConnecting(provider.name, false);
     }
+    };
+    queueRef.current = queueRef.current.then(() => cancelledRef.current ? Promise.resolve() : run());
+    await queueRef.current;
   }, [refreshOllamaModels, setConnecting, storeRefresh]);
 
   // --- EFFECT 1: Load Initial Data on Mount ---
