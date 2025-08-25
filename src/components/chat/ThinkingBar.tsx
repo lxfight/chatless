@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, Timer, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MemoizedMarkdown } from './MemoizedMarkdown';
@@ -32,13 +32,20 @@ export const ThinkingBar = ({
   isThinking,
   elapsedTime,
 }: ThinkingBarProps) => {
+  const safeElapsedTime = Number.isFinite(elapsedTime) && elapsedTime >= 0 ? elapsedTime : 0;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [currentElapsedTime, setCurrentElapsedTime] = useState(elapsedTime);
+  const [currentElapsedTime, setCurrentElapsedTime] = useState(safeElapsedTime);
+  const lastElapsedRef = useRef(safeElapsedTime);
 
-  // 同步外部 elapsedTime 到内部 state；仅在数值真正变化时更新，避免无意义的重复 setState
+  // 同步外部 elapsedTime：仅在思考结束时同步最终值，避免与内部计时器相互触发
   useEffect(() => {
-    setCurrentElapsedTime(prev => (prev !== elapsedTime ? elapsedTime : prev));
-  }, [elapsedTime, isThinking, thinkingContent]);
+    if (isThinking) return;
+    const next = Number.isFinite(elapsedTime) && elapsedTime >= 0 ? elapsedTime : 0;
+    if (lastElapsedRef.current !== next) {
+      lastElapsedRef.current = next;
+      setCurrentElapsedTime(next);
+    }
+  }, [isThinking, elapsedTime]);
 
   // 实时更新计时器
   useEffect(() => {

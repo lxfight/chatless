@@ -15,6 +15,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { BrainCircuit } from 'lucide-react';
 import { SessionParametersDialog } from './SessionParametersDialog';
+import { McpQuickToggle } from './input/McpQuickToggle';
+import { McpMentionPanel } from './input/McpMentionPanel';
 import type { ModelParameters } from '@/types/model-params';
 import { createSafePreview } from '@/lib/utils/tokenBudget';
 import { getCurrentKnowledgeBaseConfig } from '@/lib/knowledgeBaseConfig';
@@ -210,6 +212,7 @@ export function ChatInput({
   const [overlayFont, setOverlayFont] = useState<string>('');
   const [overlayFontSize, setOverlayFontSize] = useState<string>('');
   const [overlayLineHeight, setOverlayLineHeight] = useState<string>('');
+  const [mentionOpen, setMentionOpen] = useState<boolean>(false);
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -218,6 +221,10 @@ export function ChatInput({
     setOverlayFontSize(cs.fontSize);
     setOverlayLineHeight(cs.lineHeight);
   }, [textareaRef.current]);
+
+  // 是否需要覆盖层渲染（/ 指令或 @ 提示）
+  const hasSlashOverlay = useMemo(() => !!parseLeadingSlash(inputValue), [inputValue]);
+  const hasMentionOverlay = useMemo(() => /@([a-zA-Z0-9_-]{1,64})/g.test(inputValue), [inputValue]);
 
   // 用渲染结果替换 /指令与其变量片段；若存在 “| ”，会将其后的内容以换行附加在渲染结果后
   const replaceSlashWithRendered = (text: string, rendered: string): string => {
@@ -244,6 +251,8 @@ export function ChatInput({
     // 以 / 开头 或 光标前为 / 时唤起，但不改变输入框焦点
     const open = val.startsWith('/') || /\s\/$/.test(val);
     setIsPanelOpen(open);
+    // @ 提示：当末尾形如 @xxx 时打开 MCP 引用面板（允许字母数字和 - _）
+    setMentionOpen(/@([a-zA-Z0-9_-]*)$/.test(val));
   }, [inputValue]);
 
   // 当进入编辑模式时，预填充内容
@@ -392,14 +401,13 @@ export function ChatInput({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      if (!isPanelOpen) {
-        e.preventDefault();
-        handleSend();
-      }
-    }
-    // 在打开面板时避免回车直接发送
-    if (isPanelOpen && e.key === 'Enter') {
+      // 1) 若 @ 面板打开，回车只代入选择，不发送（由面板自身处理 onSelect）
+      if (mentionOpen) { e.preventDefault(); return; }
+      // 2) 若 / 面板打开，也不直接发送
+      if (isPanelOpen) { e.preventDefault(); return; }
+      // 3) 正常发送
       e.preventDefault();
+      handleSend();
     }
   };
 
@@ -643,6 +651,30 @@ export function ChatInput({
             为避免重影，textarea 在有 /指令 时使用 text-transparent，仅显示插入符。 */}
         {(() => {
           const parsed = parseLeadingSlash(inputValue);
+          // 高亮 @mcp 引用（淡绿色） + 兼容 / 指令高亮
+          const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g;
+          const renderMentions = (text: string) => {
+            const parts: React.ReactNode[] = [];
+            let last = 0; let m: RegExpExecArray | null;
+            while ((m = mentionRe.exec(text))) {
+              const i = m.index;
+              if (i > last) parts.push(text.slice(last, i));
+              parts.push(<span key={i} className="bg-emerald-50 text-emerald-700 rounded px-0.5">{m[0]}</span>);
+              last = i + m[0].length;
+            }
+            if (last < text.length) parts.push(text.slice(last));
+            return parts;
+          };
+          if (!parsed && hasMentionOverlay) {
+            // 无 / 指令时，仅做 @ 提示的淡绿色高亮
+            return (
+              <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
+                <div className="pl-14 pr-16 py-[11px] pb-12 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+                  {renderMentions(inputValue)}
+                </div>
+              </div>
+            );
+          }
           if (!parsed) return null;
           const { leadingSpace, token, prefixRaw, hasDelimiter, postRaw } = parsed;
           const prefixText = `/${token}${prefixRaw}${hasDelimiter ? ' | ' : ''}`;
@@ -654,7 +686,7 @@ export function ChatInput({
                 {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
                 <span className="rounded bg-yellow-100/70 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-100 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
                 {/* 竖线后的普通文本按原样展示（不高亮）*/}
-                {hasDelimiter && postRaw ? <>{postRaw}</> : null}
+                {hasDelimiter && postRaw ? <>{renderMentions(postRaw)}</> : null}
               </div>
             </div>
           );
@@ -667,11 +699,24 @@ export function ChatInput({
           placeholder="开始对话吧… 输入 / 可快速调用提示词"
           className={cn(
             "relative z-[1] w-full pl-14 pr-16 py-[10px] pb-10 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
-            parseLeadingSlash(inputValue) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
+            (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={undefined}
           rows={3}
           disabled={disabled || isParsingDocument}
+        />
+        <McpMentionPanel
+          open={mentionOpen}
+          anchorRef={textareaRef as any}
+          filterQuery={(inputValue.match(/@([a-zA-Z0-9_-]*)$/)?.[1] || '')}
+          onSelect={(name)=>{
+            const el = textareaRef.current; if (!el) return;
+            const next = inputValue.replace(/@([a-zA-Z0-9_-]*)$/, `@${name} `);
+            setInputValue(next);
+            setTimeout(()=>{ el.selectionStart = el.selectionEnd = next.length; el.focus(); },0);
+            setMentionOpen(false);
+          }}
+          onClose={()=>setMentionOpen(false)}
         />
         <div className="absolute left-2 bottom-4 z-[2] flex items-center gap-1">
           <TooltipProvider>
@@ -712,6 +757,18 @@ export function ChatInput({
                selectedKnowledgeBase={selectedKnowledgeBase}
             />
             {/* 会话参数设置按钮 */}
+            <McpQuickToggle onInsertMention={(name)=>{
+              // 在光标处插入 @name，并使用淡绿色高亮
+              const el = textareaRef.current;
+              if (!el) return;
+              const start = el.selectionStart || 0;
+              const end = el.selectionEnd || 0;
+              const mention = `@${name} `; // 末尾加空格，避免粘连
+              const next = inputValue.slice(0, start) + mention + inputValue.slice(end);
+              setInputValue(next);
+              // 将光标移到插入后
+              setTimeout(() => { el.selectionStart = el.selectionEnd = start + mention.length; el.focus(); }, 0);
+            }} />
             {providerName && modelId && conversationId && (
               <Tooltip>
                 <TooltipTrigger asChild>

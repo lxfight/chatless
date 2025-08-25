@@ -12,7 +12,6 @@ use tokio::io::AsyncWriteExt;
 use rmcp::{
   ServerHandler,
   model::{ServerCapabilities, ServerInfo},
-  service::{RoleServer, Service},
   transport::sse_server::SseServer,
 };
 

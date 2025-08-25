@@ -20,6 +20,16 @@ export function normalizeTitle(raw: string, maxLength: number): string {
   if (!raw) return '';
   let title = String(raw).trim();
 
+  // 若包含 JSON 形态的 {"title":"..."}，先直接提取值
+  try {
+    const jsonLike = title.match(/"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+    if (jsonLike && jsonLike[1]) {
+      // 还原转义字符
+      const unescaped = jsonLike[1].replace(/\\n/g, ' ').replace(/\\t/g, ' ').replace(/\\"/g, '"');
+      title = unescaped;
+    }
+  } catch {}
+
   // 去除 R1 等模型输出的思考标签与任意 HTML/XML 标签
   title = title.replace(/<think>[\s\S]*?<\/think>/gi, '');
   title = title.replace(/<[^>]+>/g, '');
@@ -29,7 +39,7 @@ export function normalizeTitle(raw: string, maxLength: number): string {
 
   // 去除包裹引号、句号、尾随标点与 emoji 等非常见符号
   title = title
-    .replace(/^['"“”‘’]+|['"“”‘’]+$/g, '')
+    .replace(/^[\'"“”‘’]+|[\'"“”‘’]+$/g, '')
     .replace(/[\r\n]/g, ' ')
     .replace(/[。！？!?,;；]+$/g, '')
     .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
@@ -147,7 +157,24 @@ export async function generateTitleFromFirstMessage(
  */
 export function extractTitleFromOutput(raw: string, maxLength: number): string {
   if (!raw) return '';
-  const text = String(raw).trim();
+  let text = String(raw).trim();
+
+  // 去掉可能的代码块围栏，降低解析失败概率
+  text = text.replace(/```[a-zA-Z]*\n([\s\S]*?)\n```/g, '$1');
+  // 先移除 <think> 块，避免其中的花括号干扰 JSON 解析
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  // 优先用正则在任意位置提取 \"title\" 字段（无需完整 JSON），成功即返回
+  try {
+    const m = text.match(/"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+    if (m && m[1]) {
+      const unescaped = m[1]
+        .replace(/\\n/g, ' ')
+        .replace(/\\t/g, ' ')
+        .replace(/\\"/g, '"');
+      return normalizeTitle(unescaped, maxLength);
+    }
+  } catch {}
 
   // 1) JSON 解析：{ "title": "..." }
   try {

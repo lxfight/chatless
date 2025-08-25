@@ -147,6 +147,7 @@ export function ChatMessage({
           content={content}
           isStreaming={isStreaming}
           thinkingDuration={thinking_duration}
+          id={id}
           onStreamingComplete={(duration) => {
             if (onSaveThinkingDuration) {
               onSaveThinkingDuration(id, duration);

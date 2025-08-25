@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { PromptPill } from './PromptPill';
+import { useEffect } from 'react';
+import { getEnabledConfiguredServers, getConnectedServers, getEnabledServersForConversation, setEnabledServersForConversation } from '@/lib/mcp/chatIntegration';
 
 interface ChatHeaderProps {
   title: string;
@@ -42,6 +44,10 @@ export function ChatHeader({
   tokenCount = 0
 }: ChatHeaderProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [mcpAll, setMcpAll] = useState<string[]>([]);
+  const [mcpConnected, setMcpConnected] = useState<string[]>([]);
+  const conversationId = useChatStore((s)=>s.currentConversationId);
+  const [enabledForConv, setEnabledForConv] = useState<string[]>([]);
 
   const createConversation = useChatStore((state) => state.createConversation);
   const { toggleSidebar } = useSidebar();
@@ -56,6 +62,23 @@ export function ChatHeader({
   const handleConfirmDelete = () => {
     onDelete();
     setShowDeleteConfirm(false);
+  };
+
+  // 初始化 MCP 列表与会话选择
+  useEffect(() => {
+    (async () => {
+      setMcpAll(await getEnabledConfiguredServers());
+      setMcpConnected(await getConnectedServers());
+      if (conversationId) setEnabledForConv(await getEnabledServersForConversation(conversationId));
+    })();
+  }, [conversationId]);
+
+  const toggleServer = async (name: string) => {
+    let next: string[];
+    if (enabledForConv.includes(name)) next = enabledForConv.filter(n => n !== name);
+    else next = [...enabledForConv, name];
+    setEnabledForConv(next);
+    if (conversationId) await setEnabledServersForConversation(conversationId, next);
   };
 
   return (
@@ -91,6 +114,7 @@ export function ChatHeader({
             onModelChange={handleModelChange}
             disabled={isModelSelectorDisabled}
           />
+          {/* 旧的右上角 MCP 选择已移除，改为输入框上拉面板 */}
           <PromptPill />
 
           <DropdownMenu>

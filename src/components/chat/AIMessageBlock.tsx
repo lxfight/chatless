@@ -5,19 +5,22 @@ import { MemoizedMarkdown } from './MemoizedMarkdown';
 import { ThinkingBar } from '@/components/chat/ThinkingBar';
 import { MessageStreamParser } from '@/lib/chat/streaming/MessageStreamParser';
 import { Brain, Loader2 } from 'lucide-react';
+import { ToolCallCard } from '@/components/chat/ToolCallCard';
 
 interface AIMessageBlockProps {
   content: string;
   isStreaming: boolean;
   thinkingDuration?: number;
   onStreamingComplete?: (duration: number) => void;
+  id?: string; // for inline retry in ToolCallCard
 }
 
 export function AIMessageBlock({
   content,
   isStreaming,
   thinkingDuration,
-  onStreamingComplete
+  onStreamingComplete,
+  id
 }: AIMessageBlockProps) {
   const [streamedState, setStreamedState] = useState<null | {
     thinkingContent: string;
@@ -64,6 +67,45 @@ export function AIMessageBlock({
   // 检查内容是否包含think标签 - 只要检测到<think>就开始显示思考栏
   const hasThinkTags = useMemo(() => {
     return content.includes('<think>');
+  }, [content]);
+
+  // 提前解析 <tool_call>，或 JSON 格式的 {"type":"tool_call",...}
+  const hasToolCallEarly = useMemo(() => content.includes('<tool_call>') || /"type"\s*:\s*"tool_call"/i.test(content), [content]);
+  const earlyCardData = useMemo(() => {
+    if (!hasToolCallEarly) return null;
+    // 1) XML 包裹
+    const mXml = content.match(/<tool_call>([\s\S]*?)<\/tool_call>/i);
+    if (mXml && mXml[1]) {
+      try {
+        const obj = JSON.parse(mXml[1]);
+        return { server: obj.server, tool: obj.tool, args: obj.parameters || obj.args || {} };
+      } catch { /* ignore */ }
+    }
+    // 2) 代码块/纯文本 JSON
+    try {
+      // 尝试抓取最短含有 server/tool 的片段
+      const mJson = content.match(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/i);
+      if (mJson && mJson[0]) {
+        const obj = JSON.parse(mJson[0]);
+        return { server: obj.server || obj.mcp, tool: obj.tool || obj.tool_name, args: obj.parameters || obj.args || {} };
+      }
+    } catch { /* ignore */ }
+    return null;
+  }, [content, hasToolCallEarly]);
+
+  // 提取已嵌入的卡片标记（可支持多次调用）
+  const embeddedCards = useMemo(() => {
+    const cards: Array<any> = [];
+    const re = /\{\"__tool_call_card__\":\{[\s\S]*?\}\}/g;
+    try {
+      const all = content.match(re);
+      if (all && all.length) {
+        for (const s of all) {
+          try { const obj = JSON.parse(s); if (obj && obj.__tool_call_card__) cards.push(obj.__tool_call_card__); } catch {}
+        }
+      }
+    } catch {}
+    return cards;
   }, [content]);
 
   useEffect(() => {
@@ -226,6 +268,52 @@ export function AIMessageBlock({
   // 检查是否没有任何内容（初始加载状态）
   const hasNoContent = !content && isStreaming && (!state || (!state.thinkingContent && !state.regularContent));
 
+  // 将一条 AI 消息中的多种片段（普通文本、<think> 块、工具卡片）按出现顺序混合渲染，避免“消息粘连”
+  const mixedSegments = useMemo(() => {
+    const raw = String(state?.regularContent ?? content ?? '');
+    const segments: Array<{ type: 'card'; data: any } | { type: 'think'; text: string } | { type: 'text'; text: string }> = [];
+    if (!raw) return segments;
+
+    // 1) 先按工具卡片标记切分
+    const cardRe = /\{\"__tool_call_card__\":\{[\s\S]*?\}\}/g;
+    let lastIndex = 0;
+    const parts: Array<{ kind: 'text' | 'card'; value: string }> = [];
+    for (const m of raw.matchAll(cardRe)) {
+      const idx = m.index ?? 0;
+      if (idx > lastIndex) parts.push({ kind: 'text', value: raw.slice(lastIndex, idx) });
+      parts.push({ kind: 'card', value: m[0] });
+      lastIndex = idx + m[0].length;
+    }
+    if (lastIndex < raw.length) parts.push({ kind: 'text', value: raw.slice(lastIndex) });
+
+    // 2) 逐段处理：文本再按 <think>..</think> 切分；卡片直接解析
+    const thinkRe = /<think>[\s\S]*?<\/think>/g;
+    for (const p of parts) {
+      if (p.kind === 'card') {
+        try {
+          const obj = JSON.parse(p.value);
+          if (obj && obj.__tool_call_card__) segments.push({ type: 'card', data: obj.__tool_call_card__ });
+        } catch {}
+        continue;
+      }
+      const text = p.value;
+      if (!text) continue;
+      let tLast = 0;
+      for (const m of text.matchAll(thinkRe)) {
+        const i = m.index ?? 0;
+        if (i > tLast) segments.push({ type: 'text', text: text.slice(tLast, i) });
+        const block = m[0];
+        const inner = block.replace(/^<think>/i, '').replace(/<\/think>$/i, '');
+        segments.push({ type: 'think', text: inner });
+        tLast = i + block.length;
+      }
+      if (tLast < text.length) segments.push({ type: 'text', text: text.slice(tLast) });
+    }
+
+    // 清理空白段，避免“粘连”
+    return segments.filter(s => (s.type === 'text' ? s.text.trim().length > 0 : true));
+  }, [content, state?.regularContent]);
+
   return (
     <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
@@ -252,10 +340,53 @@ export function AIMessageBlock({
         />
       )}
 
-      {/* 消息内容 */}
+      {/* 消息内容（混合片段顺序渲染） */}
       {(state?.regularContent || (!hasNoContent && !isStreaming)) && (
         <div className="relative min-w-0 max-w-full w-full">
-          <MemoizedMarkdown content={state?.regularContent || ''} />
+          {mixedSegments.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {mixedSegments.map((seg, idx) => {
+                if (seg.type === 'card') {
+                  const d = seg.data;
+                  return (
+                    <ToolCallCard
+                      key={d.id || idx}
+                      server={d.server}
+                      tool={d.tool}
+                      status={d.status}
+                      args={d.args}
+                      resultPreview={d.resultPreview}
+                      errorMessage={d.errorMessage}
+                      schemaHint={d.schemaHint}
+                      messageId={id}
+                    />
+                  );
+                }
+                if (seg.type === 'think') {
+                  // 仅在非流式阶段把历史中的多段思考内容展开为多个思考栏
+                  if (!isStreaming) {
+                    return (
+                      <ThinkingBar
+                        key={`think-${idx}`}
+                        thinkingContent={seg.text}
+                        isThinking={false}
+                        elapsedTime={0}
+                      />
+                    );
+                  }
+                  return null;
+                }
+                return <MemoizedMarkdown key={`md-${idx}`} content={seg.text} />;
+              })}
+              {/* 流式阶段：若尚未写入卡片标记，但已提前探测到工具调用，则给出“调用中”占位 */}
+              {mixedSegments.every(s => s.type !== 'card') && earlyCardData && isStreaming && (
+                <ToolCallCard server={earlyCardData.server} tool={earlyCardData.tool} status={'running'} args={earlyCardData.args} messageId={id} />
+              )}
+            </div>
+          ) : (
+            // 回退：纯文本
+            <MemoizedMarkdown content={state?.regularContent || ''} />
+          )}
           {/* 悬浮显示字数 */}
           {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
             {(() => {

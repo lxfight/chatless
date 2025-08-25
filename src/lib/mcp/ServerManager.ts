@@ -14,6 +14,23 @@ export class ServerManager {
   private listeners = new Set<Listener>();
   private statuses = new Map<string, ServerStatus>();
 
+  private async ensureConnected(name: string): Promise<void> {
+    if (this.clients.has(name)) return;
+    // 尝试从持久化配置中加载并启动（懒连接）
+    try {
+      const { Store } = await import('@tauri-apps/plugin-store');
+      const store = await Store.load('mcp_servers.json');
+      const list = (await store.get<Array<{ name: string; config: McpServerConfig; enabled?: boolean }>>('servers')) || [];
+      const found = Array.isArray(list) ? list.find(s => s && s.name === name) : undefined;
+      if (!found) throw new Error('config not found');
+      await this.startServer(found.name, found.config);
+    } catch (e) {
+      // 抛出统一的未连接错误，外层会展示
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Server not connected: ${msg}`);
+    }
+  }
+
   on(listener: Listener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -61,37 +78,66 @@ export class ServerManager {
   }
 
   async listTools(name: string): Promise<McpTool[]> {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
     return c.listTools();
   }
 
   async callTool(name: string, toolName: string, args?: Record<string, unknown>) {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
-    return c.callTool(toolName, args);
+    // 超时包装，防止悬挂
+    const { CALL_TOOL_TIMEOUT_MS } = await import('./constants');
+    return await Promise.race([
+      c.callTool(toolName, args),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('callTool timeout')), CALL_TOOL_TIMEOUT_MS)),
+    ]);
   }
 
   async listResources(name: string) {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
     return c.listResources();
   }
 
   async readResource(name: string, uri: string) {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
     return c.readResource(uri);
   }
 
   async listPrompts(name: string) {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
     return c.listPrompts();
   }
 
   async getPrompt(name: string, promptName: string, args?: Record<string, unknown>) {
-    const c = this.clients.get(name);
+    let c = this.clients.get(name);
+    if (!c) {
+      await this.ensureConnected(name);
+      c = this.clients.get(name);
+    }
     if (!c) throw new Error('Server not connected');
     return c.getPrompt(promptName, args);
   }

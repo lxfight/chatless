@@ -11,6 +11,7 @@ use rmcp::{
 };
 // use std::sync::Arc; // no longer needed after using with_uri
 use tauri::State;
+use tokio::time::{timeout, Duration};
 use tokio::process::Command;
 
 #[tauri::command]
@@ -26,13 +27,16 @@ pub async fn mcp_connect(
   match config.r#type.as_str() {
     "stdio" => {
       let cmd_name = config.command.clone().ok_or_else(|| "command required for stdio".to_string())?;
-      // —— 基础安全校验：仅允许白名单命令或显式路径 ——
+      // —— 基础安全校验：仅允许白名单命令或显式路径；另允许 Windows 包装器 cmd /c ——
       let is_path = cmd_name.contains('/') || cmd_name.contains('\\');
       if !is_path {
         const ALLOW: [&str; 3] = ["npx", "uvx", "bunx"];
-        if !ALLOW.contains(&cmd_name.as_str()) {
+        let is_wrapper_cmd = cmd_name.eq_ignore_ascii_case("cmd")
+          && config.args.as_ref().map(|a| a.get(0).map(|s| s.eq_ignore_ascii_case("/c")).unwrap_or(false)).unwrap_or(false)
+          && config.args.as_ref().map(|a| a.len() >= 2).unwrap_or(false);
+        if !ALLOW.contains(&cmd_name.as_str()) && !is_wrapper_cmd {
           return Err(format!(
-            "command '{}' is not allowed. use one of: npx, uvx, bunx or an absolute path",
+            "command '{}' is not allowed. use one of: npx, uvx, bunx, an absolute path, or Windows wrapper 'cmd /c <cmd>'",
             cmd_name
           ));
         }
@@ -57,17 +61,26 @@ pub async fn mcp_connect(
         cmd.env("NO_COLOR", "1");
         cmd.env("NPX_Y", "1");
       }
+      // —— 调试日志 ——
+      log::debug!("[MCP/stdio] spawning: cmd='{}' args={:?} envs={}", cmd_name, &config.args, config.env.as_ref().map(|v| v.len()).unwrap_or(0));
 
-      let service: McpService = ()
-        .serve(TokioChildProcess::new(cmd.configure(|_c| {})).map_err(|e| e.to_string())?)
+      let fut = async {
+        let service: McpService = ()
+          .serve(TokioChildProcess::new(cmd.configure(|_c| {})).map_err(|e| e.to_string())?)
+          .await
+          .map_err(|e| e.to_string())?;
+        Ok::<McpService, String>(service)
+      };
+      let service = timeout(Duration::from_secs(20), fut)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|_| "Connect timeout (stdio)".to_string())??;
 
       state.0.insert(name, service);
       Ok(())
     }
     "sse" => {
       let base = config.base_url.clone().ok_or_else(|| "baseUrl required for sse".to_string())?;
+      log::debug!("[MCP/sse] connecting baseUrl={}", &base);
       let req = reqwest::Client::new();
       let cfg = SseClientConfig { sse_endpoint: base.into(), ..Default::default() };
       let transport = SseClientTransport::start_with_client(req, cfg).await.map_err(|e| e.to_string())?;
@@ -80,6 +93,7 @@ pub async fn mcp_connect(
     }
     "http" => {
       let base = config.base_url.clone().ok_or_else(|| "baseUrl required for http".to_string())?;
+      log::debug!("[MCP/http] connecting baseUrl={}", &base);
       let req = reqwest::Client::new();
       let cfg = StreamableHttpClientTransportConfig::with_uri(base);
       let transport = StreamableHttpClientTransport::with_client(req, cfg);

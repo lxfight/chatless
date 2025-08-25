@@ -7,6 +7,7 @@ import { KnowledgeBaseSettings } from "@/components/settings/KnowledgeBaseSettin
 import { PrivacySecuritySettings } from "@/components/settings/PrivacySecuritySettings";
 import { AdvancedSettings } from "@/components/settings/AdvancedSettings";
 import { AboutSupportSettings } from "@/components/settings/AboutSupportSettings";
+import { McpServersSettings } from "@/components/settings/McpServersSettings";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { recordAboutViewed } from "@/lib/update/update-notifier";
@@ -25,6 +26,8 @@ export default function SettingsPage() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case "mcpServers":
+        return <McpServersSettings />;
       case "localModels":
         return <AiModelSettings />;
       case "knowledgeBase":

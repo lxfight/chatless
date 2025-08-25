@@ -13,10 +13,9 @@ import {
   StreamCallbacks
 } from '@/lib/llm';
 import type { Message, Conversation } from "@/types/chat";
-import { getDatabaseService } from "@/lib/db";
-import { getRAGService } from '@/lib/rag/ragServiceInstance';
-import { historyService } from '@/lib/historyService';
-import { downloadService } from '@/lib/utils/downloadService';
+import { exportConversationMarkdown } from '@/lib/chat/actions/download';
+import { retryAssistantMessage } from '@/lib/chat/actions/retry';
+import { runRagFlow } from '@/lib/chat/actions/ragFlow';
 import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
 import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
@@ -29,7 +28,7 @@ import {
   shouldGenerateTitleAfterAssistantComplete,
 } from '@/lib/chat/TitleGenerator';
 
-type StoreMessage = any;
+// type StoreMessage = any;
 
 export const useChatActions = (selectedModelId: string | null, currentProviderName: string, sessionParameters?: any) => {
   const router = useRouter();
@@ -60,6 +59,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     return current?.messages?.some(m => m.status === 'loading') ?? false;
   });
 
+  // MCP 工具递归计数已迁移到 streamToolMiddleware
+
   const [generationTimeout, setGenerationTimeout] = useState<NodeJS.Timeout | null>(null);
   const lastActivityTimeRef = useRef<number>(Date.now());
   const [isStale, setIsStale] = useState(false);
@@ -83,17 +84,16 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     pendingUpdate: false
   });
   
-  // 全局计时器引用，便于随时清理
-  const renderIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // 全局计时器引用（未使用，移除以减噪）
   const genTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSaverRef = useRef<MessageAutoSaver | null>(null);
   
   // 添加内容变化检测变量
   const lastSavedContentRef = useRef('');
   
-  // 防抖更新UI状态
+  // 防抖状态引用移除，保持最小必要状态
   const debouncedTokenUpdateRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTokenUpdateTimeRef = useRef(0);
+  const noop = useCallback((_: unknown = undefined) => {}, []);
 
   const navigateToSettings = useCallback((tab: string = 'localModels') => {
     router.push(`/settings?tab=${tab}`);
@@ -102,7 +102,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   // 将错误信息压缩为短文本，避免右下角提示过长
   const briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
 
-  const checkApiKeyValidity = useCallback(async (providerName: string, modelId: string): Promise<boolean> => {
+  const checkApiKeyValidity = useCallback(async (_providerName: string, _modelId: string): Promise<boolean> => {
     return true;
   }, []);
 
@@ -115,8 +115,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     // 增加token计数
     batchUpdateRef.current.tokenCount++;
     
-    // 添加调试日志
-    console.log(`[BATCH-UPDATE] Token count: ${batchUpdateRef.current.tokenCount}, Pending: ${batchUpdateRef.current.pendingUpdate}`);
+    // 调试日志移除以减少控制台噪音
     
     // 判断是否需要更新数据库
     const shouldUpdate = 
@@ -124,53 +123,29 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       Date.now() - batchUpdateRef.current.lastUpdateTime >= 2000; // 或每2秒更新一次
     
     if (shouldUpdate && !batchUpdateRef.current.pendingUpdate) {
-      console.log(`[BATCH-UPDATE] Triggering database update after ${batchUpdateRef.current.tokenCount} tokens`);
       batchUpdateRef.current.pendingUpdate = true;
       batchUpdateRef.current.lastUpdateTime = Date.now();
       
       // 异步更新数据库
-      updateMessage(messageId, {
+      void updateMessage(messageId, {
         content: content,
         thinking_start_time: thinking_start_time,
       }).then(() => {
-        console.log(`[BATCH-UPDATE] Database update completed successfully`);
         lastSavedContentRef.current = content;
         batchUpdateRef.current.tokenCount = 0;
         batchUpdateRef.current.pendingUpdate = false;
-      }).catch((error) => {
-        console.error('[BATCH-UPDATE] Database update failed:', error);
+      }).catch((_error) => {
+        // 静默失败，避免打断流
         batchUpdateRef.current.pendingUpdate = false;
       });
     } else if (shouldUpdate && batchUpdateRef.current.pendingUpdate) {
-      console.log(`[BATCH-UPDATE] Skipping update - pending update in progress`);
+      // 跳过：已有更新在进行中
     } else {
-      console.log(`[BATCH-UPDATE] Skipping update - conditions not met (count: ${batchUpdateRef.current.tokenCount}, time: ${Date.now() - batchUpdateRef.current.lastUpdateTime}ms)`);
+      // 跳过：未满足触发条件
     }
   }, [updateMessage]);
 
-  // 防抖的UI状态更新函数
-  const debouncedTokenUpdate = useCallback(() => {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastTokenUpdateTimeRef.current;
-    
-    // 性能监控
-    performanceRef.current.updateCount++;
-    
-    // 如果距离上次更新不到50ms，则防抖
-    if (timeSinceLastUpdate < 50) {
-      if (debouncedTokenUpdateRef.current) {
-        clearTimeout(debouncedTokenUpdateRef.current);
-      }
-      debouncedTokenUpdateRef.current = setTimeout(() => {
-        setTokenCount(prev => prev + 1);
-        lastTokenUpdateTimeRef.current = Date.now();
-      }, 50 - timeSinceLastUpdate);
-    } else {
-      // 直接更新
-      setTokenCount(prev => prev + 1);
-      lastTokenUpdateTimeRef.current = now;
-    }
-  }, []);
+  // 已移除未使用的防抖函数，避免无意义的闭包与告警
 
   // 性能监控
   const performanceRef = useRef({
@@ -183,8 +158,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   const logPerformance = useCallback(() => {
     const now = Date.now();
     const timeDiff = now - performanceRef.current.lastUpdateTime;
-    if (timeDiff > 5000) { // 每5秒记录一次
-      console.log(`[PERFORMANCE] Tokens: ${performanceRef.current.tokenCount}, Updates: ${performanceRef.current.updateCount}, Time: ${timeDiff}ms`);
+    if (timeDiff > 5000) {
       performanceRef.current = {
         tokenCount: 0,
         updateCount: 0,
@@ -255,12 +229,11 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     let conversationId = options?.conversationId || currentConversationId;
     
-    const isCreatingNewConversation = !conversationId;
+    // const isCreatingNewConversation = !conversationId;
     if (!conversationId) {
       try {
         conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, currentProviderName);
-      } catch (error) {
-        console.error("Failed to create conversation:", error);
+      } catch {
         toast.error('创建对话失败', { description: '无法创建新的对话，请重试。' });
         return;
       }
@@ -269,10 +242,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     const finalConversationId = conversationId;
     
     if (currentConversation?.model_id !== modelToUse && finalConversationId) {
-      updateConversation(finalConversationId, { model_id: modelToUse });
+      void updateConversation(finalConversationId, { model_id: modelToUse });
     }
 
-    setLastUsedModelForChat(finalConversationId, modelToUse);
+    void setLastUsedModelForChat(finalConversationId, modelToUse);
 
     const now = Date.now();
     const userMessageId = uuidv4();
@@ -326,66 +299,21 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     // 如果选择了知识库，则优先走 RAG 流程
     if (knowledgeBase) {
-      try {
-        const ragService = await getRAGService();
-        const ragStream = ragService.queryStream({
-          query: content,
-          knowledgeBaseIds: [knowledgeBase.id],
-          topK: 5,
-          similarityThreshold: 0.7,
-        });
-
-        // 为 RAG 流初始化自动保存器
-        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
-          await updateMessage(assistantMessageId, {
-            content: latest,
-            thinking_start_time: thinking_start_time,
-          });
-        }, 1000);
-
-        for await (const chunk of ragStream) {
-          if (chunk.type === 'answer') {
-            const token = chunk.data as string;
-            currentContentRef.current += token;
-            pendingContentRef.current = currentContentRef.current;
-
-            // 即时内存更新 + UI 流畅
-            updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
-            setTokenCount(prev => prev + 1);
-            // 定时保存
-            autoSaverRef.current?.update(currentContentRef.current);
-          } else if (chunk.type === 'error') {
-            throw chunk.data as Error;
-          }
-        }
-
-        // 强制flush并最终落盘
-        autoSaverRef.current?.stop();
-        await autoSaverRef.current?.flush();
-        await updateMessage(assistantMessageId, {
-          content: currentContentRef.current,
-          status: 'sent',
-          thinking_start_time: thinking_start_time,
-          thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
-        });
-        autoSaverRef.current = null;
-        return;
-      } catch (error) {
-        console.error('RAG query failed:', error);
-        autoSaverRef.current?.stop();
-        await autoSaverRef.current?.flush();
-        autoSaverRef.current = null;
-        await updateMessage(assistantMessageId, {
-          status: 'error',
-          content: currentContentRef.current || (error instanceof Error ? error.message : 'RAG查询失败'),
-          thinking_start_time: thinking_start_time,
-          thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000),
-        });
-        return;
-      }
+      const handled = await runRagFlow({
+        query: content,
+        knowledgeBaseId: knowledgeBase.id,
+        assistantMessageId,
+        thinkingStartTime: thinking_start_time,
+        currentContentRef,
+        autoSaverRef,
+        updateMessage,
+        updateMessageContentInMemory,
+        setTokenCount,
+      });
+      if (handled) return;
     }
 
-    // 构建历史消息（含系统提示词）
+    // 构建历史消息（含系统提示词 + MCP 上下文【混合模式】）
     const historyForLlm: LlmMessage[] = [];
     try {
       const conv = currentConversationId ? useChatStore.getState().conversations.find((c:any)=>c.id===currentConversationId) : null;
@@ -399,7 +327,17 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           }
         }
       }
-    } catch {}
+      // 使用独立模块进行 MCP 系统注入（带缓存与限流）
+      try {
+        const { buildMcpSystemInjections } = await import('@/lib/mcp/promptInjector');
+        const injection = await buildMcpSystemInjections(content, currentConversationId || undefined);
+        for (const m of injection.systemMessages) historyForLlm.push(m as any);
+      } catch {
+        // 忽略注入失败
+      }
+    } catch {
+      // 忽略系统提示构建失败
+    }
     if (currentConversation?.messages) {
       // 只取最近的几条消息，避免上下文过长
       const recentMessages = currentConversation.messages.slice(-10);
@@ -419,22 +357,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       images: options?.images
     });
 
-    // 调试日志：在开发环境打印即将发送给 LLM 的 system 提示词与历史长度
-    try {
-      if (process.env.NODE_ENV !== 'production') {
-        const systemMsg = historyForLlm.find((m: any) => m.role === 'system');
-        const sysPreview = systemMsg?.content ? String(systemMsg.content).slice(0, 500) : '(none)';
-        // 使用 console.debug 避免在普通日志中过于显眼
-        console.debug('[LLM Debug] system message preview:', sysPreview);
-        console.debug('[LLM Debug] history length:', historyForLlm.length);
-      }
-    } catch {}
+    // 调试信息已移除，避免控制台噪音
 
     // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
 
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
-        console.log(`[useChatActions] Starting stream for model: ${modelToUse}`);
 
         autoSaverRef.current = new MessageAutoSaver(async (latest) => {
           await updateMessage(assistantMessageId, {
@@ -446,10 +374,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
         genTimeoutRef.current = setInterval(() => {
           if (Date.now() - lastActivityTimeRef.current > 120000) {
-            console.warn('Generation timed out due to inactivity.');
             handleStopGeneration();
-            updateMessage(assistantMessageId, { status: 'error', content: '响应超时', thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) });
-          toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
+            void updateMessage(assistantMessageId, { status: 'error', content: '响应超时', thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) });
+            toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
             if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
           }
         }, 5000);
@@ -470,6 +397,20 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(prev => prev + 1);
         // 2) 通知自动保存器按秒保存
         autoSaverRef.current?.update(currentContentRef.current);
+
+        // 提前拦截：若首次检测到完整的 <tool_call>，立即插入“运行中”卡片并暂停 UI 的“继续往下讲”
+        void (async () => {
+          try {
+            const { insertRunningToolCardIfDetected } = await import('@/lib/mcp/streamToolMiddleware');
+            const inserted = await insertRunningToolCardIfDetected({
+              assistantMessageId,
+              conversationId: String(finalConversationId),
+              currentContent: currentContentRef.current,
+            });
+            // 如果插入了运行中卡片，不做额外处理；UI 会等待 onComplete 时的替换
+            if (inserted) { /* gate further speculative summaries */ }
+          } catch (e) { noop(e); }
+        })();
       },
       onComplete: () => {
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
@@ -485,38 +426,44 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(prev => prev + 1);
         // 内存中已是最新，先停止自动保存并flush，避免定时器晚到覆盖
         autoSaverRef.current?.stop();
-        autoSaverRef.current?.flush().finally(() => {
+        void autoSaverRef.current?.flush().finally(() => {
           // 最终一次确认状态 & 内容
-          updateMessage(assistantMessageId, {
+          void updateMessage(assistantMessageId, {
             content: finalContent,
             status: 'sent',
             thinking_start_time: thinking_start_time,
             thinking_duration: thinking_duration,
           });
 
+          // 检测并执行 MCP 工具调用（文本协议 & 原生tools 双轨支持，先实现文本协议）
+          void (async () => {
+            try {
+              const { handleToolCallOnComplete } = await import('@/lib/mcp/streamToolMiddleware');
+              await handleToolCallOnComplete({
+                assistantMessageId,
+                conversationId: String(finalConversationId),
+                finalContent,
+                provider: currentProviderName,
+                model: modelToUse,
+                historyForLlm,
+                originalUserContent: content,
+              });
+            } catch (e) { noop(e); }
+          })();
+
           // 在首次 AI 回复完成后尝试生成标题（限流友好，不阻塞首条消息发送）。
-          (async () => {
+          void (async () => {
             try {
               const state = useChatStore.getState();
               const conv = state.conversations.find(c => c.id === finalConversationId);
               if (!conv) return;
               const stillDefault = shouldGenerateTitleAfterAssistantComplete(conv);
-              console.debug('[AutoTitle] 检查触发条件', {
-                convId: finalConversationId,
-                currentTitle: conv.title,
-                isDefault: stillDefault,
-                msgs: conv.messages?.length || 0,
-              });
               if (!stillDefault) return;
 
               // 由组件封装：提取首条用户消息作为种子
               const seedContent = extractFirstUserMessageSeed(conv);
-              if (!seedContent.trim()) {
-                console.debug('[AutoTitle] 跳过：首条用户消息为空');
-                return;
-              }
+              if (!seedContent.trim()) { return; }
 
-              console.debug('[AutoTitle] 开始生成', { provider: currentProviderName, model: modelToUse, seedLen: seedContent.length });
               const gen = await generateTitleFromFirstMessage(
                 currentProviderName,
                 modelToUse,
@@ -527,14 +474,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
               const state2 = useChatStore.getState();
               const conv2 = state2.conversations.find(c => c.id === finalConversationId);
               if (!conv2) return;
-              console.debug('[AutoTitle] 生成完成', { gen, stillDefault: isDefaultTitle(conv2.title) });
               if (isDefaultTitle(conv2.title) && gen && gen.trim()) {
-                console.debug('[AutoTitle] 更新会话标题:', gen.trim());
-                await state2.renameConversation(finalConversationId!, gen.trim());
+                await state2.renameConversation(String(finalConversationId), gen.trim());
               }
-            } catch (e) {
-              console.warn('[AutoTitle] 完成后自动生成标题失败:', e);
-            }
+            } catch (e) { noop(e); }
           })();
         });
         
@@ -544,7 +487,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       },
       onError: (error) => {
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        console.error("streamChat promise rejected:", error);
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
         setGenerationTimeout(null);
@@ -552,8 +494,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
         // 停止并尽量flush到最新，再标记错误
         autoSaverRef.current?.stop();
-        autoSaverRef.current?.flush().finally(() => {
-          updateMessage(assistantMessageId, {
+        void autoSaverRef.current?.flush().finally(() => {
+          void updateMessage(assistantMessageId, {
             status: 'error',
             content:
               currentContentRef.current
@@ -602,6 +544,27 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         
         // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
         const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, chatOptions);
+        // —— MCP 集成：附加当前会话启用的 MCP 服务器清单 ——
+        try {
+          const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
+          let enabled = currentConversationId ? await getEnabledServersForConversation(currentConversationId) : [];
+          if (!enabled || enabled.length === 0) {
+            const global = await getGlobalEnabledServers();
+            if (global && global.length) enabled = global;
+          }
+          if (!enabled || enabled.length === 0) enabled = await getConnectedServers();
+          // 将本条消息中的 @mcp 放到最前
+          const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g; const mentioned: string[] = []; let mm: RegExpExecArray | null;
+          while ((mm = mentionRe.exec(content))) { const n = mm[1]; if (n && !mentioned.includes(n)) mentioned.push(n); }
+          if (mentioned.length) {
+            const all = await getAllConfiguredServers(); const map = new Map(all.map(n => [n.toLowerCase(), n] as const));
+            const filtered = mentioned.map(n => map.get(n.toLowerCase())).filter(Boolean) as string[];
+            if (filtered.length) enabled = Array.from(new Set<string>([...filtered, ...enabled]));
+          }
+          (patchedOptions as any).mcpServers = enabled || [];
+        } catch {
+          // 忽略获取启用服务器失败
+        }
         // 强约束：始终使用“最后一次用户显式选择的 provider/model”成对调用
         try {
           const { specializedStorage } = await import('@/lib/storage');
@@ -611,9 +574,28 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         } catch {
           await streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
         }
-      } catch (error) {
-        console.error('获取模型参数失败，使用默认参数:', error);
+      } catch {
+        // 获取模型参数失败，降级为默认参数
         const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, {});
+        try {
+          const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
+          let enabled = currentConversationId ? await getEnabledServersForConversation(currentConversationId) : [];
+          if (!enabled || enabled.length === 0) {
+            const global = await getGlobalEnabledServers();
+            if (global && global.length) enabled = global;
+          }
+          if (!enabled || enabled.length === 0) enabled = await getConnectedServers();
+          const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g; const mentioned: string[] = []; let mm: RegExpExecArray | null;
+          while ((mm = mentionRe.exec(content))) { const n = mm[1]; if (n && !mentioned.includes(n)) mentioned.push(n); }
+          if (mentioned.length) {
+            const all = await getAllConfiguredServers(); const map = new Map(all.map(n => [n.toLowerCase(), n] as const));
+            const filtered = mentioned.map(n => map.get(n.toLowerCase())).filter(Boolean) as string[];
+            if (filtered.length) enabled = Array.from(new Set<string>([...filtered, ...enabled]));
+          }
+          (patchedOptions as any).mcpServers = enabled || [];
+        } catch {
+          // 忽略获取启用服务器失败
+        }
         try {
           const { specializedStorage } = await import('@/lib/storage');
           const lastPair = await specializedStorage.models.getLastSelectedModelPair();
@@ -624,8 +606,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         }
       }
     } else {
-       console.error("No model selected, cannot start chat.");
-       updateMessage(assistantMessageId, { status: 'error', content: "未选择模型", thinking_duration: 0 });
+       // 未选择模型
+       void updateMessage(assistantMessageId, { status: 'error', content: "未选择模型", thinking_duration: 0 });
        toast.error('未选择模型', { description: "在发送消息前，请先在顶部选择一个AI模型。" });
     }
   }, [selectedModelId, currentProviderName, sessionParameters, currentConversationId, currentConversation, createConversation, updateConversation, setLastUsedModelForChat, addMessage, updateMessage, navigateToSettings, checkApiKeyValidity, batchUpdateMessage]);
@@ -650,16 +632,15 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   }, [selectedModelId, currentProviderName, handleSendMessage, checkApiKeyValidity, navigateToSettings]);
 
   const handleStopGeneration = useCallback(() => {
-    console.log("[useChatActions] Stopping generation...");
     try {
       cancelStream();
-    } catch (error) {
-      console.error("Error canceling stream:", error);
+    } catch {
+      // 取消流失败，忽略
     }
     
     // 停止并尽量落盘当前内容，防止丢尾部
     autoSaverRef.current?.stop();
-    autoSaverRef.current?.flush().catch(() => {}).finally(() => {
+    void autoSaverRef.current?.flush().catch(() => {}).finally(() => {
       autoSaverRef.current = null;
     });
 
@@ -684,7 +665,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           ? Math.floor((Date.now() - lastAssistantMessage.thinking_start_time) / 1000)
           : 0;
         
-        updateMessage(lastAssistantMessage.id, {
+        void updateMessage(lastAssistantMessage.id, {
           status: 'error',
           content: lastAssistantMessage.content + '\n\n[用户停止了生成]',
           thinking_duration: thinking_duration,
@@ -704,54 +685,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
   const handleTitleChange = useCallback((newTitle: string) => {
     if (currentConversationId && newTitle && newTitle.trim() !== '') {
-      renameConversation(currentConversationId, newTitle);
+      void renameConversation(currentConversationId, newTitle);
     }
   }, [currentConversationId, renameConversation]);
   
   const handleDeleteConversation = useCallback(() => {
     if (currentConversationId) {
-      deleteConversation(currentConversationId);
+      void deleteConversation(currentConversationId);
     }
   }, [currentConversationId, deleteConversation]);
 
   const handleRetryMessage = useCallback(async (messageIdToRetry: string) => {
-    if (!currentConversationId) return;
-    const conversation = useChatStore.getState().conversations.find(c => c.id === currentConversationId);
-    if (!conversation) return;
-
-    const messageIndex = conversation.messages?.findIndex(m => m.id === messageIdToRetry);
-    if (messageIndex === undefined || messageIndex === -1) return;
-
-    if (conversation.messages?.[messageIndex]?.role !== 'assistant') return;
-
-    let userMessageIndex = messageIndex - 1;
-    while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
-      userMessageIndex--;
-    }
-
-    if (userMessageIndex < 0) {
-      console.warn('[handleRetryMessage] 未找到对应的用户消息，无法重新生成');
-      return;
-    }
-
-    const precedingUserMessage = conversation.messages[userMessageIndex];
-
-    const messagesToKeep = conversation.messages?.slice(0, userMessageIndex) || [];
-
-    useChatStore.setState(state => {
-      const conv = state.conversations.find((c: Conversation) => c.id === currentConversationId);
-      if (conv) {
-        conv.messages = messagesToKeep.map((msg, idx) => {
-          if (idx === messagesToKeep.length - 1 && msg.role === 'user') {
-            return { ...msg, status: 'sent' as const };
-          }
-          return msg;
-        });
-        conv.updated_at = Date.now();
-      }
-    });
-
-    await handleSendMessage(precedingUserMessage.content);
+    await retryAssistantMessage(currentConversationId, messageIdToRetry, handleSendMessage);
   }, [currentConversationId, handleSendMessage]);
 
   useEffect(() => {
@@ -771,7 +716,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           if (loadingMessage) {
             const content = currentContentRef.current || '';
             currentState.finalizeStreamedMessage(loadingMessage.id, 'aborted', content, loadingMessage.model)
-              .catch(err => console.error("[Timeout] Failed to update message status:", err));
+              .catch(() => {});
           }
         }
       }, 120000);
@@ -790,44 +735,13 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   }, [isGenerating]);
 
   // Placeholder handler for share（仍待实现）
-  const handleShare = useCallback(() => console.log('Share clicked'), []);
+  const handleShare = useCallback(() => {}, []);
 
-  /**
-   * 导出当前会话为 Markdown 并触发下载
-   */
   const handleDownload = useCallback(async () => {
-    if (!currentConversationId || !currentConversation) {
-      toast.error('暂无可导出的对话');
-      return;
-    }
-
-    try {
-      // 调用 historyService 生成 Markdown 内容
-      const markdown = await historyService.exportConversation(currentConversationId, 'markdown');
-
-      if (!markdown) {
-        toast.error('导出失败，请稍后重试');
-        return;
-      }
-
-      // 处理文件名中的非法字符
-      const safeTitle = (currentConversation.title || 'chatless-conversation').replace(/[\\/:*?"<>|]/g, '_');
-      const fileName = `${safeTitle}.md`;
-
-      const success = await downloadService.downloadMarkdown(fileName, markdown);
-
-      if (success) {
-        toast.success('对话已成功导出');
-      } else {
-        toast.error('导出失败，请稍后重试');
-      }
-    } catch (error) {
-      console.error('[handleDownload] 导出对话失败', error);
-      toast.error('导出失败，请查看控制台详情');
-    }
+    await exportConversationMarkdown(currentConversation ?? null, currentConversationId ?? null);
   }, [currentConversationId, currentConversation]);
-  const handleImageUpload = useCallback((file: File) => console.log('Image uploaded:', file.name), []);
-  const handleFileUpload = useCallback((file: File) => console.log('File uploaded:', file.name), []);
+  const handleImageUpload = useCallback((_file: File) => {}, []);
+  const handleFileUpload = useCallback((_file: File) => {}, []);
 
   return {
     isLoading,
