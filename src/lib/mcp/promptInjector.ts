@@ -36,7 +36,7 @@ export async function buildMcpSystemInjections(content: string, currentConversat
         }
       } catch {}
     }
-    if (summaries.length) sys.push({ role:'system', content: `MCP tool catalog (subset): ${summaries.join(' ; ')}. Only choose tool names from this list.` });
+    if (summaries.length) sys.push({ role:'system', content: `MCP tool catalog (subset): ${summaries.join(' ; ')}. Prefer tool names from this list; otherwise pick any tool found in the server catalogs below. Never invent names.` });
 
     // 详细清单：为每个启用的 server 下发工具与必填参数（牺牲部分 token 以提高一次成功率）
     for (const s of enabled) {
@@ -59,18 +59,39 @@ export async function buildMcpSystemInjections(content: string, currentConversat
       } catch {}
     }
 
-    // 精准提示：对首个目标 server 注入简短签名
+    // 精准提示：对首个目标 server 注入简短签名（根据用户意图做轻量匹配）
     const target = enabled[0];
     try {
       const tools = await getToolsCached(target);
       if (Array.isArray(tools) && tools.length) {
-        const brief = tools.slice(0, MAX_TOOL_SIGNATURES).map((t:any)=>{
+        // 基于用户内容的关键词打分，尽量把相关工具（如 list_directory）排到前面
+        const intentKeywords = [
+          'list','dir','ls','files','children','browse','enumerate','scan','folder',
+          '列出','目录','文件夹','清单','浏览','查看目录','查看文件','列表'
+        ];
+        const scoreTool = (t:any): number => {
+          const name = String(t?.name || '').toLowerCase();
+          const desc = String(t?.description || '').toLowerCase();
+          let score = 0;
+          for (const kw of intentKeywords) {
+            if (kw && (name.includes(kw) || desc.includes(kw))) score += 2;
+          }
+          // 进一步：若用户文本包含“@filesystem 列出/目录”等字样，再提升包含 list/dir 的工具
+          const lc = content.toLowerCase();
+          if (/(@filesystem|filesystem)/i.test(content) && /(列出|目录|list|dir|ls)/i.test(content)) {
+            if (/list|dir|ls/.test(name)) score += 3;
+          }
+          return score;
+        };
+
+        const sorted = [...tools].sort((a:any,b:any)=>scoreTool(b)-scoreTool(a));
+        const brief = sorted.slice(0, MAX_TOOL_SIGNATURES).map((t:any)=>{
           const schema = (t.inputSchema || t.input_schema || {}) as any;
           const req: string[] = schema.required || schema?.schema?.required || [];
           const reqStr = req.slice(0,3).join(', ');
           return `${t.name}${reqStr?`(required: ${reqStr})`:''}`;
         }).join(' ; ');
-        sys.push({ role:'system', content: `Focused tool signatures for @${target}: ${brief}. Choose a tool from this list only. Provide ONLY required keys. If no tool fits, answer normally without a tool.` });
+        sys.push({ role:'system', content: `Focused tool signatures for @${target}: ${brief}. Prefer a tool from this list; if none fits, choose any tool from the server catalog above. Provide ONLY required keys. Never invent names.` });
       }
     } catch {}
   }

@@ -392,8 +392,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         performanceRef.current.tokenCount++;
         logPerformance();
         
-        // 1) 立即更新内存与界面，保证流畅
-        updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+        // 1) 立即更新内存与界面，保证流畅（若已冻结该消息，则不再追加普通文本，避免覆盖卡片）
+        // 注意：onToken 不是 async，动态 import 会导致 await 报错。这里使用同步缓存门：
+        try {
+          // 以 require 风格同步加载（构建时会打包进来）
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const m = require('@/lib/mcp/streamToolMiddleware') as { isMessageFrozen: (id: string)=>boolean };
+          if (!m.isMessageFrozen || !m.isMessageFrozen(assistantMessageId)) {
+            updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+          }
+        } catch {
+          updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+        }
         setTokenCount(prev => prev + 1);
         // 2) 通知自动保存器按秒保存
         autoSaverRef.current?.update(currentContentRef.current);
@@ -428,12 +438,27 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         autoSaverRef.current?.stop();
         void autoSaverRef.current?.flush().finally(() => {
           // 最终一次确认状态 & 内容
-          void updateMessage(assistantMessageId, {
-            content: finalContent,
-            status: 'sent',
-            thinking_start_time: thinking_start_time,
-            thinking_duration: thinking_duration,
-          });
+          // 若在流式阶段已插入了工具卡片（被替换后的标记），不要被最终文本覆盖
+          try {
+            const st = useChatStore.getState();
+            const conv = st.conversations.find(c => c.id === finalConversationId);
+            const msg = conv?.messages.find(m => m.id === assistantMessageId);
+            const hasCard = !!(msg?.content && msg.content.includes('"__tool_call_card__"'));
+            const contentToPersist = hasCard ? (msg?.content || finalContent) : finalContent;
+            void updateMessage(assistantMessageId, {
+              content: contentToPersist,
+              status: 'sent',
+              thinking_start_time: thinking_start_time,
+              thinking_duration: thinking_duration,
+            });
+          } catch {
+            void updateMessage(assistantMessageId, {
+              content: finalContent,
+              status: 'sent',
+              thinking_start_time: thinking_start_time,
+              thinking_duration: thinking_duration,
+            });
+          }
 
           // 检测并执行 MCP 工具调用（文本协议 & 原生tools 双轨支持，先实现文本协议）
           void (async () => {

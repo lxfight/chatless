@@ -10,6 +10,11 @@ import { getToolsCached } from './toolsCache';
 
 const injectedRunning = new Set<string>();
 const runningMarkerMap = new Map<string, string>();
+const frozenMessages = new Set<string>();
+
+export function isMessageFrozen(id: string): boolean {
+  return frozenMessages.has(id);
+}
 
 export async function insertRunningToolCardIfDetected(params: {
   assistantMessageId: string;
@@ -17,20 +22,59 @@ export async function insertRunningToolCardIfDetected(params: {
   currentContent: string;
 }): Promise<boolean> {
   const { assistantMessageId, conversationId, currentContent } = params;
-  if (injectedRunning.has(assistantMessageId)) return;
+  if (injectedRunning.has(assistantMessageId)) return false;
   const parsed = parseMcpToolCall(currentContent || '');
-  if (!parsed) return false;
+  // 增强：即使未形成完整 JSON/围栏，也要尽早冻结
+  const containsOpenXml = /<tool_call/i.test(currentContent || '');
+  const lastFence = (currentContent || '').lastIndexOf('```');
+  const tail = lastFence >= 0 ? (currentContent || '').slice(lastFence) : '';
+  const looksLikeToolJsonTail = lastFence >= 0 && /```[a-zA-Z]*\s*$/i.test((currentContent || '').slice(0, lastFence + 3))
+    ? false
+    : (tail.includes('"type"') && tail.replace(/\s+/g,'').includes('"tool_call"'));
+  if (!parsed && !containsOpenXml && !looksLikeToolJsonTail) return false;
 
-  const { server, tool, args } = parsed;
+  const { server, tool, args } = parsed || { server: '', tool: '', args: {} } as any;
   const toolCallId = uuidv4();
   const runningMarker = JSON.stringify({ __tool_call_card__: { id: toolCallId, status: 'running', server, tool, args: args || {}, messageId: assistantMessageId } });
   const st = useChatStore.getState();
   const conv = st.conversations.find(c => c.id === conversationId);
   const msg = conv?.messages.find(m => m.id === assistantMessageId);
-  const base = (msg?.content ?? '') || '';
-  await st.updateMessage(assistantMessageId, { content: `${base}\n\n${runningMarker}` } as any);
+  // 使用当前内容作为基准，避免因异步写库导致替换 miss
+  const base = (currentContent || msg?.content || '') || '';
+
+  // 将 <tool_call>...</tool_call> 或独立 JSON 块替换为 runningMarker，避免代码在消息中显示
+  let replaced = false;
+  let newContent = base;
+  try {
+    // 1) XML 包裹（完整）
+    newContent = newContent.replace(/<tool_call>[\s\S]*?<\/tool_call>/i, (m) => { replaced = true; return runningMarker; });
+    // 2) 未闭合/已闭合代码块：从最近一次 ``` 开始到结尾，若尾部包含 tool_call 关键词，则直接截断替换
+    if (!replaced && lastFence >= 0) {
+      const afterFence = newContent.slice(lastFence);
+      if (afterFence.includes('"type"') && afterFence.replace(/\s+/g,'').includes('"tool_call"')) {
+        newContent = newContent.slice(0, lastFence) + runningMarker;
+        replaced = true;
+      }
+    }
+    // 3) 完整代码块
+    if (!replaced) {
+      const mblk = newContent.match(/```[a-zA-Z]*\n([\s\S]*?)\n```/);
+      if (mblk && mblk[1] && /"type"\s*:\s*"tool_call"/i.test(mblk[1])) { newContent = newContent.replace(mblk[0], runningMarker); replaced = true; }
+    }
+    // 4) 行内 JSON（宽松）
+    if (!replaced) {
+      const mj = newContent.match(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/i);
+      if (mj) { newContent = newContent.replace(mj[0], runningMarker); replaced = true; }
+    }
+  } catch { /* ignore and fallback to append */ }
+  if (!replaced) {
+    newContent = `${base}\n\n${runningMarker}`;
+  }
+
+  await st.updateMessage(assistantMessageId, { content: newContent } as any);
   injectedRunning.add(assistantMessageId);
   runningMarkerMap.set(assistantMessageId, runningMarker);
+  frozenMessages.add(assistantMessageId);
   return true;
 }
 
@@ -81,12 +125,39 @@ export async function handleToolCallOnComplete(params: {
   const st = useChatStore.getState();
   const conv = st.conversations.find(c => c.id === conversationId);
   const msg = conv?.messages.find(m => m.id === assistantMessageId);
-  const base = msg?.content ?? finalContent;
+  const base = (msg?.content && msg.content.length >= finalContent.length ? msg?.content : finalContent) as string;
   if (!injectedRunning.has(assistantMessageId)) {
-    await st.updateMessage(assistantMessageId, { content: `${base}\n\n${runningMarker}` });
+    // 与流阶段相同：优先替换 JSON/标签，为空再追加
+    let replaced = false;
+    let newContent = base;
+    try {
+      // 同步流阶段的四步替换
+      newContent = newContent.replace(/<tool_call>[\s\S]*?<\/tool_call>/i, (m) => { replaced = true; return runningMarker; });
+      if (!replaced) {
+        const lastFence = newContent.lastIndexOf('```');
+        if (lastFence >= 0) {
+          const afterFence = newContent.slice(lastFence);
+          if (afterFence.includes('"type"') && afterFence.replace(/\s+/g,'').includes('"tool_call"')) {
+            newContent = newContent.slice(0, lastFence) + runningMarker;
+            replaced = true;
+          }
+        }
+      }
+      if (!replaced) {
+        const mblk = newContent.match(/```[a-zA-Z]*\n([\s\S]*?)\n```/);
+        if (mblk && mblk[1] && /"type"\s*:\s*"tool_call"/i.test(mblk[1])) { newContent = newContent.replace(mblk[0], runningMarker); replaced = true; }
+      }
+      if (!replaced) {
+        const mj = newContent.match(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/i);
+        if (mj) { newContent = newContent.replace(mj[0], runningMarker); replaced = true; }
+      }
+    } catch {}
+    if (!replaced) newContent = `${base}\n\n${runningMarker}`;
+    await st.updateMessage(assistantMessageId, { content: newContent });
     injectedRunning.add(assistantMessageId);
     runningMarkerMap.set(assistantMessageId, runningMarker);
   }
+  frozenMessages.add(assistantMessageId);
 
   try {
     const result = await serverManager.callTool(server, effectiveTool, (effectiveArgs as any) || undefined);
@@ -97,10 +168,9 @@ export async function handleToolCallOnComplete(params: {
     const conv2 = st2.conversations.find(c => c.id === conversationId);
     const msg2 = conv2?.messages.find(m => m.id === assistantMessageId);
     const old = msg2?.content ?? '';
-    // 如果 runningMarker 被用户编辑或流式覆盖，优先追加替换两种可能：完全匹配与忽略空白差异匹配
+    // 只替换第一张运行中卡片，避免重复卡片
     let newContent = old.replace(runningMarker, successMarker);
     if (newContent === old && old.includes('"__tool_call_card__"')) {
-      // 回退：将第一张运行中卡片直接替换为成功卡
       newContent = old.replace(/\{\"__tool_call_card__\":\{[\s\S]*?\}\}/, successMarker);
     }
     await st2.updateMessage(assistantMessageId, { status: 'sent', content: newContent });

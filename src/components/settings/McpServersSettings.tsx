@@ -199,13 +199,17 @@ export function McpServersSettings() {
     try {
       const s = next.find(x=>x.name===name);
       if (s) {
+        // 首次配置为 npx/stdio 时，提示可能需要下载
+        if (s.config.type === 'stdio' && (s.config.command||'') === 'npx') {
+          toast.info('正在连接（可能需要首次下载）', { description: 'npx 将自动下载 MCP 服务器依赖，这可能需要 1-3 分钟，请耐心等待…' });
+        }
         await serverManager.startServer(s.name, s.config);
         setError("");
         setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
         try {
           const tools = await Promise.race([
             serverManager.listTools(s.name) as any,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 8000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 30000))
           ]) as any[];
           const count = Array.isArray(tools) ? tools.length : 0;
           toast.success("已保存并连接", { description: `${s.name} · Tools: ${count}` });
@@ -231,13 +235,16 @@ export function McpServersSettings() {
     setError("");
     setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connecting' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
     try {
+      if (s.config.type === 'stdio' && (s.config.command||'') === 'npx') {
+        toast.info('正在连接（可能需要首次下载）', { description: 'npx 将自动下载 MCP 服务器依赖，这可能需要 1-3 分钟，请耐心等待…' });
+      }
       await serverManager.startServer(s.name, s.config);
       setError("");
       setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
       try {
         const tools = await Promise.race([
           serverManager.listTools(s.name) as any,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 8000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 30000))
         ]) as any[];
         const count = Array.isArray(tools) ? tools.length : 0;
         toast.success("连接成功", { description: `${s.name} · Tools: ${count}` });

@@ -378,10 +378,8 @@ export function AIMessageBlock({
                 }
                 return <MemoizedMarkdown key={`md-${idx}`} content={seg.text} />;
               })}
-              {/* 流式阶段：若尚未写入卡片标记，但已提前探测到工具调用，则给出“调用中”占位 */}
-              {mixedSegments.every(s => s.type !== 'card') && earlyCardData && isStreaming && (
-                <ToolCallCard server={earlyCardData.server} tool={earlyCardData.tool} status={'running'} args={earlyCardData.args} messageId={id} />
-              )}
+              {/* 取消“提前占位卡片”，避免与真正的卡片（由流中插入的 JSON 标记）重复显示。
+                  工具调用的卡片由流处理中间件在检测到 <tool_call> 后统一插入、替换和收尾。*/}
             </div>
           ) : (
             // 回退：纯文本

@@ -14,6 +14,50 @@ use tauri::State;
 use tokio::time::{timeout, Duration};
 use tokio::process::Command;
 
+// —— 工具：从 npx 参数中提取第一个包名（用于首次安装的预拉取） ——
+fn extract_npx_package(args: &Option<Vec<String>>) -> Option<String> {
+  if let Some(a) = args {
+    for it in a {
+      // 跳过常见的 flags（以 - 开头）
+      if it.starts_with('-') { continue; }
+      return Some(it.clone());
+    }
+  }
+  None
+}
+
+async fn npx_prefetch_package(pkg: &str) -> Result<(), String> {
+  // 只下载依赖，不启动 MCP；最长等待 4 分钟以适配首次安装
+  let mut pre = Command::new("npx");
+  pre.env("NPM_CONFIG_LOGLEVEL", "silent");
+  pre.env("NO_COLOR", "1");
+  pre.env("NPX_Y", "1");
+  pre.args(["-y", "-p", pkg, "node", "-e", "process.exit(0)"]);
+  log::info!("[MCP/npx] prefetch package: {}", pkg);
+  let status = timeout(Duration::from_secs(240), pre.status())
+    .await
+    .map_err(|_| "npx prefetch timeout".to_string())?
+    .map_err(|e| e.to_string())?;
+  if !status.success() {
+    return Err(format!("npx prefetch failed with code {:?}", status.code()));
+  }
+  Ok(())
+}
+
+fn is_path_like(arg: &str) -> bool {
+  if arg.is_empty() { return false; }
+  let lower = arg.to_lowercase();
+  if lower.starts_with("http://") || lower.starts_with("https://") { return false; }
+  if arg.starts_with('/') || arg.starts_with("./") || arg.starts_with("../") || arg.starts_with("~/") { return true; }
+  // Windows 盘符，如 C:\ 或 C:/
+  if arg.len() >= 3 {
+    let bytes = arg.as_bytes();
+    if bytes[1] == b':' && (bytes[2] == b'/' || bytes[2] == b'\\') { return true; }
+  }
+  // 包含路径分隔符的其它情况
+  arg.contains('/') || arg.contains('\\')
+}
+
 #[tauri::command]
 pub async fn mcp_connect(
   name: String,
@@ -41,9 +85,18 @@ pub async fn mcp_connect(
           ));
         }
       }
-      let mut cmd = Command::new(&cmd_name);
-      if let Some(args) = &config.args { cmd.args(args); }
-      if let Some(envs) = &config.env { for (k,v) in envs { cmd.env(k, v); } }
+      // 构造命令的闭包，便于重试
+      let build_cmd = || {
+        let mut c = Command::new(&cmd_name);
+        if let Some(args) = &config.args { c.args(args); }
+        if let Some(envs) = &config.env { for (k,v) in envs { c.env(k, v); } }
+        if cmd_name == "npx" {
+          c.env("NPM_CONFIG_LOGLEVEL", "silent");
+          c.env("NO_COLOR", "1");
+          c.env("NPX_Y", "1");
+        }
+        c
+      };
       // —— 参数校验，避免简单的 shell 注入字符 ——
       if let Some(args) = &config.args {
         let joined = args.join(" ");
@@ -53,30 +106,77 @@ pub async fn mcp_connect(
         if joined.contains('|') || joined.contains('&') || joined.contains(';') || joined.contains('>') || joined.contains('<') {
           return Err("args contains forbidden shell characters".to_string());
         }
-      }
-      // 若使用 npx 启动，静默其安装日志，避免污染 MCP STDIO 握手
-      // 这里直接基于传入的可执行文件名判断（tokio::process::Command 无 get_program 方法）
-      if cmd_name == "npx" {
-        cmd.env("NPM_CONFIG_LOGLEVEL", "silent");
-        cmd.env("NO_COLOR", "1");
-        cmd.env("NPX_Y", "1");
+        // 通用路径存在性校验：检测看起来像路径的参数，如果不存在则直接提示（避免特定 MCP 魔法处理）
+        // 规则：从第一个非 flag 参数（一般是包名）之后的参数中筛选
+        let mut first_non_flag = None;
+        for (i, it) in args.iter().enumerate() {
+          if !it.starts_with('-') { first_non_flag = Some(i); break; }
+        }
+        if let Some(idx) = first_non_flag { if idx + 1 < args.len() {
+          let mut missing: Vec<String> = Vec::new();
+          for raw in &args[(idx+1)..] {
+            if is_path_like(raw) {
+              // 直接按原样检查（不展开 ~ 等），以避免误判和隐式替换
+              if tokio::fs::metadata(raw).await.is_err() {
+                missing.push(raw.clone());
+              }
+            }
+          }
+          if !missing.is_empty() {
+            let mut msg = format!("Path arguments do not exist: {}", missing.join(", "));
+            let placeholder_hits: Vec<&str> = missing.iter()
+              .filter_map(|s| {
+                let ls = s.to_lowercase();
+                if ls.contains("/users/username/") || ls.contains("path/to/other/allowed/dir") { Some(s.as_str()) } else { None }
+              })
+              .collect();
+            if !placeholder_hits.is_empty() {
+              msg.push_str(". It looks like placeholder paths are still present. Please replace them with real existing directories.");
+            }
+            return Err(msg);
+          }
+        }}
       }
       // —— 调试日志 ——
       log::debug!("[MCP/stdio] spawning: cmd='{}' args={:?} envs={}", cmd_name, &config.args, config.env.as_ref().map(|v| v.len()).unwrap_or(0));
 
-      let fut = async {
+      // 一次尝试的封装
+      let try_connect = || async {
+        let cmd = build_cmd();
         let service: McpService = ()
           .serve(TokioChildProcess::new(cmd.configure(|_c| {})).map_err(|e| e.to_string())?)
           .await
           .map_err(|e| e.to_string())?;
         Ok::<McpService, String>(service)
       };
-      let service = timeout(Duration::from_secs(20), fut)
-        .await
-        .map_err(|_| "Connect timeout (stdio)".to_string())??;
 
-      state.0.insert(name, service);
-      Ok(())
+      // 第一次尝试（可能在 npx 首次下载时失败/超时）
+      let first = timeout(Duration::from_secs(30), try_connect())
+        .await
+        .map_err(|_| "Connect timeout (stdio)".to_string());
+
+      match first {
+        Ok(Ok(service)) => { state.0.insert(name, service); Ok(()) }
+        Ok(Err(e)) | Err(e) => {
+          if cmd_name == "npx" {
+            if let Some(pkg) = extract_npx_package(&config.args) {
+              log::info!("[MCP/stdio] first connect failed: {}. prefetching {}...", e, pkg);
+              // 预下载失败则直接返回组合错误
+              npx_prefetch_package(&pkg).await.map_err(|pe| format!("{}; prefetch: {}", e, pe))?;
+              // 预下载成功后重试
+              let second = timeout(Duration::from_secs(30), try_connect())
+                .await
+                .map_err(|_| "Connect timeout (stdio, after prefetch)".to_string())??;
+              state.0.insert(name, second);
+              Ok(())
+            } else {
+              Err(e)
+            }
+          } else {
+            Err(e)
+          }
+        }
+      }
     }
     "sse" => {
       let base = config.base_url.clone().ok_or_else(|| "baseUrl required for sse".to_string())?;
