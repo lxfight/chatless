@@ -8,6 +8,7 @@ import { ModelList } from './ModelList';
 import { RecentModelsList } from './RecentModelsList';
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { useRouter } from 'next/navigation';
 
 interface ModelSelectContentProps {
   filteredModels: ProviderMetadata[];
@@ -38,12 +39,17 @@ export function ModelSelectContent({
 }: ModelSelectContentProps) {
   const [activeTab, setActiveTab] = useState('all');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   // 当搜索词变化（即用户输入或列表更新）时，确保输入框重新获得焦点，
   // 解决 Radix Select 因自动聚焦选中项导致的偶发失焦问题。
   useEffect(() => {
     searchInputRef.current?.focus();
   }, [searchQuery]);
+
+  function handleToAiSetting () { 
+    router.push('/settings?tab=localModels');
+  };
 
   // Focus search input when dropdown opens
   // This logic is now managed by the parent, but we keep the ref
@@ -92,13 +98,15 @@ export function ModelSelectContent({
             </button>
           )}
             {/* 刷新按钮 */}
+           
            <button
-             onClick={onRefresh}
-             title="刷新模型列表"
+             onClick={() => handleToAiSetting()}
+             title="设置AI模型"
              className="absolute right-9 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
            >
-             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0114.53-3.36L23 10"></path><path d="M20.49 15a9 9 0 01-14.53 3.36L1 14"></path></svg>
+             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20V10"></path><path d="M12 10L19 17"></path><path d="M12 10L5 17"></path></svg>
            </button>
+           
          </div>
        </div>
 

@@ -60,7 +60,8 @@ export class MessageRepository extends BaseRepository<Message> {
         id, conversation_id, role, content, created_at, updated_at,
         status, model, document_reference, context_data, images,
         thinking_start_time, thinking_duration,
-        knowledge_base_reference
+        knowledge_base_reference,
+        segments
       FROM messages 
       WHERE conversation_id = ?
       ORDER BY created_at ASC
@@ -85,6 +86,7 @@ export class MessageRepository extends BaseRepository<Message> {
       context_data?: string;
       knowledge_base_reference?: any;
       images?: string[];
+      segments?: any;
     }
   ): Promise<Message> {
     // 确保引用字段被正确序列化
@@ -97,6 +99,9 @@ export class MessageRepository extends BaseRepository<Message> {
     }
     if (dbUpdates.images) {
       (dbUpdates as any).images = JSON.stringify(dbUpdates.images);
+    }
+    if ('segments' in dbUpdates) {
+      (dbUpdates as any).segments = dbUpdates.segments ? JSON.stringify(dbUpdates.segments) : null;
     }
 
     const updated = await this.update(messageId, dbUpdates as any);
@@ -344,7 +349,8 @@ export class MessageRepository extends BaseRepository<Message> {
       thinking_start_time: record.thinking_start_time,
       thinking_duration: record.thinking_duration,
       knowledge_base_reference: this.parseJsonField(record.knowledge_base_reference),
-      images: this.parseImagesField(record.images)
+      images: this.parseImagesField(record.images),
+      segments: this.parseJsonField(record.segments)
     };
   }
 
@@ -370,7 +376,7 @@ export class MessageRepository extends BaseRepository<Message> {
           const parsed = JSON.parse(imagesData);
           return Array.isArray(parsed) ? parsed : [parsed];
         } catch (error) {
-          console.warn('[MessageRepository] 解析images JSON失败:', error);
+          void error;
           return undefined;
         }
       }

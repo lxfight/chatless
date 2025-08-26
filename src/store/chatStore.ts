@@ -48,6 +48,12 @@ interface ChatActions {
   toggleStarConversation: (conversationId: string) => Promise<void>;
   toggleImportant: (conversationId: string) => Promise<void>;
   duplicateConversation: (conversationId: string) => Promise<void>;
+  // 段驱动富文本：高频内存更新（不落库）
+  appendTextToMessageSegments: (messageId: string, textChunk: string) => void;
+  // 段集合覆盖（会在外层按需持久化）
+  setMessageSegmentsInMemory: (messageId: string, segments: any[]) => void;
+  // 统一派发：使用 reducer 更新消息（带批处理）
+  dispatchMessageAction: (messageId: string, action: any) => void;
 }
 
 // 添加安全的images字段解析函数
@@ -380,6 +386,97 @@ export const useChatStore = create<ChatState & ChatActions>()(
         return newMessage;
       },
 
+      // 仅内存：向消息的最后一个 text 段追加文本（若不存在则创建）
+      appendTextToMessageSegments: (messageId, textChunk) => {
+        if (!textChunk) return;
+        set(state => {
+          for (const conv of state.conversations) {
+            const msg: any = conv.messages?.find(m => m.id === messageId);
+            if (msg) {
+              if (!Array.isArray(msg.segments)) msg.segments = [];
+              if (msg.segments.length === 0 || msg.segments[msg.segments.length - 1]?.kind !== 'text') {
+                msg.segments.push({ kind: 'text', text: textChunk });
+              } else {
+                msg.segments[msg.segments.length - 1].text = String(msg.segments[msg.segments.length - 1].text || '') + textChunk;
+              }
+              conv.updated_at = Date.now();
+              break;
+            }
+          }
+        });
+      },
+
+      // 仅内存：直接设置 segments（用于一次性替换/合并）
+      setMessageSegmentsInMemory: (messageId, segments) => {
+        set(state => {
+          for (const conv of state.conversations) {
+            const msg: any = conv.messages?.find(m => m.id === messageId);
+            if (msg) { msg.segments = Array.isArray(segments) ? segments : []; conv.updated_at = Date.now(); break; }
+          }
+        });
+      },
+
+      dispatchMessageAction: (() => {
+        const queues = new Map<string, any[]>();
+        const scheduled = new Set<string>();
+        const scheduleFlush = (id: string) => {
+          if (scheduled.has(id)) return;
+          scheduled.add(id);
+          queueMicrotask(() => {
+            const actions = queues.get(id) || [];
+            queues.set(id, []);
+            scheduled.delete(id);
+            const { initModel, reduce } = require('@/lib/chat/messageFsm');
+            set(state => {
+              for (const conv of state.conversations) {
+                if (!Array.isArray(conv.messages)) continue;
+                const idx = conv.messages.findIndex(m => m.id === id);
+                if (idx === -1) continue;
+                const prevMsg: any = conv.messages[idx];
+                let model = initModel(prevMsg);
+                for (const a of actions) model = reduce(model, a);
+                // 仅在包含 TOOL_HIT 的批次里打印一次关键日志，避免流式期间噪音
+                try {
+                  if (actions.some(a => a && a.type === 'TOOL_HIT')) {
+                    const hit = actions.find(a => a && a.type === 'TOOL_HIT');
+                    const cardCount = (model.segments || []).filter((s: any) => s && s.kind === 'toolCard').length;
+                    console.log('[MCP-FSM] TOOL_HIT applied -> segments toolCard count =', cardCount, 'msgId=', id, 'server=', hit.server, 'tool=', hit.tool);
+                    // 兜底：向 content 注入不可见的卡片标记，确保渲染层即刻可见
+                    try {
+                      const marker = JSON.stringify({ __tool_call_card__: {
+                        id: hit.cardId,
+                        server: hit.server,
+                        tool: hit.tool,
+                        status: 'running',
+                        args: hit.args,
+                        messageId: id
+                      }});
+                      const currentContent: string = String((prevMsg).content || '');
+                      if (!currentContent.includes('"__tool_call_card__"')) {
+                        (prevMsg).content = currentContent + (currentContent ? '\n' : '') + marker;
+                      }
+                    } catch { /* noop */ }
+                  }
+                } catch { /* noop */ }
+                // 关键：替换消息与数组引用，确保 React 依赖 conversation.messages 变化后重算 useMemo
+                const nextMsg: any = { ...prevMsg, segments: model.segments };
+                const nextMessages: any[] = [...(conv.messages as any[])];
+                nextMessages[idx] = nextMsg;
+                (conv as any).messages = nextMessages;
+                conv.updated_at = Date.now();
+                break;
+              }
+            });
+          });
+        };
+        return (messageId: string, action: any) => {
+          const list = queues.get(messageId) || [];
+          list.push(action);
+          queues.set(messageId, list);
+          scheduleFlush(messageId);
+        };
+      })(),
+
       updateMessageContentInMemory: (messageId, content) => {
         const now = Date.now();
         set(state => {
@@ -387,6 +484,15 @@ export const useChatStore = create<ChatState & ChatActions>()(
             const msg = conv.messages?.find(m => m.id === messageId);
             if (msg) {
               msg.content = content;
+              // 若存在结构化段，保持 text 段与 content 同步（最小适配）
+              if (Array.isArray(msg.segments)) {
+                const last = msg.segments[msg.segments.length - 1];
+                if (!last || last.kind !== 'text') {
+                  msg.segments.push({ kind: 'text', text: content });
+                } else {
+                  last.text = content;
+                }
+              }
               conv.updated_at = now;
               break;
             }
@@ -402,7 +508,16 @@ export const useChatStore = create<ChatState & ChatActions>()(
           for (const conv of state.conversations) {
             const msg = conv.messages?.find(m => m.id === messageId);
             if (msg) {
-              Object.assign(msg, finalUpdates);
+              // 最小侵入式更新：content 与 segments 分开处理
+              if (typeof finalUpdates.content === 'string') {
+                msg.content = finalUpdates.content;
+              }
+              if (finalUpdates.segments) {
+                (msg as any).segments = finalUpdates.segments as any;
+              }
+              const rest = { ...finalUpdates } as any;
+              delete rest.content; delete rest.segments;
+              Object.assign(msg, rest);
               conv.updated_at = now;
               break;
             }
@@ -417,6 +532,10 @@ export const useChatStore = create<ChatState & ChatActions>()(
           const RETRY_DELAY = 100;
           
           const dbUpdates: Record<string, any> = { ...finalUpdates };
+          // 持久化 segments 为 JSON 字符串
+          if ('segments' in dbUpdates) {
+            dbUpdates.segments = dbUpdates.segments ? JSON.stringify(dbUpdates.segments) : null;
+          }
           if ('document_reference' in dbUpdates && dbUpdates.document_reference) {
             dbUpdates.document_reference = JSON.stringify(dbUpdates.document_reference);
           }

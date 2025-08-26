@@ -48,6 +48,11 @@ fn is_path_like(arg: &str) -> bool {
   if arg.is_empty() { return false; }
   let lower = arg.to_lowercase();
   if lower.starts_with("http://") || lower.starts_with("https://") { return false; }
+  // npm scope 包名，如 @scope/name，不应被当作路径
+  if arg.starts_with('@') {
+    // 典型包名不包含反斜杠和盘符
+    if arg.contains('/') && !arg.contains('\\') && !arg.contains(':') { return false; }
+  }
   if arg.starts_with('/') || arg.starts_with("./") || arg.starts_with("../") || arg.starts_with("~/") { return true; }
   // Windows 盘符，如 C:\ 或 C:/
   if arg.len() >= 3 {
@@ -108,34 +113,52 @@ pub async fn mcp_connect(
         }
         // 通用路径存在性校验：检测看起来像路径的参数，如果不存在则直接提示（避免特定 MCP 魔法处理）
         // 规则：从第一个非 flag 参数（一般是包名）之后的参数中筛选
-        let mut first_non_flag = None;
-        for (i, it) in args.iter().enumerate() {
-          if !it.starts_with('-') { first_non_flag = Some(i); break; }
+        // Windows 包装器 cmd /c <cmd> <args...> 需要跳过前两个参数
+        let wrapper_offset = if cmd_name.eq_ignore_ascii_case("cmd")
+          && args.get(0).map(|s| s.eq_ignore_ascii_case("/c")).unwrap_or(false)
+          && args.len() >= 2 { 2 } else { 0 };
+
+        let args_slice = &args[wrapper_offset..];
+        let mut first_non_flag_in_slice: Option<usize> = None;
+        for (i, it) in args_slice.iter().enumerate() {
+          if !it.starts_with('-') { first_non_flag_in_slice = Some(i); break; }
         }
-        if let Some(idx) = first_non_flag { if idx + 1 < args.len() {
-          let mut missing: Vec<String> = Vec::new();
-          for raw in &args[(idx+1)..] {
-            if is_path_like(raw) {
-              // 直接按原样检查（不展开 ~ 等），以避免误判和隐式替换
-              if tokio::fs::metadata(raw).await.is_err() {
-                missing.push(raw.clone());
+        if let Some(mut idx) = first_non_flag_in_slice {
+          // 特判：cmd /c + npx/uvx/bunx 的形式。此时 idx 指向的是执行器（npx），
+          // 需要继续向后找到真正的包名（第一个非 flag），并从包名之后开始校验路径。
+          if args_slice.get(idx).map(|s| s.as_str()).map(|s| s.eq_ignore_ascii_case("npx") || s.eq_ignore_ascii_case("uvx") || s.eq_ignore_ascii_case("bunx")).unwrap_or(false) {
+            let mut pkg_idx_in_slice: Option<usize> = None;
+            for (j, it) in args_slice.iter().enumerate().skip(idx+1) {
+              if !it.starts_with('-') { pkg_idx_in_slice = Some(j); break; }
+            }
+            if let Some(pidx) = pkg_idx_in_slice { idx = pidx; }
+          }
+          let start = wrapper_offset + idx + 1; // 从包名后的参数开始
+          if start < args.len() {
+            let mut missing: Vec<String> = Vec::new();
+            for raw in &args[start..] {
+              if is_path_like(raw) {
+                // 直接按原样检查（不展开 ~ 等），以避免误判和隐式替换
+                if tokio::fs::metadata(raw).await.is_err() {
+                  missing.push(raw.clone());
+                }
               }
             }
-          }
-          if !missing.is_empty() {
-            let mut msg = format!("Path arguments do not exist: {}", missing.join(", "));
-            let placeholder_hits: Vec<&str> = missing.iter()
-              .filter_map(|s| {
-                let ls = s.to_lowercase();
-                if ls.contains("/users/username/") || ls.contains("path/to/other/allowed/dir") { Some(s.as_str()) } else { None }
-              })
-              .collect();
-            if !placeholder_hits.is_empty() {
-              msg.push_str(". It looks like placeholder paths are still present. Please replace them with real existing directories.");
+            if !missing.is_empty() {
+              let mut msg = format!("Path arguments do not exist: {}", missing.join(", "));
+              let placeholder_hits: Vec<&str> = missing.iter()
+                .filter_map(|s| {
+                  let ls = s.to_lowercase();
+                  if ls.contains("/users/username/") || ls.contains("path/to/other/allowed/dir") { Some(s.as_str()) } else { None }
+                })
+                .collect();
+              if !placeholder_hits.is_empty() {
+                msg.push_str(". It looks like placeholder paths are still present. Please replace them with real existing directories.");
+              }
+              return Err(msg);
             }
-            return Err(msg);
           }
-        }}
+        }
       }
       // —— 调试日志 ——
       log::debug!("[MCP/stdio] spawning: cmd='{}' args={:?} envs={}", cmd_name, &config.args, config.env.as_ref().map(|v| v.len()).unwrap_or(0));

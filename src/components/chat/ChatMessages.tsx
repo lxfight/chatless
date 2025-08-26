@@ -59,9 +59,9 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
     return conversation.messages;
   }, [conversation?.messages, maxVisibleMessages]);
 
-  const handleEditMessage = (id: string) => console.log('Edit message clicked:', id);
+  const handleEditMessage = (_id: string) => {};
   const handleCopyMessage = (content: string) => navigator.clipboard.writeText(content);
-  const handleStarMessage = (id: string) => console.log('Star message clicked:', id);
+  const handleStarMessage = (_id: string) => {};
 
   const processedMessages = useMemo(() => {
     if (!visibleMessages) return [];
@@ -79,6 +79,8 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
       context_data: msg.context_data,
       knowledge_base_reference: msg.knowledge_base_reference,
       images: msg.images,
+      // 关键：把结构化段透传到渲染层
+      segments: (msg as any).segments,
     }));
   }, [visibleMessages, conversation?.id]);
 
@@ -105,14 +107,15 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
               model={message.model}
               status={message.status}
               thinking_duration={message.thinking_duration}
-              onSaveThinkingDuration={onSaveThinkingDuration}
+              onSaveThinkingDuration={(msgId, duration) => { onSaveThinkingDuration(msgId, duration); }}
               onEdit={handleEditMessage}
-              onCopy={handleCopyMessage}
+              onCopy={(c) => { void handleCopyMessage(c); }}
               onStar={handleStarMessage}
-              onRetry={message.role === 'assistant' ? () => onRetry(message.id) : undefined}
+              onRetry={message.role === 'assistant' ? (() => { onRetry(message.id); }) : undefined}
               documentReference={message.document_reference}
               contextData={message.context_data}
               knowledgeBaseReference={message.knowledge_base_reference}
+              segments={(message as any).segments}
             />
           </div>
         ))}

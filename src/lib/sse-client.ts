@@ -83,20 +83,20 @@ export class SSEClient {
         if (!data) return;
 
         // 添加数据格式检查
-        console.debug(`[${debugTag}] SSE Event received:`, {
-          dataLength: data.length,
-          startsWithData: data.startsWith('data:'),
-          containsNewlines: data.includes('\n'),
-          isJSON: (() => {
-            try {
-              JSON.parse(data);
-              return true;
-            } catch {
-              return false;
-            }
-          })(),
-          rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
-        });
+        // console.debug(`[${debugTag}] SSE Event received:`, {
+        //   dataLength: data.length,
+        //   startsWithData: data.startsWith('data:'),
+        //   containsNewlines: data.includes('\n'),
+        //   isJSON: (() => {
+        //     try {
+        //       JSON.parse(data);
+        //       return true;
+        //     } catch {
+        //       return false;
+        //     }
+        //   })(),
+        //   rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
+        // });
 
         // 直接传递原始数据给业务层处理
         callbacks.onData?.(data);

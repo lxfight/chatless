@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Copy, Star, RefreshCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { ContextMenu, createMessageMenuItems } from '@/components/ui/context-menu';
 import { UserMessageBlock } from './UserMessageBlock';
 import { AIMessageBlock } from './AIMessageBlock';
+import type { Message } from '@/types/chat';
 import { motion } from 'framer-motion';
 
 // Toggle for verbose internal logging. Set to true when debugging ChatMessage rendering.
@@ -41,6 +42,7 @@ interface ChatMessageProps {
     name: string;
   };
   images?: string[];
+  segments?: Message['segments'];
 }
 
 const formatTimestamp = (timestamp: string | undefined): string => {
@@ -60,7 +62,7 @@ const formatTimestamp = (timestamp: string | undefined): string => {
     if (diffDays < 7) return `${diffDays}天前`;
     return date.toLocaleDateString();
   } catch (e) {
-    console.error("Error formatting timestamp:", e);
+    void e;
     return timestamp;
   }
 };
@@ -86,30 +88,13 @@ export function ChatMessage({
   // 知识库引用props
   knowledgeBaseReference,
   images,
+  segments,
 }: ChatMessageProps) {
-  if (DEBUG_CHAT_MESSAGE) {
-    console.log(`[ChatMessage] Rendering message ${id}:`, {
-      role,
-      hasDocRef: !!documentReference,
-      docRef: documentReference,
-      hasContextData: !!contextData,
-      hasKnowledgeBase: !!knowledgeBaseReference,
-      status,
-      images: images && images.length > 0 ? `[base64数组省略, 共${images.length}张]` : undefined
-    });
-  }
+  if (DEBUG_CHAT_MESSAGE) { /* noop */ }
   
   // 在组件挂载和更新时记录props变化
   useEffect(() => {
-    if (DEBUG_CHAT_MESSAGE) {
-      console.log(`[ChatMessage] Props updated for message ${id}:`, {
-        documentReference,
-        contextData,
-        knowledgeBaseReference,
-        status,
-        images: images && images.length > 0 ? `[base64数组省略, 共${images.length}张]` : undefined
-      });
-    }
+    if (DEBUG_CHAT_MESSAGE) { /* noop */ }
   }, [id, documentReference?.fileName, contextData, knowledgeBaseReference?.id, status, images?.length]);
   
 
@@ -123,12 +108,7 @@ export function ChatMessage({
   const shouldAnimateEnter = isStreaming || status === 'sending' || status === 'pending';
 
   const messageContent = useMemo(() => {
-    if (DEBUG_CHAT_MESSAGE) {
-      console.log(`[ChatMessage] Preparing message content for ${id}:`, {
-        isUser,
-        hasDocRef: !!documentReference,
-      });
-    }
+    if (DEBUG_CHAT_MESSAGE) { /* noop */ }
     
 
     
@@ -148,13 +128,16 @@ export function ChatMessage({
           isStreaming={isStreaming}
           thinkingDuration={thinking_duration}
           id={id}
+          // 关键：把上层透传的 segments 优先交给 AIMessageBlock 做段驱动渲染
+          // 但排除 think 段（AIMessageBlock 不接收 think 段，think 通过 content 渲染）
+          segments={Array.isArray(segments) ? segments.filter((s: any) => s && s.kind !== 'think') as any : undefined}
           onStreamingComplete={(duration) => {
             if (onSaveThinkingDuration) {
               onSaveThinkingDuration(id, duration);
             }
           }}
         />;
-  }, [content, isUser, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, id, isStreaming, thinking_duration, onSaveThinkingDuration]);
+  }, [content, segments, isUser, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, id, isStreaming, thinking_duration, onSaveThinkingDuration]);
 
   return (
     <div
@@ -179,7 +162,7 @@ export function ChatMessage({
             id,
             content,
             !isUser,
-            onCopy || ((content) => console.log('复制:', content)),
+            onCopy || ((content) => { void content; }),
             isUser ? onEdit : undefined,
             !isUser ? onRetry : undefined,
             onStar
@@ -232,7 +215,7 @@ export function ChatMessage({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => (onCopy ? onCopy(content) : navigator.clipboard.writeText(content))}
+                    onClick={() => (onCopy ? onCopy(content) : void navigator.clipboard.writeText(content))}
                     className="h-5 w-5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
                     title="复制"
                   >

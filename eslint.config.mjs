@@ -127,8 +127,8 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/prefer-namespace-keyword": "off",
       "@typescript-eslint/prefer-optional-chain": "off",
       "@typescript-eslint/require-await": "off",
-      // Custom rules（适度放宽，保留实用检查）
-      "no-console": "warn",
+      // Custom rules（进一步放宽，减少开发期噪音）
+      "no-console": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
@@ -143,9 +143,9 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-function-type": "off",
       "@typescript-eslint/no-redundant-type-constituents": "off",
-      // Promise 相关从 error 降为 warn，避免噪音但保留提示
-      "@typescript-eslint/no-floating-promises": "warn",
-      "@typescript-eslint/no-misused-promises": "warn",
+      // Promise 相关关闭（流式/事件回调等场景容易触发噪音）
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-misused-promises": "off",
       // 注释规范从 error 降为 warn
       "@typescript-eslint/ban-ts-comment": "warn",
       // 其他通用高噪音规则降级

@@ -1,3 +1,4 @@
+// 调试期间保留有限 console，勿全局禁用 no-console
 // NOTE: 由于在聊天流程中集成 RAG 流式逻辑，临时超出 500 行限制。
 // 后续可提取为专用 Hook 或工具文件以符合文件规模规范。
 import { useCallback, useState, useRef, useEffect } from 'react';
@@ -361,6 +362,13 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
 
+    // 流式工具调用检测器
+    const { StreamingToolDetector } = require('@/lib/mcp/StreamingToolDetector');
+    const detector = new StreamingToolDetector();
+
+    // 防重复触发：本条流内仅在首次完整命中时启动一次 MCP 调用
+    let toolStarted = false;
+
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
 
@@ -383,6 +391,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setGenerationTimeout(genTimeoutRef.current);
       },
       onToken: (token) => {
+        try { console.log('[CHAT] tk', token.length); } catch { /* noop */ }
         // 防串写保护：仅当仍然是当前流实例时才写入
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         currentContentRef.current += token;
@@ -395,12 +404,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 1) 立即更新内存与界面，保证流畅（若已冻结该消息，则不再追加普通文本，避免覆盖卡片）
         // 注意：onToken 不是 async，动态 import 会导致 await 报错。这里使用同步缓存门：
         try {
-          // 以 require 风格同步加载（构建时会打包进来）
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const m = require('@/lib/mcp/streamToolMiddleware') as { isMessageFrozen: (id: string)=>boolean };
-          if (!m.isMessageFrozen || !m.isMessageFrozen(assistantMessageId)) {
-            updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
-          }
+          updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+          // 统一事件派发
+          const st = useChatStore.getState();
+          st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: token });
         } catch {
           updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
         }
@@ -408,21 +415,85 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 2) 通知自动保存器按秒保存
         autoSaverRef.current?.update(currentContentRef.current);
 
-        // 提前拦截：若首次检测到完整的 <tool_call>，立即插入“运行中”卡片并暂停 UI 的“继续往下讲”
+        // 通过检测器进行统一判定：若首次检测到完整的 tool_call，立即插入“运行中”卡片
         void (async () => {
           try {
-            const { insertRunningToolCardIfDetected } = await import('@/lib/mcp/streamToolMiddleware');
-            const inserted = await insertRunningToolCardIfDetected({
-              assistantMessageId,
-              conversationId: String(finalConversationId),
-              currentContent: currentContentRef.current,
-            });
-            // 如果插入了运行中卡片，不做额外处理；UI 会等待 onComplete 时的替换
-            if (inserted) { /* gate further speculative summaries */ }
-          } catch (e) { noop(e); }
+            const hit = detector.push(token);
+            if (hit) {
+              try { console.log('[CHAT] hit', hit.server, hit.tool); } catch { /* noop */ }
+              // 生成唯一卡片ID，贯穿：标记/segments/编排器，确保后续状态回填能定位同一张卡
+              const cardId = crypto.randomUUID();
+              // 1) 即时把 <tool_call>…</tool_call> 文本替换为卡片标记，保证第一时间渲染卡片
+              const marker = JSON.stringify({ __tool_call_card__: {
+                id: cardId,
+                server: hit.server,
+                tool: hit.tool,
+                status: 'running',
+                args: hit.args || {},
+                messageId: assistantMessageId
+              }});
+              const prev = currentContentRef.current || '';
+              // 覆盖两种形式：
+              // a) XML 包裹的 <tool_call>…</tool_call>
+              // b) 代码围栏中的 JSON 段 ```json ... ``` 或 ``` ... ``` 内含 type=tool_call
+              let next = prev.replace(/<tool_call>[\s\S]*?<\/tool_call>/i, marker);
+              if (next === prev) {
+                // 尝试命中最近的完整 JSON 代码块
+                next = prev.replace(/```[a-zA-Z]*\n([\s\S]*?)\n```/g, (full, inner) => {
+                  try {
+                    const obj = JSON.parse(inner);
+                    if (obj && /tool_call/i.test(String(obj.type || ''))) {
+                      return marker;
+                    }
+                    return full;
+                  } catch {
+                    return full;
+                  }
+                });
+              }
+              if (next === prev && !prev.includes('"__tool_call_card__"')) {
+                next = prev + (prev ? '\n' : '') + marker;
+              }
+              if (next !== prev) {
+                currentContentRef.current = next;
+                try { updateMessageContentInMemory(assistantMessageId, next); } catch (err) { void err; }
+              }
+              // 2) 更新状态机，写入 segments（渲染层双通道保障）
+              const st = useChatStore.getState();
+              st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: hit.server, tool: hit.tool, args: hit.args, cardId });
+
+              // 3) 立即启动 MCP 调用（一次性），完成后由编排器回填结果并递归续写
+              if (!toolStarted) {
+                toolStarted = true;
+                try {
+                  const { executeToolCall } = await import('@/lib/mcp/ToolCallOrchestrator');
+                  await executeToolCall({
+                    assistantMessageId,
+                    conversationId: String(finalConversationId),
+                    server: hit.server,
+                    tool: hit.tool,
+                    args: hit.args,
+                    runningMarker: marker,
+                    provider: currentProviderName,
+                    model: modelToUse,
+                    historyForLlm: historyForLlm as any,
+                    originalUserContent: content,
+                    cardId,
+                  });
+                } catch (err) {
+                  try { console.warn('[CHAT] exec-mcp-failed', err); } catch { /* noop */ }
+                }
+              }
+            }
+            // 命中即派发，不做额外处理；UI 等待结果事件
+          } catch (e) {
+            try { console.warn('[CHAT] det-err'); } catch (err) { void err; }
+            void e;
+          }
         })();
       },
       onComplete: () => {
+        try { console.log('[CHAT] done'); } catch { /* noop */ }
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
@@ -461,20 +532,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           }
 
           // 检测并执行 MCP 工具调用（文本协议 & 原生tools 双轨支持，先实现文本协议）
-          void (async () => {
-            try {
-              const { handleToolCallOnComplete } = await import('@/lib/mcp/streamToolMiddleware');
-              await handleToolCallOnComplete({
-                assistantMessageId,
-                conversationId: String(finalConversationId),
-                finalContent,
-                provider: currentProviderName,
-                model: modelToUse,
-                historyForLlm,
-                originalUserContent: content,
-              });
-            } catch (e) { noop(e); }
-          })();
+          const st = useChatStore.getState();
+          st.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
 
           // 在首次 AI 回复完成后尝试生成标题（限流友好，不阻塞首条消息发送）。
           void (async () => {

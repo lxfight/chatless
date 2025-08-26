@@ -31,6 +31,24 @@ export interface Message {
   /** 图片数组，base64 Data URLs */
   images?: string[];
 
+  /** 可选的结构化消息段（段驱动富文本渲染） */
+  segments?: Array<
+    | { kind: 'text'; text: string }
+    | { kind: 'think'; text: string }
+    | {
+        kind: 'toolCard';
+        id: string;
+        server: string;
+        tool: string;
+        args?: Record<string, unknown>;
+        status: 'running' | 'success' | 'error';
+        resultPreview?: string;
+        errorMessage?: string;
+        schemaHint?: string;
+        messageId: string;
+      }
+  >;
+
   // 兼容旧版字段
   createdAt?: never;
   updatedAt?: never;
