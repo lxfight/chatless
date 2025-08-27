@@ -11,59 +11,7 @@ const SERVERS_CONFIG_FILE = 'mcp_servers.json'; // For server configurations
 // 1) 明确包裹 <tool_call> ... </tool_call>
 // 2) 纯 JSON：{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}
 // 3) 前缀/代码块包裹 ```json ... ```
-export function parseMcpToolCall(output: string): null | {
-  server: string;
-  tool: string;
-  args: Record<string, unknown> | undefined;
-} {
-  if (!output) return null;
-  let text = String(output);
-
-  // 去掉代码围栏
-  text = text.replace(/```[a-zA-Z]*\n([\s\S]*?)\n```/g, '$1').trim();
-
-  // 1) <tool_call>JSON</tool_call>
-  const block = text.match(/<tool_call>([\s\S]*?)<\/tool_call>/i);
-  if (block && block[1]) {
-    try {
-      const obj = JSON.parse(block[1]);
-      const server = obj.server || obj.mcp || obj.provider || '';
-      const tool = obj.tool || obj.tool_name || obj.name || '';
-      const args = obj.args || obj.parameters || obj.params || undefined;
-      if (server && tool) return { server, tool, args };
-    } catch {}
-  }
-
-  // 2) 纯 JSON（宽松）
-  try {
-    const idx = text.indexOf('{');
-    const last = text.lastIndexOf('}');
-    if (idx !== -1 && last > idx) {
-      const slice = text.slice(idx, last + 1);
-      const obj = JSON.parse(slice);
-      const type = ((obj as any).type || (obj as any)["r#type"] || '').toString().toLowerCase();
-      if (type === 'tool_call' || (obj as any).tool || (obj as any).tool_name) {
-        const server = (obj as any).server || (obj as any).mcp || (obj as any).provider || '';
-        const tool = (obj as any).tool || (obj as any).tool_name || (obj as any).name || '';
-        const args = (obj as any).args || (obj as any).parameters || (obj as any).params || undefined;
-        if (server && tool) return { server, tool, args };
-      }
-    }
-  } catch {}
-
-  // 3) 类似 server.tool(args) 的一行表达（保守）
-  const simple = text.match(/@?([a-zA-Z0-9_-]+)\s*[.:]\s*([a-zA-Z0-9_-]+)\s*\((\{[\s\S]*\})?\)/);
-  if (simple) {
-    const server = simple[1];
-    const tool = simple[2];
-    try {
-      const args = simple[3] ? JSON.parse(simple[3]) : undefined;
-      if (server && tool) return { server, tool, args };
-    } catch {}
-  }
-
-  return null;
-}
+// 旧版文本解析器已废弃；统一由 StructuredStreamTokenizer 负责
 
 // Retrieves all configured servers from settings, optionally filtered by 'enabled' status
 export async function getAllConfiguredServers(onlyEnabled: boolean = false): Promise<string[]> {

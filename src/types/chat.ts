@@ -48,6 +48,8 @@ export interface Message {
         messageId: string;
       }
   >;
+  /** 只读视图模型，由状态机生成，供UI消费 */
+  segments_vm?: MessageViewModel;
 
   // 兼容旧版字段
   createdAt?: never;
@@ -55,6 +57,32 @@ export interface Message {
   documentReference?: never;
   contextData?: never;
   knowledgeBaseReference?: never;
+}
+
+// —— 渲染只读模型 ——
+export type VmToolStatus = 'running' | 'success' | 'error';
+
+export interface VmTextSegment { kind: 'text'; text: string }
+export interface VmThinkSegment { kind: 'think'; text: string }
+export interface VmToolCardSegment {
+  kind: 'toolCard';
+  id: string;
+  server: string;
+  tool: string;
+  status: VmToolStatus;
+  args?: Record<string, unknown>;
+  resultPreview?: string;
+  errorMessage?: string;
+  schemaHint?: string;
+}
+
+export interface MessageViewModel {
+  items: Array<VmTextSegment | VmThinkSegment | VmToolCardSegment>;
+  flags: {
+    isThinking: boolean;
+    isComplete: boolean;
+    hasToolCalls: boolean;
+  };
 }
 
 export interface Conversation {

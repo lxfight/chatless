@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { MemoizedMarkdown } from './MemoizedMarkdown';
 import { ThinkingBar } from '@/components/chat/ThinkingBar';
-import { MessageStreamParser } from '@/lib/chat/streaming/MessageStreamParser';
+// MessageStreamParser 已移除
 import { Loader2 } from 'lucide-react';
 import { ToolCallCard } from '@/components/chat/ToolCallCard';
 
@@ -16,8 +16,14 @@ interface AIMessageBlockProps {
   // 优先渲染结构化段（阶段B最小适配）
   segments?: Array<
     | { kind: 'text'; text: string }
+    | { kind: 'think'; text: string }
     | { kind: 'toolCard'; id: string; server: string; tool: string; args?: Record<string, unknown>; status: 'running' | 'success' | 'error'; resultPreview?: string; errorMessage?: string; schemaHint?: string; messageId: string }
   >;
+  // 只读视图模型（优先级最高）
+  viewModel?: {
+    items: Array<any>;
+    flags: { isThinking: boolean; isComplete: boolean; hasToolCalls: boolean };
+  };
 }
 
 export function AIMessageBlock({
@@ -26,7 +32,8 @@ export function AIMessageBlock({
   thinkingDuration,
   onStreamingComplete,
   id,
-  segments
+  segments,
+  viewModel
 }: AIMessageBlockProps) {
   const [streamedState, setStreamedState] = useState<null | {
     thinkingContent: string;
@@ -35,16 +42,15 @@ export function AIMessageBlock({
     elapsedTime: number;
     isFinished: boolean;
   }>(null);
-  const parserRef = useRef(new MessageStreamParser());
+  // 历史解析器已废弃：不再使用 MessageStreamParser，渲染完全依赖 segments。
+  // const parserRef = useRef(new MessageStreamParser());
   const prevContentLength = useRef(0);
   const prevIsStreaming = useRef(isStreaming);
   const onStreamingCompleteRef = useRef(onStreamingComplete);
   
-  // 重置解析器状态
+  // 跟踪流式结束，仅用于回调与计时
   useEffect(() => {
     if (!isStreaming && prevIsStreaming.current) {
-      // 流式结束，重置解析器
-      parserRef.current.reset();
       prevContentLength.current = 0;
     }
     prevIsStreaming.current = isStreaming;
@@ -53,11 +59,7 @@ export function AIMessageBlock({
   // 处理流式结束时的回调
   useEffect(() => {
     if (!isStreaming && prevIsStreaming.current) {
-      // 流式意外结束，强制停止计时器
       if (streamedState && !streamedState.isFinished) {
-        parserRef.current.forceStop();
-        
-        // 确保调用完成回调，将毫秒转换为秒
         if (onStreamingCompleteRef.current) {
           onStreamingCompleteRef.current(Math.floor(streamedState.elapsedTime / 1000));
         }
@@ -71,14 +73,10 @@ export function AIMessageBlock({
   }, [onStreamingComplete]);
 
   // 检查内容是否包含think标签 - 只要检测到<think>就开始显示思考栏
-  const hasThinkTags = useMemo(() => {
-    return content.includes('<think>');
-  }, [content]);
+  const hasThinkTags = useMemo(() => content.includes('<think>'), [content]);
 
   // 提前解析 <tool_call>，或 JSON 格式的 {"type":"tool_call",...}
   const hasToolCallEarly = useMemo(() => content.includes('<tool_call>') || /"type"\s*:\s*"tool_call"/i.test(content), [content]);
-  // 若已被中间件插入工具卡标记，则应优先以最新 content 为准进行渲染，绕过流式解析器的历史缓冲
-  const hasToolCardMarker = useMemo(() => content.includes('"__tool_call_card__"'), [content]);
   useMemo(() => {
     if (!hasToolCallEarly) return null;
     // 1) XML 包裹
@@ -144,42 +142,8 @@ export function AIMessageBlock({
       return;
     }
 
-    // 包含think标签的内容使用原有的MessageStreamParser逻辑
-    if (!isStreaming) {
-      if (prevIsStreaming.current) {
-        // 处理仍未解析的最后一段文本，防止流尾内容丢失
-        const remainingChunk = content.substring(prevContentLength.current);
-        if (remainingChunk.length > 0) {
-          parserRef.current.process(remainingChunk);
-          prevContentLength.current = content.length;
-        }
-
-        const finalState = parserRef.current.process(null);
-        setStreamedState(finalState);
-        if (onStreamingCompleteRef.current && finalState.thinkingContent) {
-          // 将毫秒转换为秒传递给回调
-          onStreamingCompleteRef.current(Math.floor(finalState.elapsedTime / 1000));
-        }
-      }
-      prevIsStreaming.current = false;
-      return;
-    }
-
-    prevIsStreaming.current = true;
-    const newChunk = content.substring(prevContentLength.current);
-    const newState = parserRef.current.process(newChunk);
-    setStreamedState(prevState => {
-      // 使用浅比较替代JSON.stringify，提高性能
-      if (!prevState || 
-          prevState.thinkingContent !== newState.thinkingContent ||
-          prevState.regularContent !== newState.regularContent ||
-          prevState.isThinking !== newState.isThinking ||
-          prevState.isFinished !== newState.isFinished) {
-        return newState;
-      }
-      return prevState;
-    });
-    prevContentLength.current = content.length;
+    // 包含 think 标签时的历史路径已废弃；流式思考由 tokenizer+FSM 注入 segments 控制
+    return;
   }, [content, isStreaming, hasThinkTags]);
 
   const historicalState = useMemo(() => {
@@ -264,66 +228,35 @@ export function AIMessageBlock({
   
 
 
-  // 检查是否没有任何内容（初始加载状态）
-  const hasNoContent = !content && isStreaming && (!state || (!state.thinkingContent && !state.regularContent));
+  // 检查是否没有任何内容（初始加载状态）—— segments 路径下以 segments 是否为空为准
+  const hasNoContent = isStreaming && (!Array.isArray(segments) || segments.length === 0) && !content;
+
+  // 从 segments 中提取思考内容，替代旧的 MessageStreamParser 机制
+  const thinkTextFromSegments = useMemo(() => {
+    const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
+    let acc = '';
+    for (const s of src) {
+      // s 为 any，直接访问
+      if (s && s.kind === 'think') acc += String(s.text || '');
+    }
+    return acc;
+  }, [segments, viewModel?.items]);
 
   // 将一条 AI 消息中的多种片段（普通文本、<think> 块、工具卡片）按出现顺序混合渲染，避免“消息粘连”
   const mixedSegments = useMemo(() => {
-    // 结构化 segments 优先
-    if (Array.isArray(segments) && segments.length > 0) {
+    const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
+    if (Array.isArray(src) && src.length > 0) {
       const list: Array<{ type: 'card'|'think'|'text'; text?: string; data?: any }> = [];
-      for (const s of segments) {
-        if ((s as any).kind === 'toolCard') list.push({ type: 'card', data: s });
-        else if ((s as any).kind === 'text') list.push({ type: 'text', text: (s as any).text || '' });
+      for (const s of src) {
+        if (s && s.kind === 'toolCard') list.push({ type: 'card', data: s });
+        else if (s && s.kind === 'think') list.push({ type: 'think', text: s.text || '' });
+        else if (s && s.kind === 'text') list.push({ type: 'text', text: s.text || '' });
       }
+      try { console.log('[UI:mixedSegments]', { id, total: list.length, cards: list.filter(s=>s.type==='card').length, thinks: list.filter(s=>s.type==='think').length, texts: list.filter(s=>s.type==='text').length }); } catch { /* noop */ }
       return list;
     }
-    // 关键修复：当检测到卡片标记时，直接使用最新的 content 做切分，避免使用解析器缓存导致的“看不到卡片”问题
-    const raw = hasToolCardMarker ? String(content ?? '') : String(state?.regularContent ?? content ?? '');
-    const segs: Array<{ type: 'card'; data: any } | { type: 'think'; text: string } | { type: 'text'; text: string }> = [];
-    if (!raw) return segs;
-
-    // 1) 先按工具卡片标记切分
-    const cardRe = /\{"__tool_call_card__":\{[\s\S]*?\}\}/g;
-    let lastIndex = 0;
-    const parts: Array<{ kind: 'text' | 'card'; value: string }> = [];
-    for (const m of raw.matchAll(cardRe)) {
-      const idx = m.index ?? 0;
-      if (idx > lastIndex) parts.push({ kind: 'text', value: raw.slice(lastIndex, idx) });
-      parts.push({ kind: 'card', value: m[0] });
-      lastIndex = idx + m[0].length;
-    }
-    if (lastIndex < raw.length) parts.push({ kind: 'text', value: raw.slice(lastIndex) });
-
-    // 2) 逐段处理：文本再按 <think>..</think> 切分；卡片直接解析
-    const thinkRe = /<think>[\s\S]*?<\/think>/g;
-    for (const p of parts) {
-      if (p.kind === 'card') {
-        try {
-          const obj = JSON.parse(p.value);
-          if (obj && obj.__tool_call_card__) segs.push({ type: 'card', data: obj.__tool_call_card__ });
-        } catch { /* ignore malformed card json */ }
-        continue;
-      }
-      const text = p.value;
-      if (!text) continue;
-      let tLast = 0;
-      for (const m of text.matchAll(thinkRe)) {
-        const i = m.index ?? 0;
-        if (i > tLast) segs.push({ type: 'text', text: text.slice(tLast, i) });
-        const block = m[0];
-        const inner = block.replace(/^<think>/i, '').replace(/<\/think>$/i, '');
-        segs.push({ type: 'think', text: inner });
-        tLast = i + block.length;
-      }
-      if (tLast < text.length) segs.push({ type: 'text', text: text.slice(tLast) });
-    }
-
-    // 若消息中包含 MCP 卡片标记，则隐藏混合片段中的思考栏，避免在卡片下方重复展示
-    const cleaned = hasToolCardMarker ? segs.filter(s => s.type !== 'think') : segs;
-    // 清理空白段，避免“粘连”
-    return cleaned.filter(s => (s.type === 'text' ? s.text.trim().length > 0 : true));
-  }, [content, segments, state?.regularContent]);
+    return [];
+  }, [content, segments, state?.regularContent, viewModel?.items]);
 
   return (
     <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
@@ -343,16 +276,16 @@ export function AIMessageBlock({
       )}
 
       {/* 思考进度条：始终独立显示，不与正文混排 */}
-      {state && state.thinkingContent && (
+      {( (!!viewModel && viewModel.flags?.isThinking) || (!!thinkTextFromSegments) || (!!state && !!state.thinkingContent)) && (
         <ThinkingBar
-          thinkingContent={state.thinkingContent}
-          isThinking={state.isThinking}
-          elapsedTime={state.elapsedTime}
+          thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
+          isThinking={ (viewModel?.flags?.isThinking) ?? (isStreaming || (!!thinkTextFromSegments && thinkTextFromSegments.trim().length>0)) }
+          elapsedTime={state?.elapsedTime ?? 0}
         />
       )}
 
       {/* 消息内容（混合片段顺序渲染） */}
-      {(mixedSegments.length > 0 || state?.regularContent || (!hasNoContent && !isStreaming)) && (
+      {(mixedSegments.length > 0) && (
         <div className="relative min-w-0 max-w-full w-full">
           {mixedSegments.length > 0 ? (
             <div className="flex flex-col gap-2">
@@ -379,15 +312,16 @@ export function AIMessageBlock({
                 }
                 // 不在正文中渲染 think 段，思考内容统一由上方思考栏呈现
                 if (seg.type === 'think') return null;
-                return <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />;
+                const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
+                const needSoftDivider = prevType === 'card';
+                return (
+                  <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                    <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />
+                  </div>
+                );
               })}
-              {/* 取消“提前占位卡片”，避免与真正的卡片（由流中插入的 JSON 标记）重复显示。
-                  工具调用的卡片由流处理中间件在检测到 <tool_call> 后统一插入、替换和收尾。*/}
             </div>
-          ) : (
-            // 回退：纯文本
-            <MemoizedMarkdown content={state?.regularContent || ''} />
-          )}
+          ) : null}
           {/* 悬浮显示字数 */}
           {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
             {(() => {

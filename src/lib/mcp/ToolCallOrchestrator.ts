@@ -2,7 +2,6 @@
 import { serverManager } from './ServerManager';
 import { buildSchemaHint } from './schemaHints';
 import { useChatStore } from '@/store/chatStore';
-import { v4 as uuidv4 } from 'uuid';
 import { streamChat } from '@/lib/llm';
 import type { Message as LlmMessage, StreamCallbacks } from '@/lib/llm/types';
 import { MAX_TOOL_RECURSION_DEPTH } from './constants';
@@ -35,10 +34,8 @@ export async function executeToolCall(params: {
       if (!ok) {
         const hint = `当前服务器(${server})不包含工具: ${effectiveTool}。请改为以下之一: ${available.map((t:any)=>t?.name).filter(Boolean).join(', ')}`;
         const stx = useChatStore.getState();
-        await stx.updateMessage(assistantMessageId, {
-          status: 'error',
-          content: JSON.stringify({ __tool_call_card__: { id: uuidv4(), status: 'error', server, tool: effectiveTool, args: effectiveArgs || {}, errorMessage: hint, schemaHint: hint, messageId: assistantMessageId } })
-        } as any);
+        // 改为通过状态机更新已有“运行中”卡片，避免生成重复卡片
+        stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: hint, schemaHint: hint, cardId });
         return;
       }
     }
@@ -100,8 +97,8 @@ async function continueWithToolResult(params: {
   const followHistory: LlmMessage[] = [...historyForLlm.filter((m:any)=>m.role!=='user' || m.content!==originalUserContent)];
   followHistory.push({ role:'user', content: nextUser } as any);
 
-  const { StreamingToolDetector } = await import('./StreamingToolDetector');
-  const detector = new StreamingToolDetector();
+  const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
+  const tokenizer = new StructuredStreamTokenizer();
   let pendingHit: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
   const callbacks: StreamCallbacks = {
     onStart: () => {},
@@ -113,13 +110,28 @@ async function continueWithToolResult(params: {
       stf.updateMessageContentInMemory(assistantMessageId, cur);
 
       try {
-        const hit = detector.push(tk);
-        if (hit) {
-          // 记录一次命中，待本轮流式完成后触发下一次工具调用
-          if (!pendingHit) {
+        const events = tokenizer.push(tk);
+        for (const ev of events) {
+          if (ev.type === 'think_start') {
+            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
+          } else if (ev.type === 'think_chunk') {
+            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any);
+          } else if (ev.type === 'think_end') {
+            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
+          } else if (ev.type === 'text') {
+            // 关键：续流阶段也要把正文 token 追加到 segments
+            if ((ev as any).chunk) stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+          }
+          if (ev.type === 'tool_call' && !pendingHit) {
             const cardId = crypto.randomUUID();
-            pendingHit = { server: hit.server, tool: hit.tool, args: hit.args, cardId };
-            stf.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: hit.server, tool: hit.tool, args: hit.args, cardId });
+            pendingHit = { server: ev.server, tool: ev.tool, args: ev.args, cardId };
+            // 在内容末尾追加卡片标记以确保可见
+            const prev = (msgf?.content || '') + '';
+            const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: assistantMessageId }});
+            const next = prev + (prev ? '\n' : '') + marker;
+            stf.updateMessageContentInMemory(assistantMessageId, next);
+            // 写入 segments
+            stf.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
           }
         }
       } catch { /* ignore detector error */ }

@@ -1,13 +1,54 @@
 import { getAllConfiguredServers, getConnectedServers } from './chatIntegration';
 import { getToolsCached } from './toolsCache';
-import { MAX_TOOL_SIGNATURES, MAX_TOOL_SUMMARY_PER_SERVER } from './constants';
 
 export type InjectionResult = {
   systemMessages: Array<{ role: 'system'; content: string }>
 };
 
-export async function buildMcpSystemInjections(content: string, currentConversationId?: string): Promise<InjectionResult> {
+type ProviderStrategy = {
+  /**
+   * 单条、严谨、双语合并的协议约束。必须简洁且稳定，避免“多条重复指令”。
+   */
+  buildProtocolMessage(): string;
+  /**
+   * 已启用的 server 的简短声明。用于给模型最小上下文。
+   */
+  buildEnabledServersLine(enabled: string[]): string | null;
+  /**
+   * 构造聚焦提示（仅 1 行），帮助模型优先选择目标 server 的最相关工具。
+   */
+  buildFocusedHint(server: string, toolName: string, requiredKeys: string[]): string | null;
+};
+
+const defaultStrategy: ProviderStrategy = {
+  buildProtocolMessage() {
+    return [
+      // 兼容两种严格协议：推荐 use_mcp_tool（XML 包 JSON），以及向后兼容的 <tool_call> 包裹 JSON
+      'Tool call protocol (strict). Prefer the following format and output ONLY inside tags:',
+      '<use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>',
+      'Do NOT output plain JSON. Do NOT add any text outside tags. 禁止标签外任何文字；仅输出以上 XML。'
+    ].join(' ');
+  },
+  buildEnabledServersLine(enabled: string[]) {
+    if (!enabled.length) return null;
+    return `Enabled MCP servers: ${enabled.join(', ')}. Prefer tools from these servers.`;
+  },
+  buildFocusedHint(server: string, toolName: string, requiredKeys: string[]) {
+    if (!server || !toolName) return null;
+    const req = requiredKeys && requiredKeys.length ? `(required: ${requiredKeys.slice(0,3).join(', ')})` : '';
+    return `Focused hint: server ${server} → ${toolName}${req}.`;
+  }
+};
+
+function getProviderStrategy(_provider?: string | null): ProviderStrategy {
+  // 预留：可根据不同 provider 的个性化规则返回不同策略
+  // 例如 deepseek/gemini/openai 做差异化表达、语言偏好或安全性要求
+  return defaultStrategy;
+}
+
+export async function buildMcpSystemInjections(content: string, _currentConversationId?: string, providerName?: string): Promise<InjectionResult> {
   const sys: Array<{ role:'system'; content:string }> = [];
+  const strategy = getProviderStrategy(providerName);
   let enabled = await getConnectedServers();
   try {
     // 将 @mention 的 server 置前
@@ -19,81 +60,39 @@ export async function buildMcpSystemInjections(content: string, currentConversat
       const filtered = mentioned.map(n => map.get(n.toLowerCase())).filter(Boolean) as string[];
       if (filtered.length) enabled = Array.from(new Set<string>([...filtered, ...enabled]));
     }
-  } catch {}
+  } catch { /* ignore */ }
 
+  // 单条严格协议
+  sys.push({ role: 'system', content: strategy.buildProtocolMessage() });
+
+  // 简要的启用 server 行
+  const serversLine = strategy.buildEnabledServersLine(enabled);
+  if (serversLine) sys.push({ role: 'system', content: serversLine });
+
+  // 选取一个“最可能”的 server + 工具做一行聚焦提示
   if (enabled.length) {
-    sys.push({ role:'system', content: `Available MCP servers for this conversation: ${enabled.join(', ')}. Use tools when helpful.` });
-    sys.push({ role:'system', content: `Tool call protocol (text-mode): If a tool is needed, output ONLY <tool_call>{"type":"tool_call","server":"<server>","tool":"<tool>","parameters":{...}}</tool_call>. Strict rules: (1) <server> and <tool> MUST be selected from the catalogs below; DO NOT invent names. (2) Provide ONLY required keys unless explicitly asked. (3) Paths use forward slashes /. (4) Prefer @mentioned server; if uncertain, ask for the missing key instead of guessing.` });
-
-    // 目录摘要（限时/限量）
-    const summaries: string[] = [];
-    for (const s of enabled) {
-      try {
-        const tools = await getToolsCached(s);
-        if (Array.isArray(tools) && tools.length) {
-          const names = tools.slice(0, MAX_TOOL_SUMMARY_PER_SERVER).map((t:any)=>t.name).join(', ');
-          summaries.push(`${s}: [${names}${tools.length>MAX_TOOL_SUMMARY_PER_SERVER?'…':''}]`);
-        }
-      } catch {}
-    }
-    if (summaries.length) sys.push({ role:'system', content: `MCP tool catalog (subset): ${summaries.join(' ; ')}. Prefer tool names from this list; otherwise pick any tool found in the server catalogs below. Never invent names.` });
-
-    // 详细清单：为每个启用的 server 下发工具与必填参数（牺牲部分 token 以提高一次成功率）
-    for (const s of enabled) {
-      try {
-        const tools = await getToolsCached(s);
-        if (!Array.isArray(tools) || !tools.length) continue;
-        const detail: string[] = [];
-        for (const t of tools.slice(0, MAX_TOOL_SIGNATURES)) {
-          const schema: any = (t.inputSchema || t.input_schema || {});
-          const props: Record<string, any> = schema.properties || schema?.schema?.properties || {};
-          const required: string[] = schema.required || schema?.schema?.required || [];
-          const reqList = required.map(k => `${k}${props?.[k]?.type?`:${props[k].type}`:''}`).join(', ');
-          const exampleKeys = required.map(k => `${JSON.stringify(k)}:${JSON.stringify(`<${k}>`)}`).join(', ');
-          const example = `<tool_call>{"type":"tool_call","server":${JSON.stringify(s)},"tool":${JSON.stringify(t.name)},"parameters":{${exampleKeys}}}</tool_call>`;
-          detail.push(`- ${t.name}${reqList?` (required: ${reqList})`:''}${t.description?` — ${t.description}`:''} | call: ${example}`);
-        }
-        if (detail.length) {
-          sys.push({ role:'system', content: `Server ${s} tools (top ${Math.min(tools.length, MAX_TOOL_SIGNATURES)}):\n${detail.join('\n')}` });
-        }
-      } catch {}
-    }
-
-    // 精准提示：对首个目标 server 注入简短签名（根据用户意图做轻量匹配）
     const target = enabled[0];
     try {
       const tools = await getToolsCached(target);
       if (Array.isArray(tools) && tools.length) {
-        // 基于用户内容的关键词打分，尽量把相关工具（如 list_directory）排到前面
-        const intentKeywords = [
-          'list','dir','ls','files','children','browse','enumerate','scan','folder',
-          '列出','目录','文件夹','清单','浏览','查看目录','查看文件','列表'
-        ];
-        const scoreTool = (t:any): number => {
-          const name = String(t?.name || '').toLowerCase();
-          const desc = String(t?.description || '').toLowerCase();
-          let score = 0;
-          for (const kw of intentKeywords) {
-            if (kw && (name.includes(kw) || desc.includes(kw))) score += 2;
-          }
-          // 进一步：若用户文本包含“@filesystem 列出/目录”等字样，再提升包含 list/dir 的工具
-          const lc = content.toLowerCase();
-          if (/(@filesystem|filesystem)/i.test(content) && /(列出|目录|list|dir|ls)/i.test(content)) {
-            if (/list|dir|ls/.test(name)) score += 3;
-          }
-          return score;
+        // 轻量评分，倾向包含 list/dir/ls 的工具
+        const score = (t:any) => {
+          const name = String(t?.name||'').toLowerCase();
+          const desc = String(t?.description||'').toLowerCase();
+          let s = 0; const kws = ['list','dir','ls','files','目录','列出'];
+          for (const k of kws) if (name.includes(k) || desc.includes(k)) s += 2;
+          if (/(@filesystem|filesystem)/i.test(content) && /(列出|目录|list|dir|ls)/i.test(content)) if (/list|dir|ls/.test(name)) s += 3;
+          return s;
         };
-
-        const sorted = [...tools].sort((a:any,b:any)=>scoreTool(b)-scoreTool(a));
-        const brief = sorted.slice(0, MAX_TOOL_SIGNATURES).map((t:any)=>{
-          const schema = (t.inputSchema || t.input_schema || {}) as any;
-          const req: string[] = schema.required || schema?.schema?.required || [];
-          const reqStr = req.slice(0,3).join(', ');
-          return `${t.name}${reqStr?`(required: ${reqStr})`:''}`;
-        }).join(' ; ');
-        sys.push({ role:'system', content: `Focused tool signatures for @${target}: ${brief}. Prefer a tool from this list; if none fits, choose any tool from the server catalog above. Provide ONLY required keys. Never invent names.` });
+        const best = [...tools].sort((a:any,b:any)=>score(b)-score(a))[0];
+        if (best) {
+          const schema: any = (best.inputSchema || best.input_schema || {});
+          const required: string[] = schema.required || schema?.schema?.required || [];
+          const hint = strategy.buildFocusedHint(target, best.name, required || []);
+          if (hint) sys.push({ role: 'system', content: hint });
+        }
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   return { systemMessages: sys };

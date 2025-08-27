@@ -43,6 +43,7 @@ interface ChatMessageProps {
   };
   images?: string[];
   segments?: Message['segments'];
+  viewModel?: Message['segments_vm'];
 }
 
 const formatTimestamp = (timestamp: string | undefined): string => {
@@ -89,6 +90,7 @@ export function ChatMessage({
   knowledgeBaseReference,
   images,
   segments,
+  viewModel,
 }: ChatMessageProps) {
   if (DEBUG_CHAT_MESSAGE) { /* noop */ }
   
@@ -128,9 +130,9 @@ export function ChatMessage({
           isStreaming={isStreaming}
           thinkingDuration={thinking_duration}
           id={id}
-          // 关键：把上层透传的 segments 优先交给 AIMessageBlock 做段驱动渲染
-          // 但排除 think 段（AIMessageBlock 不接收 think 段，think 通过 content 渲染）
-          segments={Array.isArray(segments) ? segments.filter((s: any) => s && s.kind !== 'think') as any : undefined}
+          // 关键：把上层透传的 segments 优先交给 AIMessageBlock 做段驱动渲染（包含 think 段）
+          segments={Array.isArray(segments) ? segments as any : undefined}
+          viewModel={viewModel as any}
           onStreamingComplete={(duration) => {
             if (onSaveThinkingDuration) {
               onSaveThinkingDuration(id, duration);

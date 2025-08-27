@@ -70,6 +70,9 @@ export function ChatMessageList({
             documentReference={message.document_reference}
             knowledgeBaseReference={message.knowledge_base_reference}
             images={message.images}
+            viewModel={(message as any).segments_vm}
+            // 关键：透传结构化片段以驱动即时渲染（think/toolCard/text）
+            segments={(message as any).segments}
             onEdit={() => onEditMessage(message.id, message.content)}
             // 复制功能
             onCopy={(content) => navigator.clipboard.writeText(content)}

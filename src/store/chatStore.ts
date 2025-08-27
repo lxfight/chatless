@@ -459,11 +459,22 @@ export const useChatStore = create<ChatState & ChatActions>()(
                   }
                 } catch { /* noop */ }
                 // 关键：替换消息与数组引用，确保 React 依赖 conversation.messages 变化后重算 useMemo
-                const nextMsg: any = { ...prevMsg, segments: model.segments };
+                // 生成只读 ViewModel 供 UI 使用
+                const vmItems = (model.segments || []).map((s:any) => ({ ...s }));
+                const viewModel = {
+                  items: vmItems,
+                  flags: {
+                    isThinking: (model.fsm === 'RENDERING_THINK'),
+                    isComplete: (model.fsm === 'COMPLETE'),
+                    hasToolCalls: vmItems.some((x:any)=>x && x.kind==='toolCard')
+                  }
+                } as any;
+                const nextMsg: any = { ...prevMsg, segments: model.segments, segments_vm: viewModel };
                 const nextMessages: any[] = [...(conv.messages as any[])];
                 nextMessages[idx] = nextMsg;
                 (conv as any).messages = nextMessages;
                 conv.updated_at = Date.now();
+                try { console.log('[FSM:flush.end]', { id, nextSegs: Array.isArray(nextMsg.segments)?nextMsg.segments.length:0, fsm: model.fsm }); } catch { /* noop */ }
                 break;
               }
             });
@@ -481,18 +492,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
         const now = Date.now();
         set(state => {
           for (const conv of state.conversations) {
-            const msg = conv.messages?.find(m => m.id === messageId);
+            const msg: any = conv.messages?.find(m => m.id === messageId);
             if (msg) {
               msg.content = content;
-              // 若存在结构化段，保持 text 段与 content 同步（最小适配）
-              if (Array.isArray(msg.segments)) {
-                const last = msg.segments[msg.segments.length - 1];
-                if (!last || last.kind !== 'text') {
-                  msg.segments.push({ kind: 'text', text: content });
-                } else {
-                  last.text = content;
-                }
-              }
+              // 重要：segments 完全由 FSM 驱动，此处不再同步 text 段，避免把 <think> 的正文化
+              try { console.log('[STORE:updateMessageContentInMemory]', { messageId, contentLen: (content||'').length }); } catch { /* noop */ }
               conv.updated_at = now;
               break;
             }

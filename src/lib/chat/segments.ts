@@ -36,6 +36,17 @@ export function appendText(segments: MessageSegment[], chunk: string): MessageSe
   return out;
 }
 
+export function appendThinkText(segments: MessageSegment[], chunk: string): MessageSegment[] {
+  if (!chunk) return segments;
+  const out = [...segments];
+  if (out.length === 0 || out[out.length - 1].kind !== 'think') {
+    out.push({ kind: 'think', text: chunk });
+  } else {
+    (out[out.length - 1] as ThinkSegment).text = ((out[out.length - 1] as ThinkSegment).text || '') + chunk;
+  }
+  return out;
+}
+
 export function insertRunningCard(
   segments: MessageSegment[],
   card: Omit<ToolCardSegment, 'status'> & { status?: ToolCallStatus }
