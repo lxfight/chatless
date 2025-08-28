@@ -146,6 +146,39 @@ export const useChatStore = create<ChatState & ChatActions>()(
           );
 
           startupMonitor.startPhase('数据处理');
+          // 简易解析：从 content 中恢复 MCP 卡片标记为 segments
+          const parseToolCardsFromContent = (content: string, messageId: string) => {
+            const segs: any[] = [];
+            if (!content) return segs;
+            try {
+              const lines = String(content).split('\n');
+              for (const line of lines) {
+                const t = line.trim();
+                if (!t) continue;
+                if (!t.includes('"__tool_call_card__"')) continue;
+                try {
+                  const obj = JSON.parse(t);
+                  const payload = obj?.__tool_call_card__ || {};
+                  if (payload && payload.server && payload.tool) {
+                    segs.push({
+                      kind: 'toolCard',
+                      id: payload.id || crypto.randomUUID(),
+                      server: payload.server,
+                      tool: payload.tool,
+                      args: payload.args || {},
+                      status: (payload.status === 'error' || payload.status === 'success') ? payload.status : 'running',
+                      resultPreview: payload.resultPreview,
+                      errorMessage: payload.errorMessage,
+                      schemaHint: payload.schemaHint,
+                      messageId,
+                    });
+                  }
+                } catch { /* ignore single line */ }
+              }
+            } catch { /* noop */ }
+            return segs;
+          };
+
           const loadedConversations: Conversation[] = conversations.map((conv) => {
             const messages = messageMap.get(conv.id) || [];
 
@@ -179,7 +212,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 }
               }
               
-              return {
+              const base: Message = {
                 id: msg.id,
                 conversation_id: msg.conversation_id,
                 role: msg.role,
@@ -195,6 +228,18 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 thinking_duration: msg.thinking_duration,
                 images: parseImagesField(msg.images),
               };
+
+              // 恢复 MCP 卡片为 segments（优先使用数据库中的 segments；否则从 content 兜底解析）
+              try {
+                const segsFromDb = Array.isArray(msg.segments) ? (msg.segments as any[]) : [];
+                const segs = segsFromDb.length > 0 ? segsFromDb : parseToolCardsFromContent(base.content || '', base.id);
+                if (Array.isArray(segs) && segs.length > 0) {
+                  (base as any).segments = segs;
+                  (base as any).segments_vm = { items: segs.map((s:any)=>({ ...s })), flags: { isThinking: false, isComplete: true, hasToolCalls: true } };
+                }
+              } catch { /* noop */ }
+
+              return base;
             });
 
             const convAny = conv as any;
@@ -478,6 +523,21 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 break;
               }
             });
+
+            // 将包含 MCP 相关动作（TOOL_HIT/TOOL_RESULT/STREAM_END）导致的 segments 变更持久化到数据库
+            try {
+              const shouldPersist = actions.some(a => a && (a.type === 'TOOL_HIT' || a.type === 'TOOL_RESULT' || a.type === 'STREAM_END'));
+              if (shouldPersist) {
+                const st = get();
+                const conv = st.conversations.find(c => Array.isArray((c as any).messages) && (c as any).messages.some((m:any)=>m.id===id));
+                const msg = conv ? (conv as any).messages.find((m:any)=>m.id===id) : undefined;
+                const segsToSave = msg?.segments;
+                if (Array.isArray(segsToSave)) {
+                  // 异步落库，不阻塞 UI
+                  void get().updateMessage(id, { segments: segsToSave });
+                }
+              }
+            } catch { /* noop */ }
           });
         };
         return (messageId: string, action: any) => {

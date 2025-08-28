@@ -99,6 +99,8 @@ async function continueWithToolResult(params: {
 
   const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
   const tokenizer = new StructuredStreamTokenizer();
+  // 递归阶段增加轻量自动保存：每累计一定字符就写库一次，避免断电/重启丢失
+  let autosaveBuffer = '';
   let pendingHit: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
   const callbacks: StreamCallbacks = {
     onStart: () => {},
@@ -108,6 +110,11 @@ async function continueWithToolResult(params: {
       const msgf = convf?.messages.find(m=>m.id===assistantMessageId);
       const cur = (msgf?.content || '') + tk;
       stf.updateMessageContentInMemory(assistantMessageId, cur);
+      autosaveBuffer += tk;
+      if (autosaveBuffer.length > 200) {
+        autosaveBuffer = '';
+        try { void stf.updateMessage(assistantMessageId, { content: cur }); } catch { /* noop */ }
+      }
 
       try {
         const events = tokenizer.push(tk);
@@ -141,6 +148,13 @@ async function continueWithToolResult(params: {
       if (pendingHit) {
         // 继续执行下一个工具调用（同条消息递归）
         const next = pendingHit; pendingHit = null;
+        // 关键：在发起下一次工具调用前，先持久化当前消息内容，避免重启后丢失本阶段文本
+        try {
+          const convNow = stf2.conversations.find(c=>c.id===conversationId);
+          const msgNow = convNow?.messages.find(m=>m.id===assistantMessageId);
+          const contentNow = msgNow?.content || '';
+          void stf2.updateMessage(assistantMessageId, { content: contentNow });
+        } catch { /* noop */ }
         void executeToolCall({
           assistantMessageId,
           conversationId,

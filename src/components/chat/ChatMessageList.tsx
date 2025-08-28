@@ -1,6 +1,7 @@
 import { ChatMessage } from './ChatMessage';
 import { Message } from '@/types/chat';
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState';
+import FoldingLoader from '@/components/ui/FoldingLoader';
 
 interface ChatMessageListProps {
   chatId?: string;
@@ -83,7 +84,7 @@ export function ChatMessageList({
         ))}
         {isLoading && messages.length === 0 && (
           <div className="flex justify-center p-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+            <FoldingLoader size={36} />
           </div>
         )}
       </div>

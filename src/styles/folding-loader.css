@@ -1,0 +1,82 @@
+/* Animation container */
+.loader-container {
+    position: relative;
+    
+    /* 1. Define color variables for the component */
+    /* These are the default (light mode) colors - NOW HIGHER CONTRAST */
+    --loader-dot-color: #111827;      /* Was #1f2937 - Now darker */
+    --loader-square-color: #6b7280;   /* Unchanged */
+    --loader-line-stroke: #9ca3af;    /* Unchanged */
+    --loader-diag-stroke: #d1d5db;    /* Unchanged */
+}
+
+/* 2. Define dark mode overrides */
+/* When .loader-container is inside an element with the .dark class... */
+.dark .loader-container {
+    /* ...use these colors instead - NOW HIGHER CONTRAST */
+    --loader-dot-color: #ffffff;      /* Unchanged */
+    --loader-square-color: #1a1a1a;    /* Unchanged */
+    --loader-line-stroke: #a1a1aa;    /* Was #888888 - Now lighter */
+    --loader-diag-stroke: #71717a;    /* Was #666666 - Now lighter */
+}
+
+
+/* --- Element base styles --- */
+/* The rest of the styles are the same, but now use the variables */
+
+/* Style for the four corner dots */
+.loader-container .dot {
+    position: absolute;
+    /* 3. Use the variable */
+    background-color: var(--loader-dot-color);
+    border-radius: 2px;
+    z-index: 10;
+    transition: opacity 0.2s ease, background-color 0.3s ease; /* Added transition for color */
+}
+
+/* Style for the central square */
+.loader-container .center-square {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    /* 3. Use the variable */
+    background-color: var(--loader-square-color);
+    transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease; /* Added transition for color */
+    z-index: 15;
+}
+
+/* A faster opacity transition for the flashing effect */
+.flashing-mode {
+    transition: opacity 0.05s ease-in-out !important;
+}
+
+/* SVG styles for connecting and diagonal lines */
+.loader-container .lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+}
+
+.loader-container .lines line {
+    /* 3. Use the variable */
+    stroke: var(--loader-line-stroke);
+    stroke-width: 1;
+    transition: opacity 0.3s ease-in-out, stroke 0.3s ease; /* Added transition for color */
+}
+
+.loader-container .lines .diagonal {
+    /* 3. Use the variable */
+    stroke: var(--loader-diag-stroke);
+}
+
+/* When folded, the central square disappears */
+.loader-container.collapsed .center-square {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+    transition-delay: 0s;
+}

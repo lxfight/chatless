@@ -6,6 +6,7 @@ import { useChatStore } from "@/store/chatStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loader2Icon, SearchIcon, MessageSquare } from "lucide-react";
+import FoldingLoader from '@/components/ui/FoldingLoader';
 import { ConversationItem } from "./ConversationItem";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 
@@ -111,7 +112,7 @@ export function ConversationSidebar({
     return (
       <ScrollArea className="flex-1 p-2 h-full">
         <div className="flex justify-center items-center h-full">
-          <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" />
+          <FoldingLoader size={28} />
         </div>
       </ScrollArea>
     );

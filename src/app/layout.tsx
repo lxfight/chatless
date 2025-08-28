@@ -2,6 +2,7 @@
 import localFont from 'next/font/local';
 import dynamic from 'next/dynamic';
 import "@/styles/globals.css";
+import FoldingLoader from '@/components/ui/FoldingLoader';
 import { Toaster } from "@/components/ui/sonner";
 import { CommandPalette } from "@/components/CommandPalette";
 import '@/commands/defaultCommands';
@@ -113,8 +114,11 @@ const TauriApp = dynamic<{ children: React.ReactNode }>(
             <div className="w-64 bg-gray-50 border-r border-gray-200 flex-shrink-0 h-full">
               {/* 聊天侧边栏占位符 */}
             </div>
-            <div className="flex-1 bg-gray-50">
-              {/* 聊天内容占位符 */}
+            <div className="flex-1 bg-gray-50 relative">
+              {/* 聊天内容占位符 + 品牌加载动画 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <FoldingLoader size={40} />
+              </div>
             </div>
           </div>
         </div>

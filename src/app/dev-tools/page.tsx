@@ -8,12 +8,13 @@ import { DatabaseRepairTool } from '@/components/dev/DatabaseRepairTool';
 import { PerformanceMonitor } from '@/components/dev/PerformanceMonitor';
 import { getDevToolsStatus } from '../../lib/utils/environment';
 import { Button } from '@/components/ui/button';
-import { Loader2, RotateCcw, RefreshCw, AlertTriangle, Database, FileText, Trash2, Download, Sparkles, ChevronDown, ChevronUp, Settings, FolderOpen } from 'lucide-react';
+import { Loader2, RotateCcw, RefreshCw, AlertTriangle, Database, Trash2, ChevronDown, ChevronUp, Settings, FolderOpen } from 'lucide-react';
+import FoldingLoader from '@/components/ui/FoldingLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { SampleDataInitializer, cleanupDuplicateDocuments } from "@/lib/sampleDataInitializer";
+import { SampleDataInitializer } from "@/lib/sampleDataInitializer";
 import { specializedStorage } from "@/lib/storage";
 import { GoogleAIProvider } from "@/lib/llm/providers/GoogleAIProvider";
 
@@ -28,8 +29,8 @@ export default function DevToolsPage() {
   const [status, setStatus] = useState<DevToolsStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
-  const [isReinitializing, setIsReinitializing] = useState(false);
-  const [isCleaning, setIsCleaning] = useState(false);
+  const [isReinitializing] = useState(false);
+  const [isCleaning] = useState(false);
   const [isCheckingLock, setIsCheckingLock] = useState(false);
   const [lockStatus, setLockStatus] = useState<{
     hasLock: boolean;
@@ -61,23 +62,7 @@ export default function DevToolsPage() {
     setRecents(getRecentRoutes());
   }, []);
 
-  const handleResetSampleData = async () => {
-    setIsResetting(true);
-    try {
-      const { SampleDataInitializer } = await import('@/lib/sampleDataInitializer');
-      await SampleDataInitializer.fullReset({
-        onProgress: (step, progress) => {
-          console.log(`${step}: ${progress}%`);
-        }
-      });
-      alert('示例数据重置完成');
-    } catch (error) {
-      console.error('重置失败:', error);
-      alert('重置失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      setIsResetting(false);
-    }
-  };
+  // 移除未使用的 handleResetSampleData
 
   const handleFullReset = async () => {
     if (!confirm("⚠️ 这将删除所有数据（数据库、文件、配置）确定要继续吗？")) {
@@ -117,64 +102,9 @@ export default function DevToolsPage() {
     }
   };
 
-  const handleReinitialize = async () => {
-    if (!confirm("确定要重新初始化示例数据吗？这将重新创建所有示例知识库和文档。")) {
-      return;
-    }
+  // 移除未使用的 handleReinitialize（保留完全重置）
 
-    setIsReinitializing(true);
-    setProgress(0);
-    setCurrentStep("开始重新初始化...");
-    setMessage("");
-
-    try {
-      await SampleDataInitializer.initializeAll({
-        onProgress: (step, prog) => {
-          setCurrentStep(step);
-          setProgress(prog);
-        },
-        overrideExisting: true
-      });
-      
-      setMessage("示例数据重新初始化成功");
-
-    } catch (error) {
-      console.error('重新初始化失败:', error);
-      setMessage(`❌ 重新初始化失败: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setIsReinitializing(false);
-      setProgress(100);
-    }
-  };
-
-  const handleCleanupDuplicates = async () => {
-    if (!confirm("确定要强制清理重复的知识库和文档吗？这将彻底删除所有重复项目，只保留最早创建的版本。")) {
-      return;
-    }
-
-    setIsCleaning(true);
-    setProgress(0);
-    setCurrentStep("开始强制清理重复数据...");
-    setMessage("");
-
-    try {
-      // 使用新的强制清理方法
-      await SampleDataInitializer.forceCleanupAllDuplicates({
-        onProgress: (step, prog) => {
-          setCurrentStep(step);
-          setProgress(prog);
-        }
-      });
-      
-      setMessage(`强制清理完成所有重复数据已清除`);
-
-    } catch (error) {
-      console.error('强制清理失败:', error);
-      setMessage(`❌ 强制清理失败: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setIsCleaning(false);
-    }
-  };
+  // 移除未使用的 handleCleanupDuplicates
 
   const handleCheckLock = async () => {
     setIsCheckingLock(true);
@@ -295,14 +225,16 @@ export default function DevToolsPage() {
         const { appDataDir } = await import('@tauri-apps/api/path');
         const dir = await appDataDir();
         setAppDataPath(dir);
-      } catch {}
+      } catch {
+        // no-op
+      }
     })();
   }, []);
 
   const handleOpenAppDataDir = async () => {
     try {
       const { appDataDir } = await import('@tauri-apps/api/path');
-      // @ts-ignore - opener 插件仅在 Tauri 环境存在
+      // @ts-expect-error - opener 插件仅在 Tauri 环境存在
       const { openPath, open } = await import('@tauri-apps/plugin-opener');
       const dir = await appDataDir();
       if (openPath) {
@@ -319,9 +251,12 @@ export default function DevToolsPage() {
   if (loading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">开发工具</h1>
-          <p className="text-muted-foreground mt-2">正在检测环境...</p>
+        <div className="flex flex-col items-center gap-3 py-10">
+          <FoldingLoader size={40} />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">开发工具</h1>
+            <p className="text-muted-foreground mt-2">正在检测环境...</p>
+          </div>
         </div>
       </div>
     );

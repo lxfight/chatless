@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { MemoizedMarkdown } from './MemoizedMarkdown';
 import { ThinkingBar } from '@/components/chat/ThinkingBar';
 // MessageStreamParser 已移除
-import { Loader2 } from 'lucide-react';
+import FoldingLoader from '../ui/FoldingLoader';
 import { ToolCallCard } from '@/components/chat/ToolCallCard';
 
 interface AIMessageBlockProps {
@@ -264,14 +264,9 @@ export function AIMessageBlock({
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
-            <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+            <FoldingLoader size={22} />
           </div>
-          <div className="flex gap-1">
-            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-          </div>
-          <span className="text-xs italic text-slate-500 dark:text-slate-400">等待模型响应...</span>
+          <span className="text-xs italic text-slate-500 dark:text-slate-400">等待响应...</span>
         </div>
       )}
 
@@ -306,7 +301,6 @@ export function AIMessageBlock({
                       resultPreview={d.resultPreview}
                       errorMessage={d.errorMessage}
                       schemaHint={d.schemaHint}
-                      messageId={id ? String(id) : undefined}
                     />
                   );
                 }
@@ -322,6 +316,15 @@ export function AIMessageBlock({
               })}
             </div>
           ) : null}
+          {/* 思考结束到卡片出现的过渡期占位：当仍在流式但暂无任何片段时显示 */}
+          {isStreaming && !hasNoContent && mixedSegments.length === 0 && (
+            <div className="flex items-center gap-3 py-2">
+              <div className="flex items-center gap-2">
+                <FoldingLoader size={22} />
+              </div>
+              <span className="text-xs italic text-slate-500 dark:text-slate-400">正在准备工具调用…</span>
+            </div>
+          )}
           {/* 悬浮显示字数 */}
           {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
             {(() => {

@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { serverManager } from '@/lib/mcp/ServerManager';
-import { useChatStore } from '@/store/chatStore';
+// 不再在卡片内部触发重试逻辑
 
 type ToolCallStatus = 'success' | 'error' | 'running';
 
@@ -18,56 +17,35 @@ interface ToolCallCardProps {
   messageId?: string; // enable inline retry when present
 }
 
-export function ToolCallCard({ server, tool, status, args, resultPreview, errorMessage, schemaHint, messageId }: ToolCallCardProps) {
-  const canRetry = !!messageId && !!server && !!tool;
+export function ToolCallCard({ server, tool, status, args, resultPreview, errorMessage, schemaHint }: ToolCallCardProps) {
+  // 固定展示状态，不再提供重试按钮（由上层流程自动处理重试/继续）
   const [open, setOpen] = React.useState(status === 'error');
   React.useEffect(() => {
     if (status === 'error') setOpen(true);
   }, [status]);
-
-  const retry = async () => {
-    if (!canRetry) return;
-    // 标记为运行中
-    try {
-      useChatStore.getState().updateMessage(messageId!, {
-        content: JSON.stringify({ __tool_call_card__: { status: 'running', server, tool, args: args || {} , messageId } })
-      });
-    } catch {}
-    try {
-      const result = await serverManager.callTool(server, tool, (args as any) || undefined);
-      const preview = typeof result === 'string' ? result : JSON.stringify(result).slice(0, 2000);
-      useChatStore.getState().updateMessage(messageId!, {
-        status: 'sent',
-        content: JSON.stringify({ __tool_call_card__: { status: 'success', server, tool, args: args || {}, resultPreview: preview, messageId } })
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      useChatStore.getState().updateMessage(messageId!, {
-        status: 'error',
-        content: JSON.stringify({ __tool_call_card__: { status: 'error', server, tool, args: args || {}, errorMessage: msg, messageId } })
-      });
-    }
-  };
   return (
     <div className={cn(
-      'w-full max-w-full rounded-md border text-sm overflow-hidden',
-      status === 'error' ? 'border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10' :
-      status === 'running' ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-900/10' :
-      'border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/30'
+      // 固定卡片最大宽度，防止随思考栏文本宽度变化
+      'w-full max-w-[720px] rounded-xl border text-sm overflow-hidden backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/40 transition-shadow shadow-sm hover:shadow-md',
+      status === 'error' ? 'border-red-200/70 bg-red-50/40 dark:border-red-900/40 dark:bg-red-900/10' :
+      status === 'running' ? 'border-emerald-200/70 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-900/10' :
+      'border-slate-200/70 bg-slate-50/30 dark:border-slate-800/60 dark:bg-slate-900/30'
     )}>
-      <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-200/60 dark:border-slate-800">
-        <span className="px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px]">@</span>
-        <button onClick={()=>setOpen(o=>!o)} className="font-medium truncate hover:underline">{server}</button>
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-200/60 dark:border-slate-800/60">
+        <span className="px-1.5 py-0.5 rounded-md border border-emerald-200/70 bg-emerald-50/70 text-emerald-700 text-[11px]">@</span>
+        <button onClick={()=>setOpen(o=>!o)} className="cursor-pointer font-medium truncate hover:underline/60">{server}</button>
         <span className="text-slate-400">·</span>
         <span className="font-mono text-[12px] truncate">{tool}</span>
-        <span className={cn('ml-auto text-[11px] px-1.5 py-0.5 rounded',
-          status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-          status === 'running' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
-          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-        )}>{status === 'running' ? '调用中' : status === 'success' ? '调用成功' : '调用失败'}</span>
-        {canRetry && (
-          <button onClick={retry} className="ml-2 text-[11px] px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">重试</button>
-        )}
+        {/* 状态圆点：颜色表达状态，移除文字 */}
+        <span
+          className={cn(
+            'ml-auto inline-flex items-center justify-center w-2.5 h-2.5 rounded-full',
+            status === 'error' ? 'bg-red-500 shadow-[0_0_0_3px_rgba(248,113,113,0.2)]' :
+            status === 'running' ? 'bg-emerald-500 animate-pulse shadow-[0_0_0_3px_rgba(16,185,129,0.15)]' :
+            'bg-slate-400 shadow-[0_0_0_3px_rgba(148,163,184,0.2)]'
+          )}
+          title={status === 'error' ? '失败' : status === 'running' ? '进行中' : '成功'}
+        />
       </div>
       {open && args && Object.keys(args).length > 0 && (
         <div className="px-3 py-2 text-[12px] text-slate-600 dark:text-slate-300">
@@ -77,7 +55,7 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
       )}
       {open && status === 'success' && resultPreview && (
         <div className="px-3 py-2 text-[12px] text-slate-600 dark:text-slate-300">
-          <div className="mb-1 font-medium">结果预览</div>
+          <div className="mb-1 font-medium">结果</div>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-[12px]">{resultPreview}</pre>
         </div>
       )}

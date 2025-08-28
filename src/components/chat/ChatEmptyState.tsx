@@ -45,6 +45,7 @@ export function ChatEmptyState({ onPromptClick }: ChatEmptyStateProps) {
       >
         今天有什么可以帮您？
       </motion.h2>
+      
       <motion.p
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

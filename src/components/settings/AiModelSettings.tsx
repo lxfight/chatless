@@ -11,6 +11,7 @@ import { InfoBanner } from "./InfoBanner";
 import { InputField } from "./InputField"; // 导入 InputField
 import { ProviderSettings } from "./ProviderSettings"; // 导入新组件（下一步创建）
 import { Server, RefreshCcw, KeyRound, ServerCog, Loader2, RotateCcw } from "lucide-react";
+import FoldingLoader from '@/components/ui/FoldingLoader';
 // 导入新模块
 /* Commenting out for now due to persistent linter error
 import {
@@ -74,8 +75,10 @@ export function AiModelSettings() {
 
   // Helper function to render the loading state
   const renderLoadingState = () => (
-    <div className="p-6 text-center flex flex-col items-center justify-center min-h-[200px]">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-500 mb-3" />
+    <div className="p-6 text-center flex flex-col items-center justify-center min-h-[220px]">
+      <div className="mb-3">
+        <FoldingLoader size={48} />
+      </div>
       <p className="text-gray-600 dark:text-gray-400">正在加载 AI 提供商配置...</p>
     </div>
   );
