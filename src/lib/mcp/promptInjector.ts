@@ -17,28 +17,31 @@ type ProviderStrategy = {
   /**
    * 构造聚焦提示（仅 1 行），帮助模型优先选择目标 server 的最相关工具。
    */
-  buildFocusedHint(server: string, toolName: string, requiredKeys: string[]): string | null;
+  buildFocusedHint(): string | null;
 };
 
 const defaultStrategy: ProviderStrategy = {
   buildProtocolMessage() {
     return [
-      // 统一使用 use_mcp_tool 格式，提供更清晰的结构化工具调用协议
-      'Tool call protocol (strict). Use ONLY the following format and output ONLY inside tags:',
-      '<use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>',
-      'Do NOT output plain JSON. Do NOT add any text outside tags. 禁止标签外任何文字；仅输出以上 XML。',
-      '重要：在调用工具后，必须基于工具结果回答用户的原始问题。如果结果异常或不足，可以继续调用工具。确保最终回答准确、完整。'
+      'You can access external MCP tools (file system, knowledge, etc.).',
+      'Call a tool ONLY when **all** conditions are met:',
+      '1. The answer cannot be produced from your own knowledge.',
+      '2. A listed MCP server clearly provides a tool that can solve the task.',
+      '3. The user implicitly or explicitly requests actions like “list / read / search / execute / download / 上传 / 删除 / 目录”.',
+      'If you decide to call, respond with one single line using EXACTLY this XML:',
+      '<use_mcp_tool><server_name>S</server_name><tool_name>T</tool_name><arguments>{JSON}</arguments></use_mcp_tool>',
+      'Never output anything outside the tag. 输出之外禁止任何文字。',
+      'Wrong or unnecessary calls will be penalised. If no tool is required, answer normally.',
+      'Examples:',
+      'User: “列一下当前目录有哪些文件？” → <use_mcp_tool>...</use_mcp_tool>',
+      'User: “黑洞是什么？” → 直接回答解释，无工具调用.'
     ].join(' ');
   },
   buildEnabledServersLine(enabled: string[]) {
     if (!enabled.length) return null;
     return `Enabled MCP servers: ${enabled.join(', ')}. Prefer tools from these servers.`;
   },
-  buildFocusedHint(server: string, toolName: string, requiredKeys: string[]) {
-    if (!server || !toolName) return null;
-    const req = requiredKeys && requiredKeys.length ? `(required: ${requiredKeys.slice(0,3).join(', ')})` : '';
-    return `Focused hint: server ${server} → ${toolName}${req}.`;
-  }
+  buildFocusedHint() { return null; }
 };
 
 function getProviderStrategy(_provider?: string | null): ProviderStrategy {
@@ -50,6 +53,15 @@ function getProviderStrategy(_provider?: string | null): ProviderStrategy {
 export async function buildMcpSystemInjections(content: string, _currentConversationId?: string, providerName?: string): Promise<InjectionResult> {
   const sys: Array<{ role:'system'; content:string }> = [];
   const strategy = getProviderStrategy(providerName);
+
+  // ---- 1. 粗粒度意图检测：无关问题则不注入任何 MCP 指令 ----
+  const mentionLike = /@([a-zA-Z0-9_-]{1,64})/; // 显式 @mention
+  const toolKeywords = /(文件|目录|列出|list\s|dir\s|ls\b|tool\b|mcp\b)/i;
+  const needMcp = mentionLike.test(content) || toolKeywords.test(content);
+  if (!needMcp) {
+    return { systemMessages: [] }; // 不插入任何 MCP 指令
+  }
+
   let enabled = await getConnectedServers();
   try {
     // 将 @mention 的 server 置前
@@ -63,6 +75,26 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
     }
   } catch { /* ignore */ }
 
+  // ---- 根据 @mention 精度控制工具清单 ----
+  const TOOL_LIMIT = 8;
+  const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g;
+  const mentioned: string[] = []; let mm: RegExpExecArray | null;
+  while ((mm = mentionRe.exec(content))) { const n = mm[1]; if (n && !mentioned.includes(n)) mentioned.push(n); }
+
+  const toolsLines: string[] = [];
+  for (const server of enabled) {
+    try {
+      const tools = await getToolsCached(server);
+      if (!Array.isArray(tools) || tools.length === 0) continue;
+      const names = tools.map((t:any)=>t.name);
+      const line = mentioned.includes(server)
+        ? `Tools@${server}: ${names.join(', ')}`
+        : `Tools@${server}: ${names.slice(0,TOOL_LIMIT).join(', ')}`;
+      toolsLines.push(line);
+    } catch { /* ignore */ }
+  }
+  for (const l of toolsLines) sys.push({ role: 'system', content: l });
+
   // 单条严格协议
   sys.push({ role: 'system', content: strategy.buildProtocolMessage() });
 
@@ -70,31 +102,7 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   const serversLine = strategy.buildEnabledServersLine(enabled);
   if (serversLine) sys.push({ role: 'system', content: serversLine });
 
-  // 选取一个“最可能”的 server + 工具做一行聚焦提示
-  if (enabled.length) {
-    const target = enabled[0];
-    try {
-      const tools = await getToolsCached(target);
-      if (Array.isArray(tools) && tools.length) {
-        // 轻量评分，倾向包含 list/dir/ls 的工具
-        const score = (t:any) => {
-          const name = String(t?.name||'').toLowerCase();
-          const desc = String(t?.description||'').toLowerCase();
-          let s = 0; const kws = ['list','dir','ls','files','目录','列出'];
-          for (const k of kws) if (name.includes(k) || desc.includes(k)) s += 2;
-          if (/(@filesystem|filesystem)/i.test(content) && /(列出|目录|list|dir|ls)/i.test(content)) if (/list|dir|ls/.test(name)) s += 3;
-          return s;
-        };
-        const best = [...tools].sort((a:any,b:any)=>score(b)-score(a))[0];
-        if (best) {
-          const schema: any = (best.inputSchema || best.input_schema || {});
-          const required: string[] = schema.required || schema?.schema?.required || [];
-          const hint = strategy.buildFocusedHint(target, best.name, required || []);
-          if (hint) sys.push({ role: 'system', content: hint });
-        }
-      }
-    } catch { /* ignore */ }
-  }
+  // 移除强推工具的聚焦提示，避免过度引导
 
   return { systemMessages: sys };
 }

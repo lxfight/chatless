@@ -1,7 +1,8 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import type { McpServerConfig } from "@/lib/mcp/McpClient";
 import { serverManager } from "@/lib/mcp/ServerManager";
+import { useMcpServerStatuses, useMcpStore } from "@/store/mcpStore";
 import { toast, trimToastDescription } from "@/components/ui/sonner";
 import { downloadService } from "@/lib/utils/downloadService";
 import { detectTauriEnvironment } from "@/lib/utils/environment";
@@ -38,6 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 type TransportType = "stdio" | "sse" | "http";
 
@@ -50,7 +52,7 @@ type SavedServer = {
 export function McpServersSettings() {
   const [servers, setServers] = useState<SavedServer[]>([]);
   const [editing, setEditing] = useState<SavedServer | null>(null);
-  const [statusMap, setStatusMap] = useState<Record<string, string>>({});
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
@@ -62,6 +64,10 @@ export function McpServersSettings() {
   const [editingJsonMode, setEditingJsonMode] = useState(false);
   const [editingJsonText, setEditingJsonText] = useState("");
   const [editingJsonError, setEditingJsonError] = useState("");
+  
+  // 使用zustand store管理MCP状态
+  const serverStatuses = useMcpServerStatuses();
+  const { setServerStatuses } = useMcpStore();
 
   // —— 删除确认对话框 ——
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -83,6 +89,8 @@ export function McpServersSettings() {
     }
   }, []);
   useEffect(() => { void loadAdvanced(); }, [loadAdvanced]);
+
+
 
   const saveAdvanced = useCallback(async (value: number) => {
     try {
@@ -209,22 +217,24 @@ export function McpServersSettings() {
 
   useEffect(() => {
     loadServers();
-    (async () => {
-      try {
-        const cache = (await StorageUtil.getItem<Record<string,string>>('mcp_status_map', {}, 'mcp-status.json')) || {};
-        setStatusMap(cache);
-      } catch {}
-    })();
+    // 取消历史状态验证逻辑：状态由 ServerManager.init() 在应用启动时负责
+    
     const off = serverManager.on((e) => {
       if (e.type === "SERVER_STATUS") {
-        setStatusMap((m) => { const next = { ...m, [e.payload.name]: e.payload.status } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
+        // 状态变化时更新store（store会自动处理本地存储）
+        // store 内部已更新，这里无需再调用
       }
       if (e.type === "ERROR") {
         setError(String(e.payload?.error ?? "未知错误"));
       }
     });
+
+    // validateStatus removed（状态一致性由单一来源保证）
+
     return () => { off(); };
-  }, [loadServers]);
+  }, [loadServers, setServerStatuses]);
+
+
 
   // 点击外部关闭三点菜单
   useEffect(() => {
@@ -288,21 +298,12 @@ export function McpServersSettings() {
         }
         await serverManager.startServer(s.name, s.config);
         setError("");
-        setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
-        try {
-          const tools = await Promise.race([
-            serverManager.listTools(s.name) as any,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 30000))
-          ]) as any[];
-          const count = Array.isArray(tools) ? tools.length : 0;
-          toast.success("已保存并连接", { description: `${s.name} · Tools: ${count}` });
-        } catch (verr) {
-          toast.info("已保存并连接，但无法获取 Tools", { description: trimToastDescription(verr) });
-        }
+        // 状态由 ServerManager 事件更新
+        toast.success("已保存并连接", { description: `${s.name} · 连接成功` });
       }
     } catch (e) {
       setError(String(e));
-      setStatusMap((m)=>{ const next = { ...m, [name]: 'disconnected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
+      // 失败时状态由 ServerManager 更新
       toast.error("保存成功但连接失败", { description: trimToastDescription(e) });
     }
   };
@@ -328,27 +329,17 @@ export function McpServersSettings() {
   const connect = async (s: SavedServer) => {
     setLoading(true);
     setError("");
-    setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connecting' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
+    // 状态由 ServerManager.updateStatus 控制
     try {
       if (s.config.type === 'stdio' && (s.config.command||'') === 'npx') {
         toast.info('正在连接（可能需要首次下载）', { description: 'npx 将自动下载 MCP 服务器依赖，这可能需要 1-3 分钟，请耐心等待…' });
       }
       await serverManager.startServer(s.name, s.config);
       setError("");
-      setStatusMap((m)=>{ const next = { ...m, [s.name]: 'connected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
-      try {
-        const tools = await Promise.race([
-          serverManager.listTools(s.name) as any,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('list tools timeout')), 30000))
-        ]) as any[];
-        const count = Array.isArray(tools) ? tools.length : 0;
-        toast.success("连接成功", { description: `${s.name} · Tools: ${count}` });
-      } catch (verr) {
-        toast.info("已连接，但无法获取 Tools", { description: trimToastDescription(verr) });
-      }
+      toast.success("连接成功", { description: `${s.name} · 连接成功` });
     } catch (e) {
       setError(String(e));
-      setStatusMap((m)=>{ const next = { ...m, [s.name]: 'disconnected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
+      // 失败时状态由 ServerManager 更新
       toast.error("连接失败", { description: trimToastDescription(e) });
     }
     setLoading(false);
@@ -359,7 +350,7 @@ export function McpServersSettings() {
     setError("");
     try { await serverManager.stopServer(name); setError(""); toast.success("已断开", { description: name }); }
     catch (e) { setError(String(e)); toast.error("断开失败", { description: trimToastDescription(e) }); }
-    setStatusMap((m)=>{ const next = { ...m, [name]: 'disconnected' } as Record<string,string>; StorageUtil.setItem('mcp_status_map', next, 'mcp-status.json').catch(()=>{}); return next; });
+    // 状态和工具缓存清理由 ServerManager.stopServer 处理
     setLoading(false);
   };
 
@@ -651,6 +642,8 @@ export function McpServersSettings() {
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">MCP 服务器设置</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此设置 MCP 服务器，包括服务器类型、命令、参数、环境变量等。</p>
+        
+
       </div>  
 
         <div className="flex gap-2 items-center">
@@ -777,67 +770,114 @@ export function McpServersSettings() {
       </div>
 
             {importOpen && (
-        <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-white dark:bg-gray-900 shadow-sm">
-          <div className="border-b border-gray-50 pb-3">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">导入 JSON</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              支持两种格式：1) Continue/Cursor 风格 {"{ mcpServers: {...} }"}；2) 通用风格 {"{ servers: [ ... ] }"}
-            </p>
+        <div className="border border-gray-200 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-lg backdrop-blur-sm">
+          {/* 头部区域 */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                导入 MCP 配置
+              </h3>
+            </div>
+            <button
+              onClick={() => { setImportOpen(false); setImportText(""); }}
+              className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* 格式说明 */}
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            支持多种 JSON 格式，自动识别并转换
           </div>
           
+          {/* 输入区域 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">JSON 配置</label>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">JSON 配置</label>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>{importText.split('\n').length} 行</span>
+                <span>•</span>
+                <span>{importText.length} 字符</span>
+              </div>
+            </div>
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
               <div className="flex">
-                <pre ref={importNumsRef} className="select-none text-right text-xs leading-6 px-2 py-2 w-10 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden">
+                <pre ref={importNumsRef} className="select-none text-right text-xs leading-6 px-3 py-3 w-12 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden border-r border-gray-200 dark:border-gray-700">
                   {importText.split('\n').map((_,i)=>String(i+1)).join('\n')}
                 </pre>
                 <textarea 
                   ref={importAreaRef} 
                   onScroll={(e)=>{ if(importNumsRef.current){ importNumsRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop; } }} 
-                  className="flex-1 font-mono text-sm p-2 leading-6 bg-white dark:bg-gray-900 outline-none resize-none" 
+                  className="flex-1 font-mono text-sm p-3 leading-6 bg-white dark:bg-gray-900 outline-none resize-none focus:ring-0 focus:border-transparent" 
                   value={importText} 
                   onChange={(e)=>setImportText(e.target.value)}
-                  placeholder="在此粘贴 JSON 配置..."
-                  style={{height: '140px'}}
+                  placeholder={`格式一:
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  }
+}
+
+格式二:
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  ]
+}`}
+                  style={{height: '180px'}}
                 />
               </div>
             </div>
           </div>
           
+          {/* 错误提示 */}
           {importError && (
-            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-              {importError}
+            <div className="flex items-start gap-2 p-3 text-sm text-red-700 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{importError}</span>
             </div>
           )}
           
-          <div className="flex gap-2 pt-3 border-t border-gray-50">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button 
-                  className="px-4 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-all duration-200 shadow-sm hover:shadow-md text-sm" 
-                  onClick={importFromJson}
-                >
-                  导入
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>导入 JSON 配置</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button 
-                  className="px-4 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm" 
-                  onClick={()=>{ setImportOpen(false); setImportText(""); }}
-                >
-                  取消
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>取消导入</p>
-              </TooltipContent>
-            </Tooltip>
+          {/* 操作按钮 */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
+            <div className="text-xs text-gray-500">
+              {importText.trim() ? '准备导入配置' : '请粘贴 JSON 配置'}
+            </div>
+            <div className="flex gap-2">
+              <button 
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm font-medium" 
+                onClick={()=>{ setImportOpen(false); setImportText(""); }}
+              >
+                取消
+              </button>
+              <button 
+                className={`px-6 py-2 rounded-lg text-white transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md ${
+                  importText.trim() 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-gray-400 cursor-not-allowed'
+                }`}
+                onClick={importFromJson}
+                disabled={!importText.trim()}
+              >
+                导入配置
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -845,22 +885,72 @@ export function McpServersSettings() {
       <div className="space-y-2">
         {servers.length === 0 && <div className="text-xs text-slate-500">尚未添加服务器。</div>}
         {servers.map((s) => {
-          const st = statusMap[s.name] || "disconnected";
+          const st = serverStatuses[s.name] || "disconnected";
+          const toolsCache = useMcpStore.getState().toolsCache[s.name];
+          // 只有在连接成功时才显示工具数量
+          const toolCount = st === 'connected' ? (toolsCache?.tools?.length || 0) : 0;
+          const tools = st === 'connected' ? (toolsCache?.tools || []) : [];
+          
           return (
-            <div key={s.name} className="border rounded-xl p-3 bg-white/70 dark:bg-gray-900/60">
+            <div key={s.name} className="border rounded-xl p-3 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm overflow-visible">
               <div className="flex items-center justify-between">
                 <div className="font-medium flex items-center gap-2">
                   <span>{s.name}</span>
-                                     <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full ${st==='connected'?'bg-emerald-50 text-emerald-600 border border-emerald-100':'bg-gray-50 text-gray-500 border border-gray-100'}`}>
+                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full ${
+                    st === 'connected' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                    st === 'connecting' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                    st === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
+                    'bg-gray-50 text-gray-500 border border-gray-100'
+                  }`}>
                     {st === 'connected' ? (
                       <CheckCircle className="w-3 h-3" />
                     ) : st === 'connecting' ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : st === 'error' ? (
+                      <XCircle className="w-3 h-3" />
                     ) : (
                       <XCircle className="w-3 h-3" />
                     )}
-                    {st}
+                    {st === 'connected' ? '已连接' : 
+                     st === 'connecting' ? '连接中' : 
+                     st === 'error' ? '连接失败' : '未连接'}
                   </span>
+                  {toolCount > 0 && (
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                        <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md cursor-help transition-colors ${
+                          st === 'connected' 
+                            ? 'text-gray-600 hover:bg-gray-100' 
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}>
+                          <svg className="w-2.5 h-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          {toolCount} 个工具
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-md p-3">
+                        <div className="space-y-2">
+                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-1">
+                            可用工具列表 ({toolCount})
+                          </div>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                            {tools.map((tool: any, index: number) => (
+                              <div key={index} className="text-xs p-1.5 rounded bg-gray-50 dark:bg-gray-800">
+                                <div className="font-mono text-blue-600 font-medium">{tool.name}</div>
+                                {tool.description && (
+                                  <div className="text-gray-600 dark:text-gray-400 mt-0.5 leading-relaxed">
+                                    {tool.description}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
                                  {/* 右侧：启用勾选框与刷新按钮 */}
                  <div className="flex items-center gap-2">
@@ -889,43 +979,23 @@ export function McpServersSettings() {
                      </TooltipContent>
                    </Tooltip>
                    {/* 三点菜单：不常用操作 */}
-                   <details 
-                     className="relative"
-                     open={openMenuServer === s.name}
-                     onToggle={(e) => {
-                       if (e.currentTarget.open) {
-                         setOpenMenuServer(s.name);
-                       } else {
-                         setOpenMenuServer(null);
-                       }
-                     }}
-                   >
-                     <summary className="list-none w-8 h-8 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 cursor-pointer transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md">
-                       <MoreVertical className="w-4 h-4" />
-                     </summary>
-                     <div className="absolute right-0 mt-2 w-40 rounded-lg border bg-white dark:bg-gray-800 shadow-lg py-1 text-sm z-10">
-                       <button 
-                         className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2" 
-                         onClick={() => {
-                           beginEdit(s);
-                           setOpenMenuServer(null);
-                         }}
-                       >
-                         <Edit className="w-4 h-4" />
-                         编辑
+                   <DropdownMenu.Root>
+                     <DropdownMenu.Trigger asChild>
+                       <button className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md">
+                         <MoreVertical className="w-4 h-4" />
                        </button>
-                       <button 
-                         className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2" 
-                         onClick={() => {
-                           remove(s.name);
-                           setOpenMenuServer(null);
-                         }}
-                       >
-                         <Trash2 className="w-4 h-4" />
-                         删除
-                       </button>
-                     </div>
-                   </details>
+                     </DropdownMenu.Trigger>
+                     <DropdownMenu.Portal>
+                       <DropdownMenu.Content className="z-50 w-44 rounded-xl border bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 text-sm" sideOffset={8} align="end">
+                         <DropdownMenu.Item onSelect={() => beginEdit(s)} className="w-full flex items-center gap-2 px-3 py-2 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                           <Edit className="w-4 h-4" /> 编辑
+                         </DropdownMenu.Item>
+                         <DropdownMenu.Item onSelect={() => remove(s.name)} className="w-full flex items-center gap-2 px-3 py-2 text-red-600 outline-none hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer">
+                           <Trash2 className="w-4 h-4" /> 删除
+                         </DropdownMenu.Item>
+                       </DropdownMenu.Content>
+                     </DropdownMenu.Portal>
+                   </DropdownMenu.Root>
                 </div>
               </div>
               {/* 次要信息行：命令/URL */}

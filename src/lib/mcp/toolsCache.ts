@@ -1,29 +1,43 @@
-import { serverManager } from './ServerManager';
 import { LIST_TOOLS_TTL_MS, LIST_TOOLS_TIMEOUT_MS } from './constants';
 
-type ToolsEntry = { tools: any[]; expiresAt: number };
-
-const cache = new Map<string, ToolsEntry>();
-
-async function withTimeout<T>(p: Promise<T>, ms = LIST_TOOLS_TIMEOUT_MS): Promise<T> {
-  return await Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]) as T;
-}
-
-export async function getToolsCached(server: string): Promise<any[] | null> {
-  const now = Date.now();
-  const entry = cache.get(server);
-  if (entry && entry.expiresAt > now) return entry.tools;
+// 获取工具缓存（从zustand store）
+export async function getToolsCached(serverName: string): Promise<any[]> {
   try {
-    const tools = await withTimeout(serverManager.listTools(server) as any, LIST_TOOLS_TIMEOUT_MS);
+    // 动态导入避免循环依赖
+    const { useMcpStore } = await import('@/store/mcpStore');
+    const store = useMcpStore.getState();
+    const cache = store.toolsCache[serverName];
+    
+    // 检查缓存是否有效
+    if (cache && cache.ttl > Date.now()) {
+      return cache.tools;
+    }
+    
+    // 缓存过期或不存在，尝试从服务器获取
+    const { serverManager } = await import('@/lib/mcp/ServerManager');
+    const tools = await serverManager.listTools(serverName);
     if (Array.isArray(tools)) {
-      cache.set(server, { tools, expiresAt: now + LIST_TOOLS_TTL_MS });
+      store.updateToolsCache(serverName, tools);
       return tools;
     }
-  } catch {}
-  return null;
+  } catch (error) {
+    console.warn(`Failed to get tools for ${serverName}:`, error);
+  }
+  
+  return [];
 }
 
-export function invalidateTools(server?: string) {
-  if (server) cache.delete(server);
-  else cache.clear();
+// 清除工具缓存
+export function invalidateTools(serverName?: string): void {
+  try {
+    // 动态导入避免循环依赖
+    import('@/store/mcpStore').then(({ useMcpStore }) => {
+      const store = useMcpStore.getState();
+      store.clearToolsCache(serverName);
+    }).catch(error => {
+      console.warn('Failed to invalidate tools cache:', error);
+    });
+  } catch (error) {
+    console.warn('Failed to invalidate tools cache:', error);
+  }
 }

@@ -138,28 +138,8 @@ export function TauriApp({ children }: TauriAppProps) {
         await loadConversations();
         startupMonitor.endPhase('会话加载');
 
-        // 应用启动后：异步尝试连接已启用的 MCP 服务器（不阻塞启动）
-        setTimeout(async () => {
-          try {
-            const { Store } = await import('@tauri-apps/plugin-store');
-            const store = await Store.load('mcp_servers.json');
-            const list = (await store.get<Array<{ name: string; config: any; enabled?: boolean }>>('servers')) || [];
-            const enabled = list.filter(s => s && (s.enabled !== false));
-            for (const s of enabled) {
-              // 跳过已连接的服务器
-              if (serverManager.getStatus(s.name) === 'connected') continue;
-              // 异步连接，单个失败不影响其他
-              serverManager.startServer(s.name, s.config).catch(() => {});
-            }
-            // 恢复状态徽标缓存
-            try {
-              const cache = (await StorageUtil.getItem<Record<string,string>>('mcp_status_map', {}, 'mcp-status.json')) || {};
-              const map = { ...cache } as Record<string,string>;
-              for (const s of enabled) { if (!map[s.name]) map[s.name] = 'connecting'; }
-              await StorageUtil.setItem('mcp_status_map', map, 'mcp-status.json');
-            } catch {}
-          } catch {}
-        }, 300);
+        // MCP 服务器初始化（不阻塞其他流程）
+        setTimeout(() => { serverManager.init(); }, 300);
 
         console.log('✅ [TauriApp] 应用初始化完成');
       } catch (error) {

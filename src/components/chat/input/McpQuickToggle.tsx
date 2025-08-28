@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronUp } from 'lucide-react';
+import { Plug } from 'lucide-react';
+import * as Popover from '@radix-ui/react-popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { getEnabledConfiguredServers, getConnectedServers, getGlobalEnabledServers, setGlobalEnabledServers } from '@/lib/mcp/chatIntegration';
 
@@ -54,47 +56,45 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
     };
   }, [open]);
 
-  return (
-    <div className="relative" ref={rootRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen(v=>!v)}
-        className="h-7 w-7 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
-        title="启用的 MCP"
-      >
-        <ChevronUp className="w-4 h-4" />
-      </Button>
-      {open && (
-        <div className="absolute bottom-8 left-0 z-[9999] w-72 max-h-80 overflow-auto rounded-md border bg-white dark:bg-gray-800 shadow-2xl p-2 space-y-1">
-          <div className="text-[11px] text-slate-500 px-1">未选择时默认使用“所有已连接”的服务器</div>
-          {all.length === 0 && (
-            <div className="text-xs text-slate-500 px-1 py-1">暂无配置的 MCP 服务器</div>
-          )}
-          {all.map((name) => (
-            <div key={name} className={cn("group flex items-center gap-2 px-2 py-1 rounded text-sm",
-              connected.includes(name) ? "hover:bg-slate-50 dark:hover:bg-slate-700/50" : "opacity-50")}
-            >
-              <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="scale-90"
-                  checked={enabled.includes(name)}
-                  onChange={() => toggle(name)}
-                />
-                <span className="truncate">{name}</span>
-                {!connected.includes(name) && <span className="ml-auto text-[10px] text-slate-400">未连接</span>}
-              </label>
-              <button
-                className="ml-2 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition"
-                title="在输入框插入 @ 引用"
-                onClick={() => { onInsertMention?.(name); setOpen(false); }}
-              >@ 引用</button>
-            </div>
-          ))}
-        </div>
+  const panel = (
+    <Popover.Content sideOffset={8} align="start" className="z-[10000] w-72 max-h-80 overflow-auto rounded-xl border bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 p-3 space-y-2">
+      <div className="text-[11px] text-slate-500 px-1">未选择时默认使用“所有已连接”的服务器</div>
+      {all.length === 0 && (
+        <div className="text-xs text-slate-500 px-1 py-1">暂无配置的 MCP 服务器</div>
       )}
-    </div>
+      {all.map((name) => (
+        <div key={name} className={cn("group flex items-center gap-2 px-2 py-1 rounded text-sm",
+          connected.includes(name) ? "hover:bg-slate-50 dark:hover:bg-slate-700/50" : "opacity-50")}
+        >
+          <label className="flex items-center gap-2 flex-1 cursor-pointer">
+            <Checkbox checked={enabled.includes(name)} onCheckedChange={() => toggle(name)} className="h-4 w-4" />
+            <span className="truncate">{name}</span>
+            {!connected.includes(name) && <span className="ml-auto text-[10px] text-slate-400">未连接</span>}
+          </label>
+          <button
+            className="ml-2 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition"
+            title="在输入框插入 @ 引用"
+            onClick={() => { onInsertMention?.(name); setOpen(false); }}
+          >@ 引用</button>
+        </div>
+      ))}
+    </Popover.Content>
+  );
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+          title="启用的 MCP"
+        >
+          <Plug className="w-4 h-4" />
+        </Button>
+      </Popover.Trigger>
+      <Popover.Portal>{panel}</Popover.Portal>
+    </Popover.Root>
   );
 }
 

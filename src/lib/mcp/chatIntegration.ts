@@ -34,12 +34,16 @@ export async function getAllConfiguredServersWithStatus(): Promise<Array<{ name:
     const { Store } = await import('@tauri-apps/plugin-store');
     const store = await Store.load(SERVERS_CONFIG_FILE);
     const list = (await store.get<Array<{ name: string; config: McpServerConfig; enabled?: boolean }>>('servers')) || [];
-    const statusMap = (await StorageUtil.getItem<Record<string, string>>('mcp_status_map', {}, STORE_FILE)) || {};
+    
+    // 使用zustand store获取当前状态
+    const { useMcpStore } = await import('@/store/mcpStore');
+    const currentStatuses = useMcpStore.getState().serverStatuses;
+    
     return Array.isArray(list)
       ? list.map(s => ({
           name: s.name,
           config: s.config,
-          status: serverManager.getStatus(s.name) || statusMap[s.name] || 'disconnected',
+          status: currentStatuses[s.name] || 'disconnected',
           enabled: s.enabled !== false, // Default to true if not set
         }))
       : [];
@@ -51,9 +55,18 @@ export async function getAllConfiguredServersWithStatus(): Promise<Array<{ name:
 
 // Retrieves names of currently connected servers (runtime or persisted)
 export async function getConnectedServers(): Promise<string[]> {
-  const allEnabled = await getAllConfiguredServers(true);
-  // 仅依据运行时状态，避免历史脏值造成“已连接”假象
-  return allEnabled.filter((name) => serverManager.getStatus(name) === 'connected');
+  try {
+    const allEnabled = await getAllConfiguredServers(true);
+    // 使用zustand store获取当前状态
+    const { useMcpStore } = await import('@/store/mcpStore');
+    const currentStatuses = useMcpStore.getState().serverStatuses;
+    
+    // 仅依据运行时状态，避免历史脏值造成"已连接"假象
+    return allEnabled.filter((name) => currentStatuses[name] === 'connected');
+  } catch (error) {
+    console.error('Failed to get connected servers:', error);
+    return [];
+  }
 }
 
 // Retrieves conversation-specific enabled servers (deprecated in favor of global)

@@ -163,22 +163,15 @@ export function ChatMessage({
   return (
     <div
       className={cn(
-        "flex chat-transition group mb-6 relative w-full",
-        isUser 
-          ? "flex-row-reverse justify-start max-w-[85%] ml-auto" 
-          : "max-w-[85%]"
+        "flex chat-transition group mb-6 relative gap-3",
+        isUser && "flex-row-reverse"
       )}
-
     >
       {/* 头像隐藏，保留对齐占位 */}
-      <div className={cn("w-0 h-0 mr-0 ml-0")}></div>
-
+      <div className="w-8 shrink-0"></div>
+ 
       {/* 消息内容 */}
-      <div className={cn(
-        "flex flex-col min-w-0 max-w-full",
-        !isUser && "flex-1",
-        isUser ? "items-end" : "items-start"
-      )}>
+      <div className={cn("flex flex-col", isUser ? "items-end" : "items-start") }>
         <ContextMenu
           menuItems={createMessageMenuItems(
             id,
@@ -191,21 +184,19 @@ export function ChatMessage({
           )}
         >
           <motion.div
-            initial={shouldAnimateEnter ? { opacity: 0, scale: 0.98 } : false}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={shouldAnimateEnter ? { opacity: 0, y: 4 } : false}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.15 }}
-            className={cn(
-              isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",
-              isUser
-                ? "p-0 bg-transparent shadow-none"
-                : "p-0 bg-transparent shadow-none",
-              !isUser && "rounded-tl-sm"
-            )}
           >
-            {messageContent}
+            <div className={cn(
+              "inline-block max-w-[90%] sm:max-w-[75ch]",
+              isUser ? "text-blue-900" : "text-slate-900",
+            )}>
+              {messageContent}
+            </div>
           </motion.div>
         </ContextMenu>
-
+ 
         {/* 时间戳和模型信息：仅在非流式时显示，避免生成中抖动 */}
         {!isStreaming && (formattedTime || (!isUser && model)) && (
           <div className={cn(

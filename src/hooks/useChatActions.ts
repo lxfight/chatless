@@ -462,15 +462,14 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
         setGenerationTimeout(null);
 
-        // 关键修复：在主要流式处理结束时调用tokenizer的flush方法
+        // 将现有 tokenizer 缓冲区剩余文本 flush 出来，避免末尾被截断
         try {
-          const { StructuredStreamTokenizer } = require('@/lib/chat/StructuredStreamTokenizer');
-          const tokenizer = new StructuredStreamTokenizer();
           const flushEvents = tokenizer.flush();
+          const st = useChatStore.getState();
           for (const ev of flushEvents) {
             if (ev.type === 'text' && ev.chunk) {
-              const st = useChatStore.getState();
               st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
+              currentContentRef.current += ev.chunk;
             }
           }
         } catch { /* noop */ }

@@ -269,6 +269,8 @@ export class StructuredStreamTokenizer {
         if (fenceIdx !== -1 && (thinkIdx === -1 || fenceIdx < thinkIdx)) {
           const before = this.buffer.slice(0, fenceIdx);
           emitText(before);
+          // 保留围栏标记用于 Markdown 渲染
+          emitText('```');
           this.buffer = this.buffer.slice(fenceIdx + FENCE.length);
           this.state = 'FENCE';
           continue;
@@ -378,6 +380,8 @@ export class StructuredStreamTokenizer {
         }
         const inner = this.buffer.slice(0, endIdx);
         if (inner) out.push({ type: 'text', chunk: inner });
+        // 追加结束围栏
+        out.push({ type: 'text', chunk: '```' });
         this.buffer = this.buffer.slice(endIdx + FENCE.length);
         this.state = 'BODY';
         continue;
