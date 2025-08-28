@@ -149,7 +149,7 @@ function ModelLabelSpan({ conversation }: { conversation: Conversation }) {
   if (!label) {
     for (const p of (metadata || [])) {
       const m = p.models?.find((mm:any)=> mm.name === id);
-      if (m?.label) { label = m.label as string; break; }
+      if (m?.label) { label = m.label; break; }
     }
   }
   const display = label || conversation.model_id;

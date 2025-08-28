@@ -144,6 +144,38 @@ class ServerManager {
     return client.callTool(toolName, args);
   }
 
+  async listResources(serverName: string): Promise<any> {
+    const client = this.clients.get(serverName);
+    if (!client) {
+      throw new Error(`Server ${serverName} not found`);
+    }
+    return client.listResources();
+  }
+
+  async readResource(serverName: string, uri: string): Promise<any> {
+    const client = this.clients.get(serverName);
+    if (!client) {
+      throw new Error(`Server ${serverName} not found`);
+    }
+    return client.readResource(uri);
+  }
+
+  async listPrompts(serverName: string): Promise<any> {
+    const client = this.clients.get(serverName);
+    if (!client) {
+      throw new Error(`Server ${serverName} not found`);
+    }
+    return client.listPrompts();
+  }
+
+  async getPrompt(serverName: string, name: string, args?: Record<string, unknown>): Promise<any> {
+    const client = this.clients.get(serverName);
+    if (!client) {
+      throw new Error(`Server ${serverName} not found`);
+    }
+    return client.getPrompt(name, args);
+  }
+
 
 
   on(listener: (event: any) => void): () => void {

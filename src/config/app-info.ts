@@ -21,8 +21,8 @@ import { version as pkgVersion } from "../../package.json" assert { type: "json"
  * build:   CI 提供的 GITHUB_SHA 前 7 位；本地则为 'local'
  */
 export function getVersionInfo() {
-  const envVer = process.env.npm_package_version as string | undefined;
+  const envVer = process.env.npm_package_version;
   const version = (pkgVersion as string | undefined) || envVer || "dev";
-  const build = (process.env.GITHUB_SHA as string | undefined)?.slice(0, 7) || (process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? "release");
+  const build = (process.env.GITHUB_SHA)?.slice(0, 7) || (process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? "release");
   return { version, build };
 } 

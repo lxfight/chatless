@@ -31,7 +31,7 @@ export default function SchemaModelQuickPicker({ className }: SchemaModelQuickPi
         setSelection(p.name, firstM);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [providers]);
 
   return (

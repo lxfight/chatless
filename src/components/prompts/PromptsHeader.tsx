@@ -71,7 +71,7 @@ export function PromptsHeader() {
         initial={null}
         onSubmit={(data) => {
           // 显式传递 shortcuts，避免某些情况下丢失可选字段
-          createPrompt({ ...(data as any), shortcuts: (data as any).shortcuts || [] } as any);
+          createPrompt({ ...(data as any), shortcuts: (data as any).shortcuts || [] });
         }}
       />
     </div>

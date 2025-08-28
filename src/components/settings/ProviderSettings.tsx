@@ -54,7 +54,7 @@ export function ProviderSettings({
   // 受控/非受控展开状态：存在 open 则受控，否则本地管理
   const isControlled = open !== undefined;
   const [uncontrolledOpen, setUncontrolledOpen] = useState<boolean>(false);
-  const isOpen = isControlled ? (open as boolean) : uncontrolledOpen;
+  const isOpen = isControlled ? (open) : uncontrolledOpen;
   const setIsOpen = (next: boolean) => {
     if (!isControlled) setUncontrolledOpen(next);
     onOpenChange?.(next);
@@ -227,11 +227,11 @@ export function ProviderSettings({
         const { modelRepository } = await import('@/lib/provider/ModelRepository');
         const list = await modelRepository.get(provider.name);
         if (list) {
-          setLocalRepoModels(list.map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m as any).apiKey })) as any);
+          setLocalRepoModels(list.map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m).apiKey })) as any);
         }
         unsubscribe = modelRepository.subscribe(provider.name, async () => {
           const latest = await modelRepository.get(provider.name);
-          setLocalRepoModels((latest || []).map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m as any).apiKey })) as any);
+          setLocalRepoModels((latest || []).map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m).apiKey })) as any);
         });
       } catch (e) {
         console.error(e);

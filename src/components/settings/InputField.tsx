@@ -25,7 +25,7 @@ export function InputField({
   const [showPassword, setShowPassword] = useState(false);
 
   const isPassword = type === 'password';
-  const inputHasValue = typeof props.value === 'string' ? props.value.length > 0 : (typeof props.defaultValue === 'string' ? (props.defaultValue as string).length > 0 : false);
+  const inputHasValue = typeof props.value === 'string' ? props.value.length > 0 : (typeof props.defaultValue === 'string' ? (props.defaultValue).length > 0 : false);
   const shouldShowEye = isPassword && inputHasValue;
   const currentType = isPassword ? (showPassword ? 'text' : 'password') : type;
   const id = useId();

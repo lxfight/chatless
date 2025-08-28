@@ -261,7 +261,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       if (e.key === 'Escape') { onOpenChange(false); return; }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = Math.min(activeIndexRef.current + 1, (filteredRef.current as any[]).length - 1);
+        const next = Math.min(activeIndexRef.current + 1, (filteredRef.current).length - 1);
         activeIndexRef.current = next;
         setActiveIndex(next);
       }
@@ -273,9 +273,9 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const list: any[] = filteredRef.current as any[];
+        const list: any[] = filteredRef.current;
         const idx = Math.max(0, Math.min(activeIndexRef.current, list.length - 1));
-        const id = (list[idx] as any)?.p?.id || (list[idx] as any)?.id;
+        const id = (list[idx])?.p?.id || (list[idx])?.id;
         if (id) {
           try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch {}
           // 新规则：回车直接发送；Alt+回车应用为系统（Shift+Alt 为一次性）

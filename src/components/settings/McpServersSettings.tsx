@@ -141,12 +141,12 @@ export function McpServersSettings() {
       if (raw && raw.mcpServers && typeof raw.mcpServers === 'object') {
         for (const [name, cfg] of Object.entries<any>(raw.mcpServers)) {
           if (cfg && typeof cfg === 'object') {
-            if ((cfg as any).url) {
-              const isSse = String((cfg as any).url).includes('/sse');
-              imported.push({ name, config: { type: isSse ? 'sse' : 'http', baseUrl: (cfg as any).url, headers: [] } as any });
+            if ((cfg).url) {
+              const isSse = String((cfg).url).includes('/sse');
+              imported.push({ name, config: { type: isSse ? 'sse' : 'http', baseUrl: (cfg).url, headers: [] } as any });
             } else {
-              const args: string[] = Array.isArray((cfg as any).args) ? (cfg as any).args : [];
-              imported.push({ name, config: { type: 'stdio', command: (cfg as any).command || 'npx', args, env: [] } as any });
+              const args: string[] = Array.isArray((cfg).args) ? (cfg).args : [];
+              imported.push({ name, config: { type: 'stdio', command: (cfg).command || 'npx', args, env: [] } as any });
             }
           }
         }
@@ -197,9 +197,9 @@ export function McpServersSettings() {
     const contStyle: any = { mcpServers: {} as any };
     for (const s of servers) {
       if (s.config.type === 'stdio') {
-        (contStyle.mcpServers as any)[s.name] = { command: s.config.command, args: s.config.args };
+        (contStyle.mcpServers)[s.name] = { command: s.config.command, args: s.config.args };
       } else {
-        (contStyle.mcpServers as any)[s.name] = { url: (s.config as any).baseUrl };
+        (contStyle.mcpServers)[s.name] = { url: (s.config as any).baseUrl };
       }
     }
     const generic = {
@@ -360,7 +360,7 @@ export function McpServersSettings() {
     const type = config.type as TransportType;
     const setConfig = (next: Partial<McpServerConfig>) => setEditing({ name, config: { ...config, ...next } as McpServerConfig });
     const buildEditingJson = () => {
-      let obj: any = { name, type };
+      const obj: any = { name, type };
       if (type === 'stdio') {
         const envObj: Record<string,string> = {};
         (config.env||[]).forEach(([k,v])=>{ envObj[k]=v; });

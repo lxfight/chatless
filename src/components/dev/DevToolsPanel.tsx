@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { devResetDatabase, devClearData, devCheckDatabase } from '@/lib/__admin__/devTools';
-import { AlertTriangle, Database, Trash2, RefreshCw, Info, TestTube, ChevronDown, ChevronUp, FolderOpen } from 'lucide-react';
+
 import { EnvironmentStatus } from './EnvironmentStatus';
 import { EnvironmentDebug } from './EnvironmentDebug';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';

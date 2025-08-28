@@ -11,7 +11,7 @@ export async function buildSchemaHint(server: string, tool: string): Promise<str
       const pick = Object.keys(props).slice(0, 3);
       const sample: any = {};
       for (const k of pick) {
-        const p: any = (props as any)[k] || {};
+        const p: any = (props)[k] || {};
         const t = Array.isArray(p?.type) ? p.type[0] : (p?.type || 'string');
         sample[k] = t === 'number' || t === 'integer' ? 0 : t === 'boolean' ? false : t === 'array' ? [] : '';
       }

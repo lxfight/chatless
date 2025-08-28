@@ -54,7 +54,7 @@ export async function suggestModelFetchRule(input: {
     // 2) 粗略从 OpenAPI 文本中猜测
     const lower = text.toLowerCase();
     const candidates = ['/models','/v1/models','/model/list'];
-    const endpointSuffix = candidates.find(c=>lower.includes(c)) as string | undefined;
+    const endpointSuffix = candidates.find(c=>lower.includes(c));
     // 数组字段常见命名
     const arrayKeys = ['data','models','items','results'];
     const modelsArrayPath = arrayKeys.find(k=>new RegExp(`\\b${k}\\b`).test(lower));

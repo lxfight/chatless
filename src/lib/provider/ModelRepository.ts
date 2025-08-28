@@ -72,8 +72,8 @@ export class ModelRepository {
       }
       // 同步保存 label 覆盖（仅当 label 与 id 不同且值有变化）
       const labelMap = await specializedStorage.models.getModelLabels?.(provider) || {};
-      for (const m of normalized as any[]) {
-        const label = (m as any).label;
+      for (const m of normalized) {
+        const label = (m).label;
         if (label && label !== m.name && labelMap[m.name] !== label) {
           try { await specializedStorage.models.setModelLabel(provider, m.name, label); } catch {}
         }

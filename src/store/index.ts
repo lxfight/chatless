@@ -3,4 +3,4 @@ export { useChatStore } from './chatStore';
 export { useOllamaStore } from './ollamaStore';
 export { useProviderStatusStore } from './providerStatusStore';
 export { useHistoryStore } from './historyStore';
-export { useMcpStore, useMcpStats, useMcpServerStatuses, useMcpToolsCache } from './mcpStore'; 
+export { useMcpStore, useMcpServerStatuses, useMcpToolsCache } from './mcpStore'; 

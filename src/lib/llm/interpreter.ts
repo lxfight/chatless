@@ -95,7 +95,7 @@ export class LLMInterpreter {
     callbacks: StreamCallbacks,
     options: ChatOptions = {}
   ): Promise<void> {
-    let useProvider = provider; // 不做魔法纠正，维持调用方选择
+    const useProvider = provider; // 不做魔法纠正，维持调用方选择
 
     const strategy = ProviderRegistry.get(useProvider);
     if (!strategy) {

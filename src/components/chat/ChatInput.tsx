@@ -581,7 +581,7 @@ export function ChatInput({
                   // 用渲染结果替换 /指令+变量 片段（支持 | 分隔后文本拼接）
                   setInputValue(v => replaceSlashWithRendered(v, rendered));
                   // 计数一次使用（代入即视为使用）
-                  try { usePromptStore.getState().touchUsage(id as string); } catch {}
+                  try { usePromptStore.getState().touchUsage(id); } catch {}
                 }
               }
               setIsPanelOpen(false);
@@ -613,7 +613,7 @@ export function ChatInput({
                   // 只设置一次，避免随后 strip 再次覆盖导致丢失后续文本
                   setInputValue(`${rendered}${after}`);
                   // 计数一次使用
-                  try { usePromptStore.getState().touchUsage(id as string); } catch {}
+                  try { usePromptStore.getState().touchUsage(id); } catch {}
                   // 立即发送
                   setTimeout(() => { handleSend(); }, 0);
                 }
