@@ -75,6 +75,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
       status: msg.status || 'sent',
       model: msg.model,
       thinking_duration: msg.thinking_duration,
+      thinking_start_time: (msg as any).thinking_start_time,
       document_reference: msg.document_reference,
       context_data: msg.context_data,
       knowledge_base_reference: msg.knowledge_base_reference,
@@ -107,6 +108,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
               model={message.model}
               status={message.status}
               thinking_duration={message.thinking_duration}
+              thinking_start_time={message.thinking_start_time}
               onSaveThinkingDuration={(msgId, duration) => { onSaveThinkingDuration(msgId, duration); }}
               onEdit={handleEditMessage}
               onCopy={(c) => { void handleCopyMessage(c); }}

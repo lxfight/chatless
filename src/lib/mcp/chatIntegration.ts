@@ -8,8 +8,9 @@ const SERVERS_CONFIG_FILE = 'mcp_servers.json'; // For server configurations
 
 // 解析模型输出中的 MCP 工具调用
 // 支持：
-// 1) 明确包裹 <tool_call> ... </tool_call>
-// 2) 纯 JSON：{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}
+// 1) 推荐格式：<use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>
+// 2) 兼容格式：<tool_call>{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}</tool_call>
+// 3) 纯 JSON：{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}
 // 3) 前缀/代码块包裹 ```json ... ```
 // 旧版文本解析器已废弃；统一由 StructuredStreamTokenizer 负责
 

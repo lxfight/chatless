@@ -17,12 +17,22 @@ export function mcpToolsToProviderSpec(provider: Provider, tools: any[]): Provid
   }));
 }
 
-export function toolResultToNextMessage(provider: Provider, server: string, tool: string, result: unknown): { role: 'user' | 'system'; content: string } {
+export function toolResultToNextMessage(provider: Provider, server: string, tool: string, result: unknown, originalUserContent?: string): { role: 'user' | 'system'; content: string } {
   // 先用通用文本回注，兼容所有模型；后续按 provider 的工具结果协议替换
   const text = typeof result === 'string' ? result : JSON.stringify(result);
+  const userContext = originalUserContent ? `用户原始问题：${originalUserContent}\n\n` : '';
+  
   return {
     role: 'user',
-    content: `Here is the result of MCP tool use ${server}.${tool}: ${text.slice(0, 4000)}\nPlease produce the final answer directly. If another tool is required, output <tool_call>{json}</tool_call> only.`
+    content: `${userContext}工具调用结果：${server}.${tool} -> ${text.slice(0, 4000)}
+
+请分析上述工具调用结果：
+1. 如果结果正常且足够回答用户问题，请直接给出完整的中文答案
+2. 如果结果异常（如错误、空结果、格式问题等），请尝试调用其他工具或重新调用该工具
+3. 如果还需要更多信息才能完整回答，请继续调用相关工具
+4. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+
+请基于实际情况灵活处理，确保最终能够完整回答用户的原始问题。`
   };
 }
 

@@ -36,6 +36,7 @@ export const ThinkingBar = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentElapsedTime, setCurrentElapsedTime] = useState(safeElapsedTime);
   const lastElapsedRef = useRef(safeElapsedTime);
+  const startTimeRef = useRef<number | null>(null);
 
   // 同步外部 elapsedTime：仅在思考结束时同步最终值，避免与内部计时器相互触发
   useEffect(() => {
@@ -47,15 +48,27 @@ export const ThinkingBar = ({
     }
   }, [isThinking, elapsedTime]);
 
-  // 实时更新计时器
+  // 实时更新计时器 - 修复：基于实际时间差计算
   useEffect(() => {
-    if (!isThinking) return; // 仅在思考中才启动定时器
+    if (!isThinking) {
+      startTimeRef.current = null;
+      return; // 仅在思考中才启动定时器
+    }
+    
+    // 如果还没有开始时间，记录当前时间
+    if (startTimeRef.current === null) {
+      startTimeRef.current = Date.now() - safeElapsedTime;
+    }
+    
     const interval = setInterval(() => {
-      // 仅在组件内部计时，避免与外部同步产生竞争
-      setCurrentElapsedTime(prev => prev + 1000);
+      if (startTimeRef.current !== null) {
+        const actualElapsed = Date.now() - startTimeRef.current;
+        setCurrentElapsedTime(actualElapsed);
+      }
     }, 1000);
+    
     return () => clearInterval(interval);
-  }, [isThinking]);
+  }, [isThinking, safeElapsedTime]);
 
   const latestThought = useMemo(() => {
     if (!thinkingContent) return '';

@@ -11,6 +11,7 @@ interface AIMessageBlockProps {
   content: string;
   isStreaming: boolean;
   thinkingDuration?: number;
+  thinking_start_time?: number; // 思考开始时间戳（毫秒）
   onStreamingComplete?: (duration: number) => void;
   id?: string; // for inline retry in ToolCallCard
   // 优先渲染结构化段（阶段B最小适配）
@@ -30,6 +31,7 @@ export function AIMessageBlock({
   content,
   isStreaming,
   thinkingDuration,
+  thinking_start_time,
   onStreamingComplete,
   id,
   segments,
@@ -75,7 +77,7 @@ export function AIMessageBlock({
   // 检查内容是否包含think标签 - 只要检测到<think>就开始显示思考栏
   const hasThinkTags = useMemo(() => content.includes('<think>'), [content]);
 
-  // 提前解析 <tool_call>，或 JSON 格式的 {"type":"tool_call",...}
+      // 提前解析工具调用格式：<use_mcp_tool>（推荐）或 <tool_call>（兼容）或 JSON 格式的 {"type":"tool_call",...}
   const hasToolCallEarly = useMemo(() => content.includes('<tool_call>') || /"type"\s*:\s*"tool_call"/i.test(content), [content]);
   useMemo(() => {
     if (!hasToolCallEarly) return null;
@@ -224,6 +226,19 @@ export function AIMessageBlock({
     return result;
   }, [content, isStreaming, thinkingDuration, hasThinkTags]);
 
+  // 计算实时经过的时间
+  const realTimeElapsed = useMemo(() => {
+    // 如果正在流式处理且有thinking_start_time，基于实际时间计算
+    if (isStreaming && thinking_start_time) {
+      return Date.now() - thinking_start_time;
+    }
+    // 如果有thinkingDuration，使用已计算好的时间
+    if (thinkingDuration && thinkingDuration > 0) {
+      return thinkingDuration * 1000; // 转换为毫秒
+    }
+    return 0;
+  }, [isStreaming, thinking_start_time, thinkingDuration]);
+
   const state = streamedState ?? historicalState;
   
 
@@ -263,7 +278,7 @@ export function AIMessageBlock({
   }, [content, segments, state?.regularContent, viewModel?.items]);
 
   return (
-    <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
+    <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm">
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">
@@ -279,7 +294,7 @@ export function AIMessageBlock({
         <ThinkingBar
           thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
           isThinking={ (viewModel?.flags?.isThinking) ?? (isStreaming || (!!thinkTextFromSegments && thinkTextFromSegments.trim().length>0)) }
-          elapsedTime={state?.elapsedTime ?? 0}
+          elapsedTime={realTimeElapsed}
         />
       )}
 

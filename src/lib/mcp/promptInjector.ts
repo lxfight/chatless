@@ -23,10 +23,11 @@ type ProviderStrategy = {
 const defaultStrategy: ProviderStrategy = {
   buildProtocolMessage() {
     return [
-      // 兼容两种严格协议：推荐 use_mcp_tool（XML 包 JSON），以及向后兼容的 <tool_call> 包裹 JSON
-      'Tool call protocol (strict). Prefer the following format and output ONLY inside tags:',
+      // 统一使用 use_mcp_tool 格式，提供更清晰的结构化工具调用协议
+      'Tool call protocol (strict). Use ONLY the following format and output ONLY inside tags:',
       '<use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>',
-      'Do NOT output plain JSON. Do NOT add any text outside tags. 禁止标签外任何文字；仅输出以上 XML。'
+      'Do NOT output plain JSON. Do NOT add any text outside tags. 禁止标签外任何文字；仅输出以上 XML。',
+      '重要：在调用工具后，必须基于工具结果回答用户的原始问题。如果结果异常或不足，可以继续调用工具。确保最终回答准确、完整。'
     ].join(' ');
   },
   buildEnabledServersLine(enabled: string[]) {

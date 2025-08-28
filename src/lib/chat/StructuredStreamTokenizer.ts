@@ -386,5 +386,20 @@ export class StructuredStreamTokenizer {
 
     return out;
   }
+
+  /**
+   * 处理流式结束时缓冲区中的剩余内容
+   */
+  flush(): StructuredEvent[] {
+    const out: StructuredEvent[] = [];
+    
+    // 如果缓冲区中还有内容，强制输出为文本
+    if (this.buffer.length > 0) {
+      out.push({ type: 'text', chunk: this.buffer });
+      this.buffer = '';
+    }
+    
+    return out;
+  }
 }
 

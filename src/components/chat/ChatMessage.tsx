@@ -25,6 +25,7 @@ interface ChatMessageProps {
   onRetry?: () => void;
   status: 'pending' | 'sending' | 'sent' | 'error' | 'loading' | 'aborted';
   thinking_duration?: number;
+  thinking_start_time?: number; // 思考开始时间戳（毫秒）
   onSaveThinkingDuration?: (messageId: string, duration: number) => void;
   
   // 新增的文档引用props
@@ -80,6 +81,7 @@ export function ChatMessage({
   onRetry,
   status,
   thinking_duration,
+  thinking_start_time,
   onSaveThinkingDuration,
   
   // 新增的文档引用props
@@ -131,6 +133,7 @@ export function ChatMessage({
           content={content}
           isStreaming={isStreaming}
           thinkingDuration={thinking_duration}
+          thinking_start_time={thinking_start_time}
           id={id}
           // 关键：把上层透传的 segments 优先交给 AIMessageBlock 做段驱动渲染（包含 think 段）
           segments={Array.isArray(segments) ? segments as any : undefined}

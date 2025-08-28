@@ -98,13 +98,40 @@ async function continueWithToolResult(params: {
   (globalThis as any)[counterKey] = current + 1;
 
   const follow = typeof result === 'string' ? result : JSON.stringify(result);
-  const nextUser = `Here is the result of MCP tool use ${server}.${tool} -> ${follow.slice(0, 4000)}\nPlease produce the final answer directly. If another tool is required, output <tool_call>{json}</tool_call> only.`;
+  const nextUser = `用户原始问题：${originalUserContent}
+
+工具调用结果：${server}.${tool} -> ${follow.slice(0, 4000)}
+
+请分析上述工具调用结果：
+1. 如果结果正常且足够回答用户问题，请直接给出完整的中文答案
+2. 如果结果异常（如错误、空结果、格式问题等），请尝试调用其他工具或重新调用该工具
+3. 如果还需要更多信息才能完整回答，请继续调用相关工具
+4. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+
+请基于实际情况灵活处理，确保最终能够完整回答用户的原始问题。`;
 
   const _st = useChatStore.getState();
   // 继续在同一条 assistant 消息中流式续写，不新建消息
 
-  const followHistory: LlmMessage[] = [...historyForLlm.filter((m:any)=>m.role!=='user' || m.content!==originalUserContent)];
-  followHistory.push({ role:'user', content: nextUser } as any);
+  // 为工具调用结果处理添加系统提示词
+  const toolResultSystemPrompt = `你是一个智能助手，现在需要基于工具调用结果回答用户问题。
+
+重要指导原则：
+1. 仔细分析工具调用结果，确保理解所有信息
+2. 直接回答用户的原始问题，不要偏离主题
+3. 如果工具结果异常（错误、空结果、格式问题等），请尝试调用其他工具或重新调用
+4. 如果工具结果不足以完整回答问题，可以继续调用相关工具
+5. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+6. 如果工具结果已经足够，请直接给出完整的中文答案
+7. 根据实际情况灵活处理，确保最终能够完整回答用户问题
+
+用户问题：${originalUserContent}`;
+
+  const followHistory: LlmMessage[] = [
+    { role: 'system', content: toolResultSystemPrompt } as any,
+    ...historyForLlm.filter((m:any)=>m.role!=='user' || m.content!==originalUserContent),
+    { role:'user', content: nextUser } as any
+  ];
 
   const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
   const tokenizer = new StructuredStreamTokenizer();
@@ -156,18 +183,31 @@ async function continueWithToolResult(params: {
         }
       } catch { /* ignore detector error */ }
     },
-    onComplete: () => {
+              onComplete: () => {
       const stf2 = useChatStore.getState();
+      
+      // 关键修复：在流式结束时调用tokenizer的flush方法，确保缓冲区中的最后几个字符被处理
+      try {
+        const flushEvents = tokenizer.flush();
+        for (const ev of flushEvents) {
+          if (ev.type === 'text' && (ev as any).chunk) {
+            stf2.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+          }
+        }
+      } catch { /* noop */ }
+      
+      // 关键修复：确保在流式结束时强制保存所有内容，包括最后的token
+      try {
+        const convNow = stf2.conversations.find(c=>c.id===conversationId);
+        const msgNow = convNow?.messages.find(m=>m.id===assistantMessageId);
+        const contentNow = msgNow?.content || '';
+        // 强制保存当前内容，确保最后的token不会丢失
+        void stf2.updateMessage(assistantMessageId, { content: contentNow });
+      } catch { /* noop */ }
+      
       if (pendingHit) {
-        // 继续执行下一个工具调用（同条消息递归）
-        const next = pendingHit; pendingHit = null;
-        // 关键：在发起下一次工具调用前，先持久化当前消息内容，避免重启后丢失本阶段文本
-        try {
-          const convNow = stf2.conversations.find(c=>c.id===conversationId);
-          const msgNow = convNow?.messages.find(m=>m.id===assistantMessageId);
-          const contentNow = msgNow?.content || '';
-          void stf2.updateMessage(assistantMessageId, { content: contentNow });
-        } catch { /* noop */ }
+          // 继续执行下一个工具调用（同条消息递归）
+          const next = pendingHit; pendingHit = null;
         void executeToolCall({
           assistantMessageId,
           conversationId,
@@ -188,7 +228,31 @@ async function continueWithToolResult(params: {
         // 若本轮没有任何正文输出，进行一次轻量“追问”以催促模型直接给出答案
         if (!hadText) {
           (async () => {
-            const nudgeHistory: LlmMessage[] = [...followHistory, { role: 'user', content: '请基于上面的工具结果，直接用中文给出完整答案。不要再调用任何工具，不要输出解释或前缀。' } as any];
+            // 为追问阶段构建更好的系统提示词
+            const nudgeSystemPrompt = `你是一个智能助手，现在需要基于工具调用结果回答用户问题。
+
+重要指导原则：
+1. 仔细分析工具调用结果，确保理解所有信息
+2. 直接回答用户的原始问题，不要偏离主题
+3. 如果工具结果异常（错误、空结果、格式问题等），请尝试调用其他工具或重新调用
+4. 如果工具结果不足以完整回答问题，可以继续调用相关工具
+5. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+6. 如果工具结果已经足够，请直接给出完整的中文答案
+7. 根据实际情况灵活处理，确保最终能够完整回答用户问题
+
+用户问题：${originalUserContent}`;
+
+            const nudgeHistory: LlmMessage[] = [
+              { role: 'system', content: nudgeSystemPrompt } as any,
+              ...followHistory, 
+              { role: 'user', content: `请基于上述所有工具调用结果，分析并回答用户的原始问题。
+
+请根据实际情况灵活处理：
+1. 如果工具结果正常且足够，请直接给出完整的中文答案
+2. 如果工具结果异常或不足，请继续调用相关工具
+3. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+4. 确保最终能够完整回答用户的原始问题` } as any
+            ];
             const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
             const tk2 = new StructuredStreamTokenizer();
             let autosave2 = '';
@@ -226,6 +290,17 @@ async function continueWithToolResult(params: {
               },
               onComplete: () => {
                 const sty = useChatStore.getState();
+                
+                // 关键修复：在追问阶段流式结束时也调用tokenizer的flush方法
+                try {
+                  const flushEvents = tk2.flush();
+                  for (const ev of flushEvents) {
+                    if (ev.type === 'text' && (ev as any).chunk) {
+                      sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+                    }
+                  }
+                } catch { /* noop */ }
+                
                 if (pending2) {
                   const nx = pending2; pending2 = null;
                   // 启动下一轮工具
