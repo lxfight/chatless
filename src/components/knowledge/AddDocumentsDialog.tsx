@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Loader2, FileText, Database, AlertCircle, MessageSquare } from 'lucide-react';
 import { UnifiedFileService, type UnifiedFile } from '@/lib/unifiedFileService';
 import { KnowledgeService, type KnowledgeBase } from '@/lib/knowledgeService';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface AddDocumentsDialogProps {
   open: boolean;

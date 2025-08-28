@@ -44,7 +44,7 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
     }
     case 'THINK_APPEND': {
       const out = appendThinkText(model.segments, action.chunk);
-      try { console.log('[FSM:THINK_APPEND]', { id: model.id, addLen: (action.chunk||'').length, segLen: out.length }); } catch { /* noop */ }
+      // console.log('[FSM:THINK_APPEND]', { id: model.id, addLen: (action.chunk||'').length, segLen: out.length });
       return { ...model, segments: out, fsm: 'RENDERING_THINK' };
     }
     case 'THINK_END': {

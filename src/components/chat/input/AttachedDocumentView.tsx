@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getCurrentKnowledgeBaseConfig } from '@/lib/knowledgeBaseConfig';
 import { estimateTokens } from '@/lib/utils/tokenBudget';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { KnowledgeService } from '@/lib/knowledgeService';
 import { Loader2, Database } from 'lucide-react';
 

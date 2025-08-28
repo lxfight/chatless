@@ -8,7 +8,7 @@ import { KnowledgeService, KnowledgeBase } from "@/lib/knowledgeService";
 import { UnifiedFileService } from '@/lib/unifiedFileService';
 import { initializeSampleDataIfNeeded } from '@/lib/sampleDataInitializer';
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { KnowledgeBaseItem } from "@/components/knowledge/KnowledgeBaseItem";

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useEffect } from 'react';
-import { Copy, Star, RefreshCcw } from 'lucide-react';
+import { useMemo, useEffect, useState } from 'react';
+import { Copy, Star, RefreshCcw, Check } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { ContextMenu, createMessageMenuItems } from '@/components/ui/context-menu';
@@ -92,6 +92,8 @@ export function ChatMessage({
   segments,
   viewModel,
 }: ChatMessageProps) {
+  const [isCopied, setIsCopied] = useState(false);
+
   if (DEBUG_CHAT_MESSAGE) { /* noop */ }
   
   // 在组件挂载和更新时记录props变化
@@ -141,10 +143,24 @@ export function ChatMessage({
         />;
   }, [content, segments, isUser, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, id, isStreaming, thinking_duration, onSaveThinkingDuration]);
 
+  const handleCopy = async (content: string) => {
+    try {
+      if (onCopy) {
+        onCopy(content);
+      } else {
+        await navigator.clipboard.writeText(content);
+      }
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error('复制失败:', error);
+    }
+  };
+
   return (
     <div
       className={cn(
-        "flex chat-transition group mb-6 relative",
+        "flex chat-transition group mb-6 relative w-full",
         isUser 
           ? "flex-row-reverse justify-start max-w-[85%] ml-auto" 
           : "max-w-[85%]"
@@ -156,7 +172,8 @@ export function ChatMessage({
 
       {/* 消息内容 */}
       <div className={cn(
-        "flex flex-col min-w-0 max-w-full", 
+        "flex flex-col min-w-0 max-w-full",
+        !isUser && "flex-1",
         isUser ? "items-end" : "items-start"
       )}>
         <ContextMenu
@@ -175,7 +192,7 @@ export function ChatMessage({
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.15 }}
             className={cn(
-              "max-w-full min-w-0 transition-all duration-200",
+              isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",
               isUser
                 ? "p-0 bg-transparent shadow-none"
                 : "p-0 bg-transparent shadow-none",
@@ -217,11 +234,16 @@ export function ChatMessage({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => (onCopy ? onCopy(content) : void navigator.clipboard.writeText(content))}
-                    className="h-5 w-5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-                    title="复制"
+                    onClick={() => handleCopy(content)}
+                    className={cn(
+                      "h-5 w-5 rounded-full transition-all duration-200",
+                      isCopied
+                        ? "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    )}
+                    title={isCopied ? "已复制" : "复制"}
                   >
-                    <Copy className="w-3 h-3" />
+                    {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                   </Button>
                   {/* 复制按钮的 tip 展示字数 */}
                   <div className="absolute right-0 -top-6 translate-y-[-2px] opacity-0 group-hover/copy:opacity-100 pointer-events-none select-none text-[11px] text-gray-500 bg-gray-50/90 dark:bg-gray-800/70 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">

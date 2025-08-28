@@ -4,7 +4,7 @@ import { InputField } from "./InputField";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Undo2, KeyRound, ExternalLink } from "lucide-react";
 import type { ProviderWithStatus } from "@/hooks/useProviderManagement";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 interface ProviderConnectionSectionProps {
   provider: ProviderWithStatus;

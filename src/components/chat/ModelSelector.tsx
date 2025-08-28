@@ -9,7 +9,7 @@ import { specializedStorage } from '@/lib/storage';
 import Image from "next/image";
 import { ModelBrandLogo } from './ModelBrandLogo';
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { ModelSelectContent } from './ModelSelectContent';
 import { ModelParametersDialog } from './ModelParametersDialog';
 import { PROVIDER_ICON_EXTS, getResolvedUrlForBase, isUrlKnownMissing, getModelBrandLogoSrc, prewarmModelBrandLogos, markUrlMissing } from '@/lib/utils/logoService';

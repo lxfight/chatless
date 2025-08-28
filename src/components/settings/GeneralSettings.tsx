@@ -5,7 +5,7 @@ import { SettingsCard } from "./SettingsCard";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { SelectField } from "./SelectField";
 import { SlidersHorizontal } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import StorageUtil from "@/lib/storage";
 import { useMarkdownFontSize } from "@/hooks/useMarkdownFontSize";
 import { useGlobalFontSize } from "@/hooks/useGlobalFontSize";
@@ -61,97 +61,103 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      {/* <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">常规设置</h1> */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">常规设置</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置常规选项，包括界面语言、主题模式、字体大小等。</p>
+      </div>
 
-    <SettingsCard>
-      <SettingsSectionHeader icon={SlidersHorizontal} title="常规设置" />
-      <div className="space-y-6 pt-6 px-6 pb-6">
-        <SelectField
-          label="界面语言"
-          options={[
-            { value: "zh", label: "简体中文" },
-            { value: "en", label: "English" },
-          ]}
-          value={lang}
-          onChange={setLang}
-          description="选择应用显示语言（需刷新后完全生效）"
-        />
+             {/* 主要设置卡片 */}
+       <div className="border border-gray-100 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
+         {/* 头部 */}
+         <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
+           <SlidersHorizontal className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">常用选项</h3>
+         </div>
 
-        <SelectField
-          label="主题模式"
-          options={[
-            { value: "system", label: "跟随系统" },
-            { value: "light", label: "亮色" },
-            { value: "dark", label: "暗色" },
-          ]}
-          value={theme}
-          onChange={setTheme}
-          description="立即生效，可在亮/暗色之间切换或自动跟随系统。"
-        />
+                 {/* 设置内容 */}
+         <div className="space-y-6">
+                 <SelectField
+           label="界面语言"
+           options={[
+             { value: "zh", label: "简体中文" },
+             { value: "en", label: "English" },
+           ]}
+           value={lang}
+           onChange={setLang}
+         />
 
-        <SelectField
-          label="聊天内容字体大小"
-          options={[
-            { value: "small", label: "小" },
-            { value: "medium", label: "中" },
-            { value: "large", label: "大" },
-          ]}
-          value={chatFontSize}
-          onChange={(v) => setChatFontSize(v as any)}
-          description="调整聊天窗口中 Markdown 文本的大小，立即生效"
-        />
+         <SelectField
+           label="主题模式"
+           options={[
+             { value: "system", label: "跟随系统" },
+             { value: "light", label: "亮色" },
+             { value: "dark", label: "暗色" },
+           ]}
+           value={theme}
+           onChange={setTheme}
+         />
 
-        <SelectField
-          label="界面文本大小"
-          options={[
-            { value: "small", label: "小" },
-            { value: "medium", label: "中" },
-            { value: "large", label: "大" },
-          ]}
-          value={globalFontSize}
-          onChange={(v) => setGlobalFontSize(v as any)}
-          description="控制整个界面的基础文字大小，立即生效"
-        />
+         <SelectField
+           label="聊天内容字体大小"
+           options={[
+             { value: "small", label: "小" },
+             { value: "medium", label: "中" },
+             { value: "large", label: "大" },
+           ]}
+           value={chatFontSize}
+           onChange={(v) => setChatFontSize(v as any)}
+         />
 
-        {/* 应用行为设置 */}
-        {(() => {
-          const ui = useUiPreferences();
-          return (
-            <>
-              <ToggleSwitch
-                label="关闭时显示确认对话框"
-                description="关闭应用时显示确认对话框，防止意外关闭"
-                checked={ui.showCloseConfirmation}
-                onChange={(v) => ui.setShowCloseConfirmation(v)}
-              />
+         <SelectField
+           label="界面文本大小"
+           options={[
+             { value: "small", label: "小" },
+             { value: "medium", label: "中" },
+             { value: "large", label: "大" },
+           ]}
+           value={globalFontSize}
+           onChange={(v) => setGlobalFontSize(v as any)}
+         />
 
-              <ToggleSwitch
-                label="启用快捷指令面板"
-                description="使用Alt+O / 自定义快捷键呼出指令搜索窗口，快速导航和执行操作"
-                checked={ui.cmdPaletteEnabled}
-                onChange={(v) => ui.setCmdPaletteEnabled(v)}
-              />
+                 {/* 应用行为设置 */}
+         {(() => {
+           const ui = useUiPreferences();
+           return (
+             <>
+               <div className="pt-4 border-t border-gray-50 dark:border-gray-800">
+                 <div className="space-y-6">
+                   <ToggleSwitch
+                     label="关闭时显示确认对话框"
+                     checked={ui.showCloseConfirmation}
+                     onChange={(v) => ui.setShowCloseConfirmation(v)}
+                   />
 
-              {ui.cmdPaletteEnabled && (
-                <>
-                  <ShortcutField
-                    label="快捷键映射"
-                    value={ui.cmdPaletteShortcut}
-                    onChange={ui.setCmdPaletteShortcut}
-                    description="按下组合键以设置；需包含 Ctrl/⌘/Alt/Shift 且避免常用系统快捷键"
-                  />
-                
-                </>
-              )}
-            </>
-          );
-        })()}
+                   <ToggleSwitch
+                     label="启用快捷指令面板"
+                     checked={ui.cmdPaletteEnabled}
+                     onChange={(v) => ui.setCmdPaletteEnabled(v)}
+                     tooltip="启用后可以使用快捷键快速搜索和执行各种操作"
+                   />
 
+                   {ui.cmdPaletteEnabled && (
+                     <ShortcutField
+                       label="快捷键映射"
+                       value={ui.cmdPaletteShortcut}
+                       onChange={ui.setCmdPaletteShortcut}
+                       tooltip="点击输入框后按下组合键设置，需包含 Ctrl/⌘/Alt/Shift 等修饰键"
+                     />
+                   )}
+                 </div>
+               </div>
+             </>
+           );
+         })()}
+
+              </div>
       </div>
 
       {/* 个性化设置 */}
       <PersonalizationSettings />
-    </SettingsCard>
     </div>
   );
 } 

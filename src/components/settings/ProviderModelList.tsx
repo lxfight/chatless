@@ -7,7 +7,7 @@ import { ProviderAddModelDialog } from "./ProviderAddModelDialog";
 import { Brain, Workflow, Camera } from "lucide-react";
 import { getModelCapabilities } from "@/lib/provider/staticModels";
 import { ProviderModelItem } from "./ProviderModelItem";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

@@ -7,7 +7,7 @@ import { DocumentParseResult } from '@/types/document';
 import { KnowledgeService, KnowledgeBase } from '@/lib/knowledgeService';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { KnowledgeBaseSelector } from "./input/KnowledgeBaseSelector";
 import { AttachedDocumentView } from "./input/AttachedDocumentView";
 import { SelectedKnowledgeBaseView } from "./input/SelectedKnowledgeBaseView";

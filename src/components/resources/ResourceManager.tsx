@@ -22,7 +22,7 @@ import { ResourceList } from './ResourceList';
 import { RecentlyReferenced } from './RecentlyReferenced';
 import { AddToKnowledgeBase } from './AddToKnowledgeBase';
 import { UnifiedFileService, type UnifiedFile } from '@/lib/unifiedFileService';
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { ResourceDocument, ResourceManagerProps } from './types';
 import { FileOpener } from '@/lib/utils/fileOpener';
 import { formatDistanceToNow } from 'date-fns';

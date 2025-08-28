@@ -10,7 +10,7 @@ import { startupMonitor } from "@/lib/utils/startupPerformanceMonitor";
 import { downloadService } from "@/lib/utils/downloadService";
 import { detectTauriEnvironment } from "@/lib/utils/environment";
 // 在需要时动态导入 Tauri FS/Path API
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 export function AdvancedSettings() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -188,15 +188,11 @@ export function AdvancedSettings() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-         {/* 页面标题 */}
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">高级设置</h1>
-
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          这些设置需要谨慎修改，可能会影响应用的稳定性
-        </p>
-      </div>
+    <div className="space-y-4">
+       <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">高级设置</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置高级选项，部分设置请谨慎修改，包括日志系统、性能报告等。</p>
+      </div>  
 
       {/* 网络设置 */}
       <NetworkSettings />

@@ -185,15 +185,17 @@ export default function RootLayout({
       html.classList.remove("reduced-motion");
     }
 
-    // 侧边栏宽度
+    // 侧边栏宽度（仅当值变化时才写入，避免样式闪烁）
     const widthMap: Record<string, string> = {
       narrow: "3.5rem", // 56px
       medium: "4.5rem", // 72px
       wide: "6rem",    // 96px
       xwide: "8rem",   // 128px
     };
-
-    html.style.setProperty("--sidebar-width", widthMap[sidebarWidth] || "4.5rem");
+    const targetWidth = widthMap[sidebarWidth] || "4.5rem";
+    if (getComputedStyle(html).getPropertyValue('--sidebar-width').trim() !== targetWidth) {
+      html.style.setProperty("--sidebar-width", targetWidth);
+    }
 
     // icon size mapping
     const iconMap: Record<string, string> = {
@@ -202,9 +204,12 @@ export default function RootLayout({
       large: '1.5rem',   //24
     };
 
-  // @ts-ignore
+    // @ts-ignore
     const iconSize = sidebarIconSize;
-    html.style.setProperty('--sidebar-icon-size', iconMap[iconSize] || '1.25rem');
+    const targetIcon = iconMap[iconSize] || '1.25rem';
+    if (getComputedStyle(html).getPropertyValue('--sidebar-icon-size').trim() !== targetIcon) {
+      html.style.setProperty('--sidebar-icon-size', targetIcon);
+    }
   }, [initialized, simpleMode, lowAnimationMode, sidebarWidth, sidebarIconSize]);
 
   return (

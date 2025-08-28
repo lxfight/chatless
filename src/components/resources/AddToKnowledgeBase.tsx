@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, AlertCircle, FileText, Brain, Database } from "lucide-react";
 import { KnowledgeService, KnowledgeBase } from '@/lib/knowledgeService';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface AddToKnowledgeBaseProps {
   open: boolean;

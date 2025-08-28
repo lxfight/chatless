@@ -7,7 +7,7 @@ import { KnowledgeService, KnowledgeBase } from "@/lib/knowledgeService";
 import { UnifiedFileService, type UnifiedFile } from "@/lib/unifiedFileService";
 import { FileOpener } from '@/lib/utils/fileOpener';
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";

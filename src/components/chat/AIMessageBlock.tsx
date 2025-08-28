@@ -252,7 +252,11 @@ export function AIMessageBlock({
         else if (s && s.kind === 'think') list.push({ type: 'think', text: s.text || '' });
         else if (s && s.kind === 'text') list.push({ type: 'text', text: s.text || '' });
       }
-      try { console.log('[UI:mixedSegments]', { id, total: list.length, cards: list.filter(s=>s.type==='card').length, thinks: list.filter(s=>s.type==='think').length, texts: list.filter(s=>s.type==='text').length }); } catch { /* noop */ }
+      // 调试开关，默认关闭
+      const DEBUG_MIXED = false;
+      if (DEBUG_MIXED) {
+        try { console.log('[UI:mixedSegments]', { id, total: list.length, cards: list.filter(s=>s.type==='card').length, thinks: list.filter(s=>s.type==='think').length, texts: list.filter(s=>s.type==='text').length }); } catch { /* noop */ }
+      }
       return list;
     }
     return [];
@@ -286,9 +290,7 @@ export function AIMessageBlock({
             <div className="flex flex-col gap-2">
               {mixedSegments.map((seg, idx) => {
                 // 关键调试：仅当准备渲染工具卡片时打印一次，帮助确认UI层已收到segments
-                if (idx === 0) {
-                  try { console.log('[MCP-UI] mixedSegments ready, cards=', mixedSegments.filter(s=>s.type==='card').length, 'msgId=', id); } catch { /* noop */ }
-                }
+                // 默认关闭的日志
                 if (seg.type === 'card') {
                   const d = seg.data;
                   return (

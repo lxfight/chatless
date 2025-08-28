@@ -1,6 +1,6 @@
 import { openPath } from '@tauri-apps/plugin-opener';
 import { exists } from '@tauri-apps/plugin-fs';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { useState } from 'react';
 
 /**

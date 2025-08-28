@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { downloadService } from "@/lib/utils/downloadService";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useState, useEffect } from "react";
 import { detectTauriEnvironment, performEnvironmentCheck, logEnvironmentInfo } from "@/lib/utils/environment";
 

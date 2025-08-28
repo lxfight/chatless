@@ -5,7 +5,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { PromptCard, Prompt } from "./PromptCard";
 import { usePromptStore } from "@/store/promptStore";
 import { useChatStore } from "@/store/chatStore";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { PromptEditorDialog } from "./PromptEditorDialog";
 import { useCallback } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";

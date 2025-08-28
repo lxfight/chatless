@@ -23,7 +23,7 @@ import {
   updateModelApiKeyOverride,
   updateOllamaModelsCache,
 */
-import { toast } from "sonner"; // <-- 导入 sonner 的 toast
+import { toast } from "@/components/ui/sonner"; // <-- 导入封装的 toast
 import { Input } from "@/components/ui/input";
 // 不再需要直接导入 tauriFetch
 // import { fetch as tauriFetch } from '@tauri-apps/plugin-http'; 

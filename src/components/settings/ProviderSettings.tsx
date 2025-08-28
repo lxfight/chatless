@@ -14,7 +14,7 @@ import { ProviderConnectionSection } from './ProviderConnectionSection';
 import { ProviderModelList } from './ProviderModelList';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 import { specializedStorage } from '@/lib/storage';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { modelRepository } from '@/lib/provider/ModelRepository';
 import { useProviderIcon } from './useProviderIcon';
 import { useRecentModelsHint } from './useRecentModelsHint';

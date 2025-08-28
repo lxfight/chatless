@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { downloadService } from '@/lib/utils/downloadService';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 export default function HistoryList() {
   const {

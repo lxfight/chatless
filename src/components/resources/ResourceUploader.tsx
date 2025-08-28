@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Upload, Loader2, HardDriveUpload } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { ResourceUploaderProps } from './types';
 
 export function ResourceUploader({ 

@@ -2,8 +2,7 @@
 // NOTE: 由于在聊天流程中集成 RAG 流式逻辑，临时超出 500 行限制。
 // 后续可提取为专用 Hook 或工具文件以符合文件规模规范。
 import { useCallback, useState, useRef, useEffect } from 'react';
-import { toast } from 'sonner';
-import { trimToastDescription } from '@/components/ui/sonner';
+import { toast, trimToastDescription } from '@/components/ui/sonner';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatStore } from "@/store/chatStore";
@@ -404,8 +403,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 1) 统一 tokenizer：先生成结构化事件（think/code-fence/tool_call/text），再按事件派发 FSM
         try {
           const events = tokenizer.push(token);
-          // 仅保留事件类型
-          try { console.log('[TOK:events]', events.map((e:any)=>e.type)); } catch { /* noop */ }
+          // 事件类型
+          // try { console.log('[TOK:events]', events.map((e:any)=>e.type)); } catch { /* noop */ }
           const st = useChatStore.getState();
           for (const ev of events) {
             if (ev.type === 'think_start') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any); try { console.log('[TOK→FSM] THINK_START'); } catch {} }
@@ -589,34 +588,45 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             console.log('[RAW-FINAL]', currentContentRef.current);
           } catch {}
 
-          // 在首次 AI 回复完成后尝试生成标题（限流友好，不阻塞首条消息发送）。
-          void (async () => {
-            try {
-              const state = useChatStore.getState();
-              const conv = state.conversations.find(c => c.id === finalConversationId);
-              if (!conv) return;
-              const stillDefault = shouldGenerateTitleAfterAssistantComplete(conv);
-              if (!stillDefault) return;
-
-              // 由组件封装：提取首条用户消息作为种子
-              const seedContent = extractFirstUserMessageSeed(conv);
-              if (!seedContent.trim()) { return; }
-
-              const gen = await generateTitleFromFirstMessage(
-                currentProviderName,
-                modelToUse,
-                seedContent,
-                { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
-              );
-
-              const state2 = useChatStore.getState();
-              const conv2 = state2.conversations.find(c => c.id === finalConversationId);
-              if (!conv2) return;
-              if (isDefaultTitle(conv2.title) && gen && gen.trim()) {
-                await state2.renameConversation(String(finalConversationId), gen.trim());
-              }
-            } catch (e) { noop(e); }
-          })();
+          // 标题生成策略：
+          // 1) 若本轮已出现工具卡片（代表进入了 MCP 递归），则不在此处生成，交由 Orchestrator 收尾时机处理；
+          // 2) 若未出现工具卡片，则视为“普通对话”，在首轮助手完成后异步生成标题（不阻塞UI）。
+          try {
+            const st2 = useChatStore.getState();
+            const conv2 = st2.conversations.find(c=>c.id===finalConversationId);
+            const msg2: any = conv2?.messages.find(m=>m.id===assistantMessageId);
+            const segs = Array.isArray(msg2?.segments) ? msg2.segments : [];
+            const hasToolCard = segs.some((s:any)=>s && s.kind==='toolCard');
+            if (!hasToolCard) {
+              const schedule = (fn: () => void) => {
+                try { (window as any).requestIdleCallback ? (window as any).requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 0); } catch { setTimeout(fn, 0); }
+              };
+              schedule(() => {
+                (async () => {
+                  try {
+                    const state = useChatStore.getState();
+                    const conv = state.conversations.find(c => c.id === finalConversationId);
+                    if (!conv) return;
+                    const { shouldGenerateTitleAfterAssistantComplete, extractFirstUserMessageSeed, generateTitleFromFirstMessage, isDefaultTitle } = await import('@/lib/chat/TitleGenerator');
+                    if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
+                    const seedContent = extractFirstUserMessageSeed(conv);
+                    if (!seedContent.trim()) return;
+                    const gen = await generateTitleFromFirstMessage(
+                      currentProviderName,
+                      modelToUse,
+                      seedContent,
+                      { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
+                    );
+                    const st3 = useChatStore.getState();
+                    const conv3 = st3.conversations.find(c => c.id === finalConversationId);
+                    if (conv3 && isDefaultTitle(conv3.title) && gen && gen.trim()) {
+                      void st3.renameConversation(String(finalConversationId), gen.trim());
+                    }
+                  } catch { /* noop */ }
+                })();
+              });
+            }
+          } catch { /* noop */ }
         });
         
         // 清理引用

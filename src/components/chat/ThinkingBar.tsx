@@ -67,7 +67,7 @@ export const ThinkingBar = ({
 
   return (
     <div className={cn(
-      "mb-3 max-w-full transition-all duration-300 ease-out",
+      "mb-3 w-full max-w-full min-w-0 transition-all duration-300 ease-out",
       isExpanded 
         ? "bg-gray-50 dark:bg-slate-800/40 rounded-xl shadow-sm" 
         : isThinking

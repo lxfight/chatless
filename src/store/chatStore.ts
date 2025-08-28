@@ -519,7 +519,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 nextMessages[idx] = nextMsg;
                 (conv as any).messages = nextMessages;
                 conv.updated_at = Date.now();
-                try { console.log('[FSM:flush.end]', { id, nextSegs: Array.isArray(nextMsg.segments)?nextMsg.segments.length:0, fsm: model.fsm }); } catch { /* noop */ }
+                // console.log('[FSM:flush.end]', { id, nextSegs: Array.isArray(nextMsg.segments)?nextMsg.segments.length:0, fsm: model.fsm });
                 break;
               }
             });
@@ -556,7 +556,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
             if (msg) {
               msg.content = content;
               // 重要：segments 完全由 FSM 驱动，此处不再同步 text 段，避免把 <think> 的正文化
-              try { console.log('[STORE:updateMessageContentInMemory]', { messageId, contentLen: (content||'').length }); } catch { /* noop */ }
+              // console.log('[STORE:updateMessageContentInMemory]', { messageId, contentLen: (content||'').length });
               conv.updated_at = now;
               break;
             }

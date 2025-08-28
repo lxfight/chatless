@@ -5,7 +5,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { InputField } from "./InputField";
 import { KeyRound, MoreHorizontal, SlidersHorizontal, Brain, Workflow, Camera, Pencil, Trash2, Zap, RotateCcw } from "lucide-react";
 import type { ModelMetadata } from "@/lib/metadata/types";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { getModelCapabilities } from "@/lib/provider/staticModels";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useModelCheckStore } from '@/store/modelCheckStore';

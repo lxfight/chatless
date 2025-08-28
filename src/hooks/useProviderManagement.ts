@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { isDevelopmentEnvironment } from '@/lib/utils/environment';
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
 import { useProviderStatusStore } from '@/store/providerStatusStore';
 import { ProviderRegistry } from '@/lib/llm';

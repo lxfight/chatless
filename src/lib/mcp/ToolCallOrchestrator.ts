@@ -4,7 +4,8 @@ import { buildSchemaHint } from './schemaHints';
 import { useChatStore } from '@/store/chatStore';
 import { streamChat } from '@/lib/llm';
 import type { Message as LlmMessage, StreamCallbacks } from '@/lib/llm/types';
-import { MAX_TOOL_RECURSION_DEPTH } from './constants';
+import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
+import StorageUtil from '@/lib/storage';
 
 export async function executeToolCall(params: {
   assistantMessageId: string;
@@ -20,7 +21,8 @@ export async function executeToolCall(params: {
   cardId?: string;
 }): Promise<void> {
   const { assistantMessageId, conversationId, server, tool, args, _runningMarker, provider, model, historyForLlm, originalUserContent, cardId } = params;
-  try { console.log('[MCP-ORCH] start', assistantMessageId, server, tool); } catch { /* noop */ }
+  const DEBUG_MCP = false;
+  if (DEBUG_MCP) { try { console.log('[MCP-ORCH] start', assistantMessageId, server, tool); } catch { /* noop */ } }
 
   const effectiveTool = (server === 'filesystem' && tool === 'list') ? 'dir' : tool;
   const effectiveArgs = normalizeArgs(server, args || {});
@@ -43,7 +45,7 @@ export async function executeToolCall(params: {
 
   try {
     const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
-    try { console.log('[MCP-ORCH] ok', server, effectiveTool); } catch { /* noop */ }
+    if (DEBUG_MCP) { try { console.log('[MCP-ORCH] ok', server, effectiveTool); } catch { /* noop */ } }
     const resultPreview = typeof result === 'string' ? result : JSON.stringify(result).slice(0, 2000);
 
     const st = useChatStore.getState();
@@ -52,7 +54,7 @@ export async function executeToolCall(params: {
     await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result });
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    try { console.warn('[MCP-ORCH] err', server, effectiveTool); } catch { /* noop */ }
+    if (DEBUG_MCP) { try { console.warn('[MCP-ORCH] err', server, effectiveTool); } catch { /* noop */ } }
     let schemaHint = '';
     try { schemaHint = await buildSchemaHint(server, effectiveTool); } catch { /* ignore */ }
 
@@ -85,7 +87,14 @@ async function continueWithToolResult(params: {
   const counterKey = `mcp-recursion-${key}`;
   // 简易递归限制（避免依赖外部模块）
   const current = (globalThis as any)[counterKey] || 0;
-  if (current >= MAX_TOOL_RECURSION_DEPTH) { (globalThis as any)[counterKey] = 0; return; }
+  // 读取设置中的递归深度（mcp-settings.json）
+  let maxDepth = DEFAULT_MAX_TOOL_RECURSION_DEPTH;
+  try {
+    const val = await StorageUtil.getItem<number|'infinite'>('max_tool_recursion_depth', DEFAULT_MAX_TOOL_RECURSION_DEPTH, 'mcp-settings.json');
+    if (val === 'infinite') maxDepth = Number.POSITIVE_INFINITY;
+    else if (typeof val === 'number' && val >= 2 && val <= 15) maxDepth = val;
+  } catch { /* use default */ }
+  if (current >= maxDepth) { (globalThis as any)[counterKey] = 0; return; }
   (globalThis as any)[counterKey] = current + 1;
 
   const follow = typeof result === 'string' ? result : JSON.stringify(result);
@@ -102,6 +111,7 @@ async function continueWithToolResult(params: {
   // 递归阶段增加轻量自动保存：每累计一定字符就写库一次，避免断电/重启丢失
   let autosaveBuffer = '';
   let pendingHit: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
+  let hadText = false; // 本轮是否收到过正文 token
   const callbacks: StreamCallbacks = {
     onStart: () => {},
     onToken: (tk: string) => {
@@ -127,7 +137,10 @@ async function continueWithToolResult(params: {
             stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
           } else if (ev.type === 'text') {
             // 关键：续流阶段也要把正文 token 追加到 segments
-            if ((ev as any).chunk) stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+            if ((ev as any).chunk) {
+              hadText = true;
+              stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+            }
           }
           if (ev.type === 'tool_call' && !pendingHit) {
             const cardId = crypto.randomUUID();
@@ -172,9 +185,102 @@ async function continueWithToolResult(params: {
         const convf2 = stf2.conversations.find(c=>c.id===conversationId);
         const msgf2 = convf2?.messages.find(m=>m.id===assistantMessageId);
         const finalContent = msgf2?.content || '';
-        void stf2.updateMessage(assistantMessageId, { status: 'sent', content: finalContent });
-        stf2.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
-        (globalThis as any)[counterKey] = 0;
+        // 若本轮没有任何正文输出，进行一次轻量“追问”以催促模型直接给出答案
+        if (!hadText) {
+          (async () => {
+            const nudgeHistory: LlmMessage[] = [...followHistory, { role: 'user', content: '请基于上面的工具结果，直接用中文给出完整答案。不要再调用任何工具，不要输出解释或前缀。' } as any];
+            const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
+            const tk2 = new StructuredStreamTokenizer();
+            let autosave2 = '';
+            let pending2: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
+            // 追问阶段仍按正常渲染与保存，但不再单独统计是否有文本
+            const cb2: StreamCallbacks = {
+              onStart: () => { /* stream started for nudge round */ },
+              onToken: (tk: string) => {
+                const stx = useChatStore.getState();
+                const convx = stx.conversations.find(c=>c.id===conversationId);
+                const msgx = convx?.messages.find(m=>m.id===assistantMessageId);
+                const curx = (msgx?.content || '') + tk;
+                stx.updateMessageContentInMemory(assistantMessageId, curx);
+                autosave2 += tk;
+                if (autosave2.length > 200) { autosave2 = ''; try { void stx.updateMessage(assistantMessageId, { content: curx }); } catch (e) { void e; } }
+                try {
+                  const events = tk2.push(tk);
+                  for (const ev of events) {
+                    if (ev.type === 'think_start') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
+                    else if (ev.type === 'think_chunk') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any);
+                    else if (ev.type === 'think_end') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
+                    else if (ev.type === 'text' && (ev as any).chunk) { stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk }); }
+                    else if (ev.type === 'tool_call' && !pending2) {
+                      // 即便模型再次提出工具调用，也按常规处理，保持一致体验
+                      const cardId = crypto.randomUUID();
+                      pending2 = { server: ev.server, tool: ev.tool, args: ev.args, cardId };
+                      const prevx = (msgx?.content || '') + '';
+                      const markerx = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: assistantMessageId }});
+                      const nextx = prevx + (prevx ? '\n' : '') + markerx;
+                      stx.updateMessageContentInMemory(assistantMessageId, nextx);
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
+                    }
+                  }
+                } catch (e) { void e; }
+              },
+              onComplete: () => {
+                const sty = useChatStore.getState();
+                if (pending2) {
+                  const nx = pending2; pending2 = null;
+                  // 启动下一轮工具
+                  void executeToolCall({ assistantMessageId, conversationId, server: nx.server, tool: nx.tool, args: nx.args, _runningMarker: '', provider, model, historyForLlm: nudgeHistory, originalUserContent, cardId: nx.cardId });
+                } else {
+                  const convy = sty.conversations.find(c=>c.id===conversationId);
+                  const msgy = convy?.messages.find(m=>m.id===assistantMessageId);
+                  const content2 = msgy?.content || '';
+                  void sty.updateMessage(assistantMessageId, { status: 'sent', content: content2 });
+                  sty.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
+                  (globalThis as any)[counterKey] = 0;
+                }
+              },
+              onError: (err: Error) => {
+                const stz = useChatStore.getState();
+                void stz.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+                (globalThis as any)[counterKey] = 0;
+              }
+            } as any;
+            await streamChat(provider, model, nudgeHistory as any, cb2 as any, {});
+          })();
+        } else {
+          void stf2.updateMessage(assistantMessageId, { status: 'sent', content: finalContent });
+          stf2.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
+          (globalThis as any)[counterKey] = 0;
+
+          // —— 在 MCP 递归链完全结束的稳定时机生成标题（仅一次）——
+          (async () => {
+            try {
+              const state = useChatStore.getState();
+              const conv = state.conversations.find(c => c.id === conversationId);
+              if (!conv) return;
+              const {
+                shouldGenerateTitleAfterAssistantComplete,
+                extractFirstUserMessageSeed,
+                generateTitleFromFirstMessage,
+                isDefaultTitle,
+              } = await import('@/lib/chat/TitleGenerator');
+              if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
+              const seed = extractFirstUserMessageSeed(conv);
+              if (!seed || !seed.trim()) return;
+              const gen = await generateTitleFromFirstMessage(
+                provider,
+                model,
+                seed,
+                { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
+              );
+              const st2 = useChatStore.getState();
+              const conv2 = st2.conversations.find(c => c.id === conversationId);
+              if (conv2 && isDefaultTitle(conv2.title) && gen && gen.trim()) {
+                void st2.renameConversation(String(conversationId), gen.trim());
+              }
+            } catch { /* noop */ }
+          })();
+        }
       }
     },
     onError: (err: Error) => {

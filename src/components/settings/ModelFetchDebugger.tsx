@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import SchemaModelQuickPicker from './SchemaModelQuickPicker';
 import { Badge } from '@/components/ui/badge';
 import { tauriFetch } from '@/lib/request';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
 
 interface ModelFetchDebuggerProps {

@@ -39,7 +39,7 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
         {/* 状态圆点：颜色表达状态，移除文字 */}
         <span
           className={cn(
-            'ml-auto inline-flex items-center justify-center w-2.5 h-2.5 rounded-full',
+            'ml-auto inline-flex items-center justify-center w-2 h-2 rounded-full',
             status === 'error' ? 'bg-red-500 shadow-[0_0_0_3px_rgba(248,113,113,0.2)]' :
             status === 'running' ? 'bg-emerald-500 animate-pulse shadow-[0_0_0_3px_rgba(16,185,129,0.15)]' :
             'bg-slate-400 shadow-[0_0_0_3px_rgba(148,163,184,0.2)]'

@@ -14,7 +14,7 @@ import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, checkForUpdatesSilent
 import { isDevelopment } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { linkOpener } from "@/lib/utils/linkOpener";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 export function AboutSupportSettings() {
   const [showCopied, setShowCopied] = useState(false);
@@ -134,10 +134,12 @@ export function AboutSupportSettings() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面标题 */}
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">关于与支持</h1>
-
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">关于与支持</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">在此查看关于与支持相关信息，包括版本信息、更新检查、帮助中心等。</p>
+      </div>
       {/* 应用信息卡片 */}
       <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
         <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">

@@ -19,7 +19,7 @@ import {
 import type { EmbeddingConfig } from '@/lib/embedding/types';
 import { OnnxModelDownloader, type OnnxModelInfo, type ModelDownloadProgress } from '@/lib/embedding/OnnxModelDownloader';
 import { getKnowledgeBaseConfigManager } from '@/lib/knowledgeBaseConfig';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import modelsConfig from '@/lib/models.json';
 
 interface ModelInfo {

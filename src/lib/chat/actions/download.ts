@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import type { Conversation } from '@/types/chat';
 import { historyService } from '@/lib/historyService';
 import { downloadService } from '@/lib/utils/downloadService';

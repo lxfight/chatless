@@ -162,10 +162,16 @@ export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: Memo
 
   const renderers = createRenderers(effectiveSize);
 
+  // 处理“只有自定义HTML标签一行”的情况（如 </final_answer> 被当作 HTML 丢弃导致视觉缺行）
+  // 将整行仅包含的自定义标签转义成文本呈现
+  const sanitizedContent = content.replace(/^(<\/?[\w:-]+>)\s*$/gm, (_m, tag) =>
+    String(tag).replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+  );
+
   return (
     <div className={cn(sizeClass, className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={renderers}>
-        {content}
+        {sanitizedContent}
       </ReactMarkdown>
     </div>
   );

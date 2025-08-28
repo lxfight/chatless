@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DatabaseService } from "@/lib/database/services/DatabaseService";
 import { downloadService } from "@/lib/utils/downloadService";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { OnnxModelDownloader } from "@/lib/embedding/OnnxModelDownloader";
 import { tauriFetch } from "@/lib/request";
 import modelsConfig from "@/lib/models.json";

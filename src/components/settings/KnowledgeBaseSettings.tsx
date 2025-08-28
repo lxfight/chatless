@@ -8,7 +8,7 @@ import { SelectField } from "./SelectField";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { InputField } from "./InputField";
 import { InfoBanner } from "./InfoBanner";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -92,9 +92,12 @@ export function KnowledgeBaseSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
          {/* 页面标题 */}
-         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">知识库设置</h1>
+         <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">知识库管理</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">在此添加/编辑知识库配置，并进行连接管理。聊天会话中可选择已连接知识库，AI 将按需调用工具/资源/提示。</p>
+      </div>
       {/* 嵌入模型管理 */}
       <SettingsCard>
         <SettingsSectionHeader icon={Brain} title="嵌入模型管理" />

@@ -223,20 +223,20 @@ export function CommandPalette() {
   // 根据 highlight 变化自动聚焦和滚动
   useEffect(() => {
     if (!open) return;
+    
     if (highlight === -1) {
+      // 焦点回到输入框
       inputRef.current?.focus();
-      // 调试信息
-      if (process.env.NODE_ENV === 'development') {
-        console.log('焦点回到输入框');
+      // 确保光标在输入框末尾
+      if (inputRef.current) {
+        const length = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(length, length);
       }
     } else {
+      // 焦点移动到指令项
       const element = itemRefs.current[highlight];
       if (element) {
         element.focus();
-        // 调试信息
-        if (process.env.NODE_ENV === 'development') {
-          console.log('焦点移动到项目:', highlight, filtered[highlight]?.titleI18n);
-        }
         // 确保选中的项目在视图中完全可见
         element.scrollIntoView({ 
           block: 'nearest', 
@@ -255,10 +255,12 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden">
+      <DialogContent className="max-w-lg p-0 overflow-hidden border border-gray-100 rounded-xl bg-white dark:bg-gray-900 shadow-lg">
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <DialogDescription className="sr-only">Search and execute commands</DialogDescription>
-        <div className="border-b px-4 py-3">
+        
+        {/* 搜索输入区域 */}
+        <div className="border-b border-gray-50 dark:border-gray-800 px-4 py-3">
           <Input
             ref={inputRef}
             autoFocus
@@ -273,11 +275,13 @@ export function CommandPalette() {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (filtered.length > 0) {
+                  // 从输入框向下导航到第一个指令项
                   setHighlight(0);
                 }
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (filtered.length > 0) {
+                  // 从输入框向上导航到最后一个指令项
                   setHighlight(filtered.length - 1);
                 }
               } else if (e.key === 'Enter') {
@@ -295,26 +299,35 @@ export function CommandPalette() {
                 }
               }
             }}
-            className="h-9"
+            className="h-9 border-0 bg-transparent px-0 py-0 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-0 focus:outline-none"
+            onFocus={() => setHighlight(-1)}
           />
         </div>
+
+        {/* 命令列表区域 */}
         <div className="max-h-80 overflow-y-auto scroll-smooth" role="listbox">
           {filtered.length === 0 && (
-            <p className="p-4 text-sm text-gray-500">没有匹配项</p>
+            <div className="p-6 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">没有匹配项</p>
+            </div>
           )}
 
           {['navigation', 'action', 'settings'].map((sec) => {
             const items = filtered.filter((i) => i.section === sec);
             if (items.length === 0) return null;
             return (
-              <div key={sec} className="border-t first:border-none">
-                <p className="px-3 pt-2 pb-1 text-xs text-gray-500 capitalize select-none font-medium">
-                  {sec}
-                </p>
-                {items.map((c, idxInSec) => {
-                  // overall index for keyboard refs
-                  const globalIdx = filtered.findIndex((it) => it.id === c.id);
-                  const Icon = c.icon as any;
+              <div key={sec} className="border-t border-gray-50 dark:border-gray-800 first:border-none">
+                <div className="px-4 pt-3 pb-2">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {sec === 'navigation' ? '导航' : sec === 'action' ? '操作' : '设置'}
+                  </p>
+                </div>
+                                 {items.map((c, idxInSec) => {
+                   // 计算在视觉顺序中的全局索引
+                   const globalIdx = filtered.findIndex((it) => it.id === c.id);
+                   const Icon = c.icon as any;
+                   
+
 
                   const renderTitle = () => {
                     if (!query) return t(c.titleI18n);
@@ -325,7 +338,7 @@ export function CommandPalette() {
                     return (
                       <>
                         {title.slice(0, index)}
-                        <mark className="bg-transparent text-primary font-semibold">
+                        <mark className="bg-transparent text-blue-600 dark:text-blue-400 font-medium">
                           {title.slice(index, index + qLow.length)}
                         </mark>
                         {title.slice(index + qLow.length)}
@@ -342,60 +355,50 @@ export function CommandPalette() {
                         if (el) itemRefs.current[globalIdx] = el;
                       }}
                       onClick={() => run(c)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          const next = globalIdx + 1 >= filtered.length ? 0 : globalIdx + 1;
-                          setHighlight(next);
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          // 调试信息
-                          if (process.env.NODE_ENV === 'development') {
-                            console.log('按上键:', {
-                              globalIdx,
-                              totalItems: filtered.length,
-                              currentItem: c.titleI18n,
-                              currentSection: c.section,
-                              isFirst: globalIdx === 0
-                            });
-                          }
-                          
-                          // 保持连续导航，不跳回输入框
-                          const prev = globalIdx - 1 < 0 ? filtered.length - 1 : globalIdx - 1;
-                          setHighlight(prev);
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          run(c);
-                        } else if (e.key === 'Escape') {
-                          e.preventDefault();
-                          // 在命令项中按Escape键回到输入框
-                          setHighlight(-1);
-                        }
-                      }}
+                                             onKeyDown={(e) => {
+                         if (e.key === 'ArrowDown') {
+                           e.preventDefault();
+                           // 向下导航：到下一个项目，如果是最后一个则循环到第一个
+                           const nextIdx = globalIdx + 1 >= filtered.length ? 0 : globalIdx + 1;
+                           setHighlight(nextIdx);
+                         } else if (e.key === 'ArrowUp') {
+                           e.preventDefault();
+                           // 向上导航：到上一个项目，如果是第一个则循环到最后一个
+                           const prevIdx = globalIdx - 1 < 0 ? filtered.length - 1 : globalIdx - 1;
+                           setHighlight(prevIdx);
+                         } else if (e.key === 'Enter') {
+                           e.preventDefault();
+                           run(c);
+                         } else if (e.key === 'Escape') {
+                           e.preventDefault();
+                           // 在命令项中按Escape键回到输入框
+                           setHighlight(-1);
+                         }
+                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1 transition-colors",
+                        "w-full flex items-center justify-between px-4 py-2.5 text-sm focus:outline-none transition-all duration-150",
                         highlight === globalIdx 
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 ring-1 ring-blue-500 ring-offset-1" 
-                          : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100" 
+                          : "hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
                       )}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         {Icon && (
                           <Icon className={cn(
                             "w-4 h-4",
                             highlight === globalIdx 
                               ? "text-blue-500 dark:text-blue-400" 
-                              : "text-gray-500"
+                              : "text-gray-500 dark:text-gray-400"
                           )} />
                         )}
-                        <span>{renderTitle()}</span>
+                        <span className="font-medium">{renderTitle()}</span>
                       </div>
                       {c.hint && (
                         <span className={cn(
-                          "text-xs ml-4",
+                          "text-xs ml-4 font-mono",
                           highlight === globalIdx 
                             ? "text-blue-600 dark:text-blue-300" 
-                            : "text-gray-500"
+                            : "text-gray-400 dark:text-gray-500"
                         )}>
                           {c.hint}
                         </span>

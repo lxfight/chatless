@@ -28,7 +28,7 @@ export function normalizeTitle(raw: string, maxLength: number): string {
       const unescaped = jsonLike[1].replace(/\\n/g, ' ').replace(/\\t/g, ' ').replace(/\\"/g, '"');
       title = unescaped;
     }
-  } catch {}
+  } catch { /* ignore regex parse */ }
 
   // 去除 R1 等模型输出的思考标签与任意 HTML/XML 标签
   title = title.replace(/<think>[\s\S]*?<\/think>/gi, '');
@@ -39,7 +39,7 @@ export function normalizeTitle(raw: string, maxLength: number): string {
 
   // 去除包裹引号、句号、尾随标点与 emoji 等非常见符号
   title = title
-    .replace(/^[\'"“”‘’]+|[\'"“”‘’]+$/g, '')
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
     .replace(/[\r\n]/g, ' ')
     .replace(/[。！？!?,;；]+$/g, '')
     .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
@@ -126,9 +126,11 @@ export async function generateTitleFromFirstMessage(
 ): Promise<string> {
   const maxLength = options.maxLength ?? 24;
   try {
+    console.log('[TitleGenerator] start', { provider, model, seedLength: (firstUserMessage || '').length, lang: options.language ?? 'zh' });
     const messages = buildTitlePromptMessages(firstUserMessage, { maxLength, language: options.language ?? 'zh' });
     const { content } = await chat(provider, model, messages, { temperature: 0.2 });
-    console.debug('[TitleGenerator] 原始模型输出:', content);
+    console.debug('[TitleGenerator] 原始模型输出长度:', (content || '').length);
+    console.debug('[TitleGenerator] 原始模型输出前200字:', String(content || '').slice(0, 200));
     // 尝试优先从结构化输出中解析
     const parsed = extractTitleFromOutput(content, maxLength);
     console.debug('[TitleGenerator] 解析后的标题:', parsed);
@@ -143,7 +145,7 @@ export async function generateTitleFromFirstMessage(
   }
 
   // 降级策略
-  const policy = options.fallbackPolicy ?? 'trim';
+  const policy = options.fallbackPolicy ?? 'none';
   if (policy === 'trim') {
     const fallback = normalizeTitle(firstUserMessage, maxLength);
     return fallback || '新对话';
@@ -174,7 +176,7 @@ export function extractTitleFromOutput(raw: string, maxLength: number): string {
         .replace(/\\"/g, '"');
       return normalizeTitle(unescaped, maxLength);
     }
-  } catch {}
+  } catch { /* ignore regex parse */ }
 
   // 1) JSON 解析：{ "title": "..." }
   try {
@@ -194,7 +196,7 @@ export function extractTitleFromOutput(raw: string, maxLength: number): string {
             if (obj && typeof obj.title === 'string') {
               return normalizeTitle(obj.title, maxLength);
             }
-          } catch {}
+          } catch { /* ignore partial parse step */ }
         }
       }
       // 直接尝试整体解析
@@ -203,9 +205,9 @@ export function extractTitleFromOutput(raw: string, maxLength: number): string {
         if (obj && typeof obj.title === 'string') {
           return normalizeTitle(obj.title, maxLength);
         }
-      } catch {}
+      } catch { /* ignore full parse step */ }
     }
-  } catch {}
+  } catch { /* ignore json block outer */ }
 
   // 2) XML/HTML 标签：<title>...</title>
   const xmlMatch = text.match(/<title>([\s\S]*?)<\/title>/i);
