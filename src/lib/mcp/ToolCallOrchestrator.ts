@@ -38,6 +38,22 @@ export async function executeToolCall(params: {
         const stx = useChatStore.getState();
         // 改为通过状态机更新已有“运行中”卡片，避免生成重复卡片
         stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: hint, schemaHint: hint, cardId });
+        // 关键修复：即使工具不存在，也把该错误作为“工具调用结果”继续进入追问流程，驱动模型自我纠正
+        await continueWithToolResult({
+          assistantMessageId,
+          provider,
+          model,
+          conversationId,
+          historyForLlm,
+          originalUserContent,
+          server,
+          tool: effectiveTool,
+          result: {
+            error: 'TOOL_NOT_FOUND',
+            message: hint,
+            availableTools: available?.map((t:any)=>t?.name).filter(Boolean) || [],
+          }
+        });
         return;
       }
     }
@@ -60,6 +76,20 @@ export async function executeToolCall(params: {
 
     const st = useChatStore.getState();
     st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint, cardId });
+    // 关键修复：当调用发生错误时，也继续走追问链路，把错误与 schema 提示一并提供给模型
+    try {
+      await continueWithToolResult({
+        assistantMessageId,
+        provider,
+        model,
+        conversationId,
+        historyForLlm,
+        originalUserContent,
+        server,
+        tool: effectiveTool,
+        result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint }
+      });
+    } catch { /* ignore */ }
   }
 }
 
