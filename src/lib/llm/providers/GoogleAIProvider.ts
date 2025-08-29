@@ -18,7 +18,7 @@ export class GoogleAIProvider extends BaseProvider {
       const apiKey = await this.getApiKey();
       const base = (this as any).baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com/v1beta';
       const url = `${base}/models${apiKey ? `?key=${encodeURIComponent(apiKey)}` : ''}`;
-      const resp: any = await (await import('@/lib/request')).tauriFetch(url, { method: 'GET' });
+      const resp: any = await (await import('@/lib/request')).tauriFetch(url, { method: 'GET', fallbackToBrowserOnError: true, verboseDebug: true, debugTag: 'ModelList' });
       const items = Array.isArray(resp?.models) ? resp.models : (Array.isArray(resp?.data) ? resp.data : []);
       if (Array.isArray(items) && items.length) {
         return items.map((it: any)=>{

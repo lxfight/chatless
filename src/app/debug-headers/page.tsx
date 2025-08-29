@@ -57,6 +57,9 @@ export default function DebugHeadersPage() {
         rawResponse: true,
         browserHeaders: true,
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        fallbackToBrowserOnError: true,
+        verboseDebug: true,
+        debugTag: 'ModelList',
       });
       
       const headerInfo = extractHeadersFromResponse(response, url, 'GET');

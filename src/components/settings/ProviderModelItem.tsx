@@ -58,7 +58,7 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
           type="button"
           className="text-left text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate hover:bg-gray-100/60 dark:hover:bg-gray-800/60 rounded px-0.5"
           title={(model.label || model.name) + '（点击复制ID）'}
-          onClick={async()=>{ try { await navigator.clipboard.writeText(model.name); toast.success('已复制模型 ID'); } catch { toast.error('复制失败'); } }}
+          onClick={async()=>{ try { await navigator.clipboard.writeText(model.name);  } catch { toast.error('复制失败'); } }}
         >
           {model.label || model.name}
         </button>
@@ -204,6 +204,25 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
               <div className="px-3 py-2">
                 <label className="block text-xs text-gray-500 mb-1">请求策略</label>
                 <div className="flex flex-wrap gap-1.5">
+                  {(() => {
+                    const { inferStrategyFromModelId } = require('@/lib/provider/strategyInference');
+                    return (
+                      <button
+                        className="px-2 py-0.5 rounded border text-[11px] border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                        onClick={async(e)=>{
+                          e.preventDefault();
+                          try {
+                            const { specializedStorage } = await import('@/lib/storage');
+                            const st = inferStrategyFromModelId(model.name);
+                            if (!st) { toast.success('未命中规则，已跳过'); return; }
+                            await specializedStorage.models.setModelStrategy(providerName, model.name, st);
+                            onStrategyChange?.(st);
+                            toast.success('已自动推断并设置策略');
+                          } catch(err) { console.error(err); toast.error('自动推断失败'); }
+                        }}
+                      >自动推断</button>
+                    );
+                  })()}
                   {['openai-compatible','openai-responses','openai','anthropic','gemini','deepseek'].map((s)=> (
                     <button key={s} className={`px-2 py-0.5 rounded border text-[11px] ${strategy===s? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
                       onClick={async(e)=>{ e.preventDefault(); try { const { specializedStorage } = await import('@/lib/storage'); await specializedStorage.models.setModelStrategy(providerName, model.name, s as any); onStrategyChange?.(s); toast.success('已更新策略'); } catch(err){ console.error(err); toast.error('更新策略失败'); } }}>

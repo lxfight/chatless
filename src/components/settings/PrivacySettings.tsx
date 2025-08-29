@@ -104,7 +104,7 @@ export function PrivacySettings() {
         // 嵌入模型列表
         const embedIds = modelsConfig.filter(m => m.strategy === "ollama").map(m => m.id);
 
-        const resp = await tauriFetch(`${ollamaUrl}/api/tags`, { method: 'GET', rawResponse: true, danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true } });
+        const resp = await tauriFetch(`${ollamaUrl}/api/tags`, { method: 'GET', rawResponse: true, danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true }, fallbackToBrowserOnError: true, verboseDebug: true, debugTag: 'ModelList' });
         if (resp.ok) {
           const data = await resp.json() as { models?: any[] };
           const names = data.models?.map(m => m.name) || [];

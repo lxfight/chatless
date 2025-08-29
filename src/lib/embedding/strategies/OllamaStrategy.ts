@@ -42,6 +42,9 @@ export class OllamaStrategy implements EmbeddingStrategy {
           'Content-Type': 'application/json',
         },
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        fallbackToBrowserOnError: true,
+        verboseDebug: true,
+        debugTag: 'ModelList',
         signal: AbortSignal.timeout(this.config.timeout || 10000),
       });
 
@@ -142,6 +145,7 @@ export class OllamaStrategy implements EmbeddingStrategy {
           stream: false,
         }),
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        // POST 不启用 fallback，避免重复提交副作用
         signal: AbortSignal.timeout(this.config.timeout || 30000),
       });
 
@@ -235,6 +239,9 @@ export class OllamaStrategy implements EmbeddingStrategy {
           'Content-Type': 'application/json',
         },
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        fallbackToBrowserOnError: true,
+        verboseDebug: true,
+        debugTag: 'ModelList',
         signal: AbortSignal.timeout(5000),
       });
       

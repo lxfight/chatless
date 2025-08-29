@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 
-type Strategy = 'default' | 'openai-compatible' | 'openai-responses' | 'openai' | 'anthropic' | 'gemini' | 'deepseek';
+type Strategy = 'default' | 'auto' | 'openai-compatible' | 'openai-responses' | 'openai' | 'anthropic' | 'gemini' | 'deepseek';
 
 type Row = { id: string; label: string; strategy: Strategy };
 
 const STRATEGY_OPTIONS: Array<{ value: Strategy; label: string }> = [
   { value: 'default', label: '跟随默认' },
+  { value: 'auto', label: '自动推断策略（按模型ID）' },
   { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
   { value: 'openai-responses', label: 'OpenAI Responses (/v1/responses)' },
   { value: 'openai', label: 'OpenAI Strict' },
@@ -55,11 +56,14 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
 
       await modelRepository.save(providerName, list);
 
-      // 写入模型策略覆盖（非 default 才写）
+      // 写入模型策略覆盖（非 default 才写；auto 则按ID推断）
+      const { inferStrategyFromModelId } = require('@/lib/provider/strategyInference');
       await Promise.all(
-        payload.filter(p => p.strategy !== 'default').map(p =>
-          specializedStorage.models.setModelStrategy(providerName, p.id, p.strategy as any)
-        )
+        payload.filter(p => p.strategy !== 'default').map(p => {
+          const st = p.strategy === 'auto' ? inferStrategyFromModelId(p.id) : p.strategy;
+          if (!st) return Promise.resolve();
+          return specializedStorage.models.setModelStrategy(providerName, p.id, st);
+        })
       );
 
       toast.success(`已添加/更新 ${payload.length} 个模型`);

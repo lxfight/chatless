@@ -1,11 +1,13 @@
 "use client";
+import type { StrategyValue } from "@/lib/provider/strategyInference";
 import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 
-type Strategy = 'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek';
+type Strategy = 'openai' | 'openai-responses' | 'openai-compatible' | 'anthropic' | 'gemini' | 'deepseek' | '__auto__';
 
 const STRATEGY_OPTIONS: Array<{ value: Strategy; label: string }> = [
+  { value: '__auto__', label: '自动推断策略（按模型ID）' },
   { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
   { value: 'openai-responses', label: 'OpenAI Responses (/v1/responses)' },
   { value: 'openai', label: 'OpenAI Strict' },
@@ -31,10 +33,27 @@ export function ProviderStrategySelector({
           value={value}
           onValueChange={async (val: Strategy) => {
             try {
-              onChange(val);
-              const { specializedStorage } = await import('@/lib/storage');
-              await specializedStorage.models.setProviderDefaultStrategy(providerName, val as any);
-              toast.success('已更新默认策略');
+              if (val === '__auto__') {
+                // 自动推断：清除provider默认策略，由每个模型按ID推断；对已有模型尝试一次性写入推断结果
+                const { modelRepository } = await import('@/lib/provider/ModelRepository');
+                const { specializedStorage } = await import('@/lib/storage');
+                const list = (await modelRepository.get(providerName)) || [];
+                const { inferStrategyFromModelId } = require('@/lib/provider/strategyInference');
+                const mapped = list.map((m:any)=> [m.name, inferStrategyFromModelId(m.name)] as const);
+                const hits = mapped.filter(([, s]) => !!s) as Array<[string, StrategyValue]>;
+                if (hits.length) {
+                  await Promise.all(hits.map(([id, st]) => specializedStorage.models.setModelStrategy(providerName, id, st)));
+                }
+                await specializedStorage.models.removeProviderDefaultStrategy(providerName);
+                onChange('openai-compatible');
+                const skipped = list.length - (hits?.length || 0);
+                toast.success(`已为 ${hits.length} 个模型自动设置策略${skipped? `，${skipped} 个未命中已跳过`: ''}`);
+              } else {
+                onChange(val);
+                const { specializedStorage } = await import('@/lib/storage');
+                await specializedStorage.models.setProviderDefaultStrategy(providerName, val);
+                toast.success('已更新默认策略');
+              }
             } catch (e) {
               console.error(e);
               toast.error('更新默认策略失败');

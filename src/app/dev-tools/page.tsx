@@ -353,6 +353,7 @@ export default function DevToolsPage() {
           <div className="flex flex-wrap gap-2">
             {/* 常用入口本地化 */}
             <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/mcp-test'); handleNavigate(); }}>MCP 测试</Button>
+            <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/http'); handleNavigate(); }}>HTTP 测试</Button>
             <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/chat-layout-preview'); handleNavigate(); }}>Chat 布局预览</Button>
             <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/dialog-test'); handleNavigate(); }}>对话框测试</Button>
             <Button variant="secondary" size="sm" onClick={()=>{ setJumpPath('/dev-tools/download-test'); handleNavigate(); }}>下载测试</Button>

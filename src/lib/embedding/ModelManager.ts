@@ -472,6 +472,9 @@ export class ModelManager {
       const response = await tauriFetch(`${this.ollamaUrl}/api/tags`, {
         method: 'GET',
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        fallbackToBrowserOnError: true,
+        verboseDebug: true,
+        debugTag: 'ModelList',
       });
       if (!response.ok) return false;
 

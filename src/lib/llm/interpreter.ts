@@ -2,10 +2,14 @@
 
 import { Message, StreamCallbacks, ChatOptions } from './types';
 import type { BaseProvider } from './providers/BaseProvider';
-import { tauriFetch } from '@/lib/request';
-import { isTauriEnvironment } from '@/lib/utils/environment';
+// removed unused imports
 import { ProviderRegistry } from './index';
 import { ParameterPolicyEngine } from './ParameterPolicy';
+import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider';
+import { OpenAIProvider } from './providers/OpenAIProvider';
+import { GoogleAIProvider } from './providers/GoogleAIProvider';
+import { AnthropicProvider } from './providers/AnthropicProvider';
+import { DeepSeekProvider } from './providers/DeepSeekProvider';
 
 /**
  * 简化版 LLMInterpreter：
@@ -35,14 +39,14 @@ export class LLMInterpreter {
       model,
       messages,
       {
-        onToken: (t) => (content += t),
-        onComplete: () => { resolveDone && resolveDone(); },
-        onError: (e) => { rejectDone && rejectDone(e); },
+        onToken: (t) => { content += t; },
+        onComplete: () => { if (resolveDone) resolveDone(); },
+        onError: (e) => { if (rejectDone) rejectDone(e); },
       },
       options
     ).catch(() => {});
 
-    try { await donePromise; } catch (_) { /* 忽略，交由上层回退 */ }
+    try { await donePromise; } catch { /* 忽略，交由上层回退 */ }
     return { content, raw: null };
   }
 
@@ -63,7 +67,7 @@ export class LLMInterpreter {
     // 0. 通知当前 Provider 主动关闭（确保其内部的 SSEClient 也会移除监听并调用后端 stop_sse）
     try {
       this.activeProvider?.cancelStream?.();
-    } catch (_) {}
+    } catch { /* ignore */ }
 
     // 1. fetch 流
     if (this.currentStreamController) {
@@ -73,7 +77,7 @@ export class LLMInterpreter {
     // 2. SSE 流
     if (this.sseUnlisten.length) {
       this.sseUnlisten.forEach((u) => {
-        try { u(); } catch (_) {}
+        try { u(); } catch { /* ignore */ }
       });
       this.sseUnlisten = [];
       import('@tauri-apps/api/core')
@@ -104,18 +108,19 @@ export class LLMInterpreter {
       throw err;
     }
 
+    // 计算参数策略应用时的“有效 Provider 名称”与“生效策略”
+    // 任何 Provider 只要为模型/Provider 配置了“请求策略”，就按策略视作对应的真实 Provider，
+    // 以便 ParameterPolicyEngine 应用正确的参数形态。
+    let policyProviderName: string = useProvider;
+    let effectiveStrategy: 'openai'|'openai-responses'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'|null = null;
     try {
-      // 计算参数策略应用时的“有效 Provider 名称”
-      // 场景：New API 这类多策略聚合，根据模型选择下游协议，需要把策略引擎视作对应的真实 Provider
-      let policyProviderName = useProvider;
       try {
-        const lower = useProvider.toLowerCase();
-        const isMulti = lower === 'new api' || lower === 'newapi';
-        if (isMulti) {
-          const { specializedStorage } = await import('@/lib/storage');
-          const s = (await specializedStorage.models.getModelStrategy(useProvider, model))
-            || (await specializedStorage.models.getProviderDefaultStrategy(useProvider))
-            || 'openai-compatible';
+        const { specializedStorage } = await import('@/lib/storage');
+        const s = (await specializedStorage.models.getModelStrategy(useProvider, model))
+          || (await specializedStorage.models.getProviderDefaultStrategy(useProvider))
+          || null;
+        if (s) {
+          effectiveStrategy = s as any;
           policyProviderName = ((): string => {
             switch (s) {
               case 'gemini': return 'Google AI';
@@ -127,16 +132,44 @@ export class LLMInterpreter {
             }
           })();
         }
-      } catch (_) {}
+      } catch { /* ignore */ }
 
       // 应用参数策略（按 Provider/模型正则自动注入/修正）
       const refined = ParameterPolicyEngine.apply(policyProviderName, model, options || {});
-      // 记录活跃 Provider，供 cancelStream 使用
+
+      // 若存在“生效策略”，则在解释器层按策略委派到对应 Provider 实现，
+      // 以解决自定义聚合 Provider 在注册时为 openai-compatible 的情况。
+      if (effectiveStrategy) {
+        const base = (strategy as any).baseUrl;
+        const display = useProvider; // 维持原 Provider 名称，便于 KeyManager 取 key
+        let delegate: BaseProvider;
+        switch (effectiveStrategy) {
+          case 'gemini': delegate = new GoogleAIProvider(base+"/v1beta/", undefined); (delegate as any).aliasProviderName = display; break;
+          case 'anthropic': delegate = new AnthropicProvider(base, undefined); (delegate as any).aliasProviderName = display; break;
+          case 'deepseek': delegate = new DeepSeekProvider(base, undefined); (delegate as any).aliasProviderName = display; break;
+          case 'openai': delegate = new OpenAIProvider(base, undefined, display); (delegate as any).aliasProviderName = display; break;
+          case 'openai-compatible': default: delegate = new OpenAICompatibleProvider(base, undefined, display); (delegate as any).aliasProviderName = display; break;
+        }
+        this.activeProvider = delegate;
+        await delegate.chatStream(model, messages as any, callbacks, refined);
+        return;
+      }
+
+      // 默认：使用原始 Provider
       this.activeProvider = strategy;
       await strategy.chatStream(model, messages as any, callbacks, refined);
     } catch (e: any) {
-      callbacks.onError?.(e);
-      throw e;
+      const strategyLabel = effectiveStrategy ? (effectiveStrategy as string) : '(未设置)';
+      const extra = `模型: ${model} · Provider: ${provider} · 策略: ${strategyLabel}`;
+      const msg = (e && typeof e.message === 'string') ? e.message : String(e);
+      const merged = msg.includes(extra) ? msg : `${msg}\n${extra}`;
+      const err = new Error(merged);
+      try {
+        const orig: any = e;
+        if (orig && orig.code) Object.assign(err, { code: orig.code });
+      } catch { /* noop */ }
+      callbacks.onError?.(err);
+      throw err;
     }
   }
 }

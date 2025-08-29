@@ -139,7 +139,7 @@ export class ProviderModelService {
         let onlineList: any[] = [];
         let ruleSuccess = false;
         try {
-          const res: any = await tauriFetch(url, { method: 'GET', headers });
+          const res: any = await tauriFetch(url, { method: 'GET', headers, fallbackToBrowserOnError: true, verboseDebug: true, debugTag: 'ModelList' });
           const pickByPath = (obj: any, path?: string) => {
             if (!path) return undefined;
             return path.split('.').reduce((acc: any, key: string) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);

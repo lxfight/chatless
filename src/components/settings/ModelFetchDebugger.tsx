@@ -75,7 +75,7 @@ export function ModelFetchDebugger({ open, onOpenChange, provider, baseUrl }: Mo
           if (k) headers['Authorization'] = `Bearer ${k}`;
         } catch {}
       }
-      const res: any = await tauriFetch(url, { method: 'GET', headers });
+      const res: any = await tauriFetch(url, { method: 'GET', headers, fallbackToBrowserOnError: true, verboseDebug: true, debugTag: 'ModelList' });
       // 若 schema 文本区为空，则自动填充为最新响应体，便于一键 AI 解析
       try {
         const current = (schemaText || '').trim();

@@ -28,7 +28,10 @@ export class OllamaProvider extends BaseProvider {
           rawResponse: true,
           browserHeaders: true,
           danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
-          timeout: 8000 // 同时设置tauriFetch的超时
+          timeout: 8000, // 同时设置tauriFetch的超时
+          fallbackToBrowserOnError: true,
+          verboseDebug: true,
+          debugTag: 'ModelList'
         }));
         console.log(`[OllamaProvider] tauriFetch 成功，状态码: ${resp.status}`);
         
@@ -211,7 +214,10 @@ export class OllamaProvider extends BaseProvider {
           rawResponse: true, 
           browserHeaders: true,
           danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
-          timeout: 8000 // 同时设置tauriFetch的超时
+          timeout: 8000, // 同时设置tauriFetch的超时
+          fallbackToBrowserOnError: true,
+          verboseDebug: true,
+          debugTag: 'ModelList'
         }));
       } catch (fetchError) {
         // 如果tauriFetch失败，尝试使用原生fetch

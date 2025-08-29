@@ -23,7 +23,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
       if (!base) throw new Error('no base url');
       const url = `${base}/models`;
       const { tauriFetch } = await import('@/lib/request');
-      const resp: any = await tauriFetch(url, { method: 'GET', headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} });
+      const resp: any = await tauriFetch(url, { method: 'GET', headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {}, fallbackToBrowserOnError: true, verboseDebug: true, debugTag: 'ModelList' });
       const items = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
       if (Array.isArray(items) && items.length) {
         return items.map((it: any) => {

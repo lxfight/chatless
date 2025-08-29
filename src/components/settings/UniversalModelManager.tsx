@@ -278,6 +278,9 @@ export function UniversalModelManager({}: UniversalModelManagerProps) {
         rawResponse: true,
         browserHeaders: true,
         danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+        fallbackToBrowserOnError: true,
+        verboseDebug: true,
+        debugTag: 'ModelList',
       });
 
       console.log('[checkOllamaModels] HTTP status', response.status, response.statusText);

@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { StrategyValue } from "@/lib/provider/strategyInference";
 
 interface ProviderModelListProps {
   provider: ProviderWithStatus;
@@ -81,6 +82,28 @@ export function ProviderModelList(props: ProviderModelListProps) {
     } catch (e) {
       console.error(e);
       toast.error('批量设置失败');
+    }
+  };
+
+  // —— 自动推断：根据模型ID推断策略 ——
+  const { inferStrategyFromModelId } = require('@/lib/provider/strategyInference');
+
+  const applyAutoInfer = async () => {
+    try {
+      const ids = Object.keys(checked).filter(k => checked[k]);
+      if (ids.length === 0) { toast.error('请先选择模型'); return; }
+      const { specializedStorage } = await import('@/lib/storage');
+      const entries = ids.map(id => [id, inferStrategyFromModelId(id)] as const);
+      const hits = entries.filter(([, s]) => !!s) as Array<[string, StrategyValue]>;
+      if (hits.length) {
+        await Promise.all(hits.map(([id, strat]) => specializedStorage.models.setModelStrategy(props.provider.name, id, strat)));
+        setStrategyMap(prev => ({ ...prev, ...Object.fromEntries(hits) }));
+      }
+      const missed = ids.length - hits.length;
+      toast.success(`已为 ${hits.length} 个模型设置策略${missed? `，${missed} 个未命中已跳过`: ''}`);
+    } catch (e) {
+      console.error(e);
+      toast.error('自动推断失败');
     }
   };
 
@@ -259,9 +282,10 @@ export function ProviderModelList(props: ProviderModelListProps) {
           )}
           {isMultiStrategyProvider && batchMode && (
             <>
-              <Select value={batchStrategy} onValueChange={(v:any)=>{ if (v === '__clear__') { const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void clearBatch(); } return; } setBatchStrategy(v); const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void applyBatch(v); } }}>
+              <Select value={batchStrategy} onValueChange={(v:any)=>{ if (v === '__clear__') { const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void clearBatch(); } return; } if (v === '__auto__') { void applyAutoInfer(); return; } setBatchStrategy(v); const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void applyBatch(v); } }}>
                 <SelectTrigger className="w-56 h-7 text-xs"><SelectValue placeholder="选择策略"/></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__auto__" className="text-xs">自动推断策略（按模型ID）</SelectItem>
                   <SelectItem value="openai-compatible" className="text-xs">OpenAI Compatible (/v1/chat/completions)</SelectItem>
                   <SelectItem value="openai-responses" className="text-xs">OpenAI Responses (/v1/responses)</SelectItem>
                   <SelectItem value="openai" className="text-xs">OpenAI Strict</SelectItem>
@@ -273,8 +297,32 @@ export function ProviderModelList(props: ProviderModelListProps) {
               </Select>
               <Button className="h-7 px-3 text-xs" onClick={() => applyBatch()}>应用到选中</Button>
               <Button variant="secondary" className="h-7 px-3 text-xs" onClick={clearBatch}>清除覆盖</Button>
-              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setAll(modelsForDisplay.map(m=>m.name), true)}>全选</Button>
-              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setChecked({})}>清空</Button>
+              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setAll(modelsForDisplay.map(m=>m.name), true)}>全选全部</Button>
+              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setChecked({})}>清空全部</Button>
+              <Button
+                variant="ghost"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => {
+                  const currentPageItems = (() => {
+                    const filtered = modelsForDisplay.filter((m) => {
+                      const textOk = (m.label || m.name || '').toLowerCase().includes(modelSearch.toLowerCase());
+                      if (!textOk) return false;
+                      if (!filterThinking && !filterTools && !filterVision) return true;
+                      const caps = getModelCapabilities(m.name);
+                      if (filterThinking && !caps.supportsThinking) return false;
+                      if (filterTools && !caps.supportsFunctionCalling) return false;
+                      if (filterVision && !caps.supportsVision) return false;
+                      return true;
+                    }).sort(compareModels);
+                    const total = filtered.length;
+                    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+                    const safePage = Math.min(Math.max(1, page), totalPages);
+                    const start = (safePage - 1) * PAGE_SIZE;
+                    return filtered.slice(start, start + PAGE_SIZE);
+                  })();
+                  setAll(currentPageItems.map(x=>x.name), true);
+                }}
+              >全选本页</Button>
             </>
           )}
           {!isOllama && (
@@ -361,6 +409,27 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>上一页</button>
                   <span>{safePage}/{totalPages}</span>
                   <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>下一页</button>
+                  {batchMode && isMultiStrategyProvider ? (
+                    (() => {
+                      const ids = pageItems.map(x=>x.name);
+                      const allChecked = ids.every(id => !!checked[id]);
+                      const anyChecked = ids.some(id => !!checked[id]);
+                      const label = allChecked ? '取消本页' : (anyChecked ? '反选本页' : '全选本页');
+                      return (
+                        <button
+                          className="px-2 py-1 border rounded"
+                          onClick={()=>{
+                            if (allChecked) { setAll(ids, false); return; }
+                            setChecked(prev => {
+                              const next: Record<string, boolean> = { ...prev };
+                              for (const id of ids) next[id] = !prev[id];
+                              return next;
+                            });
+                          }}
+                        >{label}</button>
+                      );
+                    })()
+                  ) : null}
                 </div>
 
                 {/* 分组渲染 */}
@@ -369,7 +438,25 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   if (list.length === 0) return null;
                   return (
                     <div key={series} className="mt-2">
-                      <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-2 py-1">{series}</div>
+                      <div className="flex items-center justify-between px-2 py-1">
+                        <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">{series}</div>
+                        {batchMode && isMultiStrategyProvider ? (
+                          (() => {
+                            const groupIds = list.map(x => x.name);
+                            const allChecked = groupIds.every(id => !!checked[id]);
+                            const next = !allChecked;
+                            return (
+                              <button
+                                type="button"
+                                className="text-[11px] px-2 py-0.5 border rounded text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                onClick={() => setAll(groupIds, next)}
+                              >
+                                {allChecked ? '取消本组' : '全选本组'}
+                              </button>
+                            );
+                          })()
+                        ) : null}
+                      </div>
                       <div className="space-y-2">
                         {list.sort(compareModels).map(renderItem)}
                       </div>
