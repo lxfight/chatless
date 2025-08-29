@@ -57,5 +57,9 @@ export const MODEL_FETCH_RULES: Record<string, ModelFetchRule> = {
     "idPath": "name",
     "labelPath": "displayName",
     "modelsArrayPath": "models"
+  },
+  "new api": {
+    "autoLabelFromId": true,
+    "endpointSuffix": "/models"
   }
 };
