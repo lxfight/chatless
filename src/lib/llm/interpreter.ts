@@ -137,18 +137,48 @@ export class LLMInterpreter {
       // 应用参数策略（按 Provider/模型正则自动注入/修正）
       const refined = ParameterPolicyEngine.apply(policyProviderName, model, options || {});
 
-      // 若存在“生效策略”，则在解释器层按策略委派到对应 Provider 实现，
+      // 若存在"生效策略"，则在解释器层按策略委派到对应 Provider 实现，
       // 以解决自定义聚合 Provider 在注册时为 openai-compatible 的情况。
       if (effectiveStrategy) {
+        // 检查原始Provider是否需要API密钥，如果不需要则跳过委派
+        const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+        const providers = await providerRepository.getAll();
+        const originalProvider = providers.find(p => p.name === useProvider);
+        
+        if (originalProvider && !originalProvider.requiresKey) {
+          // 如果原始Provider不需要API密钥，直接使用原始Provider，不进行委派
+          this.activeProvider = strategy;
+          await strategy.chatStream(model, messages as any, callbacks, refined);
+          return;
+        }
+        
         const base = (strategy as any).baseUrl;
         const display = useProvider; // 维持原 Provider 名称，便于 KeyManager 取 key
+        
+        // 获取原始Provider的API密钥
+        let apiKey: string | undefined = undefined;
+        try {
+          const { KeyManager } = await import('@/lib/llm/KeyManager');
+          // 先尝试获取模型级别的API密钥
+          const modelKey = await KeyManager.getModelKey(display, model);
+          // 如果没有模型级别的密钥，尝试获取Provider级别的密钥
+          if (modelKey) {
+            apiKey = modelKey;
+          } else {
+            const providerKey = await KeyManager.getProviderKey(display);
+            apiKey = providerKey || undefined;
+          }
+        } catch (error) {
+          console.warn(`Failed to get API key for ${display}:`, error);
+        }
+        
         let delegate: BaseProvider;
         switch (effectiveStrategy) {
-          case 'gemini': delegate = new GoogleAIProvider(base+"/v1beta/", undefined); (delegate as any).aliasProviderName = display; break;
-          case 'anthropic': delegate = new AnthropicProvider(base, undefined); (delegate as any).aliasProviderName = display; break;
-          case 'deepseek': delegate = new DeepSeekProvider(base, undefined); (delegate as any).aliasProviderName = display; break;
-          case 'openai': delegate = new OpenAIProvider(base, undefined, display); (delegate as any).aliasProviderName = display; break;
-          case 'openai-compatible': default: delegate = new OpenAICompatibleProvider(base, undefined, display); (delegate as any).aliasProviderName = display; break;
+          case 'gemini': delegate = new GoogleAIProvider(base+"/v1beta/", apiKey); (delegate as any).aliasProviderName = display; break;
+          case 'anthropic': delegate = new AnthropicProvider(base, apiKey); (delegate as any).aliasProviderName = display; break;
+          case 'deepseek': delegate = new DeepSeekProvider(base, apiKey); (delegate as any).aliasProviderName = display; break;
+          case 'openai': delegate = new OpenAIProvider(base, apiKey, display); (delegate as any).aliasProviderName = display; break;
+          case 'openai-compatible': default: delegate = new OpenAICompatibleProvider(base, apiKey, display); (delegate as any).aliasProviderName = display; break;
         }
         this.activeProvider = delegate;
         await delegate.chatStream(model, messages as any, callbacks, refined);
