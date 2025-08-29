@@ -23,7 +23,11 @@ export class ProviderInitializationService {
 
     const list: ProviderEntity[] = await Promise.all(
       registryProviders.map(async (p): Promise<ProviderEntity> => {
-        const requiresKey = p.name !== "Ollama";
+        // 从catalog中获取正确的requiresKey值
+        const { AVAILABLE_PROVIDERS_CATALOG } = await import("../catalog");
+        const catalogDef = AVAILABLE_PROVIDERS_CATALOG.find(def => def.name === p.name);
+        const requiresKey = catalogDef ? catalogDef.requiresKey : p.name !== "Ollama"; // 兜底逻辑
+        
         const apiKey = requiresKey ? await KeyManager.getProviderKey(p.name) : null;
         const initStatus = requiresKey && !apiKey ? ProviderStatus.NO_KEY : ProviderStatus.UNKNOWN;
 

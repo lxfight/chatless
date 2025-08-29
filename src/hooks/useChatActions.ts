@@ -102,8 +102,43 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   // 将错误信息压缩为短文本，避免右下角提示过长
   const briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
 
-  const checkApiKeyValidity = useCallback(async (_providerName: string, _modelId: string): Promise<boolean> => {
-    return true;
+  const checkApiKeyValidity = useCallback(async (providerName: string, modelId: string): Promise<boolean> => {
+    try {
+      // 获取provider配置信息
+      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+      const providers = await providerRepository.getAll();
+      const provider = providers.find(p => p.name === providerName);
+      
+      if (!provider) {
+        console.warn(`Provider ${providerName} not found`);
+        return false;
+      }
+      
+      // 如果provider不需要密钥，直接返回true
+      if (!provider.requiresKey) {
+        return true;
+      }
+      
+      // 如果provider需要密钥，检查是否有有效的API密钥
+      const { KeyManager } = await import('@/lib/llm/KeyManager');
+      
+      // 先检查模型级别的API密钥
+      const modelKey = await KeyManager.getModelKey(providerName, modelId);
+      if (modelKey && modelKey.trim()) {
+        return true;
+      }
+      
+      // 再检查provider级别的API密钥
+      const providerKey = await KeyManager.getProviderKey(providerName);
+      if (providerKey && providerKey.trim()) {
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking API key validity:', error);
+      return false;
+    }
   }, []);
 
   // 优化的批量更新函数

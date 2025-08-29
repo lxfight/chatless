@@ -45,7 +45,12 @@ function buildQuickList(): QuickProviderMeta[] {
   
   return providers.map((p) => {
     const slug = p.name.toLowerCase().replace(/\s+/g, '-');
-    const requiresKey = p.name !== 'Ollama';
+    
+    // 从catalog中获取正确的requiresKey值
+    const { AVAILABLE_PROVIDERS_CATALOG } = require('@/lib/provider/catalog');
+    const catalogDef = AVAILABLE_PROVIDERS_CATALOG.find(def => def.name === p.name);
+    const requiresKey = catalogDef ? catalogDef.requiresKey : p.name !== 'Ollama'; // 兜底逻辑
+    
     // 统一从 png 起步，减少首个 404；后续由 UI 的门面根据命中/缺失映射自动切换
     const icon = `${PROVIDER_ICON_BASE(slug)}.png`;
     return {
@@ -55,7 +60,7 @@ function buildQuickList(): QuickProviderMeta[] {
       api_base_url: (p as any).baseUrl ?? '',
       requiresApiKey: requiresKey,
       models: [],
-      // 初始状态使用 UNKNOWN，避免误导性的“检查中”常驻显示
+      // 初始状态使用 UNKNOWN，避免误导性的"检查中"常驻显示
       displayStatus: 'UNKNOWN',
       statusTooltip: '初始化中…',
     };
