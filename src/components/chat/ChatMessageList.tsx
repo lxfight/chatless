@@ -38,7 +38,7 @@ export function ChatMessageList({
 
   return (
     <div className="flex-1 custom-scrollbar">
-      <div className="px-2 py-2">
+      <div className="px-1 py-1">
         {messages.map((message, idx) => (
           <div
             key={message.id}
@@ -49,7 +49,7 @@ export function ChatMessageList({
               }
             }}
             data-message-id={message.id}
-            className='ml-4 mr-4'
+            className='ml-2 mr-2'
           >
 
             <ChatMessage

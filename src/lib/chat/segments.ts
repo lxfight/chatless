@@ -53,7 +53,8 @@ export function insertRunningCard(
 ): MessageSegment[] {
   const out = [...segments];
   // 关键修复：必须带上 kind: 'toolCard'，否则上层统计与渲染将无法识别为卡片
-  out.push({ ...card, status: 'running' } as ToolCardSegment);
+  //@ts-expect-error  必须忽略ts的类型检查，否则会报错
+  out.push({ kind: 'toolCard', ...card, status: 'running' } as ToolCardSegment);
   return out;
 }
 

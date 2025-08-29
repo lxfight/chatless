@@ -278,7 +278,8 @@ export function AIMessageBlock({
   }, [content, segments, state?.regularContent, viewModel?.items]);
 
   return (
-    <div className="group prose chat-prose prose-slate dark:prose-invert inline-block max-w-[min(70ch,100%)] break-words whitespace-pre-wrap rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-4 shadow-sm overflow-hidden">
+    <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-2 shadow-sm">
+   
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
         <div className="flex items-center gap-3 py-2">

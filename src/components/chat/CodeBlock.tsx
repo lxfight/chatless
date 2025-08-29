@@ -31,7 +31,7 @@ const CodeBlock = memo(({ language, code }: CodeBlockProps) => {
   const detectedLanguage = language || 'bash';
 
   return (
-    <div className="relative group my-4 rounded-md bg-[#282c34] text-slate-100 w-full max-w-full overflow-x-auto">
+    <div className="relative group my-4 rounded-md bg-[#282c34] text-slate-100 w-full max-w-full min-w-0 overflow-x-auto">
       {/* 复制按钮 */}
       <Button
         variant="ghost"
@@ -48,7 +48,7 @@ const CodeBlock = memo(({ language, code }: CodeBlockProps) => {
         {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
       </Button>
 
-      <div className="w-full max-w-full">
+      <div className="w-full max-w-full min-w-0">
         <SyntaxHighlighter
           language={detectedLanguage}
           style={oneDark}
@@ -58,12 +58,16 @@ const CodeBlock = memo(({ language, code }: CodeBlockProps) => {
             backgroundColor: '#282c34',
             borderRadius: '0.375rem',
             fontSize: '0.875rem',
+            width: '100%',
             maxWidth: '100%',
           }}
           codeTagProps={{
             style: {
               fontFamily: '"Fira Code", "Courier New", monospace',
               whiteSpace: 'pre',
+              display: 'block',
+              minWidth: 0,
+              maxWidth: '100%',
             },
           }}
           wrapLongLines={false}

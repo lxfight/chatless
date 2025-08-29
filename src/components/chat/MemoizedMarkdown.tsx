@@ -168,8 +168,9 @@ export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: Memo
     String(tag).replaceAll('<', '&lt;').replaceAll('>', '&gt;')
   );
 
+  //关键修复：whitespace-normal,这可以避免whitespace-pre出现奇怪的间距问题，需要特殊控制时则由特定的组件自行覆盖
   return (
-    <div className={cn(sizeClass, className)}>
+    <div className={cn(sizeClass,"whitespace-normal", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={renderers}>
         {sanitizedContent}
       </ReactMarkdown>
