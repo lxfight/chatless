@@ -1,7 +1,7 @@
 // src-tauri/src/lib/sse.rs
 use futures_util::StreamExt;
 use lazy_static::lazy_static;
-use reqwest::{Client, Method};
+use reqwest::Method;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -61,7 +61,13 @@ pub async fn start_sse(
     *guard = Some(shutdown_tx);
   }
 
-  let client = Client::new();
+  let client = match crate::http_client::get_browser_like_client() {
+    Ok(client) => (*client).clone(), // 从Arc<Client>转换为Client
+    Err(e) => {
+      app.emit("sse-error", format!("Failed to get HTTP client: {}", e)).ok();
+      return Err(format!("Failed to get HTTP client: {}", e));
+    }
+  };
 
   // 在后台任务中拉取 SSE 数据并通过 Tauri Event 转发给前端
   tauri::async_runtime::spawn(async move {

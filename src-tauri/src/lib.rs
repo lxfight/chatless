@@ -25,6 +25,12 @@ pub mod document_parser;
 #[path = "lib/sse.rs"]
 pub mod sse;
 
+#[path = "lib/http_client.rs"]
+pub mod http_client;
+
+#[path = "lib/http_request.rs"]
+pub mod http_request;
+
 #[tauri::command]
 fn greet() -> String {
   let now = SystemTime::now();
@@ -179,7 +185,12 @@ pub fn run() {
       sse::start_sse,
       sse::stop_sse,
       sse::start_local_sse_server,
-      sse::start_local_mcp_sse
+      sse::start_local_mcp_sse,
+      // —— HTTP Client Commands ——
+      http_client::get_http_client_info,
+      http_client::test_http_client,
+      http_client::compare_http_clients,
+      http_request::send_http_request
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

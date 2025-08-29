@@ -127,7 +127,7 @@ export class ProviderModelService {
         }
       }
 
-      const rule = userRule || builtInRule;
+      const rule = builtInRule || userRule;
       if (rule) {
         const base0 = (target?.url?.trim() || '').replace(/\/$/, '');
         const base = rule.useV1 && !/\/v1\b/.test(base0) ? `${base0}/v1` : base0;

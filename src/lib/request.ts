@@ -36,6 +36,8 @@ export interface RequestOptions {
   includeBodyInLogs?: boolean;
   /** 失败时是否回退到浏览器 fetch（仅对 GET 安全，默认 false） */
   fallbackToBrowserOnError?: boolean;
+  /** Tauri客户端类型: default | browser_like | http1_only */
+  tauriClientType?: "default" | "browser_like" | "http1_only";
   /** 额外透传给 tauri fetch 的任何字段 */
   [key: string]: any;
 }

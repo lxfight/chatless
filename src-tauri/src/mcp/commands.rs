@@ -204,7 +204,9 @@ pub async fn mcp_connect(
     "sse" => {
       let base = config.base_url.clone().ok_or_else(|| "baseUrl required for sse".to_string())?;
       log::debug!("[MCP/sse] connecting baseUrl={}", &base);
-      let req = reqwest::Client::new();
+      let req = crate::http_client::get_browser_like_client()
+        .map_err(|e| format!("Failed to get HTTP client: {}", e))?;
+      let req = (*req).clone(); // 从Arc<Client>转换为Client
       let cfg = SseClientConfig { sse_endpoint: base.into(), ..Default::default() };
       let transport = SseClientTransport::start_with_client(req, cfg).await.map_err(|e| e.to_string())?;
       let service: McpService = ()
@@ -217,7 +219,9 @@ pub async fn mcp_connect(
     "http" => {
       let base = config.base_url.clone().ok_or_else(|| "baseUrl required for http".to_string())?;
       log::debug!("[MCP/http] connecting baseUrl={}", &base);
-      let req = reqwest::Client::new();
+      let req = crate::http_client::get_browser_like_client()
+        .map_err(|e| format!("Failed to get HTTP client: {}", e))?;
+      let req = (*req).clone(); // 从Arc<Client>转换为Client
       let cfg = StreamableHttpClientTransportConfig::with_uri(base);
       let transport = StreamableHttpClientTransport::with_client(req, cfg);
       let service: McpService = ()
