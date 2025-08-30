@@ -100,8 +100,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Install specific targets for macOS builds, skip for other platforms
-          targets: ${{ matrix.targets || '' }}
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -127,10 +128,7 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
-          # macOS architecture-specific variables
-          ${{ matrix.arch == 'x64' && 'TAURI_TARGET' || '' }}: ${{ matrix.arch == 'x64' && 'x86_64-apple-darwin' || '' }}
-          ${{ matrix.arch == 'arm64' && 'TAURI_TARGET' || '' }}: ${{ matrix.arch == 'arm64' && 'aarch64-apple-darwin' || '' }}
-      
+         
       - name: List generated bundles (macOS only)
         if: ${{ matrix.platform == 'macos' }}
         run: |
