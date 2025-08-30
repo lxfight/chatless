@@ -178,22 +178,14 @@ export class SSEClient {
           for (const line of lines) {
             const trimmedLine = line.trim();
             if (trimmedLine) {
-              // 处理SSE格式的数据
+              // 处理SSE格式的数据 - 与Tauri端保持一致
               if (trimmedLine.startsWith('data: ')) {
                 const data = trimmedLine.substring(6);
-                if (data !== '[DONE]') {
-                  callbacks.onData?.(data);
-                } else {
-                  console.debug(`[${debugTag}] 收到结束信号`);
-                  callbacks.onClose?.();
-                  this.stopConnection();
-                  return;
-                }
-              } else if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
-                // 直接的JSON数据
-                callbacks.onData?.(trimmedLine);
+                // 将[DONE]信号传递给业务层处理，与Tauri端保持一致
+                callbacks.onData?.(data);
               } else {
-                // 其他格式数据
+                // 对于非data:开头的行，直接作为数据传递（与Tauri端一致）
+                // 这包括直接的JSON数据和其他格式数据
                 callbacks.onData?.(trimmedLine);
               }
             }
@@ -217,6 +209,7 @@ export class SSEClient {
           } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
               console.debug(`[${debugTag}] Browser SSE stream aborted`);
+              callbacks.onClose?.();
             } else {
               console.error(`[${debugTag}] Browser SSE read error:`, error);
               callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));

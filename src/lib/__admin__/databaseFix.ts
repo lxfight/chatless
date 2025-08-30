@@ -179,3 +179,69 @@ export async function rebuildMessagesTable(db: Database): Promise<void> {
     throw error;
   }
 } 
+
+/**
+ * 强制修复segments字段（如果迁移失败）
+ */
+export async function forceFixSegmentsField(db: Database): Promise<void> {
+  console.log("开始强制修复segments字段...");
+  
+  try {
+    // 检查表结构
+    const tableInfo = await db.select("PRAGMA table_info(messages)");
+    const hasSegments = tableInfo.some(col => col.name === 'segments');
+    
+    console.log(`当前segments字段状态: ${hasSegments}`);
+    
+    if (!hasSegments) {
+      console.log("强制添加segments字段...");
+      
+      // 开始事务
+      await db.execute("BEGIN TRANSACTION");
+      
+      try {
+        // 强制添加segments字段
+        await db.execute("ALTER TABLE messages ADD COLUMN segments TEXT");
+        console.log("segments字段添加成功");
+        
+        // 提交事务
+        await db.execute("COMMIT");
+        
+        // 验证修复结果
+        const newTableInfo = await db.select("PRAGMA table_info(messages)");
+        const newHasSegments = newTableInfo.some(col => col.name === 'segments');
+        console.log(`修复后segments字段状态: ${newHasSegments}`);
+        
+        if (newHasSegments) {
+          console.log("✅ segments字段强制修复成功");
+        } else {
+          console.error("❌ segments字段强制修复失败");
+        }
+        
+      } catch (error) {
+        // 回滚事务
+        await db.execute("ROLLBACK");
+        throw error;
+      }
+    } else {
+      console.log("✅ segments字段已存在");
+    }
+    
+    // 检查现有消息的segments字段
+    const messagesWithSegments = await db.select("SELECT COUNT(*) as count FROM messages WHERE segments IS NOT NULL");
+    const count = (messagesWithSegments as any)[0]?.count || 0;
+    console.log(`当前有 ${count} 条消息包含segments数据`);
+    
+    // 检查最近的消息是否有segments数据
+    const recentMessages = await db.select("SELECT id, content, segments FROM messages ORDER BY created_at DESC LIMIT 5");
+    console.log("最近5条消息的segments状态:");
+    for (const msg of recentMessages as any[]) {
+      const hasSegments = msg.segments !== null && msg.segments !== undefined;
+      console.log(`  - ${msg.id}: ${hasSegments ? '有segments' : '无segments'}`);
+    }
+    
+  } catch (error) {
+    console.error("强制修复segments字段失败:", error);
+    throw error;
+  }
+} 

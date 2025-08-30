@@ -40,6 +40,7 @@ export const DATABASE_SCHEMA = {
       images TEXT,
       thinking_start_time INTEGER,
       thinking_duration INTEGER,
+      segments TEXT,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     )
   `,
