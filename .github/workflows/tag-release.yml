@@ -46,7 +46,14 @@ jobs:
           - os: ubuntu-22.04
             container: ubuntu:22.04
           - os: windows-2022
-          - os: macos-latest
+          - os: macos-13
+            platform: macos
+            arch: x64
+            targets: x86_64-apple-darwin
+          - os: macos-14
+            platform: macos
+            arch: arm64
+            targets: aarch64-apple-darwin
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     steps:
@@ -93,8 +100,8 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          # Install specific targets for macOS builds, skip for other platforms
+          targets: ${{ matrix.targets || '' }}
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -120,10 +127,33 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+          # macOS architecture-specific variables
+          ${{ matrix.arch == 'x64' && 'TAURI_TARGET' || '' }}: ${{ matrix.arch == 'x64' && 'x86_64-apple-darwin' || '' }}
+          ${{ matrix.arch == 'arm64' && 'TAURI_TARGET' || '' }}: ${{ matrix.arch == 'arm64' && 'aarch64-apple-darwin' || '' }}
+      
+      - name: List generated bundles (macOS only)
+        if: ${{ matrix.platform == 'macos' }}
+        run: |
+          echo "=== Generated bundles for ${{ matrix.arch }} ==="
+          echo "Target: ${{ matrix.targets }}"
+          echo "Architecture: ${{ matrix.arch }}"
+          echo ""
+          echo "=== DMG files ==="
+          find src-tauri/target/release/bundle -name "*.dmg" | sort
+          echo ""
+          echo "=== App bundles ==="
+          find src-tauri/target/release/bundle -name "*.app.tar.gz" | sort
+          echo ""
+          echo "=== Bundle directory contents ==="
+          ls -la src-tauri/target/release/bundle/macos/ || echo "macos directory not found"
+          echo ""
+          echo "=== Target directory contents ==="
+          ls -la src-tauri/target/${{ matrix.targets }}/release/ || echo "target directory not found"
+      
       - name: Upload artifacts (filtered bundles only)
         uses: actions/upload-artifact@v4
         with:
-          name: chatless-${{ matrix.os }}
+          name: chatless-${{ matrix.os }}-${{ matrix.arch || 'unknown' }}
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.dmg
