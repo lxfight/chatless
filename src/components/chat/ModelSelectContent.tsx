@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { SelectContent } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Clock, X } from 'lucide-react';
+import { Search, Clock, X, SettingsIcon } from 'lucide-react';
 import { ModelList } from './ModelList';
 import { RecentModelsList } from './RecentModelsList';
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
@@ -104,8 +104,8 @@ export function ModelSelectContent({
              title="设置AI模型"
              className="absolute right-9 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
            >
-             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20V10"></path><path d="M12 10L19 17"></path><path d="M12 10L5 17"></path></svg>
-           </button>
+            <SettingsIcon className="w-4 h-4" />
+                       </button>
            
          </div>
        </div>

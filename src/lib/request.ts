@@ -305,6 +305,7 @@ export { request as tauriFetch }; // 兼容旧引用
 /**
  * 网络连通性检查函数
  * 只检查网络是否可达，不抛出异常，返回检查结果
+ * 根据Provider的浏览器请求模式配置决定使用Tauri HTTP还是浏览器fetch
  * 
  * @param url 要检查的URL
  * @param options 请求选项
@@ -330,12 +331,43 @@ export async function checkConnectivity(url: string, options: RequestOptions = {
       console.log(`${tag}[checkConnectivity] 开始检查: ${url}`);
     }
 
-    const resp = await httpFetch(url, {
-      method: defaultedOpts.method || 'HEAD',
-      timeout: defaultedOpts.timeout,
-      headers: defaultedOpts.headers,
-      ...defaultedOpts
-    } as any);
+    // 检查是否应该使用浏览器请求方式
+    let resp: any;
+    if (await shouldUseBrowserRequest(url, defaultedOpts.debugTag || 'checkConnectivity')) {
+      if (__DEV__) {
+        const tag = defaultedOpts.debugTag ? `[${defaultedOpts.debugTag}]` : '';
+        console.log(`${tag}[checkConnectivity] 使用浏览器fetch检查连通性`);
+      }
+      
+      // 使用浏览器fetch检查连通性
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), defaultedOpts.timeout || 5000);
+      
+      try {
+        resp = await fetch(url, {
+          method: defaultedOpts.method || 'HEAD',
+          signal: controller.signal,
+          headers: defaultedOpts.headers
+        });
+        clearTimeout(timeoutId);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
+    } else {
+      if (__DEV__) {
+        const tag = defaultedOpts.debugTag ? `[${defaultedOpts.debugTag}]` : '';
+        console.log(`${tag}[checkConnectivity] 使用Tauri HTTP检查连通性`);
+      }
+      
+      // 使用Tauri HTTP检查连通性
+      resp = await httpFetch(url, {
+        method: defaultedOpts.method || 'HEAD',
+        timeout: defaultedOpts.timeout,
+        headers: defaultedOpts.headers,
+        ...defaultedOpts
+      } as any);
+    }
 
     // 获取响应状态
     let status: number | undefined;

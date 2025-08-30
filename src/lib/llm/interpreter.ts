@@ -174,7 +174,7 @@ export class LLMInterpreter {
         
         let delegate: BaseProvider;
         switch (effectiveStrategy) {
-          case 'gemini': delegate = new GoogleAIProvider(base+"/v1beta/", apiKey); (delegate as any).aliasProviderName = display; break;
+          case 'gemini': delegate = new GoogleAIProvider(base, apiKey); (delegate as any).aliasProviderName = display; break;
           case 'anthropic': delegate = new AnthropicProvider(base, apiKey); (delegate as any).aliasProviderName = display; break;
           case 'deepseek': delegate = new DeepSeekProvider(base, apiKey); (delegate as any).aliasProviderName = display; break;
           case 'openai': delegate = new OpenAIProvider(base, apiKey, display); (delegate as any).aliasProviderName = display; break;

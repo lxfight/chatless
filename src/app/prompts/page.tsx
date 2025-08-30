@@ -32,7 +32,7 @@ export default function PromptsPage() {
 
   return (
     <div className="h-full w-full flex flex-col">
-      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-900">
         <PromptsHeader />
       </div>
       <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-gray-950/40">

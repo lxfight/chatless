@@ -104,7 +104,27 @@ export class SSEClient {
       // 监听SSE错误
       const unlistenError = await listen<string>('sse-error', (e) => {
         console.error(`[${debugTag}] SSE Error:`, e.payload);
-        callbacks.onError?.(new Error(e.payload));
+        
+        // 为HTTP 400错误提供更友好的提示
+        let errorMessage = e.payload;
+        if (e.payload && e.payload.includes('HTTP 400')) {
+          errorMessage = `请求被拒绝 (HTTP 400)。这通常表示：
+
+1. 提供商策略设置不正确
+2. API密钥无效或已过期  
+3. 请求参数格式错误
+4. 账户余额不足或配额超限
+
+建议检查：
+• 提供商配置是否正确
+• API密钥是否有效
+• 账户状态是否正常
+• 请求内容是否符合提供商要求
+
+原始错误: ${e.payload}`;
+        }
+        
+        callbacks.onError?.(new Error(errorMessage));
         this.stopConnection();
       });
 
@@ -286,8 +306,29 @@ export class SSEClient {
 
     } catch (error: any) {
       console.error(`[${debugTag}] Browser SSE failed:`, error);
-      callbacks.onError?.(error);
-      throw error;
+      
+      // 为HTTP 400错误提供更友好的提示
+      let errorToPass = error;
+      if (error instanceof Error && error.message.includes('HTTP 400')) {
+        const friendlyError = new Error(`请求被拒绝 (HTTP 400)。这通常表示：
+
+1. 提供商策略设置不正确
+2. API密钥无效或已过期  
+3. 请求参数格式错误
+4. 账户余额不足或配额超限
+
+建议检查：
+• 提供商配置是否正确
+• API密钥是否有效
+• 账户状态是否正常
+• 请求内容是否符合提供商要求
+
+原始错误: ${error.message}`);
+        errorToPass = friendlyError;
+      }
+      
+      callbacks.onError?.(errorToPass);
+      throw errorToPass;
     }
   }
 
