@@ -100,14 +100,14 @@ async function processRelease(octokit, options, tag, isAlpha) {
       }
 
       // macOS Intel
-      if (name.endsWith(".app.tar.gz") && !name.includes("aarch")) {
+      if (name.endsWith(".app.tar.gz") && !name.includes("aarch") && !name.includes("arm64")) {
         updateData.platforms.darwin.url = browser_download_url;
         updateData.platforms["darwin-intel"].url = browser_download_url;
         updateData.platforms["darwin-x86_64"].url = browser_download_url;
         // 兼容 Apple Silicon：通用包亦可供 darwin-aarch64 使用
         updateData.platforms["darwin-aarch64"].url = browser_download_url;
       }
-      if (name.endsWith(".app.tar.gz.sig") && !name.includes("aarch")) {
+      if (name.endsWith(".app.tar.gz.sig") && !name.includes("aarch") && !name.includes("arm64")) {
         const sig = await getSignature(browser_download_url);
         updateData.platforms.darwin.signature = sig;
         updateData.platforms["darwin-intel"].signature = sig;
@@ -116,13 +116,35 @@ async function processRelease(octokit, options, tag, isAlpha) {
         updateData.platforms["darwin-aarch64"].signature = sig;
       }
 
-      // macOS Apple Silicon
+      // macOS Apple Silicon (aarch64)
       if (name.endsWith("aarch64.app.tar.gz")) {
         updateData.platforms["darwin-aarch64"].url = browser_download_url;
       }
       if (name.endsWith("aarch64.app.tar.gz.sig")) {
         const sig = await getSignature(browser_download_url);
         updateData.platforms["darwin-aarch64"].signature = sig;
+      }
+
+      // macOS Apple Silicon (arm64) - 新增支持
+      if (name.endsWith("arm64.app.tar.gz")) {
+        updateData.platforms["darwin-aarch64"].url = browser_download_url;
+      }
+      if (name.endsWith("arm64.app.tar.gz.sig")) {
+        const sig = await getSignature(browser_download_url);
+        updateData.platforms["darwin-aarch64"].signature = sig;
+      }
+
+      // macOS Intel (x64) - 新增支持
+      if (name.endsWith("x64.app.tar.gz")) {
+        updateData.platforms.darwin.url = browser_download_url;
+        updateData.platforms["darwin-intel"].url = browser_download_url;
+        updateData.platforms["darwin-x86_64"].url = browser_download_url;
+      }
+      if (name.endsWith("x64.app.tar.gz.sig")) {
+        const sig = await getSignature(browser_download_url);
+        updateData.platforms.darwin.signature = sig;
+        updateData.platforms["darwin-intel"].signature = sig;
+        updateData.platforms["darwin-x86_64"].signature = sig;
       }
 
       // Linux (common patterns)

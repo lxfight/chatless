@@ -175,6 +175,59 @@ jobs:
           path: artifacts/
       - name: Display structure of downloaded files
         run: ls -R artifacts
+      - name: Rename files to avoid conflicts
+        run: |
+          echo "Starting file renaming process..."
+          
+          # 检查artifacts目录结构
+          echo "=== Current artifacts structure ==="
+          ls -la artifacts/
+          
+          # 为macOS ARM64文件添加架构标识
+          if [ -d "artifacts/chatless-macos-13" ]; then
+            echo "Processing macOS ARM64 files..."
+            cd artifacts/chatless-macos-13
+            for file in *.app.tar.gz *.app.tar.gz.sig; do
+              if [ -f "$file" ]; then
+                newname=$(echo "$file" | sed 's/\.app\.tar\.gz/\.arm64\.app\.tar\.gz/')
+                mv "$file" "$newname"
+                echo "Renamed $file to $newname"
+              fi
+            done
+            cd ../..  # 回到artifacts目录
+          else
+            echo "Warning: chatless-macos-13 directory not found"
+          fi
+          
+          # 为macOS x64文件添加架构标识
+          if [ -d "artifacts/chatless-macos-14" ]; then
+            echo "Processing macOS x64 files..."
+            cd artifacts/chatless-macos-14
+            for file in *.app.tar.gz *.app.tar.gz.sig; do
+              if [ -f "$file" ]; then
+                newname=$(echo "$file" | sed 's/\.app\.tar\.gz/\.x64\.app\.tar\.gz/')
+                mv "$file" "$newname"
+                echo "Renamed $file to $newname"
+              fi
+            done
+            cd ../..  # 回到artifacts目录
+          else
+            echo "Warning: chatless-macos-14 directory not found"
+          fi
+          
+          # 验证重命名结果
+          echo "=== File renaming completed. New structure ==="
+          ls -R artifacts
+          
+          # 检查是否有重复文件名
+          echo "=== Checking for duplicate filenames ==="
+          find artifacts -name "*.app.tar.gz*" -type f | sed 's/.*\///' | sort | uniq -d
+          if [ $? -eq 0 ]; then
+            echo "No duplicate filenames found"
+          else
+            echo "Warning: Duplicate filenames detected!"
+            exit 1
+          fi
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
