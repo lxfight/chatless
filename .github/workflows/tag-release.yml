@@ -183,37 +183,40 @@ jobs:
           echo "=== Current artifacts structure ==="
           ls -la artifacts/
           
-          # 为macOS x64文件添加架构标识
-          if [ -d "artifacts/chatless-macos-13-x64" ]; then
-            echo "Processing macOS x64 files..."
-            cd artifacts/chatless-macos-13-x64
-            for file in *.app.tar.gz *.app.tar.gz.sig; do
-              if [ -f "$file" ]; then
-                newname=$(echo "$file" | sed 's/\.app\.tar\.gz/\.x64\.app\.tar\.gz/')
-                mv "$file" "$newname"
-                echo "Renamed $file to $newname"
-              fi
-            done
-            cd ../..  # 回到artifacts目录
-          else
-            echo "Warning: chatless-macos-13-x64 directory not found"
-          fi
+          # 使用find命令直接重命名文件，避免cd路径问题
+          echo "Processing macOS x64 files..."
+          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.x64\.app\.tar\.gz/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
           
-          # 为macOS ARM64文件添加架构标识
-          if [ -d "artifacts/chatless-macos-14-arm64" ]; then
-            echo "Processing macOS ARM64 files..."
-            cd artifacts/chatless-macos-14-arm64
-            for file in *.app.tar.gz *.app.tar.gz.sig; do
-              if [ -f "$file" ]; then
-                newname=$(echo "$file" | sed 's/\.app\.tar\.gz/\.arm64\.app\.tar\.gz/')
-                mv "$file" "$newname"
-                echo "Renamed $file to $newname"
-              fi
-            done
-            cd ../..  # 回到artifacts目录
-          else
-            echo "Warning: chatless-macos-14-arm64 directory not found"
-          fi
+          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz.sig" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.x64\.app\.tar\.gz\.sig/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          echo "Processing macOS ARM64 files..."
+          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.arm64\.app\.tar\.gz/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz.sig" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.arm64\.app\.tar\.gz\.sig/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
           
           # 验证重命名结果
           echo "=== File renaming completed. New structure ==="
