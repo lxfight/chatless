@@ -118,11 +118,7 @@ function ProviderHeaderImpl(props: ProviderHeaderProps) {
         <button
           onClick={async (e) => { 
             e.stopPropagation(); 
-            try {
-              const repoName = provider.aliases?.[0] || provider.name;
-              const { checkController } = await import('@/lib/provider/check-controller');
-              checkController.requestCheck(repoName, { reason: 'manual', debounceMs: 0 });
-            } catch {}
+            onRefresh(provider);
           }}
           disabled={isConnecting || isGloballyInitializing}
           className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md  dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"

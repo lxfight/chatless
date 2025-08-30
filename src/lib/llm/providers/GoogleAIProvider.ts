@@ -36,10 +36,34 @@ export class GoogleAIProvider extends BaseProvider {
   }
 
   async checkConnection(): Promise<CheckResult> {
-    // 暂不在线检查，按是否配置密钥给出状态
     const apiKey = await this.getApiKey();
     if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    return { ok: true };
+    
+    // 使用专门的连通性检查函数
+    const baseUrl = (this as any).baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com/v1beta';
+    console.log(`[GoogleAIProvider] 开始检查网络连通性: ${baseUrl}`);
+    
+    const { checkConnectivity } = await import('@/lib/request');
+    const result = await checkConnectivity(baseUrl, {
+      timeout: 5000,
+      debugTag: 'GoogleAIProvider-Connectivity'
+    });
+    
+    if (result.ok) {
+      console.log(`[GoogleAIProvider] 网络连通性检查成功，状态码: ${result.status}`);
+      return { ok: true, message: '网络连接正常' };
+    } else {
+      console.error(`[GoogleAIProvider] 网络连通性检查失败: ${result.reason}`, result.error);
+      
+      switch (result.reason) {
+        case 'TIMEOUT':
+          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
+        case 'NETWORK':
+          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
+        default:
+          return { ok: false, reason: 'UNKNOWN', message: result.error || '未知错误' };
+      }
+    }
   }
 
   async chatStream(

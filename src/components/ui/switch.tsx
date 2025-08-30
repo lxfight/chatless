@@ -1,69 +1,76 @@
 "use client"
 
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 interface SwitchProps {
-  checked?: boolean
-  onCheckedChange?: (checked: boolean) => void
-  disabled?: boolean
-  className?: string
-  size?: "sm" | "md" | "lg"
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  disabled?: boolean;
+  className?: string;
+  size?: "sm" | "md" | "lg";
 }
 
-const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
-  ({ className, checked = false, onCheckedChange, disabled = false, size = "md", ...props }, ref) => {
-    const sizeClasses = {
-      sm: {
-        root: "h-4 w-7",
-        thumb: "h-3 w-3 data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0.5"
-      },
-      md: {
-        root: "h-5 w-9",
-        thumb: "h-3.5 w-3.5 data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0.5"
-      },
-      lg: {
-        root: "h-6 w-11",
-        thumb: "h-4 w-4 data-[state=checked]:translate-x-6 data-[state=unchecked]:translate-x-1"
-      }
-    }
+const sizeCfg = {
+  sm: { track: "w-10 h-5", knob: 16, shift: 20 },
+  md: { track: "w-12 h-6", knob: 20, shift: 24 },
+  lg: { track: "w-14 h-7", knob: 24, shift: 28 },
+} as const;
+
+const SwitchImpl = React.forwardRef<HTMLInputElement, SwitchProps>(
+  (
+    {
+      checked = false,
+      onCheckedChange,
+      disabled = false,
+      className,
+      size = "md",
+      ...props
+    },
+    ref
+  ) => {
+    const cfg = sizeCfg[size];
 
     return (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        data-state={checked ? "checked" : "unchecked"}
-        disabled={disabled}
-        className={cn(
-          "peer inline-flex items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50",
-          sizeClasses[size].root,
-          checked 
-            ? "bg-blue-600 dark:bg-blue-500" 
-            : "bg-gray-200 dark:bg-gray-600",
-          className
-        )}
-        onClick={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-          if (!disabled) {
-            onCheckedChange?.(!checked)
-          }
-        }}
-        ref={ref}
-        {...props}
-      >
+      <label className={cn("relative inline-flex items-center select-none", className)}>
+        <input
+          type="checkbox"
+          className="sr-only"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onCheckedChange?.(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          ref={ref}
+          {...(props as any)}
+        />
+        {/* track */}
         <span
+          aria-hidden
           className={cn(
-            "pointer-events-none block rounded-full bg-white shadow-lg ring-0 transition-transform",
-            sizeClasses[size].thumb
+            "block rounded-full transition-colors duration-200 ease-out",
+            cfg.track,
+            disabled
+              ? "bg-gray-200 dark:bg-gray-700 opacity-50"
+              : checked
+              ? "bg-blue-600 dark:bg-blue-500"
+              : "bg-gray-200 dark:bg-gray-700"
           )}
         />
-      </button>
-    )
+        {/* knob */}
+        <span
+          aria-hidden
+          className="absolute top-0.5 left-0.5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out"
+          style={{
+            width: cfg.knob,
+            height: cfg.knob,
+            transform: `translateX(${checked ? cfg.shift : 0}px)`,
+          }}
+        />
+      </label>
+    );
   }
-)
+);
 
-Switch.displayName = "Switch"
+SwitchImpl.displayName = "Switch";
 
-export { Switch }
+export { SwitchImpl as Switch };

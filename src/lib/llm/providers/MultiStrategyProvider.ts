@@ -23,7 +23,32 @@ export class MultiStrategyProvider extends BaseProvider {
   async checkConnection(): Promise<CheckResult> {
     const key = await this.getApiKey();
     if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    return { ok: true };
+    
+    // 使用专门的连通性检查函数
+    const baseUrl = this.baseUrl.replace(/\/$/, '');
+    console.log(`[MultiStrategyProvider] 开始检查网络连通性: ${baseUrl}`);
+    
+    const { checkConnectivity } = await import('@/lib/request');
+    const result = await checkConnectivity(baseUrl, {
+      timeout: 5000,
+      debugTag: 'MultiStrategyProvider-Connectivity'
+    });
+    
+    if (result.ok) {
+      console.log(`[MultiStrategyProvider] 网络连通性检查成功，状态码: ${result.status}`);
+      return { ok: true, message: '网络连接正常' };
+    } else {
+      console.error(`[MultiStrategyProvider] 网络连通性检查失败: ${result.reason}`, result.error);
+      
+      switch (result.reason) {
+        case 'TIMEOUT':
+          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
+        case 'NETWORK':
+          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
+        default:
+          return { ok: false, reason: 'UNKNOWN', message: result.error || '未知错误' };
+      }
+    }
   }
 
   /**

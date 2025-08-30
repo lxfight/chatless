@@ -442,7 +442,8 @@ export const ProviderSettings = React.memo(ProviderSettingsImpl, (prev, next) =>
     prev.provider.name === next.provider.name &&
     prev.provider.api_base_url === next.provider.api_base_url &&
     prev.provider.default_api_key === next.provider.default_api_key &&
-    prev.provider.displayStatus === next.provider.displayStatus
+    prev.provider.displayStatus === next.provider.displayStatus &&
+    (prev.provider.preferences?.useBrowserRequest ?? false) === (next.provider.preferences?.useBrowserRequest ?? false)
   );
   return (
     sameProviderCore &&

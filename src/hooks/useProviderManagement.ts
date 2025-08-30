@@ -546,17 +546,21 @@ export function useProviderManagement() {
   // 处理偏好设置更改
   const handlePreferenceChange = useCallback(async (providerName: string, preferences: { useBrowserRequest?: boolean }) => {
     try {
-      // 更新本地state
-      setProviders(prev => prev.map(p => 
-        p.name === providerName 
-          ? { ...p, preferences: { ...p.preferences, ...preferences } }
-          : p
-      ));
+      // 先更新本地 providers 状态，确保 UI 立即反映变化
+      setProviders(prev => prev.map(p => {
+        if (p.name === providerName || p.aliases?.includes(providerName)) {
+          return {
+            ...p,
+            preferences: { ...p.preferences, ...preferences }
+          };
+        }
+        return p;
+      }));
 
       // 持久化到存储
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       const allProviders = await providerRepository.getAll();
-      const provider = allProviders.find(p => p.name === providerName);
+      const provider = allProviders.find(p => p.name === providerName || p.displayName === providerName);
       if (provider) {
         await providerRepository.upsert({
           ...provider,
@@ -572,6 +576,19 @@ export function useProviderManagement() {
     } catch (error) {
       console.error("Failed to update provider preferences:", error);
       toast.error("设置更新失败");
+      
+      // 如果保存失败，回滚本地状态
+      setProviders(prev => prev.map(p => {
+        if (p.name === providerName || p.aliases?.includes(providerName)) {
+          return {
+            ...p,
+            preferences: { ...p.preferences, ...Object.fromEntries(
+              Object.keys(preferences).map(key => [key, !preferences[key as keyof typeof preferences]])
+            ) }
+          };
+        }
+        return p;
+      }));
     }
   }, []);
   

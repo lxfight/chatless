@@ -21,7 +21,32 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
     async checkConnection() {
       const key = await this.getApiKey();
       if (!key) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' } as const;
-      return { ok: true } as const;
+      
+      // 使用专门的连通性检查函数
+      const baseUrl = this.baseUrl.replace(/\/$/, '');
+      console.log(`[InlineMultiStrategyProvider] 开始检查网络连通性: ${baseUrl}`);
+      
+      const { checkConnectivity } = await import('@/lib/request');
+      const result = await checkConnectivity(baseUrl, {
+        timeout: 5000,
+        debugTag: 'InlineMultiStrategyProvider-Connectivity'
+      });
+      
+      if (result.ok) {
+        console.log(`[InlineMultiStrategyProvider] 网络连通性检查成功，状态码: ${result.status}`);
+        return { ok: true, message: '网络连接正常' } as const;
+      } else {
+        console.error(`[InlineMultiStrategyProvider] 网络连通性检查失败: ${result.reason}`, result.error);
+        
+        switch (result.reason) {
+          case 'TIMEOUT':
+            return { ok: false, reason: 'TIMEOUT', message: '连接超时' } as const;
+          case 'NETWORK':
+            return { ok: false, reason: 'NETWORK', message: '网络连接失败' } as const;
+          default:
+            return { ok: false, reason: 'UNKNOWN', message: result.error || '未知错误' } as const;
+        }
+      }
     }
     private async getModelStrategy(model: string): Promise<'openai'|'openai-responses'|'openai-compatible'|'anthropic'|'gemini'|'deepseek'> {
       try {

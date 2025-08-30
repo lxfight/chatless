@@ -302,6 +302,106 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
 
 export { request as tauriFetch }; // 兼容旧引用 
 
+/**
+ * 网络连通性检查函数
+ * 只检查网络是否可达，不抛出异常，返回检查结果
+ * 
+ * @param url 要检查的URL
+ * @param options 请求选项
+ * @returns 连通性检查结果
+ */
+export async function checkConnectivity(url: string, options: RequestOptions = {}): Promise<{
+  ok: boolean;
+  status?: number;
+  statusText?: string;
+  error?: string;
+  reason: 'SUCCESS' | 'TIMEOUT' | 'NETWORK' | 'HTTP_ERROR' | 'UNKNOWN';
+}> {
+  const defaultedOpts: RequestOptions = {
+    timeout: 5000,
+    method: 'HEAD',
+    verboseDebug: false,
+    ...options
+  };
+
+  try {
+    if (__DEV__) {
+      const tag = defaultedOpts.debugTag ? `[${defaultedOpts.debugTag}]` : '';
+      console.log(`${tag}[checkConnectivity] 开始检查: ${url}`);
+    }
+
+    const resp = await httpFetch(url, {
+      method: defaultedOpts.method || 'HEAD',
+      timeout: defaultedOpts.timeout,
+      headers: defaultedOpts.headers,
+      ...defaultedOpts
+    } as any);
+
+    // 获取响应状态
+    let status: number | undefined;
+    let statusText: string | undefined;
+    
+    if ((resp as any).ok !== undefined) {
+      status = (resp as any).status;
+      statusText = (resp as any).statusText;
+    } else {
+      status = (resp as any).status || (resp as any).statusCode;
+      statusText = (resp as any).statusText || '';
+    }
+
+    if (__DEV__) {
+      const tag = defaultedOpts.debugTag ? `[${defaultedOpts.debugTag}]` : '';
+      console.log(`${tag}[checkConnectivity] 检查完成: ${status || 'unknown'} ${statusText || ''}`);
+    }
+
+    // 任何 HTTP 响应都表示网络连通
+    // 即使是 404、403 等错误状态码，也说明网络是通的
+    return {
+      ok: true,
+      status,
+      statusText,
+      reason: 'SUCCESS'
+    };
+
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    
+    if (__DEV__) {
+      const tag = defaultedOpts.debugTag ? `[${defaultedOpts.debugTag}]` : '';
+      console.error(`${tag}[checkConnectivity] 检查失败:`, error);
+    }
+
+    // 根据错误类型分类
+    if (msg.includes('TIMEOUT') || msg.toLowerCase().includes('timeout')) {
+      return {
+        ok: false,
+        error: msg,
+        reason: 'TIMEOUT'
+      };
+    } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ENOTFOUND')) {
+      return {
+        ok: false,
+        error: msg,
+        reason: 'NETWORK'
+      };
+    } else if (msg.includes('HTTP') && msg.includes('Not Found')) {
+      // 404 等 HTTP 错误实际上表示网络是通的
+      return {
+        ok: true,
+        status: 404,
+        statusText: 'Not Found',
+        reason: 'SUCCESS'
+      };
+    } else {
+      return {
+        ok: false,
+        error: msg,
+        reason: 'UNKNOWN'
+      };
+    }
+  }
+}
+
 // Browser fetch 实现（通用，便于外部控制直接使用）
 export async function browserFetch<T = any>(url: string, options: RequestOptions = {}): Promise<T | Response> {
   const method = (options.method || 'GET').toUpperCase();

@@ -36,11 +36,8 @@ export function AdvancedSettingsDialog({
     try {
       const repoName = provider.aliases?.[0] || provider.name;
       await onPreferenceChange(repoName, { useBrowserRequest: checked });
-      // 偏好变更后触发一次检查
-      try {
-        const { checkController } = await import('@/lib/provider/check-controller');
-        checkController.requestCheck(repoName, { reason: 'pref_changed', debounceMs: 300 });
-      } catch {}
+      // 不再在此处触发“立即检查”，避免弹窗被打断或列表刷新
+      // 该偏好仅在发起网络请求时读取生效
     } catch (error) {
       console.error('Failed to update preference:', error);
     } finally {

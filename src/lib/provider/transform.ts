@@ -69,5 +69,7 @@ export function mapToProviderWithStatus(
     })(),
     healthCheckPath: undefined,
     authenticatedHealthCheckPath: undefined,
+    // 映射 preferences 字段
+    preferences: entity.preferences,
   } as ProviderWithStatus;
 }
