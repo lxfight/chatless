@@ -1,10 +1,22 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { InputField } from "./InputField";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Undo2, KeyRound, ExternalLink } from "lucide-react";
+import { 
+  MoreVertical, Undo2, KeyRound, ExternalLink, Settings, 
+  Sliders
+} from "lucide-react";
 import type { ProviderWithStatus } from "@/hooks/useProviderManagement";
 import { toast } from "@/components/ui/sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { AdvancedSettingsDialog } from "@/components/settings/AdvancedSettingsDialog";
 
 interface ProviderConnectionSectionProps {
   provider: ProviderWithStatus;
@@ -20,6 +32,8 @@ interface ProviderConnectionSectionProps {
   onDefaultApiKeyChange: (providerName: string, apiKey: string) => void;
   onDefaultApiKeyBlur: (providerName: string) => void;
   endpointPreview?: string; // 新增：展示实际请求地址示例
+  // 新增：高级设置相关
+  onPreferenceChange?: (providerName: string, preferences: { useBrowserRequest?: boolean }) => Promise<void>;
 }
 
 export function ProviderConnectionSection(props: ProviderConnectionSectionProps) {
@@ -37,7 +51,10 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
     onDefaultApiKeyChange,
     onDefaultApiKeyBlur,
     endpointPreview,
+    onPreferenceChange,
   } = props;
+
+  const [showAdvancedDialog, setShowAdvancedDialog] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -50,10 +67,13 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
             <input
               value={localUrl}
               onChange={(e) => { setLocalUrl(e.target.value); }}
-              onBlur={() => {
+              onBlur={async () => {
                 const repoName = provider.aliases?.[0] || provider.name;
                 onUrlChange(repoName, localUrl);
-                // 取消失焦即刷新，刷新会在保存逻辑中按需触发
+                try {
+                  const { checkController } = await import('@/lib/provider/check-controller');
+                  checkController.requestCheck(repoName, { reason: 'blur', debounceMs: 300 });
+                } catch {}
               }}
               placeholder={provider.name.toLowerCase()==='ollama' ? 'http://localhost:11434' : '服务地址 (http://...)'}
               className="w-full p-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary focus:border-transparent transition-all duration-200 hover:border-primary dark:hover:border-primary dark:text-gray-200 h-8 text-sm"
@@ -65,21 +85,72 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
             )}
           </div>
           <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onResetUrl}
-                  className="p-2 text-gray-500 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800 transition-all duration-200"
-                  title="重置为默认地址"
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className={`relative p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800 transition-all duration-200 ${
+                        provider.preferences?.useBrowserRequest ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : ''
+                      }`}
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                      {provider.preferences?.useBrowserRequest && (
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border border-white dark:border-gray-800"></div>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  高级设置
+                  {provider.preferences?.useBrowserRequest && <div className="text-blue-400">（已启用浏览器模式）</div>}
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-60">
+                {/* 标题 */}
+                <DropdownMenuLabel className="flex items-center gap-2 text-sm font-semibold">
+                  <Settings className="w-4 h-4 text-blue-600" />
+                  提供商设置
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                {/* 重置地址 */}
+                <DropdownMenuItem 
+                  onClick={onResetUrl} 
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md"
                 >
-                  <Undo2 className="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>重置为默认地址</p>
-              </TooltipContent>
-            </Tooltip>
+                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    <Undo2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">重置服务地址</span>
+                    <span className="text-xs text-gray-500">恢复为默认配置</span>
+                  </div>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator />
+                
+                {/* 高级选项 */}
+                <DropdownMenuItem 
+                  onClick={() => setShowAdvancedDialog(true)} 
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-md">
+                    <Sliders className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">高级选项</span>
+                      {provider.preferences?.useBrowserRequest && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">网络请求方式等高级设置</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </TooltipProvider>
         </div>
       </div>
@@ -126,6 +197,14 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
           )}
         </div>
       )}
+
+      {/* 高级设置弹窗 */}
+      <AdvancedSettingsDialog
+        open={showAdvancedDialog}
+        onOpenChange={setShowAdvancedDialog}
+        provider={provider}
+        onPreferenceChange={onPreferenceChange}
+      />
     </div>
   );
 }

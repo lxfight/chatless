@@ -56,7 +56,7 @@ export class ProviderStatusService {
         }
 
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("TIMEOUT")), 10000);
+          setTimeout(() => reject(new Error("TIMEOUT")), 5000); // 缩短到5秒
         });
 
         // 兼容旧的 checkConnection() 返回值，统一转换为 CheckResult

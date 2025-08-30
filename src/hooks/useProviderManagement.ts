@@ -29,6 +29,11 @@ export interface ProviderWithStatus extends ProviderMetadata {
   authenticatedHealthCheckPath?: string;
   isUserAdded?: boolean;
   isVisible?: boolean;
+  /** 高级偏好设置 */
+  preferences?: {
+    /** 是否使用浏览器请求方式（兜底模式） */
+    useBrowserRequest?: boolean;
+  };
 }
 
 // --- 通用连接检查函数已抽离到 ProviderService，避免重复实现 ---
@@ -64,8 +69,7 @@ export function useProviderManagement() {
   } = useProviderStore();
   const setConnecting = useProviderMetaStore(s=>s.setConnecting);
 
-  // 全局串行检查队列 + 页面卸载取消
-  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  // 页面卸载取消标记
   const cancelledRef = useRef<boolean>(false);
   useEffect(() => {
     cancelledRef.current = false;
@@ -82,7 +86,15 @@ export function useProviderManagement() {
     (async () => {
       const converted = repoProviders
         .map(mapToProviderWithStatus)
-        .filter((p:any) => p.isVisible !== false);
+        .filter((p:any) => p.isVisible !== false)
+        .map(p => {
+          // 启动时清理任何遗留的CONNECTING状态
+          if (p.displayStatus === 'CONNECTING') {
+            console.warn(`发现遗留的CONNECTING状态：${p.name}，将重置为UNKNOWN`);
+            return { ...p, displayStatus: 'UNKNOWN' as const, statusTooltip: '状态未知，请手动刷新' };
+          }
+          return p;
+        });
 
       // 使用用户自定义排序优先
       const { providerRepository } = require('@/lib/provider/ProviderRepository');
@@ -117,6 +129,29 @@ export function useProviderManagement() {
      
   }, [repoProviders, repoLoading]);
 
+  // 初始化时对“检查过期”的 Provider 进行一次静默检查
+  const didInitCheckRef = useRef(false);
+  useEffect(() => {
+    if (didInitCheckRef.current) return;
+    didInitCheckRef.current = true;
+    (async () => {
+      try {
+        const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+        const list = await providerRepository.getAll();
+        const STALE_MS = 10 * 60 * 1000; // 10 分钟
+        const now = Date.now();
+        const stale = list.filter(p => !p.lastChecked || (now - (p.lastChecked || 0)) > STALE_MS);
+        if (stale.length === 0) return;
+        const { checkController } = await import('@/lib/provider/check-controller');
+        stale.forEach((p, idx) => {
+          setTimeout(() => {
+            try { checkController.requestCheck(p.name, { reason: 'init', debounceMs: 0, withModels: false }); } catch {}
+          }, idx * 150);
+        });
+      } catch {}
+    })();
+  }, []);
+
   // ---- 将 providers 同步到全局 store (providerMetaStore) ----
   useEffect(() => {
     setGlobalQuickList(providers as any);
@@ -130,108 +165,56 @@ export function useProviderManagement() {
   // --- 数据加载 (loadData) ---
   // loadData 函数已废弃
 
-  // --- 刷新单个 Provider (handleSingleProviderRefresh remains largely the same) ---
+  // --- 刷新单个 Provider（由 checkController 统一调度） ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
-    // 入队串行执行
-    const run = async () => {
-    // 将显示名映射为仓库内部 id（自定义 Provider 的内部 id 存在 aliases[0]）
     const repoName = provider.aliases?.[0] || provider.name;
+    if (cancelledRef.current) return;
     setConnectingProviderName(provider.name);
     setConnecting(provider.name, true);
-    // 先把 UI 标为正在检查
     setProviders(prev => prev.map(p => p.name === provider.name ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态...' } : p));
-    // 超时回落保护：若 12 秒后仍未被最终状态覆盖，则回落为 UNKNOWN/NO_KEY，避免常驻“检查中”
-    setTimeout(() => {
-      setProviders(prev => prev.map(p => {
-        if (p.name !== provider.name) return p;
-        if (p.displayStatus !== 'CONNECTING') return p;
-        const fallback = p.requiresApiKey && !(p.default_api_key && String(p.default_api_key).trim()) ? 'NO_KEY' : 'UNKNOWN';
-        const tip = fallback === 'NO_KEY' ? '未配置 API 密钥' : '检查超时，请稍后重试或手动刷新';
-        return { ...p, displayStatus: fallback, statusTooltip: tip };
-      }));
-    }, 12000);
 
-    try {
-      if (cancelledRef.current) return;
-      await storeRefresh(repoName);
-      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
-      const updatedList = await providerRepository.getAll();
-      const updated = updatedList.find(p=>p.name===repoName);
+    const { checkController } = await import('@/lib/provider/check-controller');
 
-      if (!updated) throw new Error('无法刷新状态');
-
-      const displayStatusMap: Record<ProviderStatus, ProviderWithStatus['displayStatus']> = {
-        [ProviderStatus.CONNECTED]: 'CONNECTED',
-        [ProviderStatus.CONNECTING]: 'CONNECTING',
-        [ProviderStatus.NOT_CONNECTED]: 'NOT_CONNECTED',
-        [ProviderStatus.NO_KEY]: 'NO_KEY',
-        [ProviderStatus.UNKNOWN]: 'UNKNOWN',
-      };
-
-      const mappedStatus = displayStatusMap[updated.status];
-
-      // 重新加载最新的模型数据
-      const { modelRepository } = await import('@/lib/provider/ModelRepository');
-      const latestModels = await modelRepository.get(repoName);
-      
-      setProviders(prev => prev.map(p => p.name === provider.name ? { 
-        ...p, 
-        isConnected: updated.status === ProviderStatus.CONNECTED, 
-        displayStatus: mappedStatus,
-        statusTooltip: updated.status === ProviderStatus.CONNECTED ? '连接正常' : 
-                      updated.status === ProviderStatus.NOT_CONNECTED ? '连接失败，请检查服务地址' :
-                      updated.status === ProviderStatus.NO_KEY ? '未配置API密钥' :
-                      updated.status === ProviderStatus.UNKNOWN ? '状态未知' : '检查中...',
-        models: latestModels?.map(m => ({
-          name: m.name,
-          label: m.label,
-          aliases: m.aliases,
-          api_key: (m as any).apiKey
-        })) || p.models
-      } : p));
-
-      // 特殊：Ollama 成功后刷新模型列表
-      if (repoName === 'Ollama' && updated.status === ProviderStatus.CONNECTED && updated.url) {
-        await refreshOllamaModels(updated.url);
-      }
-
-      if (showToast) {
-        if (updated.status === ProviderStatus.CONNECTED) {
-          toast.success(`${provider.name} 已连接`);
-        } else if (updated.status === ProviderStatus.NOT_CONNECTED) {
-          // 显示更详细的错误信息
-          const errorMessage = '请检查服务地址和网络连接';
-          toast.error(`${provider.name} 连接失败`, { 
-            description: errorMessage,
-            duration: 5000 // 延长显示时间，让用户有更多时间阅读
-          });
-        } else if (updated.status === ProviderStatus.NO_KEY) {
-          toast.error(`${provider.name} 未配置API密钥`, { description: '请在设置中配置API密钥' });
-        } else {
-          toast.error(`${provider.name} 状态检查失败`);
+    await new Promise<void>((resolve) => {
+      const offStart = checkController.on('start', (p)=>{
+        if (p.name !== repoName) return;
+        setConnecting(provider.name, true);
+      });
+      const offSuccess = checkController.on('success', (p)=>{
+        if (p.name !== repoName) return;
+        setConnecting(provider.name, false);
+        setConnectingProviderName(null);
+        setProviders(prev => prev.map(x => x.name === provider.name ? { ...x, isConnected: p.status === 'CONNECTED', displayStatus: p.status, statusTooltip: p.message ?? (p.status==='CONNECTED'?'连接正常':null) } : x));
+        if (showToast) {
+          if (p.status === 'CONNECTED') toast.success(`${provider.name} 已连接`);
+          else if (p.status === 'NOT_CONNECTED') toast.error(`${provider.name} 状态检查失败`, { description: p.message || '请检查服务地址和网络连接' });
+          else if (p.status === 'NO_KEY') toast.error(`${provider.name} 未配置API密钥`, { description: '请在设置中配置API密钥' });
         }
-      }
-    } catch (err:any) {
-      console.error('刷新失败', err);
-      
-      // 更新状态为连接失败
-      setProviders(prev => prev.map(p => p.name === provider.name ? { 
-        ...p, 
-        displayStatus: 'NOT_CONNECTED',
-        statusTooltip: err?.message || '刷新失败，请重试'
-      } : p));
-      
-      if (showToast) {
-        toast.error(`刷新 ${provider.name} 失败`, { description: err?.message || '请检查网络连接' });
-      }
-    } finally {
-      setConnectingProviderName(null);
-      setConnecting(provider.name, false);
-    }
-    };
-    queueRef.current = queueRef.current.then(() => cancelledRef.current ? Promise.resolve() : run());
-    await queueRef.current;
-  }, [refreshOllamaModels, setConnecting, storeRefresh]);
+        offStart(); offSuccess(); offFail(); offTimeout();
+        resolve();
+      });
+      const offFail = checkController.on('fail', (p)=>{
+        if (p.name !== repoName) return;
+        setConnecting(provider.name, false);
+        setConnectingProviderName(null);
+        setProviders(prev => prev.map(x => x.name === provider.name ? { ...x, displayStatus: 'NOT_CONNECTED', statusTooltip: p.message || '检查失败' } : x));
+        if (showToast) toast.error(`刷新 ${provider.name} 失败`, { description: p.message || '请检查网络连接' });
+        offStart(); offSuccess(); offFail(); offTimeout();
+        resolve();
+      });
+      const offTimeout = checkController.on('timeout', (p)=>{
+        if (p.name !== repoName) return;
+        setConnecting(provider.name, false);
+        setConnectingProviderName(null);
+        setProviders(prev => prev.map(x => x.name === provider.name ? { ...x, displayStatus: 'NOT_CONNECTED', statusTooltip: '连接超时，请稍后重试' } : x));
+        if (showToast) toast.error(`${provider.name} 连接超时`, { description: '请稍后重试或检查网络' });
+        offStart(); offSuccess(); offFail(); offTimeout();
+        resolve();
+      });
+
+      checkController.requestCheck(repoName, { reason: 'manual', debounceMs: 0, withModels: true });
+    });
+  }, [setConnecting]);
 
   // --- EFFECT 1: Load Initial Data on Mount ---
   // Effect 1 被移除：首次连通性检查已在 loadData > runInitialChecks 完成。
@@ -355,18 +338,26 @@ export function useProviderManagement() {
               await refreshOllamaModels(effectiveUrl); 
               console.log(`[useProviderManagement] Ollama model list refresh triggered after URL change.`);
               const updatedProvider = providers.find(p => p.name === providerName); 
-               if (updatedProvider) {
-                   // 延迟执行刷新，确保使用最新的URL
-                   setTimeout(() => handleSingleProviderRefresh({ ...updatedProvider, api_base_url: effectiveUrl }, false), 200);
-              }
+               if (updatedProvider && updatedProvider.displayStatus !== 'CONNECTING') {
+                   setTimeout(async () => {
+                     try {
+                       const { checkController } = await import('@/lib/provider/check-controller');
+                       checkController.requestCheck(providerName, { reason: 'url_saved', debounceMs: 300 });
+                     } catch {}
+                   }, 500);
+               }
           } catch (ollamaError) {
               console.error("[useProviderManagement] Failed to trigger Ollama model refresh after URL change:", ollamaError);
           }
       } else {
            const updatedProvider = providers.find(p => p.name === providerName);
-           if (updatedProvider) {
-                // 延迟执行刷新，确保使用最新的URL
-                setTimeout(() => handleSingleProviderRefresh({ ...updatedProvider, api_base_url: effectiveUrl }, false), 200);
+           if (updatedProvider && updatedProvider.displayStatus !== 'CONNECTING') {
+                setTimeout(async () => {
+                  try {
+                    const { checkController } = await import('@/lib/provider/check-controller');
+                    checkController.requestCheck(providerName, { reason: 'url_saved', debounceMs: 300 });
+                  } catch {}
+                }, 500);
            }
       }
       
@@ -426,7 +417,12 @@ export function useProviderManagement() {
       if(needsRefresh) {
           const updatedProvider = providers.find(p => p.name === providerName);
           if (updatedProvider) {
-               setTimeout(() => handleSingleProviderRefresh({ ...updatedProvider, default_api_key: finalApiKey }, false), 100);
+               setTimeout(async () => {
+                 try {
+                   const { checkController } = await import('@/lib/provider/check-controller');
+                   checkController.requestCheck(providerName, { reason: 'manual', debounceMs: 0 });
+                 } catch {}
+               }, 100);
           }
       }
     } catch (error: any) {
@@ -468,11 +464,15 @@ export function useProviderManagement() {
     // 延迟执行刷新操作，等待URL保存完成
     setTimeout(async () => {
       const provider = providers.find(p => p.name === providerName); 
-      if (!provider || provider.displayStatus === 'CONNECTING') return; 
+      // 增加去重：如果已经在检查中，跳过
+      if (!provider || provider.displayStatus === 'CONNECTING') {
+        console.log(`[handleUrlBlur] 跳过刷新 ${providerName}，已在检查中或不存在`);
+        return; 
+      }
       
       console.log(`[handleUrlBlur] 延迟刷新 ${providerName}，当前URL: ${provider.api_base_url}`);
       await handleSingleProviderRefresh(provider, false); 
-    }, 100); // 延迟100ms，确保URL保存完成
+    }, 300); // 延长到300ms，给URL保存更多时间
   }, [handleSingleProviderRefresh, providers]); 
 
   const handleGlobalRefresh = useCallback(async () => {
@@ -526,7 +526,7 @@ export function useProviderManagement() {
               case ProviderStatus.CONNECTED: return 'CONNECTED';
               case ProviderStatus.NOT_CONNECTED: return 'NOT_CONNECTED';
               case ProviderStatus.NO_KEY: return 'NO_KEY';
-              case ProviderStatus.CONNECTING: return 'CONNECTING';
+              // CONNECTING 不再作为持久化状态
               case ProviderStatus.UNKNOWN:
               default: return 'UNKNOWN';
             }
@@ -542,6 +542,38 @@ export function useProviderManagement() {
     }
     setIsRefreshing(false);
   }, [storeRefreshAll]);
+
+  // 处理偏好设置更改
+  const handlePreferenceChange = useCallback(async (providerName: string, preferences: { useBrowserRequest?: boolean }) => {
+    try {
+      // 更新本地state
+      setProviders(prev => prev.map(p => 
+        p.name === providerName 
+          ? { ...p, preferences: { ...p.preferences, ...preferences } }
+          : p
+      ));
+
+      // 持久化到存储
+      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+      const allProviders = await providerRepository.getAll();
+      const provider = allProviders.find(p => p.name === providerName);
+      if (provider) {
+        await providerRepository.upsert({
+          ...provider,
+          preferences: { ...provider.preferences, ...preferences }
+        });
+      }
+
+      // 清理浏览器请求缓存，确保新设置立即生效
+      const { invalidateProviderCache } = await import('@/lib/provider/browser-fallback-utils');
+      invalidateProviderCache();
+      
+      toast.success(`已更新 ${providerName} 的高级设置`);
+    } catch (error) {
+      console.error("Failed to update provider preferences:", error);
+      toast.error("设置更新失败");
+    }
+  }, []);
   
   return {
     providers,
@@ -553,6 +585,7 @@ export function useProviderManagement() {
     handleModelApiKeyChange,
     handleUrlBlur,
     handleGlobalRefresh,
-    handleSingleProviderRefresh
+    handleSingleProviderRefresh,
+    handlePreferenceChange
   };
 }

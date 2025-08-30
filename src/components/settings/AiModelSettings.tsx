@@ -57,7 +57,8 @@ export function AiModelSettings() {
     handleModelApiKeyChange,
     handleUrlBlur,
     handleGlobalRefresh,
-    handleSingleProviderRefresh 
+    handleSingleProviderRefresh,
+    handlePreferenceChange
   } = useProviderManagement();
 
   // 新增：失焦时保存/连接 API Key
@@ -288,6 +289,7 @@ export function AiModelSettings() {
                   onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
                   onModelApiKeyBlur={handleModelApiKeyBlur}
                   onRefresh={handleSingleProviderRefresh}
+                  onPreferenceChange={handlePreferenceChange}
                 />
               </SortableProviderItem>
             ))}

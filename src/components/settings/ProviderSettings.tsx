@@ -16,7 +16,8 @@ import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 import { specializedStorage } from '@/lib/storage';
 import { toast } from '@/components/ui/sonner';
 import { modelRepository } from '@/lib/provider/ModelRepository';
-import { useProviderIcon } from './useProviderIcon';
+import { useStableProviderIcon } from './useStableProviderIcon';
+import { getAvatarSync } from '@/lib/utils/logoService';
 import { useRecentModelsHint } from './useRecentModelsHint';
 
 // 导入 ProviderWithStatus 类型
@@ -35,9 +36,11 @@ interface ProviderSettingsProps {
   onRefresh: (provider: ProviderWithStatus) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean; // 受控展开状态（存在时启用受控模式）
+  // 新增：偏好设置处理
+  onPreferenceChange?: (providerName: string, preferences: { useBrowserRequest?: boolean }) => Promise<void>;
 }
 
-export function ProviderSettings({
+function ProviderSettingsImpl({
   provider,
   isConnecting,
   isInitialChecking,
@@ -49,7 +52,8 @@ export function ProviderSettings({
   onModelApiKeyBlur,
   onRefresh,
   onOpenChange,
-  open
+  open,
+  onPreferenceChange
 }: ProviderSettingsProps) {
   // 受控/非受控展开状态：存在 open 则受控，否则本地管理
   const isControlled = open !== undefined;
@@ -110,8 +114,9 @@ export function ProviderSettings({
   const providerKey = provider.name.toLowerCase();
   const docUrl = keyDocLinks[providerKey];
 
-  // 规范化 icon 字符串与回退链：优先使用目录 Logo（依据名称推导）→ data:image → 绝对/相对 URL → 生成头像
-  const { resolvedIconSrc, fallbackAvatarSrc, iconError, setIconError, iconIsCatalog, iconExtIdx, setIconExtIdx, iconExts } = useProviderIcon(provider);
+  // 稳定的图标加载：先显示头像，后台预取真实图标，命中后平滑替换（仅切换一次）
+  const { iconSrc } = useStableProviderIcon(provider);
+  const fallbackAvatarSrc = React.useMemo(() => getAvatarSync(provider.name.toLowerCase(), provider.name, 20), [provider.name]);
 
   // 处理打开模型参数设置弹窗
   const handleOpenParameters = (modelId: string, modelLabel?: string) => {
@@ -171,7 +176,8 @@ export function ProviderSettings({
           statusText = '检查中...';
           StatusIcon = Loader2;
           badgeVariant = 'secondary';
-          badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 animate-pulse"; // Animate pulse for connecting
+          // 移除 animate-pulse 以减少视觉跳动
+          badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30";
           break;
       case 'CONNECTED':
           statusText = '已连接';
@@ -197,11 +203,11 @@ export function ProviderSettings({
           badgeVariant = 'outline';
           badgeClasses = "text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700"; // Warning colors
           break;
-      default: // 'UNKNOWN' 或默认 → 显示“检查中...”
-          statusText = '检查中...';
-          StatusIcon = Loader2;
-          badgeVariant = 'secondary';
-          badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 animate-pulse";
+      default: // 'UNKNOWN'：应显示“未知/未检查”，避免误解为正在检查
+          statusText = '未知';
+          StatusIcon = HelpCircle;
+          badgeVariant = 'outline';
+          badgeClasses = "text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600";
           break;
   }
 
@@ -264,7 +270,9 @@ export function ProviderSettings({
   const canAddModels = provider.name !== 'Ollama';
 
   // —— 模型策略选择（仅对 multi 策略类 provider 有意义，如 New API） ——
-  const isMultiStrategyProvider = provider.name.toLowerCase() === 'new api' || provider.name.toLowerCase() === 'newapi';
+  // 注意：New API作为聚合型提供商，用户应该为每个模型单独设置策略
+  // 因此不显示Provider级别的默认策略设置，保持界面简洁
+  const isMultiStrategyProvider = false; // 暂时禁用，因为聚合型提供商不需要Provider级默认策略
   const STRATEGY_OPTIONS: Array<{ value: string; label: string }> = [
     { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
     { value: 'openai', label: 'OpenAI Strict' },
@@ -353,13 +361,13 @@ export function ProviderSettings({
           StatusIcon={StatusIcon}
           badgeVariant={badgeVariant}
           badgeClasses={badgeClasses}
-          resolvedIconSrc={resolvedIconSrc}
-          iconError={iconError}
-          iconIsCatalog={iconIsCatalog}
-          iconExtIdx={iconExtIdx}
-          iconExts={iconExts}
-          setIconExtIdx={setIconExtIdx}
-          setIconError={setIconError}
+          resolvedIconSrc={iconSrc}
+          iconError={false}
+          iconIsCatalog={false}
+          iconExtIdx={0}
+          iconExts={[] as readonly string[]}
+          setIconExtIdx={() => 0}
+          setIconError={() => {}}
           fallbackAvatarSrc={fallbackAvatarSrc}
           onOpenToggle={() => setIsOpen(!isOpen)}
           onRefresh={onRefresh}
@@ -384,6 +392,7 @@ export function ProviderSettings({
             onDefaultApiKeyChange={onDefaultApiKeyChange}
             onDefaultApiKeyBlur={onDefaultApiKeyBlur}
             endpointPreview={endpointPreview}
+            onPreferenceChange={onPreferenceChange}
           />
 
           {/* 模型列表和配置 */}
@@ -426,3 +435,19 @@ export function ProviderSettings({
   </>
   );
 }
+
+export const ProviderSettings = React.memo(ProviderSettingsImpl, (prev, next) => {
+  // 仅在关键属性变化时更新，展开其它项不触发全部重渲染
+  const sameProviderCore = (
+    prev.provider.name === next.provider.name &&
+    prev.provider.api_base_url === next.provider.api_base_url &&
+    prev.provider.default_api_key === next.provider.default_api_key &&
+    prev.provider.displayStatus === next.provider.displayStatus
+  );
+  return (
+    sameProviderCore &&
+    prev.isConnecting === next.isConnecting &&
+    prev.isInitialChecking === next.isInitialChecking &&
+    prev.open === next.open
+  );
+});

@@ -31,6 +31,9 @@ export interface SSEConnectionConfig {
   debugTag?: string;
 }
 
+// 导入公共的浏览器兜底工具
+import { shouldUseBrowserRequest } from '@/lib/provider/browser-fallback-utils';
+
 /**
  * 通用的SSE客户端工具类
  * 只负责SSE通信的基础功能，不涉及任何业务逻辑
@@ -39,6 +42,7 @@ export class SSEClient {
   private unlisteners: Array<() => void> = [];
   private isConnected = false;
   private debugTag: string;
+  private eventSource: EventSource | null = null;
 
   constructor(debugTag: string = 'SSEClient') {
     this.debugTag = debugTag;
@@ -69,7 +73,13 @@ export class SSEClient {
       console.debug(`[${debugTag}] start_sse URL:`, url);
       console.debug(`[${debugTag}] start_sse Body:`, this.formatBodyForLog(body));
 
-      // 启动SSE连接
+      // 检查是否应该使用浏览器SSE方式
+      if (await shouldUseBrowserRequest(url, debugTag)) {
+        await this.startBrowserSSE(config, callbacks);
+        return;
+      }
+
+      // 启动Tauri SSE连接
       await invoke('start_sse', {
         url,
         method,
@@ -81,22 +91,6 @@ export class SSEClient {
       const unlistenEvent = await listen<string>('sse-event', (e) => {
         const data = e.payload;
         if (!data) return;
-
-        // 添加数据格式检查
-        // console.debug(`[${debugTag}] SSE Event received:`, {
-        //   dataLength: data.length,
-        //   startsWithData: data.startsWith('data:'),
-        //   containsNewlines: data.includes('\n'),
-        //   isJSON: (() => {
-        //     try {
-        //       JSON.parse(data);
-        //       return true;
-        //     } catch {
-        //       return false;
-        //     }
-        //   })(),
-        //   rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
-        // });
 
         // 直接传递原始数据给业务层处理
         callbacks.onData?.(data);
@@ -126,6 +120,197 @@ export class SSEClient {
   }
 
   /**
+   * 启动浏览器SSE连接
+   */
+  private async startBrowserSSE(
+    config: SSEConnectionConfig,
+    callbacks: SSECallbacks
+  ): Promise<void> {
+    const { url, method = 'POST', headers = {}, body, debugTag = this.debugTag } = config;
+
+    try {
+      // 对于POST请求，我们需要先发送请求获取流
+      if (method === 'POST') {
+        // 准备请求头
+        const requestHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          ...headers
+        };
+
+        console.debug(`[${debugTag}] 启动浏览器SSE连接 (POST):`, url);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: requestHeaders,
+          body: typeof body === 'string' ? body : JSON.stringify(body || {}),
+          // 添加信号支持，便于取消
+          signal: this.createAbortController()?.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        }
+
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+
+        // 检查响应类型
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('text/event-stream') && !contentType.includes('text/plain')) {
+          console.warn(`[${debugTag}] Unexpected content-type: ${contentType}`);
+        }
+
+        // 处理流式响应
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        this.isConnected = true;
+
+        const processBuffer = () => {
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 保留最后一个不完整的行
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine) {
+              // 处理SSE格式的数据
+              if (trimmedLine.startsWith('data: ')) {
+                const data = trimmedLine.substring(6);
+                if (data !== '[DONE]') {
+                  callbacks.onData?.(data);
+                } else {
+                  console.debug(`[${debugTag}] 收到结束信号`);
+                  callbacks.onClose?.();
+                  this.stopConnection();
+                  return;
+                }
+              } else if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
+                // 直接的JSON数据
+                callbacks.onData?.(trimmedLine);
+              } else {
+                // 其他格式数据
+                callbacks.onData?.(trimmedLine);
+              }
+            }
+          }
+        };
+
+        const readStream = async () => {
+          try {
+            while (this.isConnected) {
+              const { done, value } = await reader.read();
+              
+              if (done) {
+                console.debug(`[${debugTag}] Browser SSE stream completed`);
+                callbacks.onClose?.();
+                break;
+              }
+
+              buffer += decoder.decode(value, { stream: true });
+              processBuffer();
+            }
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              console.debug(`[${debugTag}] Browser SSE stream aborted`);
+            } else {
+              console.error(`[${debugTag}] Browser SSE read error:`, error);
+              callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
+            }
+          } finally {
+            try {
+              reader.releaseLock();
+            } catch (e) {
+              console.warn(`[${debugTag}] Failed to release reader:`, e);
+            }
+          }
+        };
+
+        // 开始读取流
+        readStream();
+
+        // 保存清理函数
+        this.unlisteners = [() => {
+          this.isConnected = false;
+          reader.cancel().catch(e => 
+            console.warn(`[${debugTag}] Failed to cancel reader:`, e)
+          );
+        }];
+
+      } else {
+        // 对于GET请求，使用EventSource
+        console.debug(`[${debugTag}] 启动浏览器EventSource连接 (GET):`, url);
+        
+        const eventSource = new EventSource(url);
+        this.eventSource = eventSource;
+
+        let connectionOpened = false;
+
+        eventSource.onopen = () => {
+          console.debug(`[${debugTag}] Browser EventSource opened`);
+          connectionOpened = true;
+          this.isConnected = true;
+        };
+
+        eventSource.onmessage = (event) => {
+          callbacks.onData?.(event.data);
+        };
+
+        eventSource.onerror = (event) => {
+          console.error(`[${debugTag}] Browser EventSource error:`, event);
+          
+          if (!connectionOpened) {
+            callbacks.onError?.(new Error('Failed to establish EventSource connection'));
+          } else {
+            // 连接已建立但出错，可能是网络问题
+            console.warn(`[${debugTag}] EventSource connection interrupted`);
+          }
+          
+          this.stopConnection();
+        };
+
+        // 保存清理函数
+        this.unlisteners = [() => {
+          eventSource.close();
+          this.eventSource = null;
+        }];
+
+        // 设置超时检查
+        const timeoutId = setTimeout(() => {
+          if (!connectionOpened) {
+            console.warn(`[${debugTag}] EventSource connection timeout`);
+            callbacks.onError?.(new Error('EventSource connection timeout'));
+            this.stopConnection();
+          }
+        }, 10000); // 10秒超时
+
+        this.unlisteners.push(() => clearTimeout(timeoutId));
+      }
+
+    } catch (error: any) {
+      console.error(`[${debugTag}] Browser SSE failed:`, error);
+      callbacks.onError?.(error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建AbortController用于取消请求
+   */
+  private createAbortController(): AbortController | null {
+    try {
+      return new AbortController();
+    } catch {
+      // 某些环境可能不支持AbortController
+      return null;
+    }
+  }
+
+  /**
    * 停止SSE连接
    */
   async stopConnection(): Promise<void> {
@@ -134,11 +319,17 @@ export class SSEClient {
       this.unlisteners.forEach(unlisten => unlisten());
       this.unlisteners = [];
       
-      // 通知后端停止SSE
-      try {
-        await invoke('stop_sse');
-      } catch (error) {
-        console.warn(`[${this.debugTag}] Failed to stop SSE:`, error);
+      // 如果是浏览器EventSource，直接关闭
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      } else {
+        // 通知后端停止Tauri SSE
+        try {
+          await invoke('stop_sse');
+        } catch (error) {
+          console.warn(`[${this.debugTag}] Failed to stop SSE:`, error);
+        }
       }
     }
     

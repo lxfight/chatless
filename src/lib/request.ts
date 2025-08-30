@@ -5,6 +5,9 @@ import { isDevelopmentEnvironment } from '@/lib/utils/environment';
 // 导入Ollama请求处理函数
 import { processOllamaRequest } from './request-patches';
 
+// 导入公共的浏览器兜底工具
+import { shouldUseBrowserRequest } from '@/lib/provider/browser-fallback-utils';
+
 
 
 // 环境检测：只在开发环境中启用调试日志
@@ -97,6 +100,11 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
     retryDelay: 1000,
     ...opts,
   };
+
+  // 检查提供商偏好设置，如果应该使用浏览器请求方式，直接使用browserFetch
+  if (await shouldUseBrowserRequest(inputUrl, 'request')) {
+    return browserFetch<T>(inputUrl, defaultedOpts);
+  }
 
   // 应用网络偏好设置（代理、离线模式等）
   const { proxyUrl, useSystemProxy, offline } = useNetworkPreferences.getState();

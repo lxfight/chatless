@@ -48,8 +48,7 @@ export function mapToProviderWithStatus(
           return 'NOT_CONNECTED';
         case ProviderStatus.NO_KEY:
           return 'NO_KEY';
-        case ProviderStatus.CONNECTING:
-          return 'CONNECTING';
+        // CONNECTING 永远不应该从持久化数据中读取，如果发现则当作UNKNOWN处理
         case ProviderStatus.UNKNOWN:
         default:
           return 'UNKNOWN';

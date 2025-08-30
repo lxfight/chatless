@@ -25,13 +25,14 @@ export class UpdateProviderConfigUseCase {
       ...(typeof input.apiKey !== "undefined" ? { apiKey: (input.apiKey && input.apiKey.trim()) ? input.apiKey.trim() : null } : {}),
     });
 
-    // 对于 multi 策略（例如 New API），若无设置默认策略，初始化为 openai-compatible
-    try {
-      const def = await specializedStorage.models.getProviderDefaultStrategy(name);
-      if (!def) {
-        await specializedStorage.models.setProviderDefaultStrategy(name, 'openai-compatible');
-      }
-    } catch (_) {}
+    // 注意：聚合型提供商（如New API）不需要Provider级别的默认策略
+    // 用户应该为每个模型单独设置策略，因此移除此处的默认策略初始化
+    // try {
+    //   const def = await specializedStorage.models.getProviderDefaultStrategy(name);
+    //   if (!def) {
+    //     await specializedStorage.models.setProviderDefaultStrategy(name, 'openai-compatible');
+    //   }
+    // } catch (_) {}
 
     // 仅当 URL 变更时触发刷新（含模型）；
     // 纯密钥更新不立刻刷新，减少请求与界面抖动，由用户手动“检查连接”或后续操作触发刷新

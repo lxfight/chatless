@@ -28,8 +28,9 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
         const { specializedStorage } = await import('@/lib/storage');
         const override = await specializedStorage.models.getModelStrategy(this.name, model);
         if (override && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(override)) return override as any;
-        const def = await specializedStorage.models.getProviderDefaultStrategy(this.name);
-        if (def && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
+        // 移除Provider默认策略的回退，因为聚合型提供商应该为每个模型单独设置策略
+        // const def = await specializedStorage.models.getProviderDefaultStrategy(this.name);
+        // if (def && (['openai','openai-responses','openai-compatible','anthropic','gemini','deepseek'] as string[]).includes(def)) return def as any;
       } catch (_) {}
       return 'openai-compatible';
     }

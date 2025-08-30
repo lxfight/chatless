@@ -3,7 +3,7 @@
  */
 export enum ProviderStatus {
   UNKNOWN = 'UNKNOWN',
-  CONNECTING = 'CONNECTING',
+  // CONNECTING 不应该被持久化，它只是UI的临时状态
   CONNECTED = 'CONNECTED',
   NOT_CONNECTED = 'NOT_CONNECTED',
   NO_KEY = 'NO_KEY',
@@ -36,6 +36,11 @@ export interface ProviderEntity {
   strategy?: string;
   /** 预留：头像/图标生成用的种子（稍后接入图案生成） */
   avatarSeed?: string;
+  /** 高级偏好设置 */
+  preferences?: {
+    /** 是否使用浏览器请求方式（兜底模式） */
+    useBrowserRequest?: boolean;
+  };
 }
 
 export interface ModelEntity {

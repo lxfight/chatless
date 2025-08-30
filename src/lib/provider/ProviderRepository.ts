@@ -40,7 +40,15 @@ export class ProviderRepository {
     const list = await this.getAll();
     const idx = list.findIndex((p) => p.name === partial.name);
     if (idx >= 0) {
-      list[idx] = { ...list[idx], ...partial } as ProviderEntity;
+      const next = { ...list[idx], ...partial } as ProviderEntity;
+      // 保护：禁止持久化中间态（CONNECTING）；发现则降级为 UNKNOWN
+      if ((next as any).status === (ProviderStatus as any).CONNECTING) {
+        next.status = ProviderStatus.UNKNOWN;
+        // 清理中间态的提示信息
+        next.lastReason = next.lastReason;
+        next.lastMessage = next.lastMessage ?? null;
+      }
+      list[idx] = next;
     } else {
       // 新增时补默认字段
       list.push({
