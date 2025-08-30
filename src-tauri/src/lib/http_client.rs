@@ -17,6 +17,18 @@ pub struct HttpClientConfig {
     pub user_agent: Option<String>,
     /// 是否启用原生TLS（而非rustls）
     pub use_native_tls: bool,
+    /// 是否禁用证书验证（仅用于测试）
+    pub danger_accept_invalid_certs: bool,
+    /// 自定义连接超时（毫秒）
+    pub connect_timeout_ms: Option<u64>,
+    /// 是否启用gzip压缩
+    pub gzip: bool,
+    /// 是否启用brotli压缩
+    pub brotli: bool,
+    /// 是否禁用HTTP/2
+    pub disable_http2: bool,
+    /// 代理URL
+    pub proxy_url: Option<String>,
 }
 
 impl Default for HttpClientConfig {
@@ -27,6 +39,12 @@ impl Default for HttpClientConfig {
             browser_like_headers: true,
             user_agent: None,
             use_native_tls: false,
+            danger_accept_invalid_certs: false,
+            connect_timeout_ms: None,
+            gzip: true,
+            brotli: true,
+            disable_http2: false,
+            proxy_url: None,
         }
     }
 }
@@ -36,6 +54,8 @@ pub struct HttpClientManager {
     default_client: Arc<Client>,
     browser_like_client: Arc<Client>,
     http1_client: Arc<Client>,
+    stealth_client: Arc<Client>,
+    minimal_client: Arc<Client>,
 }
 
 impl HttpClientManager {
@@ -44,11 +64,15 @@ impl HttpClientManager {
         let default_client = Arc::new(Self::build_default_client()?);
         let browser_like_client = Arc::new(Self::build_browser_like_client()?);
         let http1_client = Arc::new(Self::build_http1_client()?);
+        let stealth_client = Arc::new(Self::build_stealth_client()?);
+        let minimal_client = Arc::new(Self::build_minimal_client()?);
 
         Ok(Self {
             default_client,
             browser_like_client,
             http1_client,
+            stealth_client,
+            minimal_client,
         })
     }
 
@@ -67,15 +91,52 @@ impl HttpClientManager {
         self.http1_client.clone()
     }
 
+    /// 获取隐秘模式客户端（最大限度反检测）
+    pub fn stealth_client(&self) -> Arc<Client> {
+        self.stealth_client.clone()
+    }
+
+    /// 获取最小化客户端（无多余头信息）
+    pub fn minimal_client(&self) -> Arc<Client> {
+        self.minimal_client.clone()
+    }
+
     /// 根据配置创建自定义客户端
     pub fn build_custom_client(config: HttpClientConfig) -> Result<Client, reqwest::Error> {
         let mut builder = Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs));
 
-        if config.http1_only {
+        // 连接超时
+        if let Some(connect_timeout_ms) = config.connect_timeout_ms {
+            builder = builder.connect_timeout(Duration::from_millis(connect_timeout_ms));
+        }
+
+        // HTTP版本控制
+        if config.http1_only || config.disable_http2 {
             builder = builder.http1_only();
         }
 
+        // 压缩设置
+        if !config.gzip {
+            builder = builder.no_gzip();
+        }
+        if !config.brotli {
+            builder = builder.no_brotli();
+        }
+
+        // TLS证书验证（仅用于测试环境）
+        if config.danger_accept_invalid_certs {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        // 代理设置
+        if let Some(proxy_url) = &config.proxy_url {
+            if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+                builder = builder.proxy(proxy);
+            }
+        }
+
+        // 浏览器模拟头
         if config.browser_like_headers {
             let headers = Self::build_browser_headers(config.user_agent.as_deref());
             builder = builder.default_headers(headers);
@@ -112,6 +173,30 @@ impl HttpClientManager {
             .default_headers(headers)
             .timeout(Duration::from_secs(30))
             .http1_only()
+            .build()
+    }
+
+    /// 构建隐秘模式客户端（反检测）
+    fn build_stealth_client() -> Result<Client, reqwest::Error> {
+        let headers = Self::build_stealth_headers();
+        
+        Client::builder()
+            .default_headers(headers)
+            .timeout(Duration::from_secs(60))
+            .connect_timeout(Duration::from_millis(10000))
+            .http1_only()
+            .danger_accept_invalid_certs(false)
+            .build()
+    }
+
+    /// 构建最小化客户端（无多余头信息）
+    fn build_minimal_client() -> Result<Client, reqwest::Error> {
+        Client::builder()
+            .timeout(Duration::from_secs(120))
+            .connect_timeout(Duration::from_millis(30000))
+            .http1_only()
+            .no_gzip()
+            .no_brotli()
             .build()
     }
 
@@ -175,6 +260,49 @@ impl HttpClientManager {
 
         headers
     }
+
+    /// 构建隐秘模式请求头（最大限度反检测）
+    fn build_stealth_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+
+        // 使用更常见的User-Agent，避免过于新的版本号
+        headers.insert(
+            USER_AGENT, 
+            HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+        );
+
+        // 简化的Accept头，避免过于复杂的值
+        headers.insert(
+            ACCEPT, 
+            HeaderValue::from_static("application/json, text/plain, */*")
+        );
+
+        // 常见的语言设置
+        headers.insert(
+            ACCEPT_LANGUAGE, 
+            HeaderValue::from_static("en-US,en;q=0.9")
+        );
+
+        // 基本的编码支持，不包括brotli
+        headers.insert(
+            ACCEPT_ENCODING, 
+            HeaderValue::from_static("gzip, deflate")
+        );
+
+        // 添加缓存控制
+        headers.insert(
+            HeaderName::from_static("cache-control"), 
+            HeaderValue::from_static("no-cache")
+        );
+
+        // 添加pragma头
+        headers.insert(
+            HeaderName::from_static("pragma"), 
+            HeaderValue::from_static("no-cache")
+        );
+
+        headers
+    }
 }
 
 // 全局客户端管理器实例
@@ -207,18 +335,63 @@ pub fn get_http1_client() -> Result<Arc<Client>, String> {
         .map_err(|e| format!("Failed to get HTTP/1.1 client: {}", e))
 }
 
+/// 获取全局隐秘模式客户端（反检测）
+pub fn get_stealth_client() -> Result<Arc<Client>, String> {
+    GLOBAL_CLIENT_MANAGER
+        .as_ref()
+        .map(|manager| manager.stealth_client())
+        .map_err(|e| format!("Failed to get stealth client: {}", e))
+}
+
+/// 获取全局最小化客户端
+pub fn get_minimal_client() -> Result<Arc<Client>, String> {
+    GLOBAL_CLIENT_MANAGER
+        .as_ref()
+        .map(|manager| manager.minimal_client())
+        .map_err(|e| format!("Failed to get minimal client: {}", e))
+}
+
+/// 根据类型获取HTTP客户端
+pub fn get_client_by_type(client_type: &str) -> Result<Arc<Client>, String> {
+    match GLOBAL_CLIENT_MANAGER.as_ref() {
+        Ok(manager) => {
+            match client_type {
+                "default" => Ok(manager.default_client()),
+                "browser_like" => Ok(manager.browser_like_client()),
+                "http1_only" => Ok(manager.http1_client()),
+                "stealth" => Ok(manager.stealth_client()),
+                "minimal" => Ok(manager.minimal_client()),
+                _ => Err(format!("Unknown client type: {}", client_type))
+            }
+        },
+        Err(e) => Err(format!("Failed to initialize HTTP client manager: {}", e))
+    }
+}
+
 /// Tauri命令：获取当前HTTP客户端配置信息
 #[tauri::command]
 pub fn get_http_client_info() -> Result<serde_json::Value, String> {
     let info = serde_json::json!({
-        "available_clients": ["default", "browser_like", "http1_only"],
+        "available_clients": ["default", "browser_like", "http1_only", "stealth", "minimal"],
+        "client_descriptions": {
+            "default": "默认配置，基本的HTTP客户端",
+            "browser_like": "模拟浏览器行为，添加完整浏览器头信息",
+            "http1_only": "强制使用HTTP/1.1协议",
+            "stealth": "隐秘模式，最大限度反检测（推荐用于严格WAF）",
+            "minimal": "最小化配置，无多余头信息，适用于简单API"
+        },
         "default_config": {
             "timeout_secs": 30,
             "http1_only": false,
             "browser_like_headers": true,
             "use_native_tls": false
         },
-        "tls_backend": "rustls" // 当前使用rustls，可通过修改Cargo.toml切换到native-tls
+        "tls_backend": "rustls", // 当前使用rustls，可通过修改Cargo.toml切换到native-tls
+        "recommendations": {
+            "connection_rejected": "尝试使用 'stealth' 或 'minimal' 客户端类型",
+            "waf_blocked": "使用 'stealth' 客户端类型并考虑添加代理",
+            "timeout": "增加timeout设置或使用 'minimal' 客户端"
+        }
     });
     Ok(info)
 }
@@ -232,6 +405,8 @@ pub async fn compare_http_clients(
         ("default", get_default_client()?),
         ("browser_like", get_browser_like_client()?),
         ("http1_only", get_http1_client()?),
+        ("stealth", get_stealth_client()?),
+        ("minimal", get_minimal_client()?),
     ];
 
     let mut results = serde_json::Map::new();

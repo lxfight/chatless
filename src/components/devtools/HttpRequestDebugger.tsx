@@ -13,7 +13,7 @@ type FormKV = { id: string; key: string; value: string };
 
 type BodyMode = "json" | "form" | "none";
 type RequestMode = "tauri" | "browser";
-type TauriClientType = "default" | "browser_like" | "http1_only";
+type TauriClientType = "default" | "browser_like" | "http1_only" | "stealth" | "minimal";
 
 // 保存的请求数据结构
 interface SavedRequest {
@@ -570,9 +570,11 @@ export default function HttpRequestDebugger() {
               onChange={(e) => setTauriClientType(e.target.value as TauriClientType)}
               className="h-9 w-full border border-gray-300 rounded px-2 text-sm bg-white dark:bg-slate-800 dark:border-gray-600"
             >
-              <option value="browser_like">浏览器模拟（推荐）</option>
-              <option value="default">默认客户端</option>
-              <option value="http1_only">HTTP/1.1 专用</option>
+              <option value="stealth">🥷 隐秘模式（反检测）</option>
+              <option value="minimal">⚡ 最小化客户端</option>
+              <option value="browser_like">🌐 浏览器模拟</option>
+              <option value="http1_only">🔗 HTTP/1.1 专用</option>
+              <option value="default">⚙️ 默认客户端</option>
             </select>
           </div>
         )}
