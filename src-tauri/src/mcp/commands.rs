@@ -14,6 +14,10 @@ use tauri::State;
 use tokio::time::{timeout, Duration};
 use tokio::process::Command;
 
+// 仅在Windows平台编译时，引入 CommandExt Trait
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 // —— 工具：从 npx 参数中提取第一个包名（用于首次安装的预拉取） ——
 fn extract_npx_package(args: &Option<Vec<String>>) -> Option<String> {
   if let Some(a) = args {
@@ -29,6 +33,13 @@ fn extract_npx_package(args: &Option<Vec<String>>) -> Option<String> {
 async fn npx_prefetch_package(pkg: &str) -> Result<(), String> {
   // 只下载依赖，不启动 MCP；最长等待 4 分钟以适配首次安装
   let mut pre = Command::new("npx");
+  
+  // [关键步骤] 为Windows平台设置无窗口创建标志
+  #[cfg(windows)]
+  {
+    pre.creation_flags(0x08000000); // CREATE_NO_WINDOW
+  }
+  
   pre.env("NPM_CONFIG_LOGLEVEL", "silent");
   pre.env("NO_COLOR", "1");
   pre.env("NPX_Y", "1");
@@ -93,6 +104,13 @@ pub async fn mcp_connect(
       // 构造命令的闭包，便于重试
       let build_cmd = || {
         let mut c = Command::new(&cmd_name);
+        
+        // [关键步骤] 为Windows平台设置无窗口创建标志
+        #[cfg(windows)]
+        {
+          c.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        
         if let Some(args) = &config.args { c.args(args); }
         if let Some(envs) = &config.env { for (k,v) in envs { c.env(k, v); } }
         if cmd_name == "npx" {
