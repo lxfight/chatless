@@ -322,7 +322,10 @@ jobs:
           
           **注意**: 首次启动可能提示"已损坏"，请：
           1. 点击"取消"
-          2. 打开终端，运行: \`sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app\`
+          2. 打开终端，运行: 
+          ```bash
+          sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app
+          ```
           3. 重新启动应用
           
           ### Linux
@@ -393,7 +396,10 @@ jobs:
           
           **Note**: First launch may show "damaged" message, please:
           1. Click "Cancel"
-          2. Open Terminal, run: \`sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app\`
+          2. Open Terminal, run:
+          ```bash
+          sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app
+          ```
           3. Restart application
           
           ### Linux
