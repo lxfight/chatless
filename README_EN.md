@@ -196,7 +196,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Next.js](https://nextjs.org/) – React full-stack framework
 - [TailwindCSS](https://tailwindcss.com/) – Utility-first CSS framework
 - [Ollama](https://ollama.ai/) – Local large language model runtime
-- [ort](https://ort.pyke.io/) - Rust binding for ONNX Runtime
+- [ort](https://ort.pyke.io/) – Rust binding for ONNX Runtime
+- [Lucide Icons](https://lucide.dev) – Open-source icon library
+- Thanks to community contributors **@ukhack**, **@duokebei** for testing and feedback
 
 ---
 
