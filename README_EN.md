@@ -48,8 +48,19 @@
 ## 🚀 Quick Start
 
 ### 🎯 Installation & Usage
-1. **Download & Install** - Get the latest version from [Releases](https://github.com/kamjin3086/chatless/releases)
-2. **Configure API** - Add AI provider API keys in settings
+
+#### 📥 Download & Install
+Click the corresponding link to enter the download page, then select the installation package suitable for your system:
+
+- **Windows**: [Chatless Installer](https://github.com/kamjin3086/chatless/releases/latest) - Choose .exe or .msi file
+- **macOS**: [Chatless for macOS](https://github.com/kamjin3086/chatless/releases/latest) - Choose aarch64 or x64 version based on your processor
+- **Linux**: [Chatless for Linux](https://github.com/kamjin3086/chatless/releases/latest) - Choose .rpm, .deb, or .AppImage file suitable for your distribution
+
+> 📖 **Detailed Installation Guide**: View the [Complete Installation Guide](INSTALLATION_INSTRUCTIONS_EN.md) for detailed installation steps and common problem solutions
+
+#### ⚙️ Configuration Setup
+1. **Configure AI Providers** - Add API keys in settings
+2. **Set Up Local Models** - Install Ollama and download models (optional)
 3. **Start Using** - Choose a model to start chatting or upload documents
 
 ### 🛠️ Developer Build
@@ -64,11 +75,15 @@ pnpm tauri dev
 
 ## 📝 How to Use
 
-1. **Configure AI Providers** – Add API keys in settings
-2. **Set Up Local Models** – Install Ollama and download models
-3. **Create Knowledge Base** – Upload documents to build knowledge base
-4. **Start Chatting** – Choose a model to begin conversations
-5. **Manage History** – View and manage conversation records
+### 🚀 First Time Setup
+1. **Configure AI Providers** – Add API keys in settings, supports OpenAI, Anthropic, DeepSeek, etc.
+2. **Set Up Local Models** – Install Ollama and download models (optional, suitable for offline use)
+3. **Create Knowledge Base** – Upload PDF, Word, Markdown and other documents to build local knowledge base
+
+### 💬 Daily Usage
+4. **Start Chatting** – Choose AI models to begin intelligent conversations
+5. **Document Analysis** – Upload images or documents for analysis and Q&A
+6. **Manage History** – View and manage conversation records, supports search and export
 
 ---
 
@@ -106,21 +121,30 @@ Detail to see: [Project](https://github.com/users/kamjin3086/projects/1)
 
 ## 🔧 Configuration
 
-### AI Provider Setup
-1. Open application settings
-2. Go to "AI Model Settings"
-3. Add API keys
-4. Select default models
+### 🤖 AI Provider Setup
+1. Open application settings (shortcut: `Ctrl/Cmd + ,`)
+2. Go to "AI Model Settings" tab
+3. Click "Add Provider" and enter API keys
+4. Select default models and test connection
 
-### Local Model Setup
+> 💡 **Tip**: Supports multiple AI providers, you can configure several simultaneously and switch between them as needed
+
+### 🏠 Local Model Setup (Optional)
+If you want to use offline or protect privacy, you can configure local models:
+
 ```bash
-# Install Ollama
+# 1. Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# Download models
-ollama pull llama2
-ollama pull mistral
+# 2. Download common models
+ollama pull llama2:7b      # 7B parameter model, suitable for general conversations
+ollama pull mistral:7b     # Mistral model, excellent performance
+ollama pull qwen:7b        # Qwen model, good Chinese support
+
+# 3. Configure Ollama address in app settings (default: http://localhost:11434)
 ```
+
+> 🔒 **Privacy Advantage**: Local models ensure all conversation data never leaves your device
 
 ---
 
@@ -135,11 +159,15 @@ ollama pull mistral
 
 ## 💬 Feedback & Support
 
-| Channel | Link |
-| --- | --- |
-| GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
-| Discussions | <https://github.com/kamjin3086/chatless/discussions> |
-| In-app Feedback | **Settings → Feedback** inside the application |
+We highly value your feedback and suggestions! If you encounter any issues during use or have improvement suggestions, please contact us through the following channels:
+
+| Channel | Description | Link |
+| --- | --- | --- |
+| 🐛 **GitHub Issues** | Report bugs, feature requests, problem feedback | [Submit Issue](https://github.com/kamjin3086/chatless/issues) |
+| 💭 **Discussions** | Feature discussions, usage exchanges, community interaction | [Join Discussion](https://github.com/kamjin3086/chatless/discussions) |
+| 📱 **In-app Feedback** | Quick feedback, log submission, problem description | **Settings → Feedback** inside the application |
+
+> 💡 **Feedback Tips**: When submitting issues, please describe the problem phenomenon, operation steps, and system environment as detailed as possible, so we can help you solve the problem faster
 
 ---
 

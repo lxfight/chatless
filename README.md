@@ -49,8 +49,19 @@
 ## 🚀 快速开始
 
 ### 🎯 安装使用
-1. **下载安装** - 从 [Releases](https://github.com/kamjin3086/chatless/releases) 下载对应平台版本
-2. **配置API** - 在设置中添加AI提供商API密钥
+
+#### 📥 下载安装
+点击对应链接进入下载页面，选择适合您系统的安装包：
+
+- **Windows**: [Chatless 安装包](https://github.com/kamjin3086/chatless/releases/latest) - 选择 .exe 或 .msi 文件
+- **macOS**: [Chatless for macOS](https://github.com/kamjin3086/chatless/releases/latest) - 根据处理器选择 aarch64 或 x64 版本
+- **Linux**: [Chatless for Linux](https://github.com/kamjin3086/chatless/releases/latest) - 选择适合您发行版的 .rpm、.deb 或 .AppImage 文件
+
+> 📖 **详细安装说明**: 查看 [完整安装指南](INSTALLATION_INSTRUCTIONS.md) 获取详细的安装步骤和常见问题解决方案
+
+#### ⚙️ 配置设置
+1. **配置AI提供商** - 在设置中添加API密钥
+2. **设置本地模型** - 安装Ollama并下载模型（可选）
 3. **开始使用** - 选择模型开始对话或上传文档
 
 ### 🛠️ 开发者构建
@@ -65,11 +76,15 @@ pnpm tauri dev
 
 ## 📝 使用说明
 
-1. **配置AI提供商** – 在设置中添加API密钥
-2. **设置本地模型** – 安装Ollama并下载模型
-3. **创建知识库** – 上传文档构建知识库
-4. **开始对话** – 选择模型开始聊天
-5. **管理历史** – 查看和管理对话记录
+### 🚀 首次使用
+1. **配置AI提供商** – 在设置中添加API密钥，支持OpenAI、Anthropic、DeepSeek等
+2. **设置本地模型** – 安装Ollama并下载模型（可选，适合离线使用）
+3. **创建知识库** – 上传PDF、Word、Markdown等文档构建本地知识库
+
+### 💬 日常使用
+4. **开始对话** – 选择AI模型开始智能对话
+5. **文档分析** – 上传图片或文档进行分析和问答
+6. **管理历史** – 查看和管理对话记录，支持搜索和导出
 
 ---
 
@@ -107,21 +122,30 @@ pnpm tauri dev
 
 ## 🔧 配置说明
 
-### AI提供商设置
-1. 打开应用设置
-2. 进入"AI模型设置"
-3. 添加API密钥
-4. 选择默认模型
+### 🤖 AI提供商设置
+1. 打开应用设置（快捷键：`Ctrl/Cmd + ,`）
+2. 进入"AI模型设置"选项卡
+3. 点击"添加提供商"，输入API密钥
+4. 选择默认模型并测试连接
 
-### 本地模型设置
+> 💡 **提示**: 支持多种AI提供商，可以同时配置多个，根据需要切换使用
+
+### 🏠 本地模型设置（可选）
+如果您希望离线使用或保护隐私，可以配置本地模型：
+
 ```bash
-# 安装Ollama
+# 1. 安装Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# 下载模型
-ollama pull llama2
-ollama pull mistral
+# 2. 下载常用模型
+ollama pull llama2:7b      # 7B参数模型，适合一般对话
+ollama pull mistral:7b     # Mistral模型，性能优秀
+ollama pull qwen:7b        # 通义千问模型，中文支持好
+
+# 3. 在应用设置中配置Ollama地址（默认：http://localhost:11434）
 ```
+
+> 🔒 **隐私优势**: 本地模型确保所有对话数据不会离开您的设备
 
 ---
 
@@ -136,11 +160,15 @@ ollama pull mistral
 
 ## 💬 反馈与支持
 
-| 渠道 | 链接 |
-| --- | --- |
-| GitHub Issues | <https://github.com/kamjin3086/chatless/issues> |
-| 讨论区 | <https://github.com/kamjin3086/chatless/discussions> |
-| 应用内反馈 | 应用内**设置 → 反馈** |
+我们非常重视您的反馈和建议！如果您在使用过程中遇到问题或有改进建议，欢迎通过以下渠道联系我们：
+
+| 渠道 | 说明 | 链接 |
+| --- | --- | --- |
+| 🐛 **GitHub Issues** | 报告Bug、功能请求、问题反馈 | [提交Issue](https://github.com/kamjin3086/chatless/issues) |
+| 💭 **讨论区** | 功能讨论、使用交流、社区互动 | [参与讨论](https://github.com/kamjin3086/chatless/discussions) |
+| 📱 **应用内反馈** | 快速反馈、日志提交、问题描述 | 应用内**设置 → 反馈** |
+
+> 💡 **反馈建议**: 提交问题时请尽可能详细描述问题现象、操作步骤和系统环境，这样我们能更快地帮助您解决问题
 
 ---
 
