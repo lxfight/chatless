@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Button } from "@/components/ui/button";
 import { SettingsDivider } from './SettingsDivider';
@@ -9,8 +9,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { startupMonitor } from "@/lib/utils/startupPerformanceMonitor";
 import { downloadService } from "@/lib/utils/downloadService";
 import { detectTauriEnvironment } from "@/lib/utils/environment";
+import { SettingsSectionHeader } from "./SettingsSectionHeader";
 // 在需要时动态导入 Tauri FS/Path API
 import { toast } from "@/components/ui/sonner";
+import { LogsIcon } from "lucide-react";
 
 export function AdvancedSettings() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -200,7 +202,11 @@ export function AdvancedSettings() {
       <SettingsDivider />
 
       <div>
-        <h3 className="text-base font-medium text-gray-800 dark:text-gray-200 mb-4">日志系统</h3>
+      <SettingsSectionHeader
+        icon={LogsIcon}
+        title="日志系统"
+        iconBgColor="from-green-500 to-teal-500"
+      />
         <div className="space-y-4">
           <div className="flex items-center gap-4">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">日志级别:</span>

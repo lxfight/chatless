@@ -27,7 +27,7 @@ export function SettingsSectionHeader({
 
   return (
     <div
-      className="flex items-center gap-3 mb-6 px-1 pt-6"
+      className="flex items-center gap-3 mb-6 px-1 pt-2"
       data-setting-section
       data-setting-title={title}
       id={`setting-${title.replace(/\s+/g, '-').toLowerCase()}`}
@@ -39,7 +39,7 @@ export function SettingsSectionHeader({
           <Icon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
         </div>
       )}
-      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">
         {title}
       </h2>
     </div>
