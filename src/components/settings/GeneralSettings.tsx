@@ -62,7 +62,7 @@ export function GeneralSettings() {
     <div className="space-y-6">
       {/* 页面标题 */}
       <div className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">常规设置</h2>
+        <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">常规设置</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此设置常规选项，包括界面语言、主题模式、字体大小等。</p>
       </div>
 
@@ -70,7 +70,8 @@ export function GeneralSettings() {
        <div className="border border-gray-100 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
          {/* 头部 */}
          <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
-           <SlidersHorizontal className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+           {/* 主图标使用品牌色以提升层级 */}
+           <SlidersHorizontal className="w-5 h-5 text-brand-600 dark:text-brand-400" />
            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">常用选项</h3>
          </div>
 

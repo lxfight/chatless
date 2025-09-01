@@ -230,7 +230,7 @@ export function AiModelSettings() {
                 className="w-48 h-8 transition-all duration-200"
               />
             ) : (
-              <button onClick={()=>setShowSearchInput(true)} className="p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md" title="搜索">
+              <button onClick={()=>setShowSearchInput(true)} className="p-2 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/50 rounded-md transition-colors" title="搜索">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.5 3.5a7.5 7.5 0 0013.15 13.15z" /></svg>
               </button>
             )
@@ -257,7 +257,7 @@ export function AiModelSettings() {
           <button
             onClick={handleGlobalRefresh}
             disabled={isRefreshing || isLoading || connectingProviderName !== null}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="刷新全部提供商状态"
           >
             <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />

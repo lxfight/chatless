@@ -12,7 +12,8 @@ interface SettingsSectionHeaderProps {
 export function SettingsSectionHeader({
   icon: Icon,
   title,
-  iconBgColor = "bg-gray-200 dark:bg-gray-700",
+  // 默认使用品牌色的淡色背景，而不是灰色，提升视觉层级
+  iconBgColor = "bg-brand-100 dark:bg-brand-900",
   showIcon = true,
 }: SettingsSectionHeaderProps) {
   const { showSettingIcons } = useUiPreferences();
@@ -34,9 +35,10 @@ export function SettingsSectionHeader({
     >
       {shouldShowIcon && (
         <div
-          className={`w-8 h-8 rounded-md ${bgClass} flex items-center justify-center shadow-sm bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800`}
+          className={`w-8 h-8 rounded-md ${bgClass} flex items-center justify-center shadow-sm bg-gradient-to-br from-brand-50 to-brand-100 dark:from-brand-800 dark:to-brand-900`}
         >
-          <Icon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          {/* 重要图标采用品牌色，禁用态可在父级控制 opacity */}
+          <Icon className="w-4 h-4 text-brand-600 dark:text-brand-400" />
         </div>
       )}
       <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">
