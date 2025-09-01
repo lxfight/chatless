@@ -291,20 +291,19 @@ jobs:
           # Chatless $VERSION 发布
           
           ## 下载
-          
           ### Windows
-          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64-setup.exe)
-          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64_en-US.msi)
-          
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64_en-US.msi)
+                    
           ### macOS
-          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_aarch64.dmg)
-          - [Intel 处理器](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64.dmg)
-          
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_aarch64.dmg)
+          - [Intel 处理器](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64.dmg)
+
           ### Linux
           - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
-          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_amd64.deb)
-          - [通用格式 (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-x86_64.AppImage)
-          
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.deb)
+          - [通用格式 (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.AppImage)
+                    
           ---
           
           ## 安装说明
@@ -363,20 +362,19 @@ jobs:
           # Chatless $VERSION Release
           
           ## Download
-          
           ### Windows
-          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64-setup.exe)
-          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64_en-US.msi)
-          
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64_en-US.msi)
+                    
           ### macOS
-          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_aarch64.dmg)
-          - [Intel Processor](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64.dmg)
-          
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_aarch64.dmg)
+          - [Intel Processor](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64.dmg)
+
           ### Linux
           - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
-          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_amd64.deb)
-          - [Universal (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-x86_64.AppImage)
-          
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.deb)
+          - [Universal (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.AppImage)
+
           ---
           
           ## Installation
