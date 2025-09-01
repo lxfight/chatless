@@ -287,7 +287,7 @@ export function ModelParametersDialog({
                 <Settings className="w-5 h-5 text-blue-500 dark:text-blue-400" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <DialogTitle className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
                   模型参数设置
                 </DialogTitle>
                 <div className="flex items-center gap-2 mt-1">

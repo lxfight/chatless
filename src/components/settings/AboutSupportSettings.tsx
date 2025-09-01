@@ -137,7 +137,7 @@ export function AboutSupportSettings() {
     <div className="space-y-4">
       {/* 页面标题 */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">关于与支持</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">关于与支持</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此查看关于与支持相关信息，包括版本信息、更新检查、帮助中心等。</p>
       </div>
       {/* 应用信息卡片 */}

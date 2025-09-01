@@ -14,7 +14,7 @@ export function PersonalizationSettings() {
       {/* 头部 */}
       <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
         <Palette className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">外观与体验</h3>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">外观与体验</h3>
       </div>
 
              {/* 设置内容 */}

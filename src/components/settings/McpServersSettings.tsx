@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { McpEnvironmentStatus } from "./McpEnvironmentStatus";
+import AdvancedMcpSettingsDialog from "./AdvancedMcpSettingsDialog";
 
 
 type TransportType = "stdio" | "sse" | "http";
@@ -78,8 +79,8 @@ export function McpServersSettings() {
   // —— 三点菜单状态管理 ——
   const [openMenuServer, setOpenMenuServer] = useState<string | null>(null);
 
-  // —— 高级设置：最大递归深度 ——
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // —— 高级设置弹窗 ——
+  const [advDialogOpen, setAdvDialogOpen] = useState(false);
   const [maxDepthValue, setMaxDepthValue] = useState<number>(6);
 
   const loadAdvanced = useCallback(async () => {
@@ -700,18 +701,16 @@ export function McpServersSettings() {
   return (
     <TooltipProvider>
       <div className="space-y-4">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">MCP 服务器设置</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">在此设置 MCP 服务器，包括服务器类型、命令、参数、环境变量等。</p>
+        </div>
+
         {/* 环境状态检查 */}
         <McpEnvironmentStatus />
-        
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">MCP 服务器设置</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置 MCP 服务器，包括服务器类型、命令、参数、环境变量等。</p>
-        
 
-      </div>  
-
-        <div className="flex gap-2 items-center">
-          {/* 主要操作按钮组 */}
+        <div className="flex items-center justify-between gap-4">
+          {/* 左侧主要操作按钮组 */}
           <div className="flex gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -779,66 +778,29 @@ export function McpServersSettings() {
               </TooltipContent>
             </Tooltip>
           </div>
-        </div>
 
-      {renderEditor()}
-
-      {/* 高级设置 */}
-      <div className="border border-gray-100 rounded-xl p-4 bg-white dark:bg-gray-900 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">高级设置</h3>
+          {/* 右侧齿轮按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <button 
-                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200" 
-                onClick={() => setAdvancedOpen(v=>!v)}
+              <button
+                className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center"
+                onClick={() => setAdvDialogOpen(true)}
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-5 h-5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>
-              <p>{advancedOpen ? '隐藏高级设置' : '显示高级设置'}</p>
-            </TooltipContent>
+            <TooltipContent><p>高级设置</p></TooltipContent>
           </Tooltip>
         </div>
-        {advancedOpen && (
-          <div className="mt-4 space-y-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                最大工具递归次数
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={2}
-                  max={20}
-                  step={1}
-                  value={maxDepthValue}
-                  onChange={(e) => {
-                    const newValue = Number(e.target.value);
-                    setMaxDepthValue(newValue);
-                    saveAdvanced(newValue);
-                  }}
-                  className="flex-1 appearance-none w-full h-2 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105"
-                />
-                <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[3rem] text-center">
-                  {maxDepthValue >= 20 ? '∞' : maxDepthValue}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                拖动到最右侧表示无限制，2-19表示具体次数
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
 
-            {importOpen && (
+        {renderEditor()}
+
+      {importOpen && (
         <div className="border border-gray-200 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-lg backdrop-blur-sm">
           {/* 头部区域 */}
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
@@ -1073,7 +1035,7 @@ export function McpServersSettings() {
             {exportText && (
         <div className="border border-gray-200 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
           <div className="border-b border-gray-100 pb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">导出 JSON</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">导出 JSON</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">可复制保存为 mcp.json</p>
           </div>
           
@@ -1116,6 +1078,13 @@ export function McpServersSettings() {
            </AlertDialogFooter>
          </AlertDialogContent>
        </AlertDialog>
+       {/* 高级设置弹窗组件 */}
+       <AdvancedMcpSettingsDialog
+           open={advDialogOpen}
+           onOpenChange={setAdvDialogOpen}
+           maxDepth={maxDepthValue}
+           onSave={saveAdvanced}
+       />
        </div>
      </TooltipProvider>
    );

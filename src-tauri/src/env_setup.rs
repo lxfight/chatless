@@ -1,7 +1,17 @@
 use std::env;
 use std::path::Path;
 use log::{info, debug, warn};
+use std::ffi::OsStr;
 use serde::Serialize;
+
+// ── Cross-platform helpers ─────────────────────────────────────────────────
+// PATH separator differs between Windows (';') and Unix (':'). Define a
+// small constant so that every place that splits or joins PATH values picks
+// the correct character at compile time.
+#[cfg(windows)]
+const PATH_SEPARATOR: &str = ";";
+#[cfg(not(windows))]
+const PATH_SEPARATOR: &str = ":";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolAvailability {
@@ -49,7 +59,7 @@ impl EnvironmentSetup {
         
         for path in new_paths {
             if Path::new(&path).exists() && !self.updated_path.contains(&path) {
-                self.updated_path = format!("{}:{}", path, self.updated_path);
+                self.updated_path = format!("{}{}{}", path, PATH_SEPARATOR, self.updated_path);
                 debug!("[ENV] Added to PATH: {}", path);
             }
         }
@@ -121,36 +131,81 @@ impl EnvironmentSetup {
     }
 
     pub fn verify_tool_availability(&self, tool_name: &str) -> bool {
-        let paths: Vec<&str> = self.updated_path.split(':').collect();
-        
+        let paths: Vec<&str> = self.updated_path.split(PATH_SEPARATOR).collect();
+
         for path in paths {
-            let tool_path = Path::new(path).join(tool_name);
-            if tool_path.exists() {
-                debug!("[ENV] Found {} at: {}", tool_name, tool_path.display());
+            if self.tool_exists_in_directory(path, tool_name) {
                 return true;
             }
         }
-        
+
         warn!("[ENV] Tool {} not found in PATH", tool_name);
+        false
+    }
+
+    /// Helper: check if a tool exists inside a directory, taking platform-specific
+    /// executable extensions into account (e.g. `.exe`, `.cmd` on Windows).
+    fn tool_exists_in_directory(&self, dir: &str, tool_name: &str) -> bool {
+        // Clean quotes occasionally present around Windows paths with spaces, e.g. "C:\Program Files\nodejs".
+        let dir_clean = dir.trim_matches('"');
+        if dir_clean.is_empty() { return false; }
+
+        let base = Path::new(dir_clean);
+        if !base.exists() {
+            debug!("[ENV] Skipping non-existent PATH entry: {}", dir_clean);
+            return false;
+        }
+        debug!("[ENV] Scanning {} for {}", dir_clean, tool_name);
+
+        #[cfg(windows)]
+        {
+            // On Windows search for PATHEXT variations.
+            let pathext = std::env::var("PATHEXT").unwrap_or(".EXE;.CMD;.BAT;.COM".into());
+            for ext in pathext.split(';') {
+                let ext = ext.trim();
+                if ext.is_empty() { continue; }
+                let ext = ext.trim_start_matches('.');
+                let file_name = format!("{}.{}", tool_name, ext.to_lowercase());
+                let candidate = base.join(&file_name);
+                if candidate.exists() {
+                    debug!("[ENV] Found {} at: {}", tool_name, candidate.display());
+                    return true;
+                }
+            }
+            // Fallback: plain name (rarely used on Windows)
+            if base.join(tool_name).exists() {
+                return true;
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let candidate = base.join(tool_name);
+            if candidate.exists() {
+                debug!("[ENV] Found {} at: {}", tool_name, candidate.display());
+                return true;
+            }
+        }
+
         false
     }
 
     /// 检查工具的详细可用性
     pub fn check_tool_availability_detailed(&self, tool_name: &str) -> ToolAvailability {
-        let paths: Vec<&str> = self.updated_path.split(':').collect();
-        
-        for path in paths {
-            let tool_path = Path::new(path).join(tool_name);
-            if tool_path.exists() {
+        let paths: Vec<&str> = self.updated_path.split(PATH_SEPARATOR).collect();
+
+        for dir in paths {
+            if self.tool_exists_in_directory(dir, tool_name) {
+                let joined = Path::new(dir.trim_matches('"')).join(tool_name);
                 return ToolAvailability {
                     tool_name: tool_name.to_string(),
                     available: true,
-                    path: Some(tool_path.to_string_lossy().to_string()),
+                    path: Some(joined.to_string_lossy().to_string()),
                     error_message: None,
                 };
             }
         }
-        
+
         ToolAvailability {
             tool_name: tool_name.to_string(),
             available: false,

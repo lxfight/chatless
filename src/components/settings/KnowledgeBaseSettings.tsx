@@ -95,7 +95,7 @@ export function KnowledgeBaseSettings() {
     <div className="space-y-4">
          {/* 页面标题 */}
          <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">知识库管理</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">知识库管理</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此添加/编辑知识库配置，并进行连接管理。聊天会话中可选择已连接知识库，AI 将按需调用工具/资源/提示。</p>
       </div>
       {/* 嵌入模型管理 */}

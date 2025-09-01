@@ -190,7 +190,7 @@ export function AdvancedSettings() {
   return (
     <div className="space-y-4">
        <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">高级设置</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">高级设置</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此设置高级选项，部分设置请谨慎修改，包括日志系统、性能报告等。</p>
       </div>  
 
