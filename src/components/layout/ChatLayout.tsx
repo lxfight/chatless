@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import StorageUtil from '@/lib/storage';
 import { useUiPreferences } from '@/store/uiPreferences';
 import { cn } from "@/lib/utils";
-import { PlusCircle, X, Clock, Star, Flag, RotateCcw } from 'lucide-react';
+import {  X, Clock, Star, Flag, RotateCcw, ListPlus } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { SidebarHeader } from './SidebarHeader';
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
@@ -239,12 +239,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     value={searchQuery}
                     onChange={handleSearchChange}
                     className="w-full bg-transparent border-none focus:ring-0 text-sm h-8"
-                  /><IconButton
-                  onClick={handleNewChat}
-                  title="新建对话"
-                  icon={PlusCircle}
-                />
-                
+                  />
                   {isSearching && (
                     <button 
                       onClick={handleClearSearch}
@@ -259,9 +254,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               </div>
               
               {/* 新建按钮 */}
-              {/* <div className="flex-shrink-0">
-                
-              </div> */}
+              <div className="flex-shrink-0">
+              <IconButton
+                  onClick={handleNewChat}
+                  title="新建对话"
+                  icon={ListPlus}
+                />
+              </div>
             </div>
           </div>
 
