@@ -110,18 +110,6 @@ jobs:
           - 更新了依赖库到最新版本
           - 修复了多个已知问题
           
-          ---
-          
-          ## 下一步计划
-          
-          - 支持更多 AI 模型提供商
-          - 优化本地模型性能
-          - 增强文档解析功能
-          - 改进用户界面体验
-          
-          ---
-          
-          感谢所有贡献者和用户的支持！
           EOF
           
           # 生成英文版发布说明
@@ -199,18 +187,6 @@ jobs:
           - Updated dependencies to latest versions
           - Fixed multiple known issues
           
-          ---
-          
-          ## Next Steps
-          
-          - Support more AI model providers
-          - Optimize local model performance
-          - Enhance document parsing capabilities
-          - Improve user interface experience
-          
-          ---
-          
-          Thanks to all contributors and users for their support!
           EOF
           
           echo "发布说明生成完成！"
