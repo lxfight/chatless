@@ -24,18 +24,18 @@
 
 ---
 
-## ✨ 主要功能
+## ✨ 功能概览
 
-| 功能 | 描述 |
+| 功能 | 说明 |
 | --- | --- |
-| **多AI提供商支持** | 支持OpenAI、Anthropic、DeepSeek、Gemini、Claude等 |
-| **本地AI模型** | 通过Ollama集成运行本地模型 |
-| **文档解析** | 支持PDF、Word、Markdown等格式文档解析 |
-| **图片解析** | 支持Vision模型进行图片分析 |
-| **知识库集成** | 上传文档构建本地知识库 |
-| **跨平台支持** | 支持Windows、macOS和Linux |
-| **简洁界面** | 基于React和TailwindCSS构建，界面简洁易用 |
-| **轻量性能** | 安装包小、启动快、内存占用低 |
+| 多 AI 提供商 | 内置适配 OpenAI、Anthropic、DeepSeek、Gemini 等主流云端模型，可一键切换 |
+| 本地模型 | 通过 Ollama / LM Studio 运行 Llama2、Mistral、Qwen 等离线模型，无网络也可使用 |
+| 文档与图片解析 | 支持 PDF / Word / Markdown 等文档解析及 Vision 图片分析 |
+| RAG 知识库 | 全本地向量索引，聊天时按需检索文档片段，提升回答准确性 |
+| Prompt 管理 | 用 `/` 快速插入常用提示词，统一管理、复用 |
+| MCP 服务 | 用 `@` 调用 Model Context Protocol 服务器，集中管理第三方工具链 |
+| 数据可携带 | 聊天、向量库、设置均以文件形式导入 / 导出，方便迁移备份 |
+| 跨平台 | Windows / macOS / Linux 原生应用，体积小，性能好，启动快 |
 
 ---
 

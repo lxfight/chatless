@@ -28,14 +28,14 @@
 
 | Feature | Description |
 | --- | --- |
-| **Multi-AI Provider Support** | Supports OpenAI, Anthropic, DeepSeek, Gemini, Claude, and more |
-| **Local AI Models** | Run local models through Ollama integration |
-| **Document Parsing** | Supports PDF, Word, Markdown, and other document formats |
-| **Image Analysis** | Supports Vision models for image analysis |
-| **Knowledge Base Integration** | Upload documents to build local knowledge base |
-| **Cross-Platform** | Works on Windows, macOS, and Linux |
-| **Clean Interface** | Built with React and TailwindCSS, clean and easy-to-use interface |
-| **Lightweight Performance** | Small package size, fast startup, low memory usage |
+| Multi-AI Providers | Built-in adapters for OpenAI, Anthropic, DeepSeek, Gemini and other cloud models; switch with one click |
+| Local Models | Run Llama2, Mistral, Qwen and other offline models via Ollama / LM Studio; works offline |
+| Document & Image Parsing | Parse PDF / Word / Markdown and analyze images with Vision models |
+| RAG Knowledge Base | Local vector index; retrieve document chunks during chat for higher accuracy |
+| Prompt Management | Insert common prompts fast with `/`, manage prompts centrally |
+| MCP Services | Call Model Context Protocol servers with `@` to orchestrate external tools |
+| Portable Data | Export / import chats, vectors and settings as files for easy backup |
+| Cross-Platform | Native Windows / macOS / Linux app, small size, high performance, fast startup |
 
 ---
 
