@@ -237,6 +237,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.app.tar.gz
@@ -247,7 +248,6 @@ jobs:
             artifacts/**/*.msi
             artifacts/**/*.sig
             artifacts/**/*.sha256*
-          generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
       - name: Checkout repository
@@ -281,4 +281,158 @@ jobs:
             https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/download/updater-alpha/update.json
         run: pnpm run update:verify
         continue-on-error: true
+      - name: Generate Release Notes with Quick Download Links
+        run: |
+          # 提取版本号（去掉v前缀）
+          VERSION=${GITHUB_REF_NAME#v}
+          
+          # 生成中文版发布说明
+          cat << EOF > release_notes.md
+          # Chatless $VERSION 发布
+          
+          ## 下载
+          
+          ### Windows
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64_en-US.msi)
+          
+          ### macOS
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_aarch64.dmg)
+          - [Intel 处理器](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64.dmg)
+          
+          ### Linux
+          - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_amd64.deb)
+          - [通用格式 (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-x86_64.AppImage)
+          
+          ---
+          
+          ## 安装说明
+          
+          ### Windows
+          1. 下载 .exe 文件（推荐）或 .msi 文件
+          2. 双击运行安装程序
+          3. 按提示完成安装
+          
+          ### macOS
+          1. 根据处理器选择版本：
+             - Apple Silicon (M1/M2/M3): 下载 aarch64.dmg
+             - Intel 处理器: 下载 x64.dmg
+          2. 双击打开，拖拽到 Applications 文件夹
+          3. 从 Applications 启动应用
+          
+          **注意**: 首次启动可能提示"已损坏"，请：
+          1. 点击"取消"
+          2. 打开终端，运行: \`sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app\`
+          3. 重新启动应用
+          
+          ### Linux
+          1. 根据发行版选择格式：
+             - Red Hat/CentOS/Fedora: 下载 .rpm 文件
+             - Ubuntu/Debian: 下载 .deb 文件
+             - 其他发行版: 下载 .AppImage 文件
+          2. 使用包管理器安装或直接运行
+          
+          ---
+          
+          ## 常见问题
+          
+          **Windows 闪退**: 安装 [Visual C++ 运行库](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+          
+          **macOS 无法打开**: 使用终端命令移除隔离属性（见上方说明）
+          
+          **Linux 权限问题**: 确保给予执行权限 \`chmod +x\`
+          
+          ---
+          
+          ## 文档
+          
+          - [安装指南](https://github.com/${{ github.repository }}/blob/main/INSTALLATION_INSTRUCTIONS.md)
+          - [项目主页](https://github.com/${{ github.repository }})
+          - [问题反馈](https://github.com/${{ github.repository }}/issues)
+          
+          ---
+          
+          ## 更新内容
+          
+          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+          EOF
+          
+          # 生成英文版发布说明
+          cat << EOF > release_notes_en.md
+          # Chatless $VERSION Release
+          
+          ## Download
+          
+          ### Windows
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64_en-US.msi)
+          
+          ### macOS
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_aarch64.dmg)
+          - [Intel Processor](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_x64.dmg)
+          
+          ### Linux
+          - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}_amd64.deb)
+          - [Universal (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-x86_64.AppImage)
+          
+          ---
+          
+          ## Installation
+          
+          ### Windows
+          1. Download .exe file (recommended) or .msi file
+          2. Double-click to run installer
+          3. Follow prompts to complete installation
+          
+          ### macOS
+          1. Choose version based on processor:
+             - Apple Silicon (M1/M2/M3): Download aarch64.dmg
+             - Intel Processor: Download x64.dmg
+          2. Double-click to open, drag to Applications folder
+          3. Launch from Applications
+          
+          **Note**: First launch may show "damaged" message, please:
+          1. Click "Cancel"
+          2. Open Terminal, run: \`sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app\`
+          3. Restart application
+          
+          ### Linux
+          1. Choose format based on distribution:
+             - Red Hat/CentOS/Fedora: Download .rpm file
+             - Ubuntu/Debian: Download .deb file
+             - Other distributions: Download .AppImage file
+          2. Install using package manager or run directly
+          
+          ---
+          
+          ## Common Issues
+          
+          **Windows crash**: Install [Visual C++ Runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+          
+          **macOS won't open**: Use terminal command to remove quarantine (see above)
+          
+          **Linux permission**: Ensure execute permission with \`chmod +x\`
+          
+          ---
+          
+          ## Documentation
+          
+          - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/INSTALLATION_INSTRUCTIONS_EN.md)
+          - [Project Homepage](https://github.com/${{ github.repository }})
+          - [Report Issues](https://github.com/${{ github.repository }}/issues)
+          
+          ---
+          
+          ## What's New
+          
+          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+          EOF
+          
+          echo "Generated release notes with quick download links"
+          echo "=== Chinese Version ==="
+          cat release_notes.md
+          echo -e "\n=== English Version ==="
+          cat release_notes_en.md
 

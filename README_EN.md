@@ -47,23 +47,23 @@
 
 ## 🚀 Quick Start
 
-### 🎯 Installation & Usage
+### Installation & Usage
 
-#### 📥 Download & Install
+#### Download & Install
 Click the corresponding link to enter the download page, then select the installation package suitable for your system:
 
 - **Windows**: [Chatless Installer](https://github.com/kamjin3086/chatless/releases/latest) - Choose .exe or .msi file
 - **macOS**: [Chatless for macOS](https://github.com/kamjin3086/chatless/releases/latest) - Choose aarch64 or x64 version based on your processor
 - **Linux**: [Chatless for Linux](https://github.com/kamjin3086/chatless/releases/latest) - Choose .rpm, .deb, or .AppImage file suitable for your distribution
 
-> 📖 **Detailed Installation Guide**: View the [Complete Installation Guide](INSTALLATION_INSTRUCTIONS_EN.md) for detailed installation steps and common problem solutions
+> **Detailed Installation Guide**: View the [Complete Installation Guide](INSTALLATION_INSTRUCTIONS_EN.md) for detailed installation steps and common problem solutions
 
-#### ⚙️ Configuration Setup
+#### Configuration Setup
 1. **Configure AI Providers** - Add API keys in settings
 2. **Set Up Local Models** - Install Ollama and download models (optional)
 3. **Start Using** - Choose a model to start chatting or upload documents
 
-### 🛠️ Developer Build
+### Developer Build
 ```bash
 git clone https://github.com/kamjin3086/chatless.git
 cd chatless
@@ -75,12 +75,12 @@ pnpm tauri dev
 
 ## 📝 How to Use
 
-### 🚀 First Time Setup
+### First Time Setup
 1. **Configure AI Providers** – Add API keys in settings, supports OpenAI, Anthropic, DeepSeek, etc.
 2. **Set Up Local Models** – Install Ollama and download models (optional, suitable for offline use)
 3. **Create Knowledge Base** – Upload PDF, Word, Markdown and other documents to build local knowledge base
 
-### 💬 Daily Usage
+### Daily Usage
 4. **Start Chatting** – Choose AI models to begin intelligent conversations
 5. **Document Analysis** – Upload images or documents for analysis and Q&A
 6. **Manage History** – View and manage conversation records, supports search and export
@@ -95,12 +95,12 @@ On some Windows systems, the app may immediately exit/crash if the Microsoft Vis
    - Direct link: <https://aka.ms/vs/17/release/vc_redist.x64.exe>
 2. After installation, relaunch the app (restart Windows if needed).
 3. If the issue persists:
-   - Verify “Visual C++ 2015–2022 Redistributable (x64)” is installed under Settings → Apps → Installed apps.
-   - Send logs and a brief description via in-app “Settings → Feedback”.
+   - Verify "Visual C++ 2015–2022 Redistributable (x64)" is installed under Settings → Apps → Installed apps.
+   - Send logs and a brief description via in-app "Settings → Feedback".
 
 Note: Native dependencies (e.g., Tauri/ONNX) on Windows rely on the MSVC runtime; when missing, startup crashes can occur.
 
- Thanks to @ukhack for providing this method in https://github.com/kamjin3086/chatless/issues/23#issuecomment-3203662395 .
+Thanks to @ukhack for providing this method in https://github.com/kamjin3086/chatless/issues/23#issuecomment-3203662395 .
  
 ---
 
@@ -121,15 +121,15 @@ Detail to see: [Project](https://github.com/users/kamjin3086/projects/1)
 
 ## 🔧 Configuration
 
-### 🤖 AI Provider Setup
+### AI Provider Setup
 1. Open application settings (shortcut: `Ctrl/Cmd + ,`)
 2. Go to "AI Model Settings" tab
 3. Click "Add Provider" and enter API keys
 4. Select default models and test connection
 
-> 💡 **Tip**: Supports multiple AI providers, you can configure several simultaneously and switch between them as needed
+> **Tip**: Supports multiple AI providers, you can configure several simultaneously and switch between them as needed
 
-### 🏠 Local Model Setup (Optional)
+### Local Model Setup (Optional)
 If you want to use offline or protect privacy, you can configure local models:
 
 ```bash
@@ -144,7 +144,7 @@ ollama pull qwen:7b        # Qwen model, good Chinese support
 # 3. Configure Ollama address in app settings (default: http://localhost:11434)
 ```
 
-> 🔒 **Privacy Advantage**: Local models ensure all conversation data never leaves your device
+> **Privacy Advantage**: Local models ensure all conversation data never leaves your device
 
 ---
 
@@ -159,15 +159,15 @@ ollama pull qwen:7b        # Qwen model, good Chinese support
 
 ## 💬 Feedback & Support
 
-We highly value your feedback and suggestions! If you encounter any issues during use or have improvement suggestions, please contact us through the following channels:
+If you encounter any issues during use or have improvement suggestions, please contact us through the following channels:
 
 | Channel | Description | Link |
 | --- | --- | --- |
-| 🐛 **GitHub Issues** | Report bugs, feature requests, problem feedback | [Submit Issue](https://github.com/kamjin3086/chatless/issues) |
-| 💭 **Discussions** | Feature discussions, usage exchanges, community interaction | [Join Discussion](https://github.com/kamjin3086/chatless/discussions) |
-| 📱 **In-app Feedback** | Quick feedback, log submission, problem description | **Settings → Feedback** inside the application |
+| **GitHub Issues** | Report bugs, feature requests, problem feedback | [Submit Issue](https://github.com/kamjin3086/chatless/issues) |
+| **Discussions** | Feature discussions, usage exchanges, community interaction | [Join Discussion](https://github.com/kamjin3086/chatless/discussions) |
+| **In-app Feedback** | Quick feedback, log submission, problem description | **Settings → Feedback** inside the application |
 
-> 💡 **Feedback Tips**: When submitting issues, please describe the problem phenomenon, operation steps, and system environment as detailed as possible, so we can help you solve the problem faster
+> **Feedback Tips**: When submitting issues, please describe the problem phenomenon, operation steps, and system environment as detailed as possible, so we can help you solve the problem faster
 
 ---
 
@@ -202,7 +202,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <p align="center">
 
-**chatless** – Simple and easy-to-use AI chat application ✨
+**chatless** – Simple and easy-to-use AI chat application
 
 ⭐ If this project helps you, please give us a star!
 
