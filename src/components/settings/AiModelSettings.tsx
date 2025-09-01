@@ -214,7 +214,7 @@ export function AiModelSettings() {
       />
 
       {/* 提示栏 */}
-      <InfoBanner id="ai_provider_tip" message="配置不同 AI 提供商的服务地址和 API 密钥" type="info" className="mt-3" />
+      {/* <InfoBanner id="ai_provider_tip" message="配置不同 AI 提供商的服务地址和 API 密钥" type="info" className="mt-3" /> */}
 
       {/* 搜索 & 过滤 + 刷新按钮 */}
       <div className="flex items-center mt-4 gap-3 justify-between flex-wrap">

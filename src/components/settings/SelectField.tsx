@@ -29,13 +29,14 @@ export function SelectField({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <label htmlFor={id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label htmlFor={id} className="text-sm font-medium text-gray-800 dark:text-gray-200">
           {label}
         </label>
         {tooltip && (
           <div className="group relative">
-            <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+            {/* 使用品牌色增强提示图标 */}
+            <HelpCircle className="w-4 h-4 text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 cursor-help transition-colors" />
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-brand-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
               {tooltip}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
             </div>
@@ -45,7 +46,10 @@ export function SelectField({
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger 
           id={id} 
-          className="w-full px-3 py-2.5 border border-gray-100 rounded-lg focus:ring-1 focus:ring-blue-500/30 focus:border-blue-200 transition-all duration-150 bg-white dark:bg-gray-800/30 dark:border-gray-700/30 hover:border-gray-200 dark:hover:border-gray-600/50 text-sm"
+          className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/40 text-sm
+                     hover:border-brand-300 dark:hover:border-brand-500
+                     focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-300 dark:focus:ring-brand-400/40 dark:focus:border-brand-400
+                     transition-all duration-150"
         >
           <SelectValue placeholder="请选择" />
         </SelectTrigger>
@@ -54,7 +58,9 @@ export function SelectField({
             <SelectItem 
               key={option.value} 
               value={option.value}
-              className="text-sm focus:bg-blue-50 dark:focus:bg-blue-900/20 focus:text-blue-700 dark:focus:text-blue-300"
+              className="text-sm
+                         data-[highlighted]:bg-brand-50 dark:data-[highlighted]:bg-brand-900/30 data-[highlighted]:text-brand-700 dark:data-[highlighted]:text-brand-300
+                         data-[state=checked]:bg-brand-300 dark:data-[state=checked]:bg-brand-900/40 data-[state=checked]:text-brand-800 dark:data-[state=checked]:text-brand-100"
             >
               {option.label}
             </SelectItem>
