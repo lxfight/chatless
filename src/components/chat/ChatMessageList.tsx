@@ -38,7 +38,7 @@ export function ChatMessageList({
 
   return (
     <div className="flex-1 custom-scrollbar">
-      <div className="px-2 py-2">
+      <div className="px-4 py-2">
         {messages.map((message, idx) => (
           <div
             key={message.id}

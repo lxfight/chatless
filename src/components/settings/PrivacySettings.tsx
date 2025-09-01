@@ -176,8 +176,6 @@ export function PrivacySettings() {
       
       if (success) {
         toast.success("聊天记录已导出");
-      } else {
-        toast.error("导出失败，请稍后重试");
       }
     } catch (e: any) {
       console.error('导出聊天记录失败', e);

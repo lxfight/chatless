@@ -9,6 +9,7 @@ import { Loader2Icon, SearchIcon, MessageSquare } from "lucide-react";
 import FoldingLoader from '@/components/ui/FoldingLoader';
 import { ConversationItem } from "./ConversationItem";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
+import { exportConversationMarkdown } from '@/lib/chat/actions/download';
 
 interface ConversationSidebarProps {
   filteredConversations?: Conversation[];
@@ -108,6 +109,11 @@ export function ConversationSidebar({
     duplicateConversation(conversationId);
   };
 
+  const downloadConversation = async (id: string) => {
+    const conv = storeConversations.find(c => c.id === id) || null;
+    await exportConversationMarkdown(conv, id);
+  };
+
   if (isLoading) {
     return (
       <ScrollArea className="flex-1 p-2 h-full">
@@ -160,6 +166,7 @@ export function ConversationSidebar({
               onStar={toggleStarConversation}
               onToggleImportant={toggleImportant}
               onDuplicate={duplicateConversation}
+              onExport={downloadConversation}
             />
           ))}
         </ul>

@@ -233,13 +233,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <div className="flex items-center gap-3">
               {/* 搜索框 */}
               <div className="flex-1 min-w-0">
-                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5">
+                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5">
                   <SearchInput
                     placeholder="搜索对话..."
                     value={searchQuery}
                     onChange={handleSearchChange}
                     className="w-full bg-transparent border-none focus:ring-0 text-sm h-8"
-                  />
+                  /><IconButton
+                  onClick={handleNewChat}
+                  title="新建对话"
+                  icon={PlusCircle}
+                />
+                
                   {isSearching && (
                     <button 
                       onClick={handleClearSearch}
@@ -250,16 +255,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     </button>
                   )}
                 </div>
+                
               </div>
               
               {/* 新建按钮 */}
-              <div className="flex-shrink-0">
-                <IconButton
-                  onClick={handleNewChat}
-                  title="新建对话"
-                  icon={PlusCircle}
-                />
-              </div>
+              {/* <div className="flex-shrink-0">
+                
+              </div> */}
             </div>
           </div>
 

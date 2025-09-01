@@ -148,7 +148,8 @@ export const createConversationMenuItems = (
   onDelete: (id: string) => void,
   onStar: (id: string) => void,
   onToggleImportant: (id: string) => void,
-  onDuplicate?: (id: string) => void
+  onDuplicate?: (id: string) => void,
+  onExport?: (id: string) => void
 ): MenuItem[] => [
   {
     id: 'edit',
@@ -159,6 +160,17 @@ export const createConversationMenuItems = (
     id: 'separator-1',
     text: '',
     separator: true
+  },
+  {
+    id: 'export',
+    text: '导出对话',
+    action: () => onExport?.(conversationId),
+    enabled: !!onExport
+  },
+  {
+    id: 'separator-1b',
+    text: '',
+    separator: true,
   },
   {
     id: 'star',

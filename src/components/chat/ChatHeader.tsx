@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from 'react';
 import { useChatStore } from '@/store/chatStore';
@@ -83,7 +83,7 @@ export function ChatHeader({
 
   return (
     <>
-      <div className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 shadow-sm">
+      <div className="px-1 py-1 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer" title="切换侧边栏">
             <Menu className="w-5 h-5 text-gray-600" />

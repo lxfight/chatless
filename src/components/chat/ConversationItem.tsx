@@ -28,6 +28,7 @@ interface ConversationItemProps {
   onStar: (id: string) => void;
   onToggleImportant: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onExport: (id: string) => void;
 }
 
 export function ConversationItem({
@@ -46,6 +47,7 @@ export function ConversationItem({
   onStar,
   onToggleImportant,
   onDuplicate,
+  onExport,
 }: ConversationItemProps) {
   const formattedTime = formatDistanceToNow(conversation.updated_at, {
     addSuffix: true,
@@ -64,7 +66,8 @@ export function ConversationItem({
         (id) => onDelete({ stopPropagation: () => {} } as React.MouseEvent, conversation),
         onStar,
         onToggleImportant,
-        onDuplicate
+        onDuplicate,
+        onExport
       )}
     >
       <li

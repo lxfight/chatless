@@ -114,8 +114,6 @@ export default function HistoryList() {
         
         if (success) {
           toast.success('对话已成功导出');
-        } else {
-          toast.error('导出失败，请稍后重试');
         }
       } else {
         toast.error('导出失败，请稍后重试');
