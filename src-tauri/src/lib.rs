@@ -8,6 +8,9 @@ use tauri_plugin_log::{Target, TargetKind};
 use log::LevelFilter;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+#[path = "env_setup.rs"]
+pub mod env_setup;
+
 #[path = "mcp/mod.rs"]
 pub mod mcp;
 
@@ -39,6 +42,24 @@ fn greet() -> String {
     .map(|d| d.as_millis())
     .unwrap_or(0);
   format!("Hello world from Rust! Current epoch: {}", epoch_ms)
+}
+
+/// 检查 npx 是否可用
+#[tauri::command]
+fn check_npx_availability() -> env_setup::ToolAvailability {
+    env_setup::check_npx_availability()
+}
+
+/// 获取完整的环境健康状态
+#[tauri::command]
+fn get_environment_health() -> env_setup::EnvironmentHealth {
+    env_setup::get_environment_health()
+}
+
+/// 检查 MCP 服务是否可以正常运行
+#[tauri::command]
+fn can_run_mcp_services() -> bool {
+    env_setup::can_run_mcp_services()
 }
 
 /// Tauri 命令：使用模拟数据生成嵌入向量（用于测试和回退）
@@ -162,6 +183,10 @@ pub fn run() {
       generate_embedding_command,
       exit,
       set_log_level,
+      // —— Environment Check Commands ——
+      check_npx_availability,
+      get_environment_health,
+      can_run_mcp_services,
       // —— MCP Commands ——
       mcp::commands::mcp_connect,
       mcp::commands::mcp_disconnect,

@@ -211,7 +211,13 @@ class ServerManager {
 
       const storeFile = 'mcp_servers.json';
       const cfgStore = await Store.load(storeFile);
-      const servers: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+      let servers: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+      
+      // 如果没有配置，记录日志但不自动创建
+      if (servers.length === 0) {
+        console.log('[MCP] 未找到MCP服务配置，请手动配置MCP服务');
+      }
+      
       const enabled = servers.filter(s => s && s.enabled !== false);
       await Promise.all(enabled.map(async (s) => {
         try {

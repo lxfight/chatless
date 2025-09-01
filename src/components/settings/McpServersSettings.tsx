@@ -40,6 +40,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { McpEnvironmentStatus } from "./McpEnvironmentStatus";
+
 
 type TransportType = "stdio" | "sse" | "http";
 
@@ -109,7 +111,13 @@ export function McpServersSettings() {
     try {
       const { Store } = await import("@tauri-apps/plugin-store");
       const store = await Store.load("mcp_servers.json");
-      const list = (await store.get<SavedServer[]>("servers")) || [];
+      let list = (await store.get<SavedServer[]>("servers")) || [];
+      
+      // 如果没有配置，记录日志但不自动创建
+      if (list.length === 0) {
+        console.log('[MCP] 未找到MCP服务配置，请手动配置MCP服务');
+      }
+      
       // 默认启用
       const normalized = Array.isArray(list) ? list.map(s => ({ ...s, enabled: s.enabled !== false })) : [];
       setServers(normalized);
@@ -194,25 +202,78 @@ export function McpServersSettings() {
   };
 
   const buildExportJson = () => {
-    const contStyle: any = { mcpServers: {} as any };
+    // 构建符合MCP标准的配置
+    const mcpConfig: any = { mcpServers: {} };
+    
     for (const s of servers) {
       if (s.config.type === 'stdio') {
-        (contStyle.mcpServers)[s.name] = { command: s.config.command, args: s.config.args };
-      } else {
-        (contStyle.mcpServers)[s.name] = { url: (s.config as any).baseUrl };
+        // 过滤掉硬编码的路径参数，只保留包名
+        const filteredArgs = (s.config.args || []).filter(arg => {
+          // 过滤掉绝对路径和用户目录路径
+          return !arg.startsWith('/') && 
+                 !arg.startsWith('C:') && 
+                 !arg.startsWith('D:') && 
+                 !arg.includes('Users/') &&
+                 !arg.includes('kamjin') &&
+                 !arg.includes('home/');
+        });
+        
+        mcpConfig.mcpServers[s.name] = {
+          command: s.config.command || 'npx',
+          args: filteredArgs,
+          env: {}
+        };
+      } else if (s.config.type === 'sse' || s.config.type === 'http') {
+        mcpConfig.mcpServers[s.name] = {
+          url: (s.config as any).baseUrl
+        };
       }
     }
+    
+    // 同时提供兼容格式
+    const continueStyle: any = { mcpServers: {} as any };
+    for (const s of servers) {
+      if (s.config.type === 'stdio') {
+        (continueStyle.mcpServers)[s.name] = { 
+          command: s.config.command, 
+          args: s.config.args 
+        };
+      } else {
+        (continueStyle.mcpServers)[s.name] = { 
+          url: (s.config as any).baseUrl 
+        };
+      }
+    }
+    
     const generic = {
       servers: servers.map(s => {
         if (s.config.type === 'stdio') {
           const envObj: Record<string,string> = {};
           (s.config.env || []).forEach(([k,v]) => { envObj[k] = v; });
-          return { name: s.name, type: 'stdio', command: s.config.command, args: s.config.args, env: envObj };
+          return { 
+            name: s.name, 
+            type: 'stdio', 
+            command: s.config.command, 
+            args: s.config.args, 
+            env: envObj 
+          };
         }
-        return { name: s.name, type: s.config.type, url: (s.config as any).baseUrl };
+        return { 
+          name: s.name, 
+          type: s.config.type, 
+          url: (s.config as any).baseUrl 
+        };
       })
     };
-    setExportText(JSON.stringify({ continueStyle: contStyle, generic }, null, 2));
+    
+    // 主要导出MCP标准格式，同时提供兼容格式
+    setExportText(JSON.stringify({
+      // MCP标准格式（主要）
+      ...mcpConfig,
+      // 兼容格式
+      continueStyle,
+      generic
+    }, null, 2));
   };
 
   useEffect(() => {
@@ -639,6 +700,9 @@ export function McpServersSettings() {
   return (
     <TooltipProvider>
       <div className="space-y-4">
+        {/* 环境状态检查 */}
+        <McpEnvironmentStatus />
+        
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">MCP 服务器设置</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此设置 MCP 服务器，包括服务器类型、命令、参数、环境变量等。</p>
