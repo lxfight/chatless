@@ -284,7 +284,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
             const oneOff = (e as any).shiftKey;
             onSelect(id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
           } else {
-            onSelect(id, { action: 'send' });
+            onSelect(id, { action: 'fill' });
           }
         }
       }
@@ -317,18 +317,18 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
           )}
         >
           {altPreview ? (
-            <span>回车：将当前提示词设置为系统提示词</span>
+            <span>回车：设为系统提示词</span>
           ) : (
-            <span>回车：将直接发送当前提示词 + 输入内容，按住ALT设置为系统提示词</span>
+            <span>回车：代入提示词　Alt+回车：设为系统提示词</span>
           )}
         </div>
         {/* 引导说明：为“指令/分隔符/标签筛选”等片段添加背景以区分文案 */}
         <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-          <span>匹配到提示词后，输入空格再输入内容即可代入变量；使用 </span>
+          <span><span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">空格</span>继续输入变量，</span>
           <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">|</span>
-          <span> 分隔位置参数；也可使用 </span>
-          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">tag:写作</span>
-          <span> 进行标签筛选</span>
+          <span> 分隔位置参数/结束变量；</span>
+          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">/tag:写作</span>
+          <span> 可过滤标签</span>
         </div>
         {filtered.length === 0 && (
           <Button aria-label="添加提示词" variant="ghost" size="icon" className="absolute top-1.5 right-1.5 h-7 w-7 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>
