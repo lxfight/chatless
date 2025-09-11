@@ -52,10 +52,10 @@ export const useProviderStatusStore = create<ProviderStatusState>()((set, get) =
     });
 
     if (persist) {
-      import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
+      void import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
         providerRepository.update({
           name: providerName,
-          lastStatus: next.status,
+          status: next.status as any,
           lastMessage: next.message,
           lastChecked: next.lastChecked ?? Date.now(),
         }).catch(() => {});
@@ -68,10 +68,10 @@ export const useProviderStatusStore = create<ProviderStatusState>()((set, get) =
     if (persist) {
       // 顺序写入
       Object.entries(bulk).forEach(([name, stat]) => {
-        import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
+        void import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
           providerRepository.update({
             name,
-            lastStatus: stat.status,
+            status: stat.status as any,
             lastMessage: stat.message,
             lastChecked: stat.lastChecked ?? Date.now(),
           }).catch(() => {});
