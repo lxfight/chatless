@@ -61,10 +61,16 @@ export class SSEClient {
     const {
       url,
       method = 'POST',
-      headers = {},
+      headers: rawHeaders = {},
       body,
       debugTag = this.debugTag
     } = config;
+
+    // 确保 SSE 流不被 gzip 压缩，Tauri 侧无法自动解压
+    const headers: Record<string, string> = {
+      'Accept-Encoding': 'identity',
+      ...rawHeaders,
+    };
 
     try {
       // 调用开始回调

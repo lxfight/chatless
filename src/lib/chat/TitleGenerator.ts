@@ -79,9 +79,18 @@ export function extractFirstUserMessageSeed(conversation: Conversation | null | 
  * - 对话中助手消息数量正好为 1（即首条回复刚完成）
  */
 export function shouldGenerateTitleAfterAssistantComplete(conversation: Conversation | null | undefined): boolean {
-  // 仅要求当前仍是默认标题（触发点来自“首条助手完成”时机，外部已控制）
   if (!conversation) return false;
-  return isDefaultTitle(conversation.title);
+
+  // 1) 仍为默认标题
+  if (!isDefaultTitle(conversation.title)) return false;
+
+  // 2) 至少已有一条助手回复（确保不是空会话）
+  const assistantCount = conversation.messages?.filter(m => m.role === 'assistant').length ?? 0;
+  if (assistantCount === 0) return false;
+
+  // 3) 首条用户消息存在
+  const firstSeed = extractFirstUserMessageSeed(conversation);
+  return !!firstSeed;
 }
 
 /**

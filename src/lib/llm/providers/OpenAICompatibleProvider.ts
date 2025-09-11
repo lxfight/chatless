@@ -115,6 +115,8 @@ export class OpenAICompatibleProvider extends BaseProvider {
           url,
           method: 'POST',
           headers: {
+            // 告诉服务端不要压缩 SSE 流，避免 Tauri 侧收到压缩字节导致 JSON 解析失败
+            'Accept-Encoding': 'identity',
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
           },
