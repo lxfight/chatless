@@ -23,7 +23,6 @@ interface ProviderConnectionSectionProps {
   localUrl: string;
   setLocalUrl: (v: string) => void;
   onUrlChange: (providerName: string, url: string) => void;
-  onUrlBlur: (providerName: string) => void;
   onResetUrl: () => void;
   showApiKeyFields: boolean;
   localDefaultApiKey: string;
@@ -42,7 +41,6 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
     localUrl,
     setLocalUrl,
     onUrlChange,
-    onUrlBlur,
     onResetUrl,
     showApiKeyFields,
     localDefaultApiKey,
@@ -67,13 +65,9 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
             <input
               value={localUrl}
               onChange={(e) => { setLocalUrl(e.target.value); }}
-              onBlur={async () => {
+              onBlur={() => {
                 const repoName = provider.aliases?.[0] || provider.name;
                 onUrlChange(repoName, localUrl);
-                try {
-                  const { checkController } = await import('@/lib/provider/check-controller');
-                  checkController.requestCheck(repoName, { reason: 'blur', debounceMs: 300 });
-                } catch {}
               }}
               placeholder={provider.name.toLowerCase()==='ollama' ? 'http://localhost:11434' : '服务地址 (http://...)'}
               className="w-full p-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary focus:border-transparent transition-all duration-200 hover:border-primary dark:hover:border-primary dark:text-gray-200 h-8 text-sm"

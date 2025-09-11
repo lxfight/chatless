@@ -1,29 +1,84 @@
 import { create } from 'zustand';
 
-interface ProviderStatusState {
-  // 使用 Record<string, boolean | undefined> 来存储状态
-  // key: providerName, value: isConnected (true/false/undefined)
-  statuses: Record<string, boolean | undefined>;
-  // 更新特定 provider 状态的函数
-  setStatus: (providerName: string, status: boolean | undefined) => void;
-  // (可选) 获取特定 provider 状态的函数
-  getStatus: (providerName: string) => boolean | undefined;
+// Provider 连接状态枚举
+export type ProviderStatusCode =
+  | 'UNKNOWN'
+  | 'CONNECTING'
+  | 'CONNECTED'
+  | 'NOT_CONNECTED'
+  | 'NO_KEY';
+
+export interface ProviderStatus {
+  status: ProviderStatusCode;
+  message?: string | null;
+  lastChecked?: number; // epoch ms
 }
 
-// 使用 Zustand 推荐的类型方式
+interface ProviderStatusState {
+  /** key: providerName → 连接状态 */
+  map: Record<string, ProviderStatus>;
+
+  /** 更新单个 provider 状态 */
+  setStatus: (
+    providerName: string,
+    next: ProviderStatus,
+    /** 是否持久化到 ProviderRepository, 默认 true */
+    persist?: boolean,
+  ) => void;
+
+  /** 批量写入，用于初始化 */
+  bulkSet: (
+    bulk: Record<string, ProviderStatus>,
+    /** 是否持久化, 默认 false */
+    persist?: boolean,
+  ) => void;
+
+  /** 读取单个 */
+  get: (providerName: string) => ProviderStatus | undefined;
+}
+
 export const useProviderStatusStore = create<ProviderStatusState>()((set, get) => ({
-  statuses: {},
-  setStatus: (providerName, status) =>
+  map: {},
+
+  setStatus: (providerName, next, persist = true) => {
     set((state) => {
-      if (state.statuses[providerName] === status) {
-        return {}; // 返回空对象表示不更新
-      }
-      return {
-        statuses: {
-          ...state.statuses,
-          [providerName]: status,
-        },
-      };
-    }),
-  getStatus: (providerName) => get().statuses[providerName],
+      const prev = state.map[providerName];
+      const unchanged = prev &&
+        prev.status === next.status &&
+        prev.message === next.message &&
+        prev.lastChecked === next.lastChecked;
+      if (unchanged) return {};
+      return { map: { ...state.map, [providerName]: next } };
+    });
+
+    if (persist) {
+      import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
+        providerRepository.update({
+          name: providerName,
+          lastStatus: next.status,
+          lastMessage: next.message,
+          lastChecked: next.lastChecked ?? Date.now(),
+        }).catch(() => {});
+      });
+    }
+  },
+
+  bulkSet: (bulk, persist = false) => {
+    set({ map: { ...get().map, ...bulk } });
+    if (persist) {
+      // 顺序写入
+      Object.entries(bulk).forEach(([name, stat]) => {
+        import('@/lib/provider/ProviderRepository').then(({ providerRepository }) => {
+          providerRepository.update({
+            name,
+            lastStatus: stat.status,
+            lastMessage: stat.message,
+            lastChecked: stat.lastChecked ?? Date.now(),
+          }).catch(() => {});
+        });
+      });
+    }
+  },
+
+  get: (providerName) => get().map[providerName],
 })); 

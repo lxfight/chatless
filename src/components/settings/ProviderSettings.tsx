@@ -28,7 +28,6 @@ interface ProviderSettingsProps {
   isConnecting: boolean; // 单个 Provider 是否正在连接 (用于 Loading 状态)
   isInitialChecking: boolean; // 是否处于全局初始检查状态 (用于禁用按钮)
   onUrlChange: (providerName: string, url: string) => void;
-  onUrlBlur: (providerName: string) => void;
   onDefaultApiKeyChange: (providerName: string, apiKey: string) => void;
   onDefaultApiKeyBlur: (providerName: string) => void;
   onModelApiKeyChange: (modelName: string, apiKey: string) => void; // Model 也使用 name
@@ -45,7 +44,6 @@ function ProviderSettingsImpl({
   isConnecting,
   isInitialChecking,
   onUrlChange,
-  onUrlBlur,
   onDefaultApiKeyChange,
   onDefaultApiKeyBlur,
   onModelApiKeyChange,
@@ -383,7 +381,7 @@ function ProviderSettingsImpl({
             localUrl={localUrl}
             setLocalUrl={setLocalUrl}
             onUrlChange={onUrlChange}
-            onUrlBlur={onUrlBlur}
+            /* onUrlBlur removed */
             onResetUrl={handleResetUrl}
             showApiKeyFields={showApiKeyFields}
             localDefaultApiKey={localDefaultApiKey}

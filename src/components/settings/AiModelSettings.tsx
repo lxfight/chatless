@@ -7,10 +7,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { SettingsCard } from "./SettingsCard";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 // import { ModelCard } from "./ModelCard"; // 不再使用 ModelCard
-import { InfoBanner } from "./InfoBanner";
-import { InputField } from "./InputField"; // 导入 InputField
-import { ProviderSettings } from "./ProviderSettings"; // 导入新组件（下一步创建）
-import { Server, RefreshCcw, KeyRound, ServerCog, Loader2, RotateCcw } from "lucide-react";
+import { ProviderSettings } from "./ProviderSettings";
+import { ServerCog, RotateCcw } from "lucide-react";
 import FoldingLoader from '@/components/ui/FoldingLoader';
 // 导入新模块
 /* Commenting out for now due to persistent linter error
@@ -23,7 +21,7 @@ import {
   updateModelApiKeyOverride,
   updateOllamaModelsCache,
 */
-import { toast } from "@/components/ui/sonner"; // <-- 导入封装的 toast
+import { toast } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 // 不再需要直接导入 tauriFetch
 // import { fetch as tauriFetch } from '@tauri-apps/plugin-http'; 
@@ -51,11 +49,9 @@ export function AiModelSettings() {
     providers,
     isLoading,
     isRefreshing,
-    connectingProviderName,
     handleServiceUrlChange,
     handleProviderDefaultApiKeyChange,
     handleModelApiKeyChange,
-    handleUrlBlur,
     handleGlobalRefresh,
     handleSingleProviderRefresh,
     handlePreferenceChange
@@ -96,10 +92,9 @@ export function AiModelSettings() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all'|'connected'|'disconnected'>('all');
   const [showSearchInput, setShowSearchInput] = useState(false);
-  const updateConfig = useProviderStore(s=>s.updateConfig);
-  const updateModelKey = useProviderStore(s=>s.updateModelKey);
+  // 如需更新 provider 配置请从 store 调用，当前未使用
 
-  const filteredProviders = providers.filter((p) => {
+  const filteredProviders = providers.filter((p: ProviderWithStatus) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "connected" && p.displayStatus === "CONNECTED") ||
@@ -108,7 +103,7 @@ export function AiModelSettings() {
   });
 
   // —— 拖拽排序：保存用户顺序 ——
-  const [localList, setLocalList] = useState(filteredProviders);
+  const [localList, setLocalList] = useState<ProviderWithStatus[]>(filteredProviders);
   const [activeId, setActiveId] = useState<string | null>(null);
   // 由父级维护每个 provider 的展开状态，避免因列表刷新而丢失
   const [providerOpenMap, setProviderOpenMap] = useState<Record<string, boolean>>({});
@@ -129,9 +124,10 @@ export function AiModelSettings() {
   // dnd-kit 传感器
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const handleDragStart = React.useCallback((event: DragStartEvent) => {
-    setActiveId(String(event.active.id));
-  }, []);
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+  };
 
   const handleDragEnd = React.useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -195,9 +191,7 @@ export function AiModelSettings() {
     );
   }
 
-  // 计算刷新进度
-  const totalCount = providers.length;
-  const checkedCount = providers.filter(p => p.displayStatus !== 'CONNECTING').length;
+  // 进度条功能已移除，可在此处实现统计逻辑
 
   // --- 渲染逻辑 ---
   return (
@@ -256,7 +250,7 @@ export function AiModelSettings() {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={handleGlobalRefresh}
-            disabled={isRefreshing || isLoading || connectingProviderName !== null}
+            disabled={isRefreshing || isLoading}
             className="p-2 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="刷新全部提供商状态"
           >
@@ -280,10 +274,9 @@ export function AiModelSettings() {
               <SortableProviderItem key={provider.name} provider={provider}>
                 <ProviderSettings
                   provider={provider}
-                  isConnecting={connectingProviderName === provider.name}
+                  isConnecting={provider.displayStatus === 'CONNECTING'}
                   isInitialChecking={isLoading}
                   onUrlChange={(name, url) => handleServiceUrlChange(name, url)}
-                  onUrlBlur={handleUrlBlur}
                   onDefaultApiKeyChange={(name, key) => handleProviderDefaultApiKeyChange(name, key)}
                   onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
                   onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
@@ -304,7 +297,6 @@ export function AiModelSettings() {
                 isConnecting={false}
                 isInitialChecking={false}
                 onUrlChange={()=>{}}
-                onUrlBlur={()=>{}}
                 onDefaultApiKeyChange={()=>{}}
                 onDefaultApiKeyBlur={()=>{}}
                 onModelApiKeyChange={()=>{}}
@@ -324,7 +316,7 @@ export function AiModelSettings() {
         )} */}
 
         {/* 空状态提示 */}
-        {providers.length === 0 && !isLoading && !connectingProviderName && (
+        {providers.length === 0 && !isLoading && (
             renderEmptyState()
         )}
       </DndContext>
