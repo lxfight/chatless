@@ -22,44 +22,6 @@ jobs:
           ref: ${{ github.ref }}
           fetch-depth: 0  # 获取完整历史
           fetch-tags: true  # 获取所有标签
-      - name: Collect recent commits
-        run: |
-          echo "=== Git 信息调试 ==="
-          echo "当前分支: $(git branch --show-current)"
-          echo "当前提交: $(git rev-parse HEAD)"
-          echo "所有标签:"
-          git tag -l | tail -10
-          echo ""
-          
-          # 查找最新的正式版本标签（排除测试标签）
-          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -v "test-" | head -1)
-          echo "最新正式标签: $LATEST_TAG"
-          
-          if [ -n "$LATEST_TAG" ]; then
-            # 如果有正式标签，获取从该标签到现在的提交
-            COMMITS=$(git log --oneline --no-merges "$LATEST_TAG"..HEAD | head -20)
-            echo "从标签 $LATEST_TAG 到现在的提交:"
-          else
-            # 如果没有正式标签，获取最近的20个提交
-            COMMITS=$(git log --oneline --no-merges -20)
-            echo "最近的20个提交:"
-          fi
-          
-          echo "$COMMITS"
-          echo ""
-          
-          # 如果没有提交，使用默认消息
-          if [ -z "$COMMITS" ]; then
-            COMMITS="测试版本 - 模拟构建"
-            echo "没有找到提交，使用默认消息"
-          fi
-          
-          echo "COMMITS<<EOF" >> $GITHUB_ENV
-          echo "$COMMITS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
-          echo "最终收集到的提交:"
-          echo "$COMMITS"
       - name: Show test VERSION
         run: echo "Using test VERSION=$VERSION"
 
@@ -249,7 +211,46 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          clean: false
+          fetch-depth: 0  # 获取完整历史
+          fetch-tags: true  # 获取所有标签
+      - name: Collect recent commits
+        run: |
+          echo "=== Git 信息调试 ==="
+          echo "当前分支: $(git branch --show-current)"
+          echo "当前提交: $(git rev-parse HEAD)"
+          echo "所有标签:"
+          git tag -l | tail -10
+          echo ""
+          
+          # 查找最新的正式版本标签（排除测试标签）
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -v "test-" | head -1)
+          echo "最新正式标签: $LATEST_TAG"
+          
+          if [ -n "$LATEST_TAG" ]; then
+            # 如果有正式标签，获取从该标签到现在的提交
+            COMMITS=$(git log --oneline --no-merges "$LATEST_TAG"..HEAD | head -20)
+            echo "从标签 $LATEST_TAG 到现在的提交:"
+          else
+            # 如果没有正式标签，获取最近的20个提交
+            COMMITS=$(git log --oneline --no-merges -20)
+            echo "最近的20个提交:"
+          fi
+          
+          echo "$COMMITS"
+          echo ""
+          
+          # 如果没有提交，使用默认消息
+          if [ -z "$COMMITS" ]; then
+            COMMITS="测试版本 - 模拟构建"
+            echo "没有找到提交，使用默认消息"
+          fi
+          
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          echo "最终收集到的提交:"
+          echo "$COMMITS"
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
