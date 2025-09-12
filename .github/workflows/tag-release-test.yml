@@ -277,32 +277,23 @@ jobs:
             echo "$duplicates"
             exit 1
           fi
-      - name: Backup artifacts before checkout
-        run: |
-          echo "Backing up artifacts directory..."
-          if [ -d "artifacts" ]; then
-            cp -r artifacts artifacts_backup
-            echo "Artifacts backed up successfully"
-            ls -la artifacts_backup/
-          else
-            echo "No artifacts directory found to backup"
-          fi
+      - name: Upload artifacts for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts/
+          retention-days: 1
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
-      - name: Restore artifacts after checkout
-        run: |
-          echo "Restoring artifacts directory..."
-          if [ -d "artifacts_backup" ]; then
-            mv artifacts_backup artifacts
-            echo "Artifacts restored successfully"
-            ls -la artifacts/
-          else
-            echo "No artifacts backup found to restore"
-          fi
+      - name: Download artifacts for release
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts/
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
