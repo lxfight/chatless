@@ -107,14 +107,29 @@ jobs:
         run: |
           set -euo pipefail || set -eu
           VERSION="$VERSION"
-          # 目录结构与正式流程一致
-          mkdir -p src-tauri/target/release/bundle/{dmg,appimage,deb,rpm,nsis,msi,macos}
-          touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
-          touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
+          case "${{ matrix.os }}" in
+            "windows-2022")
+              mkdir -p src-tauri/target/release/bundle/{nsis,msi}
+              touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
+              touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
+              ;;
+            "ubuntu-22.04")
+              mkdir -p src-tauri/target/release/bundle/{appimage,deb,rpm}
             touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
             touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
             touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
-          # macOS files are generated only in macOS jobs
+              ;;
+            "macos-13")
+              mkdir -p src-tauri/target/release/bundle/{macos,dmg}
+              touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_x64.app.tar.gz
+            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg
+              ;;
+            "macos-14")
+              mkdir -p src-tauri/target/release/bundle/{macos,dmg}
+              touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_arm64.app.tar.gz
+            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_aarch64.dmg
+              ;;
+          esac
           # 写入内容避免空文件
           find src-tauri/target/release/bundle -type f -exec sh -c 'echo placeholder > "$0"' {} \;
 
