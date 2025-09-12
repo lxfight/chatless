@@ -245,6 +245,11 @@ jobs:
     needs: [prepare, build]
     runs-on: ubuntu-22.04
     steps:
+      - name: Checkout repository (keep artifacts)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          clean: false
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
