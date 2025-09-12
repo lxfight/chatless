@@ -303,7 +303,6 @@ jobs:
             https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/download/updater-alpha/update.json
         run: pnpm run update:verify
         continue-on-error: true
-
       - name: Collect recent commits
         run: |
           COMMITS=$(git log --oneline --no-merges "$(git describe --tags --abbrev=0 2>/dev/null || echo)"..HEAD | head -20)
@@ -385,7 +384,7 @@ jobs:
           ---
           
           ## 更新内容
-          
+
           $COMMITS
           EOF
           
