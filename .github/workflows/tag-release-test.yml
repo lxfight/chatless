@@ -294,6 +294,30 @@ jobs:
         with:
           name: release-artifacts
           path: artifacts/
+
+      - name: Collect recent commits
+        run: |
+          # 对于测试版本，获取最近的提交历史
+          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            # 如果有标签，获取从上一个标签到现在的提交
+            COMMITS=$(git log --oneline --no-merges "$(git describe --tags --abbrev=0)"..HEAD | head -20)
+          else
+            # 如果没有标签，获取最近的20个提交
+            COMMITS=$(git log --oneline --no-merges -20)
+          fi
+          
+          # 如果没有提交，使用默认消息
+          if [ -z "$COMMITS" ]; then
+            COMMITS="测试版本 - 模拟构建"
+          fi
+          
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          echo "Collected commits:"
+          echo "$COMMITS"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -321,12 +345,6 @@ jobs:
             https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/download/updater-alpha/update.json
         run: pnpm run update:verify
         continue-on-error: true
-      - name: Collect recent commits
-        run: |
-          COMMITS=$(git log --oneline --no-merges "$(git describe --tags --abbrev=0 2>/dev/null || echo)"..HEAD | head -20)
-          echo "COMMITS<<EOF" >> $GITHUB_ENV
-          echo "$COMMITS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
       - name: Generate Release Notes with Quick Download Links
         run: |
           # 提取版本号（去掉v前缀）
