@@ -70,14 +70,16 @@ jobs:
             touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
             touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
           elif [[ "${{ matrix.os }}" == "macos-13" ]]; then
-            touch src-tauri/target/release/bundle/macos/Chatless.app.tar.gz
+            # 为避免与 arm64 产物同名，加入架构后缀
+            touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_${{ matrix.arch }}.app.tar.gz
             # macOS x64 dmg + 签名/校验文件
             mkdir -p src-tauri/target/release/bundle/dmg
             touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg
             touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg.sig
             touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg.sha256
           elif [[ "${{ matrix.os }}" == "macos-14" ]]; then
-            touch src-tauri/target/release/bundle/macos/Chatless.app.tar.gz
+            # 为避免与 x64 产物同名，加入架构后缀
+            touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_${{ matrix.arch }}.app.tar.gz
             # macOS arm64 dmg + 签名/校验文件
             mkdir -p src-tauri/target/release/bundle/dmg
             touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_aarch64.dmg
