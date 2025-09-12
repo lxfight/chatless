@@ -174,7 +174,18 @@ jobs:
         with:
           path: artifacts/
       - name: Display structure of downloaded files
-        run: ls -R artifacts
+        run: |
+          echo "=== Artifacts directory structure ==="
+          ls -la artifacts/
+          echo ""
+          echo "=== Contents of each artifact directory ==="
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              echo "--- $dir ---"
+              ls -la "$dir"
+              echo ""
+            fi
+          done
       - name: Rename files to avoid conflicts
         run: |
           echo "Starting file renaming process..."
@@ -421,6 +432,38 @@ jobs:
           cat release_notes.md
           echo -e "\n=== English Version ==="
           cat release_notes_en.md
+      - name: List files to be uploaded
+        run: |
+          echo "=== Files that will be uploaded to Release ==="
+          echo "DMG files:"
+          find artifacts -name "*.dmg" -type f || echo "No DMG files found"
+          echo ""
+          echo "App tar.gz files:"
+          find artifacts -name "*.app.tar.gz" -type f || echo "No app.tar.gz files found"
+          echo ""
+          echo "AppImage files:"
+          find artifacts -name "*.AppImage" -type f || echo "No AppImage files found"
+          echo ""
+          echo "DEB files:"
+          find artifacts -name "*.deb" -type f || echo "No DEB files found"
+          echo ""
+          echo "RPM files:"
+          find artifacts -name "*.rpm" -type f || echo "No RPM files found"
+          echo ""
+          echo "EXE files:"
+          find artifacts -name "*.exe" -type f || echo "No EXE files found"
+          echo ""
+          echo "MSI files:"
+          find artifacts -name "*.msi" -type f || echo "No MSI files found"
+          echo ""
+          echo "Signature files:"
+          find artifacts -name "*.sig" -type f || echo "No SIG files found"
+          echo ""
+          echo "SHA256 files:"
+          find artifacts -name "*.sha256*" -type f || echo "No SHA256 files found"
+          echo ""
+          echo "=== All files in artifacts directory ==="
+          find artifacts -type f | sort
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -433,7 +476,7 @@ jobs:
             artifacts/**/*.AppImage
             artifacts/**/*.deb
             artifacts/**/*.rpm
-            artifacts/**/*setup*.exe
+            artifacts/**/*.exe
             artifacts/**/*.msi
             artifacts/**/*.sig
             artifacts/**/*.sha256*

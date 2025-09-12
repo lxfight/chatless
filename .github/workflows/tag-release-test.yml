@@ -1,31 +1,24 @@
 name: Tag Release Test
 
 on:
-  # 手动触发方便验证流程
   workflow_dispatch:
 
-# 需要写权限以创建 Release
+env:
+  VERSION: 0.0.0-test
+
+# 需要写权限以创建 Release。若仓库设置为默认只读，这里会显式请求写权限。
 permissions:
   contents: write
-
-env:
-  # 固定测试版本号，避免解析失败
-  VERSION: 0.0.0-test
 
 jobs:
   prepare:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
+      - name: Show test VERSION
+        run: echo "Using test VERSION=$VERSION"
 
-      # 移除版本号推断逻辑，直接打印当前固定版本号供调试
-      - name: Show VERSION env
-        run: echo "Using VERSION=$VERSION for test build"
-
-  # 使用与正式流程几乎相同的矩阵，但不进行真正编译，仅生成占位文件
   build:
     needs: prepare
     strategy:
@@ -33,65 +26,118 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
+            container: ubuntu:22.04
           - os: windows-2022
           - os: macos-13
             platform: macos
             arch: x64
+            targets: x86_64-apple-darwin
           - os: macos-14
             platform: macos
             arch: arm64
+            targets: aarch64-apple-darwin
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Enable corepack and activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      # 创建占位文件以模拟打包产物结构
-      - name: Generate placeholder bundles
-        shell: bash
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
+      - name: Install system deps for Linux (Ubuntu 22.04)
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        run: |
+          apt-get update && apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev build-essential curl wget file patchelf libssl-dev \
+            xdg-utils desktop-file-utils
+
+      - name: Cache Tauri bundle tools (Linux)
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tauri
+          key: ${{ runner.os }}-tauri-${{ hashFiles('src-tauri/tauri.conf.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tauri-
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Inject commit SHA to env
+        run: echo "NEXT_PUBLIC_GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_ENV
+
+      # 跳过实际打包，改为生成占位文件
+      - name: Generate placeholder bundles (simulate build)
         run: |
           set -euxo pipefail
-          VERSION="${VERSION:-0.0.0}"
-          # 创建 bundle 目录结构
-          mkdir -p src-tauri/target/release/bundle/dmg
-          mkdir -p src-tauri/target/release/bundle/appimage
-          mkdir -p src-tauri/target/release/bundle/deb
-          mkdir -p src-tauri/target/release/bundle/rpm
-          mkdir -p src-tauri/target/release/bundle/nsis
-          mkdir -p src-tauri/target/release/bundle/msi
-          mkdir -p src-tauri/target/release/bundle/macos
-          # 根据操作系统生成占位文件
-          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
-            touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
-            touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
-            touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
-          elif [[ "${{ matrix.os }}" == "windows-2022" ]]; then
-            touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
-            touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
-          elif [[ "${{ matrix.os }}" == "macos-13" ]]; then
-            # 为避免与 arm64 产物同名，加入架构后缀
-            touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_${{ matrix.arch }}.app.tar.gz
-            # macOS x64 dmg + 签名/校验文件
-            mkdir -p src-tauri/target/release/bundle/dmg
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg.sig
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg.sha256
-          elif [[ "${{ matrix.os }}" == "macos-14" ]]; then
-            # 为避免与 x64 产物同名，加入架构后缀
-            touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_${{ matrix.arch }}.app.tar.gz
-            # macOS arm64 dmg + 签名/校验文件
-            mkdir -p src-tauri/target/release/bundle/dmg
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_aarch64.dmg
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_aarch64.dmg.sig
-            touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_aarch64.dmg.sha256
-          fi
+          VERSION="$VERSION"
+          # 目录结构与正式流程一致
+          mkdir -p src-tauri/target/release/bundle/{dmg,appimage,deb,rpm,nsis,msi,macos}
+          touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
+          touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
+          touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
+          touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
+          touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
+          touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_x64.app.tar.gz
+          touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg
+          # 写入内容避免空文件
+          find src-tauri/target/release/bundle -type f -exec sh -c 'echo placeholder > "$0"' {} \;
 
-          # 所有生成的占位文件写入 1 行内容，避免 size=0 被 GitHub 拒绝
-          find src-tauri/target/release/bundle -type f -exec sh -c 'echo "This is a placeholder for $0" > "$0"' {} \;
-
-      # 上传与正式流程相同路径的制品，便于后续步骤验证
-      - name: Upload placeholder artifacts
+      - name: List generated bundles (macOS only)
+        if: ${{ matrix.platform == 'macos' }}
+        run: |
+          echo "=== Generated bundles for ${{ matrix.arch }} ==="
+          echo "Target: ${{ matrix.targets }}"
+          echo "Architecture: ${{ matrix.arch }}"
+          echo ""
+          echo "=== DMG files ==="
+          find src-tauri/target/release/bundle -name "*.dmg" | sort
+          echo ""
+          echo "=== App bundles ==="
+          find src-tauri/target/release/bundle -name "*.app.tar.gz" | sort
+          echo ""
+          echo "=== Bundle directory contents ==="
+          ls -la src-tauri/target/release/bundle/macos/ || echo "macos directory not found"
+          echo ""
+          echo "=== Target directory contents ==="
+          ls -la src-tauri/target/${{ matrix.targets }}/release/ || echo "target directory not found"
+      
+      - name: Upload artifacts (filtered bundles only)
         uses: actions/upload-artifact@v4
         with:
           name: chatless-${{ matrix.os }}-${{ matrix.arch || 'unknown' }}
@@ -104,9 +150,10 @@ jobs:
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
-          retention-days: 1
+            src-tauri/target/release/bundle/**/*.sig
+            src-tauri/target/release/bundle/**/*.sha256*
+          retention-days: 7
 
-  # 使用与正式流程相同的 release 逻辑，验证之后环节
   release:
     needs: build
     runs-on: ubuntu-22.04
@@ -116,17 +163,312 @@ jobs:
         with:
           path: artifacts/
       - name: Display structure of downloaded files
-        run: ls -R artifacts
-      # 若需要，可在此复用正式 tag-release.yml 中的其它脚本步骤，例如重命名 + 生成 release_notes.md
-      - name: Create quick placeholder release notes
-        run: echo "Test release – no real binaries" > release_notes.md
+        run: |
+          echo "=== Artifacts directory structure ==="
+          ls -la artifacts/
+          echo ""
+          echo "=== Contents of each artifact directory ==="
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              echo "--- $dir ---"
+              ls -la "$dir"
+              echo ""
+            fi
+          done
+      - name: Rename files to avoid conflicts
+        run: |
+          echo "Starting file renaming process..."
+          
+          # 检查artifacts目录结构
+          echo "=== Current artifacts structure ==="
+          ls -la artifacts/
+          
+          # 使用find命令直接重命名文件，避免cd路径问题
+          echo "Processing macOS x64 files..."
+          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.x64\.app\.tar\.gz/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz.sig" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.x64\.app\.tar\.gz\.sig/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          echo "Processing macOS ARM64 files..."
+          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.arm64\.app\.tar\.gz/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz.sig" -type f | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.arm64\.app\.tar\.gz\.sig/')
+            mv "$file" "$dir/$newname"
+            echo "Renamed $filename to $newname"
+          done
+          
+          # 验证重命名结果
+          echo "=== File renaming completed. New structure ==="
+          ls -R artifacts
+          
+          # 检查是否有重复文件名
+          echo "=== Checking for duplicate filenames ==="
+          duplicates=$(find artifacts -name "*.app.tar.gz*" -type f | sed 's/.*\///' | sort | uniq -d)
+          if [ -z "$duplicates" ]; then
+            echo "No duplicate filenames found"
+          else
+            echo "Warning: Duplicate filenames detected!"
+            echo "$duplicates"
+            exit 1
+          fi
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Enable corepack and activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate updater JSON (stable/alpha channels)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPDATER_PROXY_PREFIX: https://gh-proxy.com/
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: pnpm run update:generate
+      - name: Verify updater endpoints
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+          ENDPOINTS: |
+            https://github.com/${{ github.repository }}/releases/latest/download/update.json
+            https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/latest/download/update.json
+            https://github.com/${{ github.repository }}/releases/download/updater-alpha/update.json
+            https://gh-proxy.com/https://github.com/${{ github.repository }}/releases/download/updater-alpha/update.json
+        run: pnpm run update:verify
+        continue-on-error: true
+      - name: Generate Release Notes with Quick Download Links
+        run: |
+          # 提取版本号（去掉v前缀）
+          VERSION=${GITHUB_REF_NAME#v}
+          
+          # 生成中文版发布说明
+          cat << EOF > release_notes.md
+          # Chatless $VERSION 发布
+          
+          ## 下载
+          ### Windows
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64_en-US.msi)
+                    
+          ### macOS
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_aarch64.dmg)
+          - [Intel 处理器](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64.dmg)
 
-      - name: Create GitHub Release (test)
+          ### Linux
+          - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.deb)
+          - [通用格式 (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.AppImage)
+                    
+          ---
+          
+          ## 安装说明
+          
+          ### Windows
+          1. 下载 .exe 文件（推荐）或 .msi 文件
+          2. 双击运行安装程序
+          3. 按提示完成安装
+          
+          ### macOS
+          1. 根据处理器选择版本：
+             - Apple Silicon (M1/M2/M3): 下载 aarch64.dmg
+             - Intel 处理器: 下载 x64.dmg
+          2. 双击打开，拖拽到 Applications 文件夹
+          3. 从 Applications 启动应用
+          
+          **注意**: 首次启动可能提示"已损坏"，请：
+          1. 点击"取消"
+          2. 打开终端，运行: 
+          ```bash
+          sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app
+          ```
+          3. 重新启动应用
+          
+          ### Linux
+          1. 根据发行版选择格式：
+             - Red Hat/CentOS/Fedora: 下载 .rpm 文件
+             - Ubuntu/Debian: 下载 .deb 文件
+             - 其他发行版: 下载 .AppImage 文件
+          2. 使用包管理器安装或直接运行
+          
+          ---
+          
+          ## 常见问题
+          
+          **Windows 闪退**: 安装 [Visual C++ 运行库](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+          
+          **macOS 无法打开**: 使用终端命令移除隔离属性（见上方说明）
+          
+          **Linux 权限问题**: 确保给予执行权限 \`chmod +x\`
+          
+          ---
+          
+          ## 文档
+          
+          - [安装指南](https://github.com/${{ github.repository }}/blob/main/INSTALLATION_INSTRUCTIONS.md)
+          - [项目主页](https://github.com/${{ github.repository }})
+          - [问题反馈](https://github.com/${{ github.repository }}/issues)
+          
+          ---
+          
+          ## 更新内容
+          
+          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+          EOF
+          
+          # 生成英文版发布说明
+          cat << EOF > release_notes_en.md
+          # Chatless $VERSION Release
+          
+          ## Download
+          ### Windows
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64-setup.exe)
+          - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64_en-US.msi)
+                    
+          ### macOS
+          - [Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_aarch64.dmg)
+          - [Intel Processor](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64.dmg)
+
+          ### Linux
+          - [Red Hat/CentOS/Fedora (.rpm)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless-${VERSION}-1.x86_64.rpm)
+          - [Ubuntu/Debian (.deb)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.deb)
+          - [Universal (.AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_amd64.AppImage)
+
+          ---
+          
+          ## Installation
+          
+          ### Windows
+          1. Download .exe file (recommended) or .msi file
+          2. Double-click to run installer
+          3. Follow prompts to complete installation
+          
+          ### macOS
+          1. Choose version based on processor:
+             - Apple Silicon (M1/M2/M3): Download aarch64.dmg
+             - Intel Processor: Download x64.dmg
+          2. Double-click to open, drag to Applications folder
+          3. Launch from Applications
+          
+          **Note**: First launch may show "damaged" message, please:
+          1. Click "Cancel"
+          2. Open Terminal, run:
+          ```bash
+          sudo xattr -r -d com.apple.quarantine /Applications/Chatless.app
+          ```
+          3. Restart application
+          
+          ### Linux
+          1. Choose format based on distribution:
+             - Red Hat/CentOS/Fedora: Download .rpm file
+             - Ubuntu/Debian: Download .deb file
+             - Other distributions: Download .AppImage file
+          2. Install using package manager or run directly
+          
+          ---
+          
+          ## Common Issues
+          
+          **Windows crash**: Install [Visual C++ Runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+          
+          **macOS won't open**: Use terminal command to remove quarantine (see above)
+          
+          **Linux permission**: Ensure execute permission with \`chmod +x\`
+          
+          ---
+          
+          ## Documentation
+          
+          - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/INSTALLATION_INSTRUCTIONS_EN.md)
+          - [Project Homepage](https://github.com/${{ github.repository }})
+          - [Report Issues](https://github.com/${{ github.repository }}/issues)
+          
+          ---
+          
+          ## What's New
+          
+          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+          EOF
+          
+          echo "Generated release notes with quick download links"
+          echo "=== Chinese Version ==="
+          cat release_notes.md
+          echo -e "\n=== English Version ==="
+          cat release_notes_en.md
+      - name: List files to be uploaded
+        run: |
+          echo "=== Files that will be uploaded to Release ==="
+          echo "DMG files:"
+          find artifacts -name "*.dmg" -type f || echo "No DMG files found"
+          echo ""
+          echo "App tar.gz files:"
+          find artifacts -name "*.app.tar.gz" -type f || echo "No app.tar.gz files found"
+          echo ""
+          echo "AppImage files:"
+          find artifacts -name "*.AppImage" -type f || echo "No AppImage files found"
+          echo ""
+          echo "DEB files:"
+          find artifacts -name "*.deb" -type f || echo "No DEB files found"
+          echo ""
+          echo "RPM files:"
+          find artifacts -name "*.rpm" -type f || echo "No RPM files found"
+          echo ""
+          echo "EXE files:"
+          find artifacts -name "*.exe" -type f || echo "No EXE files found"
+          echo ""
+          echo "MSI files:"
+          find artifacts -name "*.msi" -type f || echo "No MSI files found"
+          echo ""
+          echo "Signature files:"
+          find artifacts -name "*.sig" -type f || echo "No SIG files found"
+          echo ""
+          echo "SHA256 files:"
+          find artifacts -name "*.sha256*" -type f || echo "No SHA256 files found"
+          echo ""
+          echo "=== All files in artifacts directory ==="
+          find artifacts -type f | sort
+      - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Test Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body_path: release_notes.md
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.sig
+            artifacts/**/*.sha256*
           draft: false
-          prerelease: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
