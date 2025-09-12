@@ -41,10 +41,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     steps:
-      - name: Checkout
+      - name: Checkout repository (keep artifacts)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
+          clean: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -119,9 +120,9 @@ jobs:
               ;;
             "ubuntu-22.04")
               mkdir -p src-tauri/target/release/bundle/{appimage,deb,rpm}
-              touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
-              touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
-              touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
+            touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
+            touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
+            touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
               ;;
             "macos-13")
               mkdir -p src-tauri/target/release/bundle/{macos,dmg}
@@ -276,11 +277,32 @@ jobs:
             echo "$duplicates"
             exit 1
           fi
+      - name: Backup artifacts before checkout
+        run: |
+          echo "Backing up artifacts directory..."
+          if [ -d "artifacts" ]; then
+            cp -r artifacts artifacts_backup
+            echo "Artifacts backed up successfully"
+            ls -la artifacts_backup/
+          else
+            echo "No artifacts directory found to backup"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          clean: false
+
+      - name: Restore artifacts after checkout
+        run: |
+          echo "Restoring artifacts directory..."
+          if [ -d "artifacts_backup" ]; then
+            mv artifacts_backup artifacts
+            echo "Artifacts restored successfully"
+            ls -la artifacts/
+          else
+            echo "No artifacts backup found to restore"
+          fi
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
