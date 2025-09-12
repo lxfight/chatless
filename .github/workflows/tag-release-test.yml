@@ -117,9 +117,9 @@ jobs:
               ;;
             "ubuntu-22.04")
               mkdir -p src-tauri/target/release/bundle/{appimage,deb,rpm}
-            touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
-            touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
-            touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
+              touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
+              touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
+              touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
               ;;
             "macos-13")
               mkdir -p src-tauri/target/release/bundle/{macos,dmg}
@@ -387,7 +387,7 @@ jobs:
           
           ## 更新内容
 
-          $COMMITS
+          ${{ env.COMMITS }}
           EOF
           
           # 生成英文版发布说明
@@ -460,8 +460,8 @@ jobs:
           ---
           
           ## What's New
-          
-          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+
+          ${{ env.COMMITS }}
           EOF
           
           echo "Generated release notes with quick download links"
