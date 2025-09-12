@@ -103,8 +103,9 @@ jobs:
 
       # 跳过实际打包，改为生成占位文件
       - name: Generate placeholder bundles (simulate build)
+        shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail || set -eu
           VERSION="$VERSION"
           # 目录结构与正式流程一致
           mkdir -p src-tauri/target/release/bundle/{dmg,appimage,deb,rpm,nsis,msi,macos}
