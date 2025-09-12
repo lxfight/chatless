@@ -297,25 +297,41 @@ jobs:
 
       - name: Collect recent commits
         run: |
-          # 对于测试版本，获取最近的提交历史
-          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
-            # 如果有标签，获取从上一个标签到现在的提交
-            COMMITS=$(git log --oneline --no-merges "$(git describe --tags --abbrev=0)"..HEAD | head -20)
+          echo "=== Git 信息调试 ==="
+          echo "当前分支: $(git branch --show-current)"
+          echo "当前提交: $(git rev-parse HEAD)"
+          echo "所有标签:"
+          git tag -l | tail -10
+          echo ""
+          
+          # 查找最新的正式版本标签（排除测试标签）
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -v "test-" | head -1)
+          echo "最新正式标签: $LATEST_TAG"
+          
+          if [ -n "$LATEST_TAG" ]; then
+            # 如果有正式标签，获取从该标签到现在的提交
+            COMMITS=$(git log --oneline --no-merges "$LATEST_TAG"..HEAD | head -20)
+            echo "从标签 $LATEST_TAG 到现在的提交:"
           else
-            # 如果没有标签，获取最近的20个提交
+            # 如果没有正式标签，获取最近的20个提交
             COMMITS=$(git log --oneline --no-merges -20)
+            echo "最近的20个提交:"
           fi
+          
+          echo "$COMMITS"
+          echo ""
           
           # 如果没有提交，使用默认消息
           if [ -z "$COMMITS" ]; then
             COMMITS="测试版本 - 模拟构建"
+            echo "没有找到提交，使用默认消息"
           fi
           
           echo "COMMITS<<EOF" >> $GITHUB_ENV
           echo "$COMMITS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
-          echo "Collected commits:"
+          echo "最终收集到的提交:"
           echo "$COMMITS"
 
       - name: Setup Node.js
