@@ -119,6 +119,13 @@ jobs:
       - name: Inject commit SHA to env
         run: echo "NEXT_PUBLIC_GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_ENV
 
+      - name: Clean bundle directory before build
+        run: |
+          echo "Cleaning bundle directory to ensure fresh build..."
+          # 只清理bundle目录，保留依赖编译缓存
+          rm -rf src-tauri/target/release/bundle || true
+          echo "Bundle directory cleaned"
+
       - name: Build Tauri app
         run: |
           echo "Starting Tauri build for ${{ matrix.os }} ${{ matrix.arch || 'unknown' }}"
@@ -150,6 +157,14 @@ jobs:
           echo ""
           echo "=== Target directory contents ==="
           ls -la src-tauri/target/${{ matrix.targets }}/release/ || echo "target directory not found"
+      
+      - name: Clean test artifacts before upload
+        run: |
+          echo "Cleaning test artifacts before upload..."
+          # 清理可能存在的测试文件，确保只上传正式版本
+          find src-tauri/target/release/bundle -name "*test*" -type f -delete || true
+          find src-tauri/target/release/bundle -name "*0.0.0*" -type f -delete || true
+          echo "Test artifacts cleaned"
       
       - name: Upload artifacts (filtered bundles only)
         uses: actions/upload-artifact@v4
