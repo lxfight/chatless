@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # 固定测试版本号，避免解析失败
+  VERSION: 0.0.0-test
+
 jobs:
   prepare:
     runs-on: ubuntu-22.04
@@ -15,19 +19,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # 手动触发时也允许指定 tag / 分支
           ref: ${{ github.ref }}
 
-      # 将 tag 版本号写入环境变量（去掉 v 前缀）
-      - name: Derive VERSION from tag (if any)
-        if: startsWith(github.ref, 'refs/tags/')
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-
-      # 若非 tag 触发，从 package.json 读取版本号
-      - name: Derive VERSION from package.json (fallback)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        run: |
-          echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_ENV
+      # 移除版本号推断逻辑，直接打印当前固定版本号供调试
+      - name: Show VERSION env
+        run: echo "Using VERSION=$VERSION for test build"
 
   # 使用与正式流程几乎相同的矩阵，但不进行真正编译，仅生成占位文件
   build:
