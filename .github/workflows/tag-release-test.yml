@@ -111,11 +111,10 @@ jobs:
           mkdir -p src-tauri/target/release/bundle/{dmg,appimage,deb,rpm,nsis,msi,macos}
           touch src-tauri/target/release/bundle/nsis/Chatless_${VERSION}_x64-setup.exe
           touch src-tauri/target/release/bundle/msi/Chatless_${VERSION}_x64_en-US.msi
-          touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
-          touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
-          touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
-          touch src-tauri/target/release/bundle/macos/Chatless_${VERSION}_x64.app.tar.gz
-          touch src-tauri/target/release/bundle/dmg/Chatless_${VERSION}_x64.dmg
+            touch src-tauri/target/release/bundle/appimage/Chatless_${VERSION}_amd64.AppImage
+            touch src-tauri/target/release/bundle/deb/Chatless_${VERSION}_amd64.deb
+            touch src-tauri/target/release/bundle/rpm/Chatless-${VERSION}-1.x86_64.rpm
+          # macOS files are generated only in macOS jobs
           # 写入内容避免空文件
           find src-tauri/target/release/bundle -type f -exec sh -c 'echo placeholder > "$0"' {} \;
 
