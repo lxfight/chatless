@@ -232,24 +232,6 @@ jobs:
             echo "$duplicates"
             exit 1
           fi
-      - name: Create GitHub Release and upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body_path: release_notes.md
-          files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.app.tar.gz
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*setup*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.sig
-            artifacts/**/*.sha256*
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -439,4 +421,22 @@ jobs:
           cat release_notes.md
           echo -e "\n=== English Version ==="
           cat release_notes_en.md
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*setup*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.sig
+            artifacts/**/*.sha256*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
