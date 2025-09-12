@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  VERSION: 0.0.0-test
+  # 自动为每次 workflow 运行生成唯一测试版本号与 Tag
+  VERSION: 0.0.0-test-${{ github.run_id }}  # 仅测试用，占位文件命名会用到
+  TEST_TAG: test-${{ github.run_id }}        # 测试 Release 的 tag
 
 # 需要写权限以创建 Release。若仓库设置为默认只读，这里会显式请求写权限。
 permissions:
@@ -320,7 +322,7 @@ jobs:
           
           ## 下载
           ### Windows
-          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64-setup.exe)
+          - [Chatless Setup (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ env.TEST_TAG }}/Chatless_${VERSION}_x64-setup.exe)
           - [Chatless MSI (.msi)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Chatless_${VERSION}_x64_en-US.msi)
                     
           ### macOS
@@ -502,8 +504,9 @@ jobs:
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          # 使用唯一测试 tag，避免与正式 Release 冲突
+          tag_name: ${{ env.TEST_TAG }}
+          name: Test Release ${{ env.TEST_TAG }}
           body_path: release_notes.md
           files: |
             artifacts/**/*.dmg
