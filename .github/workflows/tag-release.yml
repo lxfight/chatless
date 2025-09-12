@@ -101,7 +101,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ (matrix.os == 'macos-13' || matrix.os == 'macos-14') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
 
       - name: Cache cargo registry
@@ -120,7 +120,10 @@ jobs:
         run: echo "NEXT_PUBLIC_GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_ENV
 
       - name: Build Tauri app
-        run: pnpm tauri build
+        run: |
+          echo "Starting Tauri build for ${{ matrix.os }} ${{ matrix.arch || 'unknown' }}"
+          pnpm tauri build
+          echo "Build completed successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -169,6 +172,50 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
+      - name: Checkout repository (keep artifacts)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0  # 获取完整历史
+          fetch-tags: true  # 获取所有标签
+      - name: Collect recent commits
+        run: |
+          echo "=== Git 信息调试 ==="
+          echo "当前分支: $(git branch --show-current)"
+          echo "当前提交: $(git rev-parse HEAD)"
+          echo "所有标签:"
+          git tag -l | tail -10
+          echo ""
+          
+          # 查找最新的正式版本标签（排除测试标签）
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -v "test-" | head -1)
+          echo "最新正式标签: $LATEST_TAG"
+          
+          if [ -n "$LATEST_TAG" ]; then
+            # 如果有正式标签，获取从该标签到现在的提交
+            COMMITS=$(git log --oneline --no-merges "$LATEST_TAG"..HEAD | head -20)
+            echo "从标签 $LATEST_TAG 到现在的提交:"
+          else
+            # 如果没有正式标签，获取最近的20个提交
+            COMMITS=$(git log --oneline --no-merges -20)
+            echo "最近的20个提交:"
+          fi
+          
+          echo "$COMMITS"
+          echo ""
+          
+          # 如果没有提交，使用默认消息
+          if [ -z "$COMMITS" ]; then
+            COMMITS="新版本发布"
+            echo "没有找到提交，使用默认消息"
+          fi
+          
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          echo "最终收集到的提交:"
+          echo "$COMMITS"
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -196,38 +243,54 @@ jobs:
           
           # 使用find命令直接重命名文件，避免cd路径问题
           echo "Processing macOS x64 files..."
-          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz" -type f | while read file; do
+          if [ -d "artifacts/chatless-macos-13-x64" ]; then
+            find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz" -type f | while read file; do
             dir=$(dirname "$file")
             filename=$(basename "$file")
             newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.x64\.app\.tar\.gz/')
             mv "$file" "$dir/$newname"
             echo "Renamed $filename to $newname"
-          done
+            done
+          else
+            echo "Directory artifacts/chatless-macos-13-x64 not found, skipping x64 processing"
+          fi
           
-          find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz.sig" -type f | while read file; do
+          if [ -d "artifacts/chatless-macos-13-x64" ]; then
+            find artifacts/chatless-macos-13-x64 -name "*.app.tar.gz.sig" -type f | while read file; do
             dir=$(dirname "$file")
             filename=$(basename "$file")
             newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.x64\.app\.tar\.gz\.sig/')
             mv "$file" "$dir/$newname"
             echo "Renamed $filename to $newname"
-          done
+            done
+          else
+            echo "Directory artifacts/chatless-macos-13-x64 not found, skipping x64 sig processing"
+          fi
           
           echo "Processing macOS ARM64 files..."
-          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz" -type f | while read file; do
+          if [ -d "artifacts/chatless-macos-14-arm64" ]; then
+            find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz" -type f | while read file; do
             dir=$(dirname "$file")
             filename=$(basename "$file")
             newname=$(echo "$filename" | sed 's/\.app\.tar\.gz/\.arm64\.app\.tar\.gz/')
             mv "$file" "$dir/$newname"
             echo "Renamed $filename to $newname"
-          done
+            done
+          else
+            echo "Directory artifacts/chatless-macos-14-arm64 not found, skipping arm64 processing"
+          fi
           
-          find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz.sig" -type f | while read file; do
+          if [ -d "artifacts/chatless-macos-14-arm64" ]; then
+            find artifacts/chatless-macos-14-arm64 -name "*.app.tar.gz.sig" -type f | while read file; do
             dir=$(dirname "$file")
             filename=$(basename "$file")
             newname=$(echo "$filename" | sed 's/\.app\.tar\.gz\.sig/\.arm64\.app\.tar\.gz\.sig/')
             mv "$file" "$dir/$newname"
             echo "Renamed $filename to $newname"
-          done
+            done
+          else
+            echo "Directory artifacts/chatless-macos-14-arm64 not found, skipping arm64 sig processing"
+          fi
           
           # 验证重命名结果
           echo "=== File renaming completed. New structure ==="
@@ -243,12 +306,6 @@ jobs:
             echo "$duplicates"
             exit 1
           fi
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0  # 获取完整历史
-          fetch-tags: true  # 获取所有标签
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -351,8 +408,8 @@ jobs:
           ---
           
           ## 更新内容
-          
-          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+
+          ${{ env.COMMITS }}
           EOF
           
           # 生成英文版发布说明
@@ -425,8 +482,8 @@ jobs:
           ---
           
           ## What's New
-          
-          \$(git log --oneline --no-merges \$(git describe --tags --abbrev=0)..HEAD | head -20)
+
+          ${{ env.COMMITS }}
           EOF
           
           echo "Generated release notes with quick download links"
