@@ -155,14 +155,6 @@ jobs:
           # 写入内容避免空文件
           find src-tauri/target/release/bundle -type f -exec sh -c 'echo placeholder > "$0"' {} \;
 
-      - name: Clean test artifacts before upload
-        run: |
-          echo "Cleaning test artifacts before upload..."
-          # 清理可能存在的测试文件，确保只上传正式版本
-          find src-tauri/target/release/bundle -name "*test*" -type f -delete || true
-          find src-tauri/target/release/bundle -name "*0.0.0*" -type f -delete || true
-          echo "Test artifacts cleaned"
-        shell: bash
 
       - name: List generated bundles (macOS only)
         if: ${{ matrix.platform == 'macos' }}
