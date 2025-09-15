@@ -50,6 +50,47 @@ jobs:
         with:
           ref: ${{ github.ref }}
           clean: false
+      
+      - name: Test shell compatibility (quick fail)
+        run: |
+          echo "Testing shell compatibility for cleanup operations..."
+          
+          # 创建测试目录和文件
+          mkdir -p test-cleanup/test-dir
+          touch test-cleanup/test-file.txt
+          touch test-cleanup/test-dir/nested-file.txt
+          echo "Created test files and directories"
+          
+          # 测试rm -rf命令
+          echo "Testing rm -rf command..."
+          rm -rf test-cleanup
+          if [ -d "test-cleanup" ]; then
+            echo "ERROR: rm -rf failed to remove directory"
+            exit 1
+          fi
+          echo "rm -rf test passed"
+          
+          # 测试find命令
+          echo "Testing find command..."
+          mkdir -p test-find/test-subdir
+          touch test-find/test1.txt
+          touch test-find/test2.log
+          touch test-find/test-subdir/test3.txt
+          
+          # 测试find删除功能
+          find test-find -name "*.txt" -type f -delete
+          remaining_txt=$(find test-find -name "*.txt" -type f | wc -l)
+          if [ "$remaining_txt" -ne 0 ]; then
+            echo "ERROR: find -delete failed to remove .txt files"
+            exit 1
+          fi
+          echo "find -delete test passed"
+          
+          # 清理测试文件
+          rm -rf test-find
+          echo "All shell compatibility tests passed!"
+        shell: bash
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

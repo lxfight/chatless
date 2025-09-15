@@ -25,6 +25,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Lint (non-blocking)
@@ -61,6 +62,47 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
+      
+      - name: Test shell compatibility (quick fail)
+        run: |
+          echo "Testing shell compatibility for cleanup operations..."
+          
+          # 创建测试目录和文件
+          mkdir -p test-cleanup/test-dir
+          touch test-cleanup/test-file.txt
+          touch test-cleanup/test-dir/nested-file.txt
+          echo "Created test files and directories"
+          
+          # 测试rm -rf命令
+          echo "Testing rm -rf command..."
+          rm -rf test-cleanup
+          if [ -d "test-cleanup" ]; then
+            echo "ERROR: rm -rf failed to remove directory"
+            exit 1
+          fi
+          echo "rm -rf test passed"
+          
+          # 测试find命令
+          echo "Testing find command..."
+          mkdir -p test-find/test-subdir
+          touch test-find/test1.txt
+          touch test-find/test2.log
+          touch test-find/test-subdir/test3.txt
+          
+          # 测试find删除功能
+          find test-find -name "*.txt" -type f -delete
+          remaining_txt=$(find test-find -name "*.txt" -type f | wc -l)
+          if [ "$remaining_txt" -ne 0 ]; then
+            echo "ERROR: find -delete failed to remove .txt files"
+            exit 1
+          fi
+          echo "find -delete test passed"
+          
+          # 清理测试文件
+          rm -rf test-find
+          echo "All shell compatibility tests passed!"
+        shell: bash
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -69,6 +111,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -87,6 +130,7 @@ jobs:
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
             librsvg2-dev build-essential curl wget file patchelf libssl-dev \
             xdg-utils desktop-file-utils
+        shell: bash
 
       - name: Cache Tauri bundle tools (Linux)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
@@ -118,6 +162,7 @@ jobs:
 
       - name: Inject commit SHA to env
         run: echo "NEXT_PUBLIC_GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_ENV
+        shell: bash
 
       - name: Clean bundle directory before build
         run: |
@@ -125,12 +170,14 @@ jobs:
           # 只清理bundle目录，保留依赖编译缓存
           rm -rf src-tauri/target/release/bundle || true
           echo "Bundle directory cleaned"
+        shell: bash
 
       - name: Build Tauri app
         run: |
           echo "Starting Tauri build for ${{ matrix.os }} ${{ matrix.arch || 'unknown' }}"
           pnpm tauri build
           echo "Build completed successfully"
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -157,6 +204,7 @@ jobs:
           echo ""
           echo "=== Target directory contents ==="
           ls -la src-tauri/target/${{ matrix.targets }}/release/ || echo "target directory not found"
+        shell: bash
       
       - name: Clean test artifacts before upload
         run: |
@@ -165,6 +213,7 @@ jobs:
           find src-tauri/target/release/bundle -name "*test*" -type f -delete || true
           find src-tauri/target/release/bundle -name "*0.0.0*" -type f -delete || true
           echo "Test artifacts cleaned"
+        shell: bash
       
       - name: Upload artifacts (filtered bundles only)
         uses: actions/upload-artifact@v4
@@ -231,6 +280,7 @@ jobs:
           
           echo "最终收集到的提交:"
           echo "$COMMITS"
+        shell: bash
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -248,6 +298,7 @@ jobs:
               echo ""
             fi
           done
+        shell: bash
       - name: Rename files to avoid conflicts
         run: |
           echo "Starting file renaming process..."
@@ -321,6 +372,7 @@ jobs:
             echo "$duplicates"
             exit 1
           fi
+        shell: bash
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -329,6 +381,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate updater JSON (stable/alpha channels)
@@ -506,6 +559,7 @@ jobs:
           cat release_notes.md
           echo -e "\n=== English Version ==="
           cat release_notes_en.md
+        shell: bash
       - name: List files to be uploaded
         run: |
           echo "=== Files that will be uploaded to Release ==="
@@ -538,6 +592,7 @@ jobs:
           echo ""
           echo "=== All files in artifacts directory ==="
           find artifacts -type f | sort
+        shell: bash
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
