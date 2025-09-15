@@ -108,6 +108,18 @@ jobs:
       - name: Inject commit SHA to env
         run: echo "NEXT_PUBLIC_GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_ENV
 
+      - name: Clean bundle directory before build
+        run: |
+          echo "Cleaning bundle directory to ensure fresh build..."
+          # 使用跨平台兼容的清理方法
+          if [ -d "src-tauri/target/release/bundle" ]; then
+            rm -rf src-tauri/target/release/bundle
+            echo "Bundle directory removed"
+          else
+            echo "Bundle directory does not exist, skipping"
+          fi
+          echo "Bundle directory cleaned"
+
       # 跳过实际打包，改为生成占位文件
       - name: Generate placeholder bundles (simulate build)
         shell: bash
@@ -141,6 +153,14 @@ jobs:
           esac
           # 写入内容避免空文件
           find src-tauri/target/release/bundle -type f -exec sh -c 'echo placeholder > "$0"' {} \;
+
+      - name: Clean test artifacts before upload
+        run: |
+          echo "Cleaning test artifacts before upload..."
+          # 清理可能存在的测试文件，确保只上传正式版本
+          find src-tauri/target/release/bundle -name "*test*" -type f -delete || true
+          find src-tauri/target/release/bundle -name "*0.0.0*" -type f -delete || true
+          echo "Test artifacts cleaned"
 
       - name: List generated bundles (macOS only)
         if: ${{ matrix.platform == 'macos' }}
