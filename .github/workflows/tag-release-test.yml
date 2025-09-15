@@ -119,6 +119,7 @@ jobs:
             echo "Bundle directory does not exist, skipping"
           fi
           echo "Bundle directory cleaned"
+        shell: bash
 
       # 跳过实际打包，改为生成占位文件
       - name: Generate placeholder bundles (simulate build)
@@ -161,6 +162,7 @@ jobs:
           find src-tauri/target/release/bundle -name "*test*" -type f -delete || true
           find src-tauri/target/release/bundle -name "*0.0.0*" -type f -delete || true
           echo "Test artifacts cleaned"
+        shell: bash
 
       - name: List generated bundles (macOS only)
         if: ${{ matrix.platform == 'macos' }}
