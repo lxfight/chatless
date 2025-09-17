@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, Wifi, MoreVertical, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, Wifi, MoreVertical, ChevronDown, ChevronRight, GripVertical, Sliders, Pencil, BugPlay, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
@@ -15,6 +15,7 @@ import { isDevelopmentEnvironment } from '@/lib/utils/environment';
 import ModelFetchDebugger from './ModelFetchDebugger';
 import { cn } from '@/lib/utils';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
+import { AdvancedSettingsDialog } from '@/components/settings/AdvancedSettingsDialog';
 
 interface ProviderTableRowProps {
   provider: ProviderWithStatus;
@@ -55,6 +56,16 @@ export function ProviderTableRow({
   const [isExpanded, setIsExpanded] = useState(false);
   const [fetchDebuggerOpen, setFetchDebuggerOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const hasAdvanced = !!(provider.preferences?.useBrowserRequest);
+
+  // 本行的可编辑本地状态（确保输入可键入）
+  const [localUrl, setLocalUrl] = useState<string>(provider.api_base_url || '');
+  const [localDefaultApiKey, setLocalDefaultApiKey] = useState<string>(provider.default_api_key || '');
+  React.useEffect(() => {
+    setLocalUrl(provider.api_base_url || '');
+    setLocalDefaultApiKey(provider.default_api_key || '');
+  }, [provider.name, provider.api_base_url, provider.default_api_key]);
   
   // 状态显示逻辑
   let statusText: string | undefined;
@@ -109,7 +120,7 @@ export function ProviderTableRow({
 
   return (
     <>
-      <div className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+      <div className={"px-4 py-3 rounded-lg transition-colors "+(isExpanded?"bg-indigo-50/60 dark:bg-indigo-900/20 ring-1 ring-indigo-200 dark:ring-indigo-700":"hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20 hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-700")}> 
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
           <div className="col-span-1 flex items-center gap-2">
@@ -166,13 +177,13 @@ export function ProviderTableRow({
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                <span className="text-sm text-gray-400 dark:text-gray-500"></span>
               )}
             </div>
           </div>
 
           {/* 操作按钮区域 - 不可点击展开 */}
-          <div className="col-span-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="col-span-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <TooltipProvider delayDuration={100}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -209,16 +220,42 @@ export function ProviderTableRow({
                   <MoreVertical className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-                修改提供商
-              </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsExpanded(!isExpanded)}>
-                  {isExpanded ? '收起详情' : '展开详情'}
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem onClick={() => setEditDialogOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    <Pencil className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">修改提供商</span>
+                    <span className="text-xs text-gray-500">重命名、服务地址、策略等</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAdvancedOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    <Sliders className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">高级设置</span>
+                    <span className="text-xs text-gray-500">网络请求方式等高级选项</span>
+                  </div>
+                  {hasAdvanced && <span className="ml-auto w-2 h-2 rounded-full bg-blue-500" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-700 dark:text-gray-300" /> : <ChevronDown className="w-4 h-4 text-gray-700 dark:text-gray-300" />}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{isExpanded ? '收起详情' : '展开详情'}</span>
+                  </div>
                 </DropdownMenuItem>
                 {isDevelopmentEnvironment() && (
-                  <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)}>
-                    调试网络请求
+                  <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
+                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                      <BugPlay className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">调试网络请求</span>
+                    </div>
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -232,18 +269,19 @@ export function ProviderTableRow({
             <div className="space-y-4">
               <ProviderConnectionSection
                 provider={provider}
-                localUrl={provider.api_base_url || ''}
-                setLocalUrl={() => {}}
+                localUrl={localUrl}
+                setLocalUrl={setLocalUrl}
                 onUrlChange={onUrlChange}
                 onResetUrl={() => {}}
                 showApiKeyFields={true}
-                localDefaultApiKey={provider.default_api_key || ''}
-                setLocalDefaultApiKey={() => {}}
+                localDefaultApiKey={localDefaultApiKey}
+                setLocalDefaultApiKey={setLocalDefaultApiKey}
                 docUrl={undefined}
                 onDefaultApiKeyChange={onDefaultApiKeyChange}
                 onDefaultApiKeyBlur={onDefaultApiKeyBlur}
                 endpointPreview={provider.api_base_url}
                 onPreferenceChange={onPreferenceChange}
+                showInlineMenu={false}
               />
               
               <ProviderModelList
@@ -285,6 +323,14 @@ export function ProviderTableRow({
           strategy: 'openai-compatible', // 默认策略，可以根据需要调整
           displayName: provider.displayName || provider.name // 使用displayName或回退到name
         } : null}
+      />
+
+      {/* 高级设置对话框 */}
+      <AdvancedSettingsDialog
+        open={advancedOpen}
+        onOpenChange={setAdvancedOpen}
+        provider={provider}
+        onPreferenceChange={onPreferenceChange}
       />
     </>
   );

@@ -7,7 +7,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 // import { ModelCard } from "./ModelCard"; // 不再使用 ModelCard
 import { ProviderTableRow } from "./ProviderTableRow";
-import { ServerCog, RotateCcw, Filter, Search, GripVertical, ChevronRight, Settings } from "lucide-react";
+import { ServerCog, RotateCcw, GripVertical, ChevronRight, Settings, Search } from "lucide-react";
 // 导入新模块
 /* Commenting out for now due to persistent linter error
 import {
@@ -20,7 +20,9 @@ import {
   updateOllamaModelsCache,
 */
 import { toast } from "@/components/ui/sonner";
-import { Input } from "@/components/ui/input";
+// Input 移除，头部使用自定义 SearchInput
+import { SearchInput } from "@/components/ui/SearchInput";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 // 不再需要直接导入 tauriFetch
 // import { fetch as tauriFetch } from '@tauri-apps/plugin-http'; 
 // import { useProviderStatusStore } from '@/store/providerStatusStore'; // <-- 已修改路径
@@ -29,7 +31,7 @@ import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderMa
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
 import { AddProvidersDialog } from './AddProvidersDialog';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// 头部过滤器已内化到表头，无需 Select 组件
 // duplicate import removed
 
 // 添加一个包含连接状态的 Provider 类型
@@ -75,21 +77,11 @@ export function AiModelSettings() {
   // 搜索与过滤 state
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all'|'recently_checked'|'needs_key'|'never_checked'>('all');
-  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [headSearchOpen, setHeadSearchOpen] = useState(false);
   // 如需更新 provider 配置请从 store 调用，当前未使用
 
   // 计算各状态的数量
-  const statusCounts = providers.reduce((acc, p) => {
-    if (p.configStatus === 'NO_KEY') {
-      acc.needs_key++;
-    } else if (p.lastCheckedAt && p.lastCheckedAt > Date.now() - 24 * 60 * 60 * 1000) {
-      // 最近24小时内检查过
-      acc.recently_checked++;
-    } else if (!p.lastCheckedAt) {
-      acc.never_checked++;
-    }
-    return acc;
-  }, { recently_checked: 0, needs_key: 0, never_checked: 0 });
+  // 头部上下箭头切换，不再显示数量面板
 
   const filteredProviders = providers.filter((p: ProviderWithStatus) => {
     const q = searchQuery.toLowerCase();
@@ -191,7 +183,7 @@ export function AiModelSettings() {
               </svg>
             </button>
           )}
-          <div className="flex-1 pl-1">
+          <div className="flex-1 p-1">
             {React.cloneElement(children as any, {
               open: providerOpenMap[provider.name] ?? false,
               onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open }))
@@ -214,73 +206,9 @@ export function AiModelSettings() {
           iconBgColor="from-purple-500 to-indigo-500"
         />
 
-        {/* 操作栏 - 去卡片化设计 */}
-        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          {/* 左侧：搜索和筛选 */}
-          <div className="flex items-center gap-3">
-            {/* 搜索框 */}
-            {showSearchInput ? (
-              <div className="relative">
-                <Input
-                  autoFocus
-                  placeholder="搜索提供商..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onBlur={() => { if(searchQuery==="") setShowSearchInput(false); }}
-                  className="w-56 h-9 text-sm pl-10 pr-4 bg-white/90 dark:bg-gray-700/90 border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-              </div>
-            ) : (
-              <button 
-                onClick={()=>setShowSearchInput(true)} 
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200 group"
-                title="搜索提供商"
-              >
-                <Search className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>搜索</span>
-              </button>
-            )}
-            
-            {/* 筛选下拉菜单 */}
-            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-              <SelectTrigger className="w-40 h-9 text-sm bg-white/90 dark:bg-gray-700/90 border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <SelectValue placeholder="筛选条件" />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-gray-200 dark:border-gray-700 shadow-lg">
-                <SelectItem value="all" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                  <div className="flex items-center justify-between w-full">
-                    <span>全部</span>
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({providers.length})</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="recently_checked" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                  <div className="flex items-center justify-between w-full">
-                    <span>最近检查</span>
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.recently_checked})</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="needs_key" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                  <div className="flex items-center justify-between w-full">
-                    <span>未配置密钥</span>
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.needs_key})</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="never_checked" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                  <div className="flex items-center justify-between w-full">
-                    <span>未检查过</span>
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.never_checked})</span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 右侧：操作按钮 */}
-          <div className="flex items-center gap-3">
+        {/* 操作栏：保留右侧操作按钮，仅移除上方搜索与筛选 */}
+        <div className='flex justify-end'>
+        <div className="flex items-center gap-3">
             {/* 刷新按钮 */}
             <Button
               variant="outline"
@@ -309,14 +237,59 @@ className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gr
           </div>
         </div>
 
+
       {/* Provider 列表 - 去卡片化设计 */}
       <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        {/* 表头 */}
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-12 gap-4 items-center text-sm font-medium text-gray-600 dark:text-gray-400">
-            <div className="col-span-1"></div>
-            <div className="col-span-6">提供商</div>
-            <div className="col-span-3">状态</div>
+        {/* 表头优化：列名与内容对齐；状态列使用下拉；“提供商”列点击图标再展开搜索 */}
+        <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-12 gap-4 items-center text-[13px] font-medium text-gray-600 dark:text-gray-400">
+            <div className="col-span-1" />
+            <div className="col-span-6 flex items-center">
+              <span>提供商</span>
+              <div className="ml-2 h-7 flex items-center">
+                {headSearchOpen ? (
+                  <div className="w-56 h-full flex items-center">
+                    <SearchInput
+                      value={searchQuery}
+                      onChange={(e)=>setSearchQuery(e.target.value)}
+                      placeholder="搜索提供商"
+                      variant="withIcon"
+                      allowClear
+                      autoFocus
+                      className="h-7"
+                      onBlur={()=>{ if (!searchQuery) setHeadSearchOpen(false); }}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={()=>setHeadSearchOpen(true)}
+                    className="h-7 w-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="搜索提供商"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="col-span-3 flex items-center">
+              <span>状态</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="ml-2 px-2 h-6 rounded-md border border-gray-300 dark:border-gray-600 text-xs bg-white/70 dark:bg-gray-700/70 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    {statusFilter === 'all' && '全部'}
+                    {statusFilter === 'recently_checked' && '最近检查'}
+                    {statusFilter === 'needs_key' && '未配置密钥'}
+                    {statusFilter === 'never_checked' && '未检查过'}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-28">
+                  <DropdownMenuItem onClick={()=>setStatusFilter('all')}>全部</DropdownMenuItem>
+                  <DropdownMenuItem onClick={()=>setStatusFilter('recently_checked')}>最近检查</DropdownMenuItem>
+                  <DropdownMenuItem onClick={()=>setStatusFilter('needs_key')}>未配置密钥</DropdownMenuItem>
+                  <DropdownMenuItem onClick={()=>setStatusFilter('never_checked')}>未检查过</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="col-span-2">操作</div>
           </div>
         </div>

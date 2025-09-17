@@ -30,24 +30,8 @@ export function ProviderRenameDialog({ open, onOpenChange, providerName, initial
     }
     setSaving(true);
     try {
-      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
-      await providerRepository.update({ name: providerName, displayName: next } as any);
-      // 立即刷新内存 store 的列表展示（无需切页面）
-      try {
-        const { useProviderStore } = await import('@/store/providerStore');
-        const state = useProviderStore.getState();
-        const current = state.providers;
-        const updated = current.map(p => p.name === providerName ? { ...p, displayName: next } : p);
-        if (state) {
-          useProviderStore.setState({ providers: updated } as any);
-        }
-        // 同步 UI 元数据列表以立即反映 displayName
-        const { useProviderMetaStore } = await import('@/store/providerMetaStore');
-        const { mapToProviderWithStatus } = await import('@/lib/provider/transform');
-        useProviderMetaStore.getState().setList(updated.map((v:any)=>mapToProviderWithStatus(v)) as any);
-      } catch (err) {
-        console.warn('rename immediate refresh failed, will rely on repository subscription', err);
-      }
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      await updateProviderConfigUseCase.execute(providerName, { displayName: next });
       toast.success('已更新名称');
       onOpenChange(false);
     } catch (e: any) {

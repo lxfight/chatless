@@ -274,16 +274,35 @@ export function ProviderModelList(props: ProviderModelListProps) {
             <button type="button" onClick={()=>setFilterTools(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`} title="仅显示支持工具调用的模型"><Workflow className="w-3.5 h-3.5"/></button>
             <button type="button" onClick={()=>setFilterVision(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`} title="仅显示支持视觉的模型"><Camera className="w-3.5 h-3.5"/></button>
           </div>
-          <Input value={modelSearch} onChange={(e) => setModelSearch(e.target.value)} placeholder="输入以筛选模型…" className="h-8 text-sm w-64" />
+          {/* 搜索框：默认显示放大镜，点击后展开，不改变行高 */}
+          {(() => {
+            const [open, setOpen] = React.useState(false);
+            const wrapRef = React.useRef<HTMLDivElement | null>(null);
+            React.useEffect(()=>{
+              function onDown(e: MouseEvent){ if(open && wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); }
+              document.addEventListener('mousedown', onDown); return ()=>document.removeEventListener('mousedown', onDown);
+            }, [open]);
+            return (
+              <div ref={wrapRef} className="h-8 flex items-center">
+                {open ? (
+                  <Input value={modelSearch} onChange={(e) => setModelSearch(e.target.value)} placeholder="输入以筛选模型…" className="h-8 text-sm w-64 border border-gray-300 dark:border-gray-600 rounded-md" autoFocus />
+                ) : (
+                  <button onClick={()=>setOpen(true)} className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="筛选模型">
+                    <svg className="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           {isMultiStrategyProvider && (
-            <Button variant="outline" className="h-7 px-2 text-xs" onClick={()=>setBatchMode(v=>!v)}>{batchMode? '退出批量' : '批量设置策略'}</Button>
+            <Button variant="outline" className="h-6 px-1 text-xs" onClick={()=>setBatchMode(v=>!v)}>{batchMode? '退出' : '批量设置策略'}</Button>
           )}
           {isMultiStrategyProvider && batchMode && (
             <>
               <Select value={batchStrategy} onValueChange={(v:any)=>{ if (v === '__clear__') { const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void clearBatch(); } return; } if (v === '__auto__') { void applyAutoInfer(); return; } setBatchStrategy(v); const anyChecked = Object.values(checked).some(Boolean); if (anyChecked) { void applyBatch(v); } }}>
-                <SelectTrigger className="w-56 h-7 text-xs"><SelectValue placeholder="选择策略"/></SelectTrigger>
+                <SelectTrigger className="w-56 h-6 text-xs"><SelectValue placeholder="选择策略"/></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__auto__" className="text-xs">自动推断策略（按模型ID）</SelectItem>
                   <SelectItem value="openai-compatible" className="text-xs">OpenAI Compatible (/v1/chat/completions)</SelectItem>
@@ -295,13 +314,40 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   <SelectItem value="__clear__" className="text-xs text-red-600">清除覆盖（恢复默认）</SelectItem>
                 </SelectContent>
               </Select>
-              <Button className="h-7 px-3 text-xs" onClick={() => applyBatch()}>应用到选中</Button>
-              <Button variant="secondary" className="h-7 px-3 text-xs" onClick={clearBatch}>清除覆盖</Button>
-              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setAll(modelsForDisplay.map(m=>m.name), true)}>全选全部</Button>
-              <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={()=>setChecked({})}>清空全部</Button>
+              <Button className="h-6 px-1 text-xs" onClick={() => applyBatch()}>应用到选中</Button>
+              <Button variant="secondary" className="h-6 px-1 text-xs" onClick={clearBatch}>清除覆盖</Button>
               <Button
                 variant="ghost"
-                className="h-7 px-2 text-[11px]"
+                className="h-6 px-1 text-[11px]"
+                onClick={() => {
+                  const ids = modelsForDisplay.map(m => m.name);
+                  const allChecked = ids.every(id => !!checked[id]);
+                  const anyChecked = ids.some(id => !!checked[id]);
+                  if (allChecked) {
+                    // 全部已选 → 反选为全部取消
+                    setChecked(prev => {
+                      const next = { ...prev } as Record<string, boolean>;
+                      ids.forEach(id => { next[id] = false; });
+                      return next;
+                    });
+                  } else if (!anyChecked) {
+                    // 全部未选 → 全选
+                    setAll(ids, true);
+                  } else {
+                    // 部分已选 → 反选这些项
+                    setChecked(prev => {
+                      const next = { ...prev } as Record<string, boolean>;
+                      ids.forEach(id => { next[id] = !prev[id]; });
+                      return next;
+                    });
+                  }
+                }}
+              >
+                全选/反选
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-6 px-1 text-[11px]"
                 onClick={() => {
                   const currentPageItems = (() => {
                     const filtered = modelsForDisplay.filter((m) => {
@@ -331,7 +377,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
               {provider.displayStatus === 'CONNECTED' && (
                 <Button
                   variant="secondary"
-                  className="h-7 px-2 text-xs"
+                  className="h-6 px-1 text-xs"
                   onClick={async ()=>{
                     try {
                       const scroller = getScroller();

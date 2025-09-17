@@ -1,9 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { InputField } from "./InputField";
-import { KeyRound, MoreHorizontal, SlidersHorizontal, Brain, Workflow, Camera, Pencil, Trash2, Zap, RotateCcw } from "lucide-react";
+import { KeyRound, MoreHorizontal, SlidersHorizontal, Brain, Workflow, Camera, Trash2, Zap, RotateCcw } from "lucide-react";
 import type { ModelMetadata } from "@/lib/metadata/types";
 import { toast } from "@/components/ui/sonner";
 import { getModelCapabilities } from "@/lib/provider/staticModels";
@@ -40,7 +40,7 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
     onModelApiKeyChange,
     onModelApiKeyBlur,
     onOpenParameters,
-    onRename,
+    onRename: _onRename,
     canDelete,
     onDelete,
     showStrategyBadge,
@@ -50,8 +50,22 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
     allowDelete = true,
   } = props;
 
+  // 控制“模型级 API Key”输入展开/收起
+  const [editingModelKey, setEditingModelKey] = useState(false);
+  const modelKeyRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      if (!editingModelKey) return;
+      if (modelKeyRef.current && !modelKeyRef.current.contains(e.target as Node)) {
+        setEditingModelKey(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [editingModelKey]);
+
   return (
-    <div className="group/item w-full flex items-center gap-1.5 pl-1.5 border-indigo-200/70 dark:border-indigo-700/70 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors rounded-md hover:ring-1 hover:ring-indigo-200/70 dark:hover:ring-indigo-700/50" style={{ paddingLeft: 5 }}>
+    <div className="group/item w-full flex items-center gap-1.5 pl-4 border-indigo-200/70 dark:border-indigo-700/70 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors rounded-md hover:ring-1 hover:ring-indigo-200/70 dark:hover:ring-indigo-700/50">
       {/* 左侧：模型名与能力标记 */}
       <div className="flex flex-row items-center justify-start flex-auto min-w-0 pr-2 gap-1.5 text-[12px]">
         <button
@@ -189,15 +203,15 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end" className="w-56">
+          <DropdownMenuContent side="bottom" align="end" className="w-72 p-1">
             {/* 头部标题 */}
-            <div className="px-3 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="px-2 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">模型设置</span>
+                <Brain className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">模型设置</span>
               </div>
               <div className="mt-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate block" title={model.label || model.name}>
+                <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate block" title={model.label || model.name}>
                   {model.label || model.name}
                 </span>
               </div>
@@ -205,35 +219,36 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
 
             {/* 参数设置 */}
             <DropdownMenuItem 
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md cursor-pointer" 
-              onSelect={(e:any)=>{ e?.preventDefault?.(); onOpenParameters(model.name, model.label); }}
+              className="flex items-center gap-3 px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md cursor-pointer" 
+              onClick={(e:any)=>{ e?.preventDefault?.(); setTimeout(()=>onOpenParameters(model.name, model.label), 0); }}
+              onSelect={(e:any)=>{ e?.preventDefault?.(); setTimeout(()=>onOpenParameters(model.name, model.label), 0); }}
             >
-              <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
-                <SlidersHorizontal className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <div className="flex items-center justify-center w-7 h-7 bg-gray-100 dark:bg-gray-700 rounded-md">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">参数设置</span>
-                <span className="text-xs text-gray-500">调整模型参数</span>
+                <span className="text-[13px] font-medium">参数设置</span>
+                <span className="text-[11px] text-gray-500">调整模型参数</span>
               </div>
             </DropdownMenuItem>
 
             {/* 策略设置 */}
             {allowStrategyActions && (
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md cursor-pointer">
-                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-md">
-                    <Workflow className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <DropdownMenuSubTrigger className="flex items-center gap-3 px-2.5 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md cursor-pointer">
+                  <div className="flex items-center justify-center w-7 h-7 bg-blue-100 dark:bg-blue-900/50 rounded-md">
+                    <Workflow className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex flex-col flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">请求策略</span>
+                      <span className="text-[13px] font-medium">请求策略</span>
                       {strategy && (
-                        <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full">
+                        <span className="px-2 py-0.5 text-[11px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full">
                           {strategy}
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
                       {strategy ? '已设置自定义策略' : '使用默认策略'}
                     </span>
                   </div>
@@ -258,8 +273,8 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
                       }
                     }}
                   >
-                    <Zap className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm">自动推断</span>
+                    <Zap className="w-3.5 h-3.5 text-purple-600" />
+                    <span className="text-[13px]">自动推断</span>
                   </DropdownMenuItem>
                   
                   <DropdownMenuSeparator />
@@ -283,7 +298,7 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
                       }}
                     >
                       <div className={`w-2 h-2 rounded-full ${strategy === s ? 'bg-blue-600' : 'bg-gray-300'}`} />
-                      <span className="text-sm">{s}</span>
+                      <span className="text-[13px]">{s}</span>
                     </DropdownMenuItem>
                   ))}
                   
@@ -305,8 +320,8 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
                       }
                     }}
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    <span className="text-sm">重置为默认</span>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="text-[13px]">重置为默认</span>
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -315,19 +330,11 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
             <DropdownMenuSeparator />
 
             {/* 重命名 */}
-            <div className="px-3 py-2">
+            <div className="px-2 py-1">
               {(() => {
                 const { ProviderRenameModelDialog } = require('./ProviderRenameModelDialog');
                 return (
-                  <div className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md px-0 py-1 cursor-pointer">
-                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
-                      <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </div>
-                    <div className="flex flex-col flex-1">
-                      <span className="text-sm font-medium">重命名</span>
-                      <ProviderRenameModelDialog providerName={providerName} modelName={model.name} currentLabel={model.label} />
-                    </div>
-                  </div>
+                  <ProviderRenameModelDialog providerName={providerName} modelName={model.name} currentLabel={model.label} />
                 );
               })()}
             </div>
@@ -366,19 +373,33 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* 再放输入框 */}
+        {/* 模型级 API Key：默认以小钥匙图标呈现，点击后展开输入框 */}
         {showApiKeyFields && (
-          <InputField
-            label=""
-            type="password"
-            value={apiKeyValue}
-            onChange={(e) => setApiKeyValue(e.target.value)}
-            onBlur={() => { onModelApiKeyChange(model.name, apiKeyValue || ''); onModelApiKeyBlur(model.name); }}
-            placeholder="模型 API Key (可选)"
-            className="h-7 text-xs w-40"
-            wrapperClassName="mb-0 flex-shrink-0"
-            icon={<KeyRound className="w-3 h-3 text-gray-400" />}
-          />
+          <div className="flex items-center" ref={modelKeyRef}>
+            {!editingModelKey ? (
+              <button
+                type="button"
+                className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
+                title={apiKeyValue ? '已设置模型密钥（点击修改）' : '设置模型密钥'}
+                onClick={()=>setEditingModelKey(true)}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <InputField
+                label=""
+                type="password"
+                value={apiKeyValue}
+                onChange={(e) => setApiKeyValue(e.target.value)}
+                onBlur={() => { onModelApiKeyChange(model.name, apiKeyValue || ''); onModelApiKeyBlur(model.name); setEditingModelKey(false); }}
+                onKeyDown={(e:any)=>{ if (e.key === 'Escape') { setEditingModelKey(false); e.currentTarget.blur(); } }}
+                placeholder="模型 API Key (可选)"
+                className="h-7 text-xs w-40"
+                wrapperClassName="mb-0 flex-shrink-0"
+                icon={<KeyRound className="w-3 h-3 text-gray-400" />}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

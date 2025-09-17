@@ -82,43 +82,50 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
       <DialogTrigger asChild>
         <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-xs">添加</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[640px]">
+      <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>添加模型</DialogTitle>
+          <DialogTitle className="text-[16px] font-semibold text-gray-800 dark:text-gray-100">添加模型</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-2">
+          {/* 表头仅显示一次，避免每行重复列名 */}
+          <div className="grid grid-cols-12 gap-2 items-center px-1">
+            <div className="col-span-4 text-[11px] text-gray-500">模型名称（显示名，可选）</div>
+            <div className="col-span-4 text-[11px] text-gray-500">模型 ID</div>
+            <div className="col-span-3 text-[11px] text-gray-500">请求策略</div>
+            <div className="col-span-1" />
+          </div>
+
           {rows.map((row, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-4">
-                <label className="block text-xs text-gray-500 mb-1">模型名称（显示名，可选）</label>
-                <input className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
+                <input
+                  className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
                   value={row.label}
                   onChange={e=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, label: e.target.value } : r))}
                   placeholder="如：Gemini 2.5 Pro" />
               </div>
               <div className="col-span-4">
-                <label className="block text-xs text-gray-500 mb-1">模型 ID</label>
-                <input className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
+                <input
+                  className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
                   value={row.id}
                   onChange={e=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, id: e.target.value } : r))}
                   placeholder="如：gemini-2.5-pro" />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs text-gray-500 mb-1">请求策略</label>
                 <Select value={row.strategy} onValueChange={(v:any)=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, strategy: v } : r))}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="跟随默认" />
+                  <SelectTrigger className="h-9 text-xs w-full truncate">
+                    <SelectValue placeholder="跟随默认" className="truncate" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-w-[360px]">
                     {STRATEGY_OPTIONS.map(opt=> (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs truncate">{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-1 flex items-end gap-1">
-                <Button type="button" variant="outline" className="h-7 w-7 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 p-0" onClick={addRow}>+</Button>
-                <Button type="button" variant="outline" className="h-7 w-7 rounded-md text-gray-500 p-0" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
+              <div className="col-span-1 flex items-center gap-1 justify-end">
+                <Button type="button" aria-label="添加一行" variant="outline" className="h-7 w-7 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 p-0" onClick={addRow}>+</Button>
+                <Button type="button" aria-label="删除该行" variant="outline" className="h-7 w-7 rounded-md text-gray-500 p-0" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
               </div>
             </div>
           ))}

@@ -75,7 +75,7 @@ function ProviderHeaderImpl(props: ProviderHeaderProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-between w-full px-4 py-3 transition-colors cursor-pointer",
+        "flex items-center justify-between w-full px-4 py-3 transition-colors cursor-pointer rounded-lg",
         isOpen
           ? "bg-indigo-50/70 dark:bg-indigo-900/20 ring-1 ring-indigo-200 dark:ring-indigo-700"
           : "bg-white/80 dark:bg-gray-800/40 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/20 hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-700"

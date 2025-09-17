@@ -33,6 +33,8 @@ interface ProviderConnectionSectionProps {
   endpointPreview?: string; // 新增：展示实际请求地址示例
   // 新增：高级设置相关
   onPreferenceChange?: (providerName: string, preferences: { useBrowserRequest?: boolean }) => Promise<void>;
+  /** 是否显示行内的三点菜单（默认显示）。外部已提供总菜单时可关闭 */
+  showInlineMenu?: boolean;
 }
 
 export function ProviderConnectionSection(props: ProviderConnectionSectionProps) {
@@ -78,6 +80,7 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
               </p>
             )}
           </div>
+          {props.showInlineMenu !== false && (
           <TooltipProvider>
             <DropdownMenu>
               <Tooltip>
@@ -146,6 +149,7 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
               </DropdownMenuContent>
             </DropdownMenu>
           </TooltipProvider>
+          )}
         </div>
       </div>
 

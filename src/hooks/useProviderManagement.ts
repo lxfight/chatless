@@ -355,9 +355,9 @@ export function useProviderManagement() {
       const effectiveUrl = newUrl.trim() || (providerName === 'Ollama' ? 'http://localhost:11434' : '');
       // 始终写入（避免因本地 state 未同步导致跳过写入的情况）
       
-      // 保存到 ProviderRepository
-      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
-      await providerRepository.update({ name: providerName, url: effectiveUrl });
+      // 统一用用例写入
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      await updateProviderConfigUseCase.execute(providerName, { url: effectiveUrl });
 
       // 如果是 Ollama，同时保存到 OllamaConfigService
       if (providerName === 'Ollama') {
@@ -420,16 +420,8 @@ export function useProviderManagement() {
     
     
     try {
-      if (finalApiKey !== null) {
-        await KeyManager.setProviderKey(providerName, finalApiKey);
-      } else {
-        await KeyManager.removeProviderKey(providerName);
-      }
-    // 更新仓库中的 apiKey 字段
-    const { providerRepository } = await import('@/lib/provider/ProviderRepository');
-    await providerRepository.update({ name: providerName, apiKey: finalApiKey });
-      
-      // 不自动触发检查
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      await updateProviderConfigUseCase.execute(providerName, { apiKey: finalApiKey });
     } catch (error: any) {
       console.error("更新 Provider 默认 API Key 覆盖配置失败:", error);
       toast.error("更新 API 密钥失败", { description: error?.message || "无法保存密钥更改。" });
@@ -485,22 +477,23 @@ export function useProviderManagement() {
   // 处理偏好设置更改
   const handlePreferenceChange = useCallback(async (providerName: string, preferences: { useBrowserRequest?: boolean }) => {
     try {
-
-      // 持久化到存储
-      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
-      const allProviders = await providerRepository.getAll();
-      const provider = allProviders.find(p => p.name === providerName || p.displayName === providerName);
-      if (provider) {
-        await providerRepository.upsert({
-          ...provider,
-          preferences: { ...provider.preferences, ...preferences }
-        });
-      }
-
-      // 清理浏览器请求缓存，确保新设置立即生效
-      const { invalidateProviderCache } = await import('@/lib/provider/browser-fallback-utils');
-      invalidateProviderCache();
-      
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      await updateProviderConfigUseCase.execute(providerName, { preferences });
+      // 立即回显：在状态 store 中清除临时消息，并刷新 meta 列表（仓库订阅也会同步到，但这里先本地立即生效）
+      try {
+        const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+        const latest = await providerRepository.getAll();
+        const target = latest.find(p=>p.name===providerName);
+        if (target) {
+          const { useProviderStore } = await import('@/store/providerStore');
+          const { useProviderMetaStore } = await import('@/store/providerMetaStore');
+          const { mapToProviderWithStatus } = await import('@/lib/provider/transform');
+          const current = useProviderStore.getState().providers;
+          const updated = current.map((prov:any)=> prov.name===providerName ? { ...prov, preferences: target.preferences } : prov);
+          useProviderStore.setState({ providers: updated } as any);
+          useProviderMetaStore.getState().setList(updated.map((v:any)=>mapToProviderWithStatus(v)) as any);
+        }
+      } catch {}
       toast.success(`已更新 ${providerName} 的高级设置`);
     } catch (error) {
       console.error("Failed to update provider preferences:", error);

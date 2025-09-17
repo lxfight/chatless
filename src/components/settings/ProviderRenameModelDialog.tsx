@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Pencil } from "lucide-react";
+import { Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 
@@ -13,13 +13,19 @@ export function ProviderRenameModelDialog({ providerName, modelName, currentLabe
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem className="text-xs" onSelect={(e:any)=>e?.preventDefault?.()}>
-          <span className="inline-flex items-center gap-2 w-full">重命名</span>
+        <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md cursor-pointer" onSelect={(e:any)=>e?.preventDefault?.()}>
+          <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+            <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">重命名</span>
+            <span className="text-xs text-gray-500">修改模型显示名称</span>
+          </div>
         </DropdownMenuItem>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>重命名模型</DialogTitle>
+          <DialogTitle className="text-[16px] font-semibold">重命名模型</DialogTitle>
         </DialogHeader>
         <div>
           <label className="block text-xs text-gray-500 mb-1">新名称</label>
@@ -27,7 +33,14 @@ export function ProviderRenameModelDialog({ providerName, modelName, currentLabe
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={()=>setOpen(false)}>取消</Button>
-          <Button onClick={async()=>{
+          <Button variant="outline" onClick={()=> setValue(currentLabel || '')} title="恢复为原名称" className="flex items-center gap-1">
+            <RotateCcw className="w-3 h-3" />
+            重置
+          </Button>
+          <Button 
+          variant="outline"
+          className="bg-blue-500 hover:bg-blue-600 text-white"
+          onClick={async()=>{
             const nextLabel = (value || '').trim();
             if (!nextLabel) { toast.error('名称不可为空'); return; }
             try {

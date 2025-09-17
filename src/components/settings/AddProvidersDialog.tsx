@@ -102,6 +102,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
   const [isSavingCustom, setIsSavingCustom] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"builtIn"|"custom">("builtIn");
 
   // 处理编辑模式初始化
   useEffect(() => {
@@ -153,41 +154,10 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
 
   const toggle = async (name: string, checked: boolean) => {
     try {
-      const list = await providerRepository.getAll();
-      const existing = list.find((p) => p.name === name);
       if (checked) {
-        if (!existing) {
-          // 新增
-          const def = AVAILABLE_PROVIDERS_CATALOG.find((d) => d.name === name);
-          const url = def?.defaultUrl || '';
-          await providerRepository.upsert({
-            name,
-            url,
-            requiresKey: def?.requiresKey ?? true,
-            status: def?.requiresKey ? ProviderStatus.NO_KEY : ProviderStatus.UNKNOWN,
-            lastChecked: 0,
-            apiKey: null,
-            isUserAdded: true,
-            isVisible: true,
-            strategy: def?.strategy,
-          });
-          // 写入静态模型（来自统一数据源 STATIC_PROVIDER_MODELS）
-          {
-            const staticList = getStaticModels(name as ProviderName);
-            if (staticList?.length) {
-              const { modelRepository } = await import('@/lib/provider/ModelRepository');
-              await modelRepository.save(
-                name,
-                staticList.map((m)=>({ provider: name, name: m.id, label: m.label, aliases: [m.id] }))
-              );
-            }
-          }
-        } else {
-          await providerRepository.setVisibility(name, true);
-        }
-        await syncDynamicProviders();
+        const { ensureProviderEnabledUseCase } = await import('@/lib/provider/usecases/EnsureProviderEnabled');
+        await ensureProviderEnabledUseCase.execute(name);
       } else {
-        // 隐藏
         await providerRepository.setVisibility(name, false);
       }
       setVisibleMap((m) => ({ ...m, [name]: checked }));
@@ -250,9 +220,11 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
       const avatarKey = `avatar:${finalId}:18`;
       const avatarSmall = generateAvatarDataUrl(finalId, displayName, 18);
       await StorageUtil.setItem(avatarKey, avatarSmall, 'logo-cache.json');
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      // 先创建空壳实体
       await providerRepository.upsert({
         name: finalId,
-        url,
+        url: '',
         requiresKey: customStrategy !== 'ollama',
         status: customStrategy !== 'ollama' ? ProviderStatus.NO_KEY : ProviderStatus.UNKNOWN,
         lastChecked: 0,
@@ -262,8 +234,9 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
         strategy: customStrategy,
         avatarSeed: buildCustomAvatarSeed(finalId),
         displayName,
-      });
-      await syncDynamicProviders();
+      } as any);
+      // 再统一通过用例写入可选的 url（触发刷新链路）
+      await updateProviderConfigUseCase.execute(finalId, { url, displayName, strategy: customStrategy });
       setVisibleMap(m=>({ ...m, [finalId]: true }));
       setCustomProviders(prev => ([...prev, { id: finalId, displayName, url, strategy: customStrategy, isVisible: true }]));
       toast.success('已添加自定义 Provider');
@@ -312,23 +285,8 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
         setIsSavingCustom(false);
         return;
       }
-      await providerRepository.update({ name: editingName, url, strategy: customStrategy, displayName: customDisplayName.trim() || editingName } as any);
-      // 立即刷新内存 store 的列表展示（无需切页面）
-      try {
-        const { useProviderStore } = await import('@/store/providerStore');
-        const state = useProviderStore.getState();
-        const current = state.providers;
-        const updated = current.map(p => p.name === editingName ? { ...p, displayName: displayName || editingName, url } : p);
-        if (state) {
-          useProviderStore.setState({ providers: updated } as any);
-        }
-        const { useProviderMetaStore } = await import('@/store/providerMetaStore');
-        const { mapToProviderWithStatus } = await import('@/lib/provider/transform');
-        useProviderMetaStore.getState().setList(updated.map((v:any)=>mapToProviderWithStatus(v)) as any);
-      } catch (err) {
-        console.warn('edit immediate refresh failed, will rely on repository subscription', err);
-      }
-      await syncDynamicProviders();
+      const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
+      await updateProviderConfigUseCase.execute(editingName, { displayName: displayName || editingName, url, strategy: customStrategy });
       setCustomProviders(prev => prev.map(cp => cp.id === editingName ? { ...cp, url: customUrl.trim(), strategy: customStrategy, displayName: customDisplayName.trim() || editingName } : cp));
       toast.success('已保存修改');
       setCustomModalOpen(false);
@@ -455,95 +413,95 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-[92vw] w-[92vw] sm:w-auto sm:max-w-xl box-border p-4 sm:p-5 overflow-hidden max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle>添加/管理提供商</DialogTitle>
+          <DialogTitle className="text-[15px] font-medium text-gray-700 dark:text-gray-200">添加/管理提供商</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 min-w-0">
           {/* 为避免在小屏宽度下出现水平溢出，强制容器与输入框不超出 */}
           <Input className="w-full max-w-full min-w-0" placeholder="搜索提供商..." value={keyword} onChange={(e)=>setKeyword(e.target.value)} />
-          <div ref={listRef} className="max-h-[60vh] overflow-y-auto rounded-md bg-white/70 dark:bg-gray-900/20 space-y-1.5 px-1">
-            {/* 内置分组标签 */}
-            <div className="px-2 pt-1 text-[10px] tracking-wide text-gray-400">内置</div>
-            {catalog.map((c) => {
-              const checked = visibleMap[c.name] ?? false;
-              return (
-                <label key={c.id} className="flex items-center gap-2.5 py-2 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
-                  <Checkbox checked={checked} onCheckedChange={(v)=>toggle(c.name, !!v)} id={`chk-${c.id}`} />
-                  <ProviderIcon id={c.id} name={c.name} />
-                  <div className="flex-1 min-w-0">
-                    <label htmlFor={`chk-${c.id}`} className="font-medium truncate cursor-pointer select-none">{c.name}</label>
-                    <div className="text-xs text-gray-500 truncate">
-                      {c.strategy} {c.defaultUrl ? `· ${c.defaultUrl}` : ''} {c.requiresKey ? '· 需要密钥' : ''}
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-            {catalog.length === 0 && (
-              <div className="py-6 text-center text-sm text-gray-500">未找到匹配的提供商</div>
+          {/* 顶部TAB */}
+          <div className="flex items-center gap-2 px-1">
+            <button onClick={()=>setActiveTab("builtIn")} className={`px-3 py-1.5 text-sm rounded-md ${activeTab==='builtIn'?'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>默认</button>
+            <button onClick={()=>setActiveTab("custom")} className={`px-3 py-1.5 text-sm rounded-md ${activeTab==='custom'?'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>自定义</button>
+          </div>
+          <div ref={listRef} className="h-[60vh] overflow-y-auto rounded-md bg-white/70 dark:bg-gray-900/20 space-y-1.5 px-1">
+            {activeTab === 'builtIn' && (
+              <>
+                {catalog.map((c) => {
+                  const checked = visibleMap[c.name] ?? false;
+                  return (
+                    <label key={c.id} className="flex items-center gap-2.5 py-2 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
+                      <Checkbox checked={checked} onCheckedChange={(v)=>toggle(c.name, !!v)} id={`chk-${c.id}`} />
+                      <ProviderIcon id={c.id} name={c.name} />
+                      <div className="flex-1 min-w-0">
+                        <label htmlFor={`chk-${c.id}`} className="font-medium truncate cursor-pointer select-none">{c.name}</label>
+                        <div className="text-xs text-gray-500 truncate">
+                          {c.strategy} {c.defaultUrl ? `· ${c.defaultUrl}` : ''} {c.requiresKey ? '· 需要密钥' : ''}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+                {catalog.length === 0 && (
+                  <div className="py-6 text-center text-sm text-gray-500">未找到匹配的提供商</div>
+                )}
+              </>
             )}
-            {/* 分割线（更轻） */}
-            <div className="my-1 mx-2 h-px bg-gray-200/60 dark:bg-gray-700/40" />
-            {/* 已添加的自定义 Provider 列表 */}
-            {filteredCustoms.length > 0 && (
-              <div className="px-2 pt-1 text-[10px] tracking-wide text-gray-400">自定义</div>
-            )}
-            {filteredCustoms.map((cp) => {
-              const id = `chk-custom-${cp.id.replace(/\s+/g,'-')}`;
-              const checked = visibleMap[cp.id] ?? cp.isVisible;
-              return (
-                <div key={cp.id} className="flex items-center gap-2.5 py-2 px-2 group rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
-                  <Checkbox checked={checked} onCheckedChange={(v)=>toggle(cp.id, !!v)} id={id} />
-                  {/* 首帧同步拿到 dataURL，避免闪动；后台已预热持久化 */}
-                  <ProviderIcon src={getAvatarSync(cp.id || cp.displayName, cp.displayName, 18)} name={cp.displayName} />
-                  <div className="flex-1 min-w-0">
-                    <label htmlFor={id} className="font-medium truncate cursor-pointer select-none">{cp.displayName}</label>
-                    <div className="text-xs text-gray-500 truncate">
-                      {(cp.strategy || 'openai-compatible')} {cp.url ? `· ${cp.url}` : ''}
-                    </div>
-                  </div>
-                  {/* 三点菜单 */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"><MoreVertical className="w-4 h-4" /></button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" sideOffset={6} className="min-w-36">
-                      <DropdownMenuItem onClick={()=>startEdit(cp.id)}>
-                        <Pencil className="w-3.5 h-3.5 mr-2" /> 修改
-                      </DropdownMenuItem>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onSelect={(e)=>{ e.preventDefault(); }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 mr-2" /> 删除
+
+            {activeTab === 'custom' && (
+              <>
+                {filteredCustoms.map((cp) => {
+                  const id = `chk-custom-${cp.id.replace(/\s+/g,'-')}`;
+                  const checked = visibleMap[cp.id] ?? cp.isVisible;
+                  return (
+                    <div key={cp.id} className="flex items-center gap-2.5 py-2 px-2 group rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/40 border border-transparent">
+                      <Checkbox checked={checked} onCheckedChange={(v)=>toggle(cp.id, !!v)} id={id} />
+                      <ProviderIcon src={getAvatarSync(cp.id || cp.displayName, cp.displayName, 18)} name={cp.displayName} />
+                      <div className="flex-1 min-w-0">
+                        <label htmlFor={id} className="font-medium truncate cursor-pointer select-none">{cp.displayName}</label>
+                        <div className="text-xs text-gray-500 truncate">
+                          {(cp.strategy || 'openai-compatible')} {cp.url ? `· ${cp.url}` : ''}
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"><MoreVertical className="w-4 h-4" /></button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={6} className="min-w-36">
+                          <DropdownMenuItem onClick={()=>startEdit(cp.id)}>
+                            <Pencil className="w-3.5 h-3.5 mr-2" /> 修改
                           </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>确认删除该 Provider？</AlertDialogTitle>
-                            <AlertDialogDescription>此操作将从当前列表移除该 Provider，但不会删除已配置的密钥和模型参数。</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>取消</AlertDialogCancel>
-                            <AlertDialogAction onClick={()=>confirmDelete(cp.id)}>删除</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={(e)=>{ e.preventDefault(); }}>
+                                <Trash2 className="w-3.5 h-3.5 mr-2" /> 删除
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>确认删除该 Provider？</AlertDialogTitle>
+                                <AlertDialogDescription>此操作将从当前列表移除该 Provider，但不会删除已配置的密钥和模型参数。</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>取消</AlertDialogCancel>
+                                <AlertDialogAction onClick={()=>confirmDelete(cp.id)}>删除</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  );
+                })}
+                {filteredCustoms.length === 0 && customProviders.length > 0 && keyword.trim() !== '' && (
+                  <div className="py-2 text-center text-xs text-gray-400">没有匹配的自定义提供商</div>
+                )}
+                <div className="py-2 px-1">
+                  <Button variant="soft" className="w-full" onClick={openAddModal}>
+                    <Plus className="w-4 h-4" /> 添加自定义 Provider
+                  </Button>
                 </div>
-              );
-            })}
-            {filteredCustoms.length === 0 && customProviders.length > 0 && keyword.trim() !== '' && (
-              <div className="py-2 text-center text-xs text-gray-400">没有匹配的自定义提供商</div>
+              </>
             )}
-            {/* 自定义 Provider - 新增入口（打开子弹窗） */}
-            <div className="py-2 px-1">
-              <Button variant="soft" className="w-full" onClick={openAddModal}>
-                <Plus className="w-4 h-4" /> 添加自定义 Provider
-              </Button>
-            </div>
           </div>
           {/* 顶部触发器即可关闭，此处不再冗余“完成”按钮，简化界面 */}
         </div>

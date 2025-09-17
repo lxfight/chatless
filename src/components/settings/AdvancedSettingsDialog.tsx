@@ -28,6 +28,13 @@ export function AdvancedSettingsDialog({
   onPreferenceChange,
 }: AdvancedSettingsDialogProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [browserMode, setBrowserMode] = useState<boolean>(provider.preferences?.useBrowserRequest ?? false);
+
+  React.useEffect(() => {
+    if (open) {
+      setBrowserMode(provider.preferences?.useBrowserRequest ?? false);
+    }
+  }, [open, provider.preferences?.useBrowserRequest]);
 
   const handleBrowserRequestToggle = async (checked: boolean) => {
     if (!onPreferenceChange || isUpdating) return;
@@ -35,11 +42,14 @@ export function AdvancedSettingsDialog({
     setIsUpdating(true);
     try {
       const repoName = provider.aliases?.[0] || provider.name;
+      setBrowserMode(checked); // 先本地回显
       await onPreferenceChange(repoName, { useBrowserRequest: checked });
       // 不再在此处触发“立即检查”，避免弹窗被打断或列表刷新
       // 该偏好仅在发起网络请求时读取生效
     } catch (error) {
       console.error('Failed to update preference:', error);
+      // 回滚本地显示
+      setBrowserMode((prev)=>!prev);
     } finally {
       setIsUpdating(false);
     }
@@ -74,7 +84,7 @@ export function AdvancedSettingsDialog({
                 </p>
               </div>
               <Switch
-                checked={provider.preferences?.useBrowserRequest || false}
+                checked={browserMode}
                 onCheckedChange={handleBrowserRequestToggle}
                 disabled={isUpdating}
                 size="md"
