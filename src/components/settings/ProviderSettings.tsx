@@ -1,21 +1,18 @@
 "use client";
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import React from 'react';
-import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, HelpCircle } from 'lucide-react';
+import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle } from 'lucide-react';
 import { ProviderStrategySelector } from './ProviderStrategySelector';
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"; // 使用 shadcn 折叠组件
 import { ProviderHeader } from "./ProviderHeader";
 import { isDevelopmentEnvironment } from '@/lib/utils/environment';
 import ModelFetchDebugger from './ModelFetchDebugger';
-import { markResolvedBase, markUrlMissing } from '@/lib/utils/logoService';
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
 import { ProviderConnectionSection } from './ProviderConnectionSection';
 import { ProviderModelList } from './ProviderModelList';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
-import { specializedStorage } from '@/lib/storage';
 import { toast } from '@/components/ui/sonner';
-import { modelRepository } from '@/lib/provider/ModelRepository';
 import { useStableProviderIcon } from './useStableProviderIcon';
 import { getAvatarSync } from '@/lib/utils/logoService';
 import { useRecentModelsHint } from './useRecentModelsHint';
@@ -163,50 +160,57 @@ function ProviderSettingsImpl({
   // Button disabling can still use isInitialChecking
   const isGloballyInitializing = isInitialChecking; // Keep for disabling elements globally
 
-  // 根据 displayStatus 确定文本、图标和样式
-  let statusText = '未知';
-  let StatusIcon = HelpCircle; // Default icon
+  // 新的状态显示逻辑：默认不显示状态，按需显示
+  let statusText: string | undefined;
+  let StatusIcon: any = undefined;
   let badgeVariant: "secondary" | "destructive" | "outline" = "secondary";
   let badgeClasses = "";
 
-  switch (provider.displayStatus) {
-      case 'CONNECTING':
-          statusText = '检查中...';
-          StatusIcon = Loader2;
-          badgeVariant = 'secondary';
-          // 移除 animate-pulse 以减少视觉跳动
-          badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30";
-          break;
-      case 'CONNECTED':
-          statusText = '已连接';
-          StatusIcon = CheckCircle;
-          badgeVariant = 'secondary';
-          badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30";
-          break;
-      case 'NOT_CONNECTED':
-          statusText = '未连接';
-          StatusIcon = XCircle;
-          badgeVariant = 'destructive'; // Keep destructive variant for visual cue
-          badgeClasses = "text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50"; // Mild red background
-          break;
+  // 优先显示配置状态（持久化）
+  if (provider.configStatus) {
+    switch (provider.configStatus) {
       case 'NO_KEY':
-          statusText = '未配置密钥';
-          StatusIcon = KeyRound; // Use Key icon
-          badgeVariant = 'outline'; // Use outline variant for less emphasis
-          badgeClasses = "text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600"; // Neutral colors
-          break;
+        statusText = '未配置密钥';
+        StatusIcon = KeyRound;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium";
+        break;
       case 'NO_FETCHER':
-          statusText = '未实现检查';
-          StatusIcon = AlertTriangle; // Use Alert icon
-          badgeVariant = 'outline';
-          badgeClasses = "text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700"; // Warning colors
-          break;
-      default: // 'UNKNOWN'：应显示“未知/未检查”，避免误解为正在检查
-          statusText = '未知';
-          StatusIcon = HelpCircle;
-          badgeVariant = 'outline';
-          badgeClasses = "text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600";
-          break;
+        statusText = '未实现检查';
+        StatusIcon = AlertTriangle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 text-xs font-medium";
+        break;
+    }
+  }
+  // 其次显示临时状态（检查后显示）
+  else if (provider.temporaryStatus) {
+    switch (provider.temporaryStatus) {
+      case 'CONNECTING':
+        statusText = '检查中...';
+        StatusIcon = Loader2;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 px-2 py-1 text-xs font-medium";
+        break;
+      case 'CONNECTED':
+        statusText = '检查通过';
+        StatusIcon = CheckCircle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30 px-2 py-1 text-xs font-medium";
+        break;
+      case 'NOT_CONNECTED':
+        statusText = '检查失败';
+        StatusIcon = XCircle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-900/30 px-2 py-1 text-xs font-medium";
+        break;
+    }
+  }
+  // 默认不显示状态，只显示检查时间（如果有）
+  else {
+    // 不显示状态徽章，只在tooltip中显示检查时间
+    statusText = undefined;
+    StatusIcon = undefined;
   }
 
   // 本地 state 用于输入框内容（以本地为单一真实来源，失焦时提交保存）
@@ -355,7 +359,7 @@ function ProviderSettingsImpl({
           isOpen={isOpen}
           isConnecting={isConnecting}
           isGloballyInitializing={isGloballyInitializing}
-          statusText={statusText}
+          statusText={statusText || ''}
           StatusIcon={StatusIcon}
           badgeVariant={badgeVariant}
           badgeClasses={badgeClasses}

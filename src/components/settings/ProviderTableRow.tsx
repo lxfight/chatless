@@ -1,0 +1,291 @@
+"use client";
+import React, { useState } from 'react';
+import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, Wifi, MoreVertical, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ProviderConnectionSection } from './ProviderConnectionSection';
+import { ProviderModelList } from './ProviderModelList';
+import { useStableProviderIcon } from './useStableProviderIcon';
+import { AddProvidersDialog } from './AddProvidersDialog';
+import { getAvatarSync } from '@/lib/utils/logoService';
+import { isDevelopmentEnvironment } from '@/lib/utils/environment';
+import ModelFetchDebugger from './ModelFetchDebugger';
+import { cn } from '@/lib/utils';
+import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
+
+interface ProviderTableRowProps {
+  provider: ProviderWithStatus;
+  _index: number;
+  isConnecting: boolean;
+  isInitialChecking: boolean;
+  onUrlChange: (providerName: string, url: string) => void;
+  onDefaultApiKeyChange: (providerName: string, apiKey: string) => void;
+  onDefaultApiKeyBlur: (providerName: string) => void;
+  onModelApiKeyChange: (modelName: string, apiKey: string) => void;
+  onModelApiKeyBlur: (modelName: string) => void;
+  onRefresh: (provider: ProviderWithStatus) => void;
+  onPreferenceChange?: (providerName: string, preferences: { useBrowserRequest?: boolean }) => Promise<void>;
+}
+
+function formatLastCheckedTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  if (diff < 60000) { return '刚刚'; }
+  else if (diff < 3600000) { const minutes = Math.floor(diff / 60000); return `${minutes}分钟前`; }
+  else if (diff < 86400000) { const hours = Math.floor(diff / 3600000); return `${hours}小时前`; }
+  else { const days = Math.floor(diff / 86400000); return `${days}天前`; }
+}
+
+export function ProviderTableRow({
+  provider,
+  _index,
+  isConnecting,
+  isInitialChecking,
+  onUrlChange,
+  onDefaultApiKeyChange,
+  onDefaultApiKeyBlur,
+  onModelApiKeyChange,
+  onModelApiKeyBlur,
+  onRefresh,
+  onPreferenceChange
+}: ProviderTableRowProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [fetchDebuggerOpen, setFetchDebuggerOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  
+  // 状态显示逻辑
+  let statusText: string | undefined;
+  let StatusIcon: any = undefined;
+  let badgeVariant: "secondary" | "destructive" | "outline" = "secondary";
+  let badgeClasses = "";
+
+  // 优先显示配置状态（持久）
+  if (provider.configStatus) {
+    switch (provider.configStatus) {
+      case 'NO_KEY':
+        statusText = '未配置密钥';
+        StatusIcon = KeyRound;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium";
+        break;
+      case 'NO_FETCHER':
+        statusText = '未实现检查';
+        StatusIcon = AlertTriangle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 text-xs font-medium";
+        break;
+    }
+  }
+  // 然后显示临时状态（检查后显示）
+  else if (provider.temporaryStatus) {
+    switch (provider.temporaryStatus) {
+      case 'CONNECTING':
+        statusText = '检查中...';
+        StatusIcon = Loader2;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 px-2 py-1 text-xs font-medium";
+        break;
+      case 'CONNECTED':
+        statusText = '检查通过';
+        StatusIcon = CheckCircle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30 px-2 py-1 text-xs font-medium";
+        break;
+      case 'NOT_CONNECTED':
+        statusText = '检查失败';
+        StatusIcon = XCircle;
+        badgeVariant = 'secondary';
+        badgeClasses = "text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-900/30 px-2 py-1 text-xs font-medium";
+        break;
+    }
+  }
+
+  // 图标处理
+  const { iconSrc } = useStableProviderIcon(provider);
+  const fallbackAvatarSrc = getAvatarSync(provider.name.toLowerCase(), provider.name, 20);
+
+  return (
+    <>
+      <div className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+        <div className="grid grid-cols-12 gap-4 items-center">
+          {/* 拖拽手柄 */}
+          <div className="col-span-1 flex items-center gap-2">
+            <div className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              <GripVertical className="w-4 h-4" />
+            </div>
+            <div className="text-gray-400 dark:text-gray-500">
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+          </div>
+
+          {/* 可点击区域 - 提供商、状态 */}
+          <div 
+            className="col-span-9 flex items-center gap-4 cursor-pointer"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {/* 提供商 */}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+                <img
+                  src={iconSrc}
+                  alt={provider.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = fallbackAvatarSrc;
+                  }}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{provider.displayName || provider.name}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  {provider.models?.length || 0} 个模型
+                </div>
+              </div>
+            </div>
+
+            {/* 状态 */}
+            <div className="flex-shrink-0">
+              {statusText && StatusIcon ? (
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant={badgeVariant} className={cn("text-xs font-medium px-2 py-1", badgeClasses)}>
+                        <StatusIcon className={cn("w-3 h-3 mr-1", provider.temporaryStatus === 'CONNECTING' && 'animate-spin')} />
+                        {statusText}
+                      </Badge>
+                    </TooltipTrigger>
+                    {provider.statusTooltip && (
+                      <TooltipContent side="bottom" align="start">
+                        <p className="text-xs max-w-xs">{provider.statusTooltip}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+              )}
+            </div>
+          </div>
+
+          {/* 操作按钮区域 - 不可点击展开 */}
+          <div className="col-span-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onRefresh(provider)}
+                    disabled={isConnecting || isInitialChecking}
+                    className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  >
+                    {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center">
+                  <div className="text-xs max-w-xs">
+                    {isConnecting ? (
+                      <p>正在检查状态...</p>
+                    ) : provider.lastCheckedAt ? (
+                      <div>
+                        <p className="font-medium">最后检查：{formatLastCheckedTime(provider.lastCheckedAt)}</p>
+                        <p className="text-gray-500 mt-1">点击重新检查状态</p>
+                      </div>
+                    ) : (
+                      <p>点击检查状态</p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                修改提供商
+              </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExpanded(!isExpanded)}>
+                  {isExpanded ? '收起详情' : '展开详情'}
+                </DropdownMenuItem>
+                {isDevelopmentEnvironment() && (
+                  <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)}>
+                    调试网络请求
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* 展开的详情内容 */}
+        <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+          <CollapsibleContent className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="space-y-4">
+              <ProviderConnectionSection
+                provider={provider}
+                localUrl={provider.api_base_url || ''}
+                setLocalUrl={() => {}}
+                onUrlChange={onUrlChange}
+                onResetUrl={() => {}}
+                showApiKeyFields={true}
+                localDefaultApiKey={provider.default_api_key || ''}
+                setLocalDefaultApiKey={() => {}}
+                docUrl={undefined}
+                onDefaultApiKeyChange={onDefaultApiKeyChange}
+                onDefaultApiKeyBlur={onDefaultApiKeyBlur}
+                endpointPreview={provider.api_base_url}
+                onPreferenceChange={onPreferenceChange}
+              />
+              
+              <ProviderModelList
+                provider={provider}
+                modelsForDisplay={provider.models || []}
+                modelSearch=""
+                setModelSearch={() => {}}
+                showApiKeyFields={true}
+                localModelApiKeys={{}}
+                setLocalModelApiKeys={() => {}}
+                onModelApiKeyChange={onModelApiKeyChange}
+                onModelApiKeyBlur={onModelApiKeyBlur}
+                onOpenParameters={() => {}}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+
+      {/* 调试器 */}
+      {isDevelopmentEnvironment() && (
+        <ModelFetchDebugger
+          open={fetchDebuggerOpen}
+          onOpenChange={setFetchDebuggerOpen}
+          provider={provider}
+          baseUrl={provider.api_base_url}
+        />
+      )}
+
+      {/* 编辑提供商对话框 */}
+      <AddProvidersDialog
+        trigger={<div style={{ display: 'none' }} />}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        editOnly
+        editProvider={editDialogOpen ? {
+          name: provider.name, // 使用原始name作为唯一标识
+          api_base_url: provider.api_base_url,
+          strategy: 'openai-compatible', // 默认策略，可以根据需要调整
+          displayName: provider.displayName || provider.name // 使用displayName或回退到name
+        } : null}
+      />
+    </>
+  );
+}

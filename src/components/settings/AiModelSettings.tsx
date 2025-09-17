@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { SettingsCard } from "./SettingsCard";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 // import { ModelCard } from "./ModelCard"; // 不再使用 ModelCard
-import { ProviderSettings } from "./ProviderSettings";
-import { ServerCog, RotateCcw } from "lucide-react";
-import FoldingLoader from '@/components/ui/FoldingLoader';
+import { ProviderTableRow } from "./ProviderTableRow";
+import { ServerCog, RotateCcw, Filter, Search, GripVertical, ChevronRight, Settings } from "lucide-react";
 // 导入新模块
 /* Commenting out for now due to persistent linter error
 import {
@@ -28,10 +26,10 @@ import { Input } from "@/components/ui/input";
 // import { useProviderStatusStore } from '@/store/providerStatusStore'; // <-- 已修改路径
 // 导入新的 Hook 和类型
 import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
-import { useProviderStore } from '@/store/providerStore';
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
 import { AddProvidersDialog } from './AddProvidersDialog';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 // duplicate import removed
 
 // 添加一个包含连接状态的 Provider 类型
@@ -58,47 +56,60 @@ export function AiModelSettings() {
   } = useProviderManagement();
 
   // 新增：失焦时保存/连接 API Key
-  const handleDefaultApiKeyBlur = async (providerName: string) => {
+  const handleDefaultApiKeyBlur = async (_providerName: string) => {
     // 这里可以根据需要添加保存/连接逻辑，或直接复用 handleProviderDefaultApiKeyChange
     // 由于 onBlur 时已调用 change，这里可用于额外的校验或提示
     // 可留空或补充日志
   };
-  const handleModelApiKeyBlur = async (modelName: string) => {
+  const handleModelApiKeyBlur = async (_modelName: string) => {
     // 这里可以根据需要添加保存/连接逻辑，或直接复用 handleModelApiKeyChange
     // 可留空或补充日志
   };
 
   // 添加 Provider 入口由对话框承载
 
-  // Helper function to render the loading state
-  const renderLoadingState = () => (
-    <div className="p-6 text-center flex flex-col items-center justify-center min-h-[220px]">
-      <div className="mb-3">
-        <FoldingLoader size={48} />
-      </div>
-      <p className="text-gray-600 dark:text-gray-400">正在加载 AI 提供商配置...</p>
-    </div>
-  );
-
-  // Helper function to render the empty state
-  const renderEmptyState = () => (
-    <p className="text-center text-gray-500 dark:text-gray-400 py-4">未找到任何 AI 提供商配置。</p>
-  );
   
   // Helper function to render the action buttons
   // 底部按钮已移除
 
   // 搜索与过滤 state
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<'all'|'connected'|'disconnected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all'|'recently_checked'|'needs_key'|'never_checked'>('all');
   const [showSearchInput, setShowSearchInput] = useState(false);
   // 如需更新 provider 配置请从 store 调用，当前未使用
 
+  // 计算各状态的数量
+  const statusCounts = providers.reduce((acc, p) => {
+    if (p.configStatus === 'NO_KEY') {
+      acc.needs_key++;
+    } else if (p.lastCheckedAt && p.lastCheckedAt > Date.now() - 24 * 60 * 60 * 1000) {
+      // 最近24小时内检查过
+      acc.recently_checked++;
+    } else if (!p.lastCheckedAt) {
+      acc.never_checked++;
+    }
+    return acc;
+  }, { recently_checked: 0, needs_key: 0, never_checked: 0 });
+
   const filteredProviders = providers.filter((p: ProviderWithStatus) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" ||
-      (statusFilter === "connected" && p.displayStatus === "CONNECTED") ||
-      (statusFilter === "disconnected" && p.displayStatus !== "CONNECTED");
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = (p.displayName || p.name).toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+    const matchesStatus = (() => {
+      switch (statusFilter) {
+        case 'recently_checked':
+          // 最近检查：24小时内检查过
+          return p.lastCheckedAt && p.lastCheckedAt > Date.now() - 24 * 60 * 60 * 1000;
+        case 'needs_key':
+          // 未配置密钥
+          return p.configStatus === 'NO_KEY';
+        case 'never_checked':
+          // 未检查过：从未检查过
+          return !p.lastCheckedAt;
+        case 'all':
+        default:
+          return true;
+      }
+    })();
     return matchesSearch && matchesStatus;
   });
 
@@ -113,7 +124,7 @@ export function AiModelSettings() {
     // 更细的签名：当名称、默认密钥、URL、模型数量或显示状态变化时，同步到本地列表
     // 移除模型数量对父级列表同步的影响，避免新增模型时整个列表重建导致的折叠/滚动跳动
     const key = filteredProviders
-      .map(p => `${p.name}:${p.default_api_key ? '1' : '0'}:${p.api_base_url || ''}:${p.displayStatus || ''}`)
+      .map(p => `${p.name}:${p.displayName || ''}:${p.default_api_key ? '1' : '0'}:${p.api_base_url || ''}:${p.displayStatus || ''}`)
       .join('|');
     if (lastSyncRef.current !== key) {
       lastSyncRef.current = key;
@@ -196,134 +207,199 @@ export function AiModelSettings() {
   // --- 渲染逻辑 ---
   return (
     <div className="space-y-6">
- {/* 页面标题 */}
- {/* <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-left">AI 模型配置</h1> */}
+      <div className="space-y-4">
+        <SettingsSectionHeader
+          icon={ServerCog}
+          title="管理提供商"
+          iconBgColor="from-purple-500 to-indigo-500"
+        />
 
-
-    <SettingsCard data-testid="settings-card-ai-model">
-      <SettingsSectionHeader
-        icon={ServerCog}
-        title="管理提供商"
-        iconBgColor="from-purple-500 to-indigo-500"
-      />
-
-      {/* 提示栏 */}
-      {/* <InfoBanner id="ai_provider_tip" message="配置不同 AI 提供商的服务地址和 API 密钥" type="info" className="mt-3" /> */}
-
-      {/* 搜索 & 过滤 + 刷新按钮 */}
-      <div className="flex items-center mt-4 gap-3 justify-between flex-wrap">
-        <div className="flex gap-2 flex-wrap items-center">
-          {(providers.length>6 || showSearchInput) && (
-            showSearchInput ? (
-              <Input
-                autoFocus
-                placeholder="搜索提供商..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onBlur={() => { if(searchQuery==="") setShowSearchInput(false); }}
-                className="w-48 h-8 transition-all duration-200"
-              />
-            ) : (
-              <button onClick={()=>setShowSearchInput(true)} className="p-2 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/50 rounded-md transition-colors" title="搜索">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.5 3.5a7.5 7.5 0 0013.15 13.15z" /></svg>
-              </button>
-            )
-          )}
-          {/* 分段过滤按钮 */}
-          <div className="inline-flex bg-gray-100 dark:bg-gray-700 rounded-md p-0.5">
-            {([
-              { id: 'all', label: '全部' },
-              { id: 'connected', label: '已连接' },
-              { id: 'disconnected', label: '未连接' },
-            ] as const).map(seg => (
-              <button
-                key={seg.id}
-                onClick={() => setStatusFilter(seg.id)}
-                className={`px-3 h-7 text-xs rounded-md transition-colors ${statusFilter===seg.id ? 'bg-white dark:bg-gray-800 shadow text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
-              >
-                {seg.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={handleGlobalRefresh}
-            disabled={isRefreshing || isLoading}
-            className="p-2 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="刷新全部提供商状态"
-          >
-            <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
-          </button>
-          <AddProvidersDialog
-          trigger={
-            <Button variant="secondary" size="sm" className="ml-2">
-              管理提供商
-            </Button>
-          }
-          />
-        </div>
-      </div>
-
-      {/* Provider 列表（支持拖拽排序） */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOverEvt} onDragCancel={handleDragCancel} onDragEnd={handleDragEnd}>
-        <SortableContext items={localList.map((p: ProviderWithStatus)=>p.name)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4 mt-6">
-            {localList.map((provider) => (
-              <SortableProviderItem key={provider.name} provider={provider}>
-                <ProviderSettings
-                  provider={provider}
-                  isConnecting={provider.displayStatus === 'CONNECTING'}
-                  isInitialChecking={isLoading}
-                  onUrlChange={(name, url) => handleServiceUrlChange(name, url)}
-                  onDefaultApiKeyChange={(name, key) => handleProviderDefaultApiKeyChange(name, key)}
-                  onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
-                  onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
-                  onModelApiKeyBlur={handleModelApiKeyBlur}
-                  onRefresh={handleSingleProviderRefresh}
-                  onPreferenceChange={handlePreferenceChange}
+        {/* 操作栏 - 去卡片化设计 */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          {/* 左侧：搜索和筛选 */}
+          <div className="flex items-center gap-3">
+            {/* 搜索框 */}
+            {showSearchInput ? (
+              <div className="relative">
+                <Input
+                  autoFocus
+                  placeholder="搜索提供商..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onBlur={() => { if(searchQuery==="") setShowSearchInput(false); }}
+                  className="w-56 h-9 text-sm pl-10 pr-4 bg-white/90 dark:bg-gray-700/90 border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
                 />
-              </SortableProviderItem>
-            ))}
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+              </div>
+            ) : (
+              <button 
+                onClick={()=>setShowSearchInput(true)} 
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200 group"
+                title="搜索提供商"
+              >
+                <Search className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>搜索</span>
+              </button>
+            )}
+            
+            {/* 筛选下拉菜单 */}
+            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+              <SelectTrigger className="w-40 h-9 text-sm bg-white/90 dark:bg-gray-700/90 border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <SelectValue placeholder="筛选条件" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-gray-200 dark:border-gray-700 shadow-lg">
+                <SelectItem value="all" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                  <div className="flex items-center justify-between w-full">
+                    <span>全部</span>
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({providers.length})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="recently_checked" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                  <div className="flex items-center justify-between w-full">
+                    <span>最近检查</span>
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.recently_checked})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="needs_key" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                  <div className="flex items-center justify-between w-full">
+                    <span>未配置密钥</span>
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.needs_key})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="never_checked" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                  <div className="flex items-center justify-between w-full">
+                    <span>未检查过</span>
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({statusCounts.never_checked})</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </SortableContext>
-        {/* 拖拽中的跟随卡片（半透明、悬浮） */}
-        <DragOverlay dropAnimation={{ duration: 150 }}>
-          {activeId ? (
-            <div className="opacity-70 scale-[0.98]">
-              <ProviderSettings
-                provider={localList.find(p=>p.name===activeId)!}
-                isConnecting={false}
-                isInitialChecking={false}
-                onUrlChange={()=>{}}
-                onDefaultApiKeyChange={()=>{}}
-                onDefaultApiKeyBlur={()=>{}}
-                onModelApiKeyChange={()=>{}}
-                onModelApiKeyBlur={()=>{}}
-                onRefresh={()=>{}}
-              />
+
+          {/* 右侧：操作按钮 */}
+          <div className="flex items-center gap-3">
+            {/* 刷新按钮 */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGlobalRefresh}
+              disabled={isRefreshing || isLoading}
+              className="h-9 px-4 text-sm font-medium border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 group"
+            >
+              <RotateCcw className={cn("w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200", isRefreshing && 'animate-spin')} />
+              刷新
+            </Button>
+            
+            {/* 添加提供商按钮 */}
+            <AddProvidersDialog
+              trigger={
+             
+
+<button
+className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center"
+>
+<Settings className="w-5 h-5" />
+                </button>
+
+              }
+            />
+          </div>
+        </div>
+
+      {/* Provider 列表 - 去卡片化设计 */}
+      <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        {/* 表头 */}
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-12 gap-4 items-center text-sm font-medium text-gray-600 dark:text-gray-400">
+            <div className="col-span-1"></div>
+            <div className="col-span-6">提供商</div>
+            <div className="col-span-3">状态</div>
+            <div className="col-span-2">操作</div>
+          </div>
+        </div>
+
+        {/* 表格内容 */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOverEvt} onDragCancel={handleDragCancel} onDragEnd={handleDragEnd}>
+          <SortableContext items={localList.map((p: ProviderWithStatus)=>p.name)} strategy={verticalListSortingStrategy}>
+            <div className="divide-y divide-gray-200/60 dark:divide-gray-700/50">
+              {localList.map((provider, index) => (
+                <SortableProviderItem key={provider.name} provider={provider}>
+                  <ProviderTableRow
+                    provider={provider}
+                    _index={index}
+                    isConnecting={provider.displayStatus === 'CONNECTING'}
+                    isInitialChecking={isLoading}
+                    onUrlChange={(name, url) => handleServiceUrlChange(name, url)}
+                    onDefaultApiKeyChange={(name, key) => handleProviderDefaultApiKeyChange(name, key)}
+                    onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
+                    onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
+                    onModelApiKeyBlur={handleModelApiKeyBlur}
+                    onRefresh={handleSingleProviderRefresh}
+                    onPreferenceChange={handlePreferenceChange}
+                  />
+                </SortableProviderItem>
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-        
-        {/* 初始检查提示 */}
-        {/* {connectingProviderName && (
-            <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                正在连接 {connectingProviderName}...
-            </div>
-        )} */}
+          </SortableContext>
+          
+          {/* 拖拽中的跟随行（半透明、悬浮） */}
+          <DragOverlay dropAnimation={{ duration: 150 }}>
+            {activeId ? (
+              <div className="opacity-70 scale-[0.98] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
+                <div className="px-4 py-3">
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-1 flex items-center gap-2">
+                      <div className="cursor-grabbing text-gray-400 dark:text-gray-500">
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                    <div className="col-span-5 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700"></div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {(() => {
+                            const item = localList.find(p=>p.name===activeId);
+                            return item?.displayName || item?.name || '';
+                          })()}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {localList.find(p=>p.name===activeId)?.models?.length || 0} 个模型
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-sm text-gray-400 dark:text-gray-500">从未检查</span>
+                    </div>
+                    <div className="col-span-1 flex items-center gap-1">
+                      <div className="w-8 h-8"></div>
+                      <div className="w-8 h-8"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         {/* 空状态提示 */}
         {providers.length === 0 && !isLoading && (
-            renderEmptyState()
+          <div className="px-4 py-8 text-center">
+            <div className="text-gray-500 dark:text-gray-400">
+              <ServerCog className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p className="text-base font-medium mb-1">暂无提供商</p>
+              <p className="text-sm">点击右上角"添加提供商"开始配置</p>
+            </div>
+          </div>
         )}
-      </DndContext>
-
-      
-
-    </SettingsCard>
+      </div>
+      </div>
     </div>
   );
 } 

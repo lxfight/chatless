@@ -4,9 +4,28 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronUp, Loader2, Wifi, BugPlay, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Wifi, BugPlay } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProviderWithStatus } from "@/hooks/useProviderManagement";
+
+// 格式化最后检查时间
+function formatLastCheckedTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  if (diff < 60000) { // 1分钟内
+    return '刚刚';
+  } else if (diff < 3600000) { // 1小时内
+    const minutes = Math.floor(diff / 60000);
+    return `${minutes}分钟前`;
+  } else if (diff < 86400000) { // 1天内
+    const hours = Math.floor(diff / 3600000);
+    return `${hours}小时前`;
+  } else {
+    const days = Math.floor(diff / 86400000);
+    return `${days}天前`;
+  }
+}
 
 interface ProviderHeaderProps {
   provider: ProviderWithStatus;
@@ -85,22 +104,27 @@ function ProviderHeaderImpl(props: ProviderHeaderProps) {
           })()}
         </div>
         <div className="flex-grow min-w-0">
-          <span className="font-semibold text-base text-gray-800 dark:text-gray-200 block truncate">{provider.name}</span>
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant={badgeVariant} className={cn("mt-1 text-xs font-medium px-1.5 py-0.5", badgeClasses)}>
-                  <StatusIcon className={cn("w-3 h-3 mr-1", provider.displayStatus === 'CONNECTING' && 'opacity-80')} />
-                  {statusText}
-                </Badge>
-              </TooltipTrigger>
-              {provider.statusTooltip && (
-                <TooltipContent side="bottom" align="start">
-                  <p className="text-xs max-w-xs">{provider.statusTooltip}</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-base text-gray-800 dark:text-gray-200 truncate">{provider.name}</span>
+            {/* 只在有状态时显示徽章，放在名称后面 */}
+            {statusText && StatusIcon && (
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant={badgeVariant} className={cn("text-xs font-medium px-1.5 py-0.5 flex-shrink-0", badgeClasses)}>
+                      <StatusIcon className={cn("w-3 h-3 mr-1", provider.temporaryStatus === 'CONNECTING' && 'animate-spin')} />
+                      {statusText}
+                    </Badge>
+                  </TooltipTrigger>
+                  {provider.statusTooltip && (
+                    <TooltipContent side="bottom" align="start">
+                      <p className="text-xs max-w-xs">{provider.statusTooltip}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </div>
       </div>
 
@@ -115,17 +139,36 @@ function ProviderHeaderImpl(props: ProviderHeaderProps) {
             <BugPlay className="w-4 h-4" />
           </button>
         )}
-        <button
-          onClick={async (e) => { 
-            e.stopPropagation(); 
-            onRefresh(provider);
-          }}
-          disabled={isConnecting || isGloballyInitializing}
-          className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md  dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          title={`检查 ${provider.name} 连接状态`}
-        >
-          {isConnecting ? <Loader2 className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
-        </button>
+        <TooltipProvider delayDuration={100}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={async (e) => { 
+                  e.stopPropagation(); 
+                  onRefresh(provider);
+                }}
+                disabled={isConnecting || isGloballyInitializing}
+                className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md  dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isConnecting ? <Loader2 className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="center">
+              <div className="text-xs max-w-xs">
+                {isConnecting ? (
+                  <p>正在检查状态...</p>
+                ) : provider.lastCheckedAt ? (
+                  <div>
+                    <p className="font-medium">最后检查：{formatLastCheckedTime(provider.lastCheckedAt)}</p>
+                    <p className="text-gray-500 mt-1">点击重新检查状态</p>
+                  </div>
+                ) : (
+                  <p>点击检查状态</p>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <CollapsibleTrigger className="cursor-pointer p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md  dark:focus:ring-offset-gray-800" aria-label={isOpen ? "折叠" : "展开"} disabled={isConnecting || isGloballyInitializing}>
           {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </CollapsibleTrigger>

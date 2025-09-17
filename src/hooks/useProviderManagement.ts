@@ -5,7 +5,6 @@ import { toast } from '@/components/ui/sonner';
 // 新的 ProviderStatusStore
 import {
   useProviderStatusStore,
-  ProviderStatusCode,
 } from '@/store/providerStatusStore';
 import { ProviderRegistry } from '@/lib/llm';
 import { useOllamaStore } from '@/store/ollamaStore';
@@ -21,9 +20,21 @@ import { preloadProviderAndModelLogos } from '@/lib/utils/logoPreloader';
 // --- 类型定义 ---
 // (可以考虑移到单独的 types 文件)
 export interface ProviderWithStatus extends ProviderMetadata {
+  // 显示名称（用户可编辑）
+  displayName?: string;
   isConnected?: boolean;
+  // 新的状态显示逻辑
   displayStatus?: 'CONNECTED' | 'CONNECTING' | 'NOT_CONNECTED' | 'NO_KEY' | 'UNKNOWN' | 'NO_FETCHER';
   statusTooltip?: string | null;
+  // 最后检查时间
+  lastCheckedAt?: number;
+  // 临时状态（检查后显示，不持久化）
+  temporaryStatus?: 'CONNECTING' | 'CONNECTED' | 'NOT_CONNECTED';
+  // 配置状态（持久化，因为这是配置问题）
+  configStatus?: 'NO_KEY' | 'NO_FETCHER';
+  // 临时状态的消息
+  temporaryMessage?: string | null;
+  
   healthCheckPath?: string;
   authenticatedHealthCheckPath?: string;
   isUserAdded?: boolean;
@@ -34,17 +45,6 @@ export interface ProviderWithStatus extends ProviderMetadata {
     useBrowserRequest?: boolean;
   };
 }
-
-// --- 通用连接检查函数已抽离到 ProviderService，避免重复实现 ---
-
-// 删除 specializedStorage 顶部导入
-// import removed: specializedStorage no longer used
-
-// 删除未使用的 isInitialCheckDoneRef
-
-
-// 将旧函数 buildInitialProviders/runInitialChecks/loadData 改为占位（以后可彻底删除）
-
 
 // --- 主 Hook ---
 export function useProviderManagement() {
@@ -61,7 +61,37 @@ export function useProviderManagement() {
     .map(p=>{
       const st = statusMap[p.name];
       if(!st) return p;
-      return { ...p, displayStatus: st.status, isConnected: st.status==='CONNECTED', statusTooltip: st.message ?? undefined } as ProviderWithStatus;
+      
+      // 新的状态显示逻辑
+      let displayStatus: string | undefined;
+      let statusTooltip: string | undefined;
+      
+      // 优先显示配置状态（显示为徽章）
+      if (st.configStatus) {
+        displayStatus = st.configStatus;
+        statusTooltip = st.temporaryMessage ?? undefined;
+      }
+      // 其次显示临时状态（检查后显示）
+      else if (st.temporaryStatus) {
+        displayStatus = st.temporaryStatus;
+        statusTooltip = st.temporaryMessage ?? undefined;
+      }
+      // 默认不显示状态徽章，也不显示检查时间提示（改为在刷新按钮悬浮时显示）
+      else {
+        displayStatus = undefined;
+        statusTooltip = undefined;
+      }
+      
+      return { 
+        ...p, 
+        displayStatus, 
+        isConnected: st.temporaryStatus === 'CONNECTED', 
+        statusTooltip,
+        lastCheckedAt: st.lastCheckedAt,
+        temporaryStatus: st.temporaryStatus,
+        configStatus: st.configStatus,
+        temporaryMessage: st.temporaryMessage
+      } as ProviderWithStatus;
     });
 
   const {
@@ -105,7 +135,7 @@ export function useProviderManagement() {
      
   }, [repoProviders, repoLoading]);
 
-  // 初始化时对“检查过期”的 Provider 进行一次静默检查
+  // 初始化时对"检查过期"的 Provider 进行一次静默检查
   const didInitCheckRef = useRef(false);
   useEffect(() => {
     if (didInitCheckRef.current) return;
@@ -114,6 +144,23 @@ export function useProviderManagement() {
       try {
         const { providerRepository } = await import('@/lib/provider/ProviderRepository');
         const list = await providerRepository.getAll();
+        
+        // 初始化配置状态到新的状态系统
+        const configStatusUpdates: Record<string, any> = {};
+        list.forEach(p => {
+          if (p.status === 'NO_KEY' as any) {
+            configStatusUpdates[p.name] = {
+              configStatus: 'NO_KEY',
+              lastCheckedAt: p.lastChecked || Date.now(),
+            };
+          }
+        });
+        
+        if (Object.keys(configStatusUpdates).length > 0) {
+          const { bulkSet } = useProviderStatusStore.getState();
+          bulkSet(configStatusUpdates, false);
+        }
+        
         const STALE_MS = 10 * 60 * 1000; // 10 分钟
         const now = Date.now();
         const stale = list.filter(p => !p.lastChecked || (now - (p.lastChecked || 0)) > STALE_MS);
@@ -126,7 +173,7 @@ export function useProviderManagement() {
         });
       } catch { /* noop */ }
     })();
-  }, []);
+  }, [setStatusStore]);
 
   // ---- 将 providers 同步到全局 store (providerMetaStore) ----
   useEffect(() => {
@@ -143,11 +190,11 @@ export function useProviderManagement() {
     const repoName = provider.aliases?.[0] || provider.name;
     if (cancelledRef.current) return;
 
-    // 设置 CONNECTING 状态
+    // 设置临时检查状态
     setStatusStore(provider.name, {
-      status: 'CONNECTING',
-      message: '正在检查连接状态...',
-      lastChecked: Date.now(),
+      temporaryStatus: 'CONNECTING',
+          temporaryMessage: '正在检查状态...',
+      lastCheckedAt: Date.now(),
     });
 
     const { checkController } = await import('@/lib/provider/check-controller');
@@ -160,27 +207,56 @@ export function useProviderManagement() {
       const offSuccess = checkController.on('success', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
-        setStatusStore(provider.name, {
-          status: p.status as ProviderStatusCode,
-          message: p.message ?? (p.status==='CONNECTED'?'连接正常':undefined),
-          lastChecked: Date.now(),
-        });
+        
+        // 根据检查结果设置状态
+        const now = Date.now();
+        if (p.status === 'NO_KEY') {
+          // 配置状态，需要持久化
+          setStatusStore(provider.name, {
+            configStatus: 'NO_KEY',
+            temporaryMessage: p.message ?? '未配置API密钥',
+            lastCheckedAt: now,
+          }, true);
+        } else {
+          // 状态，临时显示
+          setStatusStore(provider.name, {
+            temporaryStatus: p.status as 'CONNECTED' | 'NOT_CONNECTED',
+            temporaryMessage: p.message ?? (p.status==='CONNECTED'?'检查通过':undefined),
+            lastCheckedAt: now,
+          });
+        }
+        
         if (showToast) {
           if (p.status === 'CONNECTED') {/*不需要这个多余提示，状态已经显示了*/}
-          else if (p.status === 'NOT_CONNECTED') toast.error(`${provider.name} 状态检查失败`, { description: p.message || '请检查服务地址和网络连接' });
+          else if (p.status === 'NOT_CONNECTED') toast.error(`${provider.name} 检查失败`, { description: p.message || '请检查服务地址和网络连接' });
           else if (p.status === 'NO_KEY') toast.error(`${provider.name} 未配置API密钥`, { description: '请在设置中配置API密钥' });
         }
+        
+        // 根据状态设置不同的显示时间：检查通过显示5秒，其他状态3秒
+        const displayDuration = p.status === 'CONNECTED' ? 5000 : 3000;
+        setTimeout(() => {
+          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
+        }, displayDuration);
+        
         offStart(); offSuccess(); offFail(); offTimeout();
         resolve();
       });
       const offFail = checkController.on('fail', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
+        
+        // 设置临时失败状态
         setStatusStore(provider.name, {
-          status: 'NOT_CONNECTED',
-          message: p.message || '检查失败',
-          lastChecked: Date.now(),
+          temporaryStatus: 'NOT_CONNECTED',
+          temporaryMessage: p.message || '检查失败',
+          lastCheckedAt: Date.now(),
         });
+        
+        // 3秒后清除临时状态
+        setTimeout(() => {
+          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
+        }, 3000);
+        
         if (showToast) toast.error(`刷新 ${provider.name} 失败`, { description: p.message || '请检查网络连接' });
         offStart(); offSuccess(); offFail(); offTimeout();
         resolve();
@@ -188,12 +264,20 @@ export function useProviderManagement() {
       const offTimeout = checkController.on('timeout', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
+        
+        // 设置临时超时状态
         setStatusStore(provider.name, {
-          status: 'NOT_CONNECTED',
-          message: '连接超时，请稍后重试',
-          lastChecked: Date.now(),
+          temporaryStatus: 'NOT_CONNECTED',
+          temporaryMessage: '检查超时，请稍后重试',
+          lastCheckedAt: Date.now(),
         });
-        if (showToast) toast.error(`${provider.name} 连接超时`, { description: '请稍后重试或检查网络' });
+        
+        // 3秒后清除临时状态
+        setTimeout(() => {
+          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
+        }, 3000);
+        
+        if (showToast) toast.error(`${provider.name} 检查超时`, { description: '请稍后重试或检查网络' });
         offStart(); offSuccess(); offFail(); offTimeout();
         resolve();
       });
@@ -253,9 +337,8 @@ export function useProviderManagement() {
   // 处理URL保存后的状态更新
   const updateProviderStatusAfterUrlChange = useCallback((providerName: string, _newUrl: string) => {
     setStatusStore(providerName, {
-      status: 'UNKNOWN',
-      message: 'URL已更改，请刷新',
-      lastChecked: Date.now(),
+      temporaryMessage: 'URL已更改，请刷新',
+      lastCheckedAt: Date.now(),
     }, false);
   }, [setStatusStore]);
 
@@ -326,8 +409,6 @@ export function useProviderManagement() {
 
   const handleProviderDefaultApiKeyChange = useCallback(async (providerName: string, apiKey: string) => {
     const finalApiKey = apiKey && apiKey.trim() ? apiKey.trim() : null;
-    // 不再在失焦后自动刷新，由用户手动点刷新
-    const needsRefresh = false;
     // 若值与当前相同，则直接返回，避免无谓刷新/写入
     const current = providers.find(p => p.name === providerName);
     if (current) {
@@ -337,29 +418,6 @@ export function useProviderManagement() {
       }
     }
     
-    // setProviders(prev => // This line was removed as per the edit hint
-    //   prev.map(p => {
-    //     if (p.name === providerName) {
-    //         let newDisplayStatus = p.displayStatus;
-    //         let newTooltip = p.statusTooltip;
-    //          if (p.requiresApiKey && !finalApiKey && p.displayStatus !== 'CONNECTING') {
-    //              newDisplayStatus = 'NO_KEY';
-    //              newTooltip = '未配置 API 密钥';
-    //              needsRefresh = p.displayStatus !== 'NO_KEY'; 
-    //         } else if (p.displayStatus === 'NO_KEY' && finalApiKey) {
-    //              newDisplayStatus = 'UNKNOWN'; 
-    //              newTooltip = 'API 密钥已配置，请刷新';
-    //              needsRefresh = true;
-    //         } else if (p.displayStatus !== 'CONNECTING') { 
-    //             newDisplayStatus = 'UNKNOWN';
-    //             newTooltip = 'API 密钥已更改，请刷新';
-    //             needsRefresh = true;
-    //         }
-    //         return { ...p, default_api_key: finalApiKey, displayStatus: newDisplayStatus, isConnected: undefined, statusTooltip: newTooltip };
-    //     }
-    //     return p;
-    //  })
-    // ); // This line was removed as per the edit hint
     
     try {
       if (finalApiKey !== null) {
@@ -411,59 +469,10 @@ export function useProviderManagement() {
       await storeRefreshAll();
       
       // 全局刷新后，重新加载所有提供商的最新模型数据
-      const { modelRepository } = await import('@/lib/provider/ModelRepository');
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       
-      const allProviders = await providerRepository.getAll();
+      await providerRepository.getAll();
       
-      // 先获取所有模型数据
-      const updatedProviders = await Promise.all(
-        allProviders.map(async (updatedProvider) => {
-          const latestModels = await modelRepository.get(updatedProvider.name);
-          return {
-            name: updatedProvider.name,
-            status: updatedProvider.status,
-            models: latestModels?.map(m => ({
-              name: m.name,
-              label: m.label,
-              aliases: m.aliases,
-              api_key: (m as any).apiKey
-            })) || []
-          };
-        })
-      );
-      
-      // 然后更新UI状态，按PROVIDER_ORDER排序
-      const { PROVIDER_ORDER } = require('@/lib/llm');
-      /* const sortedUpdatedProviders = updatedProviders.sort((a, b) => {
-        const aIndex = PROVIDER_ORDER.indexOf(a.name);
-        const bIndex = PROVIDER_ORDER.indexOf(b.name);
-        if (aIndex === -1 && bIndex === -1) return 0;
-        if (aIndex === -1) return 1;
-        if (bIndex === -1) return -1;
-        return aIndex - bIndex;
-      });*/
-      
-      // setProviders(prev => prev.map(provider => { // This line was removed as per the edit hint
-      //   const updatedProvider = sortedUpdatedProviders.find(p => p.name === provider.name);
-      //   if (!updatedProvider) return provider;
-          
-      //   return {
-      //     ...provider,
-      //     isConnected: updatedProvider.status === ProviderStatus.CONNECTED,
-      //     displayStatus: (() => {
-      //       switch (updatedProvider.status) {
-      //         case ProviderStatus.CONNECTED: return 'CONNECTED';
-      //         case ProviderStatus.NOT_CONNECTED: return 'NOT_CONNECTED';
-      //         case ProviderStatus.NO_KEY: return 'NO_KEY';
-      //         // CONNECTING 不再作为持久化状态
-      //         case ProviderStatus.UNKNOWN:
-      //         default: return 'UNKNOWN';
-      //       }
-      //     })(),
-      //     models: updatedProvider.models
-      //   };
-      // })); // This line was removed as per the edit hint
       
       toast.success("提供商刷新完成");
     } catch (e:any) {
@@ -476,16 +485,6 @@ export function useProviderManagement() {
   // 处理偏好设置更改
   const handlePreferenceChange = useCallback(async (providerName: string, preferences: { useBrowserRequest?: boolean }) => {
     try {
-      // 先更新本地 providers 状态，确保 UI 立即反映变化
-      // setProviders(prev => prev.map(p => { // This line was removed as per the edit hint
-      //   if (p.name === providerName || p.aliases?.includes(providerName)) {
-      //     return {
-      //       ...p,
-      //       preferences: { ...p.preferences, ...preferences }
-      //     };
-      //   }
-      //   return p;
-      // })); // This line was removed as per the edit hint
 
       // 持久化到存储
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');

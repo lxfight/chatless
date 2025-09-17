@@ -74,7 +74,7 @@ export const useProviderMetaStore = create<ProviderMetaState>((set, get) => ({
     // 将临时“连接中”态覆盖到 displayStatus
     const withOverlay: QuickProviderMeta[] = list.map((p) => (
       connecting.has(p.name)
-        ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查连接状态…' as const }
+        ? { ...p, displayStatus: 'CONNECTING', statusTooltip: '正在检查状态…' as const }
         : p
     ));
     set({ list: withOverlay });
@@ -86,7 +86,7 @@ export const useProviderMetaStore = create<ProviderMetaState>((set, get) => ({
     // 同步到 list 覆盖显示
     const list = get().list.map((p) =>
       p.name === name
-        ? { ...p, displayStatus: on ? 'CONNECTING' : p.displayStatus, statusTooltip: on ? '正在检查连接状态…' : p.statusTooltip }
+        ? { ...p, displayStatus: on ? 'CONNECTING' : p.displayStatus, statusTooltip: on ? '正在检查状态…' : p.statusTooltip }
         : p
     );
     set({ connectingSet: connecting, list });

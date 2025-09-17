@@ -19,9 +19,20 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getAvatarSync, prewarmAvatars } from '@/lib/utils/logoService';
 import { getResolvedUrlForBase, isUrlKnownMissing, markResolvedBase, markUrlMissing, ensureLogoCacheReady } from '@/lib/utils/logoService';
 import StorageUtil from '@/lib/storage';
+import { generateSafeId, validateProviderName, containsChinese } from '@/lib/utils/pinyin';
 
 type Props = {
   trigger: React.ReactNode;
+  editProvider?: {
+    name: string;
+    api_base_url: string;
+    strategy: string;
+    displayName?: string;
+  } | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** 当为 true 时，仅展示“编辑提供商”对话框，而不渲染外层“添加/管理提供商”对话框 */
+  editOnly?: boolean;
 };
 
 // 统一的小图标：优先 png → svg；利用预加载的命中映射/失败清单，避免重复 404
@@ -58,10 +69,8 @@ function ProviderIcon({ id, name, size = 18, src }: { id?: string; name: string;
         } catch { /* noop */ }
       }
     };
-    let stop = false;
     run().catch(()=>{});
-    let cancelled = false;
-    return () => { cancelled = true; stop = true; };
+    return () => {};
   }, [base, mapped, src]);
 
   return (
@@ -75,30 +84,11 @@ function ProviderIcon({ id, name, size = 18, src }: { id?: string; name: string;
   );
 }
 
-// 生成型头像（组件形式），内部自行使用状态/副作用，避免在父组件中调用 Hook
-function CachedAvatarIcon({ seed, label, size = 18 }: { seed: string; label: string; size?: number }) {
-  const baseAvatar = React.useMemo(() => generateAvatarDataUrl(seed, label, size), [seed, label, size]);
-  const [avatar, setAvatar] = React.useState<string>(baseAvatar);
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const key = `avatar:${seed}:${size}`;
-        const existed = await StorageUtil.getItem<string>(key, null, 'logo-cache.json');
-        if (existed) {
-          if (mounted) setAvatar(existed);
-        } else {
-          await StorageUtil.setItem(key, baseAvatar, 'logo-cache.json');
-        }
-      } catch {}
-    })();
-    return () => { mounted = false; };
-  }, [seed, size, baseAvatar]);
-  return <ProviderIcon src={avatar} name={label} size={size} />;
-}
 
-export function AddProvidersDialog({ trigger }: Props) {
-  const [open, setOpen] = useState(false);
+export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, onOpenChange, editOnly }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [keyword, setKeyword] = useState('');
   const [visibleMap, setVisibleMap] = useState<Record<string, boolean>>({});
   const [customProviders, setCustomProviders] = useState<Array<{ id: string; displayName: string; url: string; strategy?: CatalogStrategy; isVisible: boolean }>>([]);
@@ -106,13 +96,27 @@ export function AddProvidersDialog({ trigger }: Props) {
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [customName, setCustomName] = useState('');
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [customUrl, setCustomUrl] = useState('');
   const [customStrategy, setCustomStrategy] = useState<CatalogStrategy>('openai-compatible');
   const [isSavingCustom, setIsSavingCustom] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+
+  // 处理编辑模式初始化
+  useEffect(() => {
+    if (editProvider && open) {
+      setIsEditMode(true);
+      setEditingName(editProvider.name); // 使用原始name作为唯一标识
+      setCustomDisplayName(editProvider.displayName || editProvider.name); // 使用displayName或回退到name
+      setCustomUrl(editProvider.api_base_url);
+      setCustomStrategy(editProvider.strategy as CatalogStrategy);
+      setCustomModalOpen(true);
+    } else if (!editProvider) {
+      setIsEditMode(false);
+      setEditingName(null);
+    }
+  }, [editProvider, open]);
 
   // 读取仓库现状，构建映射
   useEffect(() => {
@@ -200,33 +204,34 @@ export function AddProvidersDialog({ trigger }: Props) {
     return `prov-${name}-${Date.now()}`;
   };
 
-  // 更宽松的 ID 清洗：
+  // 智能 ID 生成：
+  // - 支持中文，自动转换为拼音
   // - 转小写
   // - 非字母数字与 - 的字符替换为 -
   // - 多个 - 合并，一个开头/结尾的 - 去除
   // - 限制长度 [2, 64]
   const sanitizeId = (raw: string): string => {
-    let s = (raw || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-    s = s.replace(/-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
-    if (s.length > 64) s = s.slice(0, 64);
-    return s;
+    return generateSafeId(raw);
   };
 
   const saveCustomProvider = async () => {
     const displayName = customDisplayName.trim();
     const url = customUrl.trim();
-    if (!displayName) {
-      toast.error('请填写名称');
+    
+    // 验证提供商名称
+    const nameValidation = validateProviderName(displayName);
+    if (!nameValidation.isValid) {
+      toast.error(nameValidation.error || '名称验证失败', { 
+        description: nameValidation.suggestion 
+      });
       return;
     }
-    if (/[\u4e00-\u9fff]/.test(displayName)) {
-      toast.error('名称不支持中文', { description: '请使用英文、数字、空格或连字符 (-)' });
-      return;
-    }
+    
     if (url && !/^https?:\/\//i.test(url)) {
       toast.error('无效的服务地址', { description: 'URL 必须以 http:// 或 https:// 开头' });
       return;
     }
+    
     const baseId = sanitizeId(displayName);
     if (!baseId || baseId.length < 2) {
       toast.error('名称过短', { description: '请使用至少 2 个字符（字母/数字/连字符）' });
@@ -276,7 +281,6 @@ export function AddProvidersDialog({ trigger }: Props) {
       const list = await providerRepository.getAll();
       const target = list.find(p=>p.name===name);
       if (!target) return;
-    setCustomName(target.name);
     setCustomDisplayName((target as any).displayName || target.name);
       setCustomUrl(target.url || '');
       setCustomStrategy((target as any).strategy || 'openai-compatible');
@@ -291,21 +295,47 @@ export function AddProvidersDialog({ trigger }: Props) {
     setIsSavingCustom(true);
     try {
       const url = customUrl.trim();
-      if (/[\u4e00-\u9fff]/.test(customDisplayName.trim())) {
-        toast.error('名称不支持中文', { description: '请使用英文、数字、空格或连字符 (-)' });
+      const displayName = customDisplayName.trim();
+      
+      // 验证提供商名称
+      const nameValidation = validateProviderName(displayName);
+      if (!nameValidation.isValid) {
+        toast.error(nameValidation.error || '名称验证失败', { 
+          description: nameValidation.suggestion 
+        });
         setIsSavingCustom(false);
         return;
       }
+      
       if (url && !/^https?:\/\//i.test(url)) {
         toast.error('无效的服务地址', { description: 'URL 必须以 http:// 或 https:// 开头' });
         setIsSavingCustom(false);
         return;
       }
       await providerRepository.update({ name: editingName, url, strategy: customStrategy, displayName: customDisplayName.trim() || editingName } as any);
+      // 立即刷新内存 store 的列表展示（无需切页面）
+      try {
+        const { useProviderStore } = await import('@/store/providerStore');
+        const state = useProviderStore.getState();
+        const current = state.providers;
+        const updated = current.map(p => p.name === editingName ? { ...p, displayName: displayName || editingName, url } : p);
+        if (state) {
+          useProviderStore.setState({ providers: updated } as any);
+        }
+        const { useProviderMetaStore } = await import('@/store/providerMetaStore');
+        const { mapToProviderWithStatus } = await import('@/lib/provider/transform');
+        useProviderMetaStore.getState().setList(updated.map((v:any)=>mapToProviderWithStatus(v)) as any);
+      } catch (err) {
+        console.warn('edit immediate refresh failed, will rely on repository subscription', err);
+      }
       await syncDynamicProviders();
       setCustomProviders(prev => prev.map(cp => cp.id === editingName ? { ...cp, url: customUrl.trim(), strategy: customStrategy, displayName: customDisplayName.trim() || editingName } : cp));
       toast.success('已保存修改');
       setCustomModalOpen(false);
+      // editOnly 模式下关闭外层受控对话框
+      if (typeof externalOpen !== 'undefined' && onOpenChange) {
+        onOpenChange(false);
+      }
     } catch (e:any) {
       console.error(e);
       toast.error('保存失败', { description: e?.message || String(e) });
@@ -329,7 +359,6 @@ export function AddProvidersDialog({ trigger }: Props) {
   const openAddModal = () => {
     setIsEditMode(false);
     setEditingName(null);
-    setCustomName('');
     setCustomUrl('');
     setCustomDisplayName('');
     setCustomStrategy('openai-compatible');
@@ -341,6 +370,86 @@ export function AddProvidersDialog({ trigger }: Props) {
     });
   };
 
+  // --- 仅编辑模式：只展示“编辑提供商”对话框，不渲染外层管理列表 ---
+  if (editOnly) {
+    const isEditingCustom = editingName ? !AVAILABLE_PROVIDERS_CATALOG.some(c=>c.name===editingName) : true;
+    return (
+      <Dialog open={open} onOpenChange={(v)=>onOpenChange ? onOpenChange(v) : setOpen(v)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修改提供商</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">名称</label>
+              <Input
+                value={customDisplayName}
+                onChange={(e)=>{
+                  const val = e.target.value;
+                  setCustomDisplayName(val);
+                  if (isEditingCustom) {
+                    const id = sanitizeId(val);
+                    if (id && id.length >= 2) setPreviewAvatar(generateAvatarDataUrl(id, val, 40));
+                    else setPreviewAvatar(null);
+                  }
+                }}
+                placeholder="请输入显示名称"
+              />
+              {editingName && (
+                <div className="mt-1 text-[10px] text-gray-400">名称仅用于展示，唯一标识仍为 {editingName}</div>
+              )}
+            </div>
+
+            {/* 图标显示：内置显示静态图标；自定义显示头像预览 */}
+            {isEditingCustom ? (
+              previewAvatar && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Image src={previewAvatar} alt="avatar" width={20} height={20} className="rounded-md" />
+                  <span>头像预览（保存后将显示）</span>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {(() => {
+                  const def = AVAILABLE_PROVIDERS_CATALOG.find(d=>d.name===editingName);
+                  return <ProviderIcon id={def?.id} name={def?.name || editingName || ''} />;
+                })()}
+                <span>当前图标</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">服务地址（可选）</label>
+              <Input value={customUrl} onChange={(e)=>setCustomUrl(e.target.value)} placeholder="例如：https://api.example.com/v1" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">API 策略</label>
+              <Select value={customStrategy} onValueChange={(v)=>setCustomStrategy(v as CatalogStrategy)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择策略" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai-compatible">OpenAI 兼容</SelectItem>
+                  <SelectItem value="openai">OpenAI 官方</SelectItem>
+                  <SelectItem value="anthropic">Anthropic（Claude）</SelectItem>
+                  <SelectItem value="gemini">Google AI（Gemini）</SelectItem>
+                  <SelectItem value="deepseek">DeepSeek</SelectItem>
+                  <SelectItem value="ollama">Ollama</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-2">
+              <Button variant="dialogSecondary" onClick={()=> (onOpenChange ? onOpenChange(false) : setOpen(false))}>取消</Button>
+              <Button variant="dialogPrimary" onClick={saveEditProvider} disabled={isSavingCustom}>{isSavingCustom ? '保存中...' : '保存'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // --- 默认模式：添加/管理提供商（包含内置列表 + 自定义编辑二级弹窗） ---
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -443,7 +552,7 @@ export function AddProvidersDialog({ trigger }: Props) {
           <Dialog open={customModalOpen} onOpenChange={setCustomModalOpen}>
       <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>{isEditMode ? '修改 Provider' : '添加自定义 Provider'}</DialogTitle>
+              <DialogTitle>{isEditMode ? '修改 Provider' : '添加自定义 Provider'}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-3 py-2">
                 <div>
@@ -457,13 +566,21 @@ export function AddProvidersDialog({ trigger }: Props) {
                       if (id && id.length >= 2) setPreviewAvatar(generateAvatarDataUrl(id, val, 40));
                       else setPreviewAvatar(null);
                     }}
-                    placeholder="例如：My Provider"
+                    placeholder="例如：我的提供商 或 My Provider"
                   />
+                  {isEditMode && editingName && (
+                    <div className="mt-1 text-[10px] text-gray-400">名称仅用于展示，唯一标识仍为 {editingName}</div>
+                  )}
                 </div>
                 {previewAvatar && (
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <Image src={previewAvatar} alt="avatar" width={20} height={20} className="rounded-md" />
                     <span>头像预览（保存后将显示）</span>
+                  </div>
+                )}
+                {containsChinese(customDisplayName) && (
+                  <div className="text-xs text-blue-600 dark:text-blue-400">
+                    💡 中文名称将自动转换为拼音ID：{sanitizeId(customDisplayName)}
                   </div>
                 )}
                 <div>
@@ -479,14 +596,14 @@ export function AddProvidersDialog({ trigger }: Props) {
                     <SelectContent>
                       <SelectItem value="openai-compatible">OpenAI 兼容</SelectItem>
                       <SelectItem value="openai">OpenAI 官方</SelectItem>
-                      <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                      <SelectItem value="gemini">Google AI (Gemini)</SelectItem>
+                  <SelectItem value="anthropic">Anthropic（Claude）</SelectItem>
+                  <SelectItem value="gemini">Google AI（Gemini）</SelectItem>
                       <SelectItem value="deepseek">DeepSeek</SelectItem>
                       <SelectItem value="ollama">Ollama</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="text-xs text-gray-500">头像：将基于名称生成简约图案（稍后接入）</div>
+                
                 <div className="flex justify-end gap-2 mt-2">
                   <Button variant="dialogSecondary" onClick={()=>setCustomModalOpen(false)}>取消</Button>
                   <Button variant="dialogPrimary" onClick={isEditMode ? saveEditProvider : saveCustomProvider} disabled={isSavingCustom}>
