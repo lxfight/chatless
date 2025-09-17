@@ -238,9 +238,11 @@ export function ModelSelector({
   const getCurrentModelDisplayText = () => {
     if (!currentModelId || !currentProvider) return "选择模型";
     const model = currentProvider.models.find(m => m.name === currentModelId);
+    const providerLabel = (currentProvider as any).displayName || currentProvider.name;
     const text = model?.label || currentModelId;
     const maxLength = 16;
-    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+    const modelText = text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+    return `${modelText} (${providerLabel})`;
   };
 
   const SENTINEL_VALUE = '__none__';
@@ -306,7 +308,7 @@ export function ModelSelector({
             <span>
               {currentModelId
                 ? currentProvider
-                  ? `${(currentProvider.models.find(m=>m.name===currentModelId)?.label) || currentModelId} (${currentProvider.name})`
+                  ? `${(currentProvider.models.find(m=>m.name===currentModelId)?.label) || currentModelId} (${((currentProvider as any).displayName || currentProvider.name)})`
                   : currentModelId
                 : allMetadata.length === 0
                   ? '加载模型中...'

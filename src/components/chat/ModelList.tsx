@@ -91,7 +91,7 @@ export function ModelList({
               onClick={() => toggleProvider(provider.name)}
             >
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                {provider.name}
+                {(provider as any).displayName || provider.name}
               </span>
               <ChevronRight className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")}/>
             </div>

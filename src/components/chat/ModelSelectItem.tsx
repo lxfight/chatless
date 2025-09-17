@@ -134,7 +134,7 @@ export function ModelSelectItem({
       <TooltipContent side="right" sideOffset={6} avoidCollisions={false} className="max-w-[520px] break-words text-xs">
         <div className="space-y-1">
           <div><span className="text-gray-400 mr-1">ID:</span>{model.name}</div>
-          <div className="text-gray-400">{provider.name}</div>
+          <div className="text-gray-400">{(provider as any).displayName || provider.name}</div>
         </div>
       </TooltipContent>
     </Tooltip>

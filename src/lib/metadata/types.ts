@@ -8,6 +8,8 @@ export interface ModelMetadata {
 
 export interface ProviderMetadata {
   name: string;
+  /** 面向用户展示的名称（不作为主键） */
+  displayName?: string;
   api_base_url: string;
   requiresApiKey: boolean;
   aliases?: string[];
