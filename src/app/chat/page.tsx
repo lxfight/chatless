@@ -118,6 +118,27 @@ export default function ChatPage() {
       isLoading
   );
 
+  // 初次进入/切换会话时，强制定位到底部
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => handleScrollToBottom());
+    return () => cancelAnimationFrame(raf);
+  }, [currentConversationId]);
+
+  // 新消息追加后（长度变化）自动滚动到底部
+  useEffect(() => {
+    const len = (currentConversation?.messages as Message[] | undefined)?.length || 0;
+    if (len === 0) return;
+    const raf = requestAnimationFrame(() => handleScrollToBottom());
+    return () => cancelAnimationFrame(raf);
+  }, [currentConversation?.messages?.length]);
+
+  // 从后台切回到该标签页时，确保定位到底部
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') handleScrollToBottom(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [handleScrollToBottom]);
+
   // 设置滚动到底部的回调函数
   useEffect(() => {
     setScrollToBottomCallback(() => {
@@ -210,7 +231,13 @@ export default function ChatPage() {
       />
       <div className="flex-1 flex overflow-hidden">
         <main className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto custom-scrollbar" ref={scrollContainerRef}>
+          <div
+            className="flex-1 custom-scrollbar"
+            ref={scrollContainerRef}
+            onMouseEnter={() => { if (scrollContainerRef.current) scrollContainerRef.current.style.overflowY = 'auto'; }}
+            onMouseLeave={() => { if (scrollContainerRef.current) scrollContainerRef.current.style.overflowY = 'hidden'; }}
+            style={{ overflowY: 'hidden' }}
+          >
             <ChatMessageList
               chatId={currentConversationId}
               messages={currentConversation.messages as Message[]}

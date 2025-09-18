@@ -220,7 +220,8 @@ export function ResourceItem({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => onDelete(id)} 
-                    className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                    className="cursor-pointer"
+                    variant="destructive"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     {isChatFile ? '移除文件' : '删除文件'}

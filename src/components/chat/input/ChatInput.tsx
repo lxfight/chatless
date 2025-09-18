@@ -98,7 +98,7 @@ export function ChatInput({
           {/* 知识库选择按钮 */}
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             className={cn(
               "h-8 px-3 rounded-full cursor-pointer",
               "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700",

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { 
   ArrowUpIcon,
   ArrowDownIcon,
-  ListIcon
+  LocateFixed
 } from 'lucide-react';
 import { MessageNavigationMenu } from './MessageNavigationMenu';
 import type { Message } from '@/types/chat';
@@ -91,7 +91,7 @@ export function ChatToolbar({
                   size="sm"
                   className="h-6 w-6 p-0 opacity-40 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
                 >
-                  <ListIcon className="h-3 w-3" />
+                  <LocateFixed className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>

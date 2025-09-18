@@ -126,7 +126,7 @@ export function ConversationSidebar({
 
   if (!isLoading && conversationsToShow.length === 0) {
     return (
-      <ScrollArea className="flex-1 p-2 h-full">
+      <ScrollArea className="flex-1 px-2 pt-1 pb-2 h-full">
         <div className="text-center text-slate-500 dark:text-slate-400 py-10 px-4">
           {isSearching ? (
             <>
@@ -146,7 +146,7 @@ export function ConversationSidebar({
 
   return (
     <TooltipProvider>
-      <ScrollArea className="flex-1 p-2 h-full">
+      <ScrollArea className="flex-1 px-2 pt-1 pb-2 h-full">
         <ul className="space-y-1">
           {conversationsToShow.map((conv) => (
             <ConversationItem

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getEnabledConfiguredServers, getConnectedServers } from '@/lib/mcp/chatIntegration';
+import { Settings } from 'lucide-react';
 
 interface McpMentionPanelProps {
   open: boolean;
@@ -52,7 +53,7 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
     return () => window.removeEventListener('keydown', onKey);
   }, [open, items, anchorRef, onSelect, onClose]);
 
-  // 预取当前高亮服务器的工具摘要（带缓存与超时）
+  // 预取当前高亮服务器的少量工具名称（带缓存与超时）
   useEffect(() => {
     if (!open) return;
     const it = items[activeRef.current];
@@ -65,8 +66,8 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
         };
         const tools: any[] | null = await withTimeout(serverManager.listTools(it.name) as any, 1200);
         if (!tools) return;
-        const pick = tools.slice(0, 5).map((t: any) => (t?.name || 'tool'));
-        setToolsPreview(prev => ({ ...prev, [it.name]: pick }));
+        const names = tools.slice(0, 3).map((t: any) => (t?.name || 'tool'));
+        setToolsPreview(prev => ({ ...prev, [it.name]: names }));
       } catch {}
     })();
   }, [open, items, activeRef.current]);
@@ -95,6 +96,11 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
 
   const panel = (
     <div style={{ position: 'fixed', left: pos.left, bottom: pos.bottom, width: pos.width, zIndex: 2147483600 }} className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-gray-900/50 backdrop-blur-sm shadow-lg overflow-hidden">
+      <div className="flex items-center justify-end px-2 pt-1 pb-0.5">
+        <button className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" onMouseDown={(e)=>{ e.preventDefault(); window.location.assign('/settings?tab=mcpServers'); }} title="MCP 设置">
+          <Settings className="h-4 w-4" />
+        </button>
+      </div>
       <ul className="max-h-56 overflow-auto py-1">
         {items.map((it, idx) => (
           <li key={it.name} onMouseDown={(e)=>{ e.preventDefault(); onSelect(it.name); }} onMouseEnter={()=>{ activeRef.current = idx; setItems((v)=>[...v]); }} className={`px-3 py-1.5 text-sm cursor-pointer ${idx===activeRef.current?'bg-slate-100/70 dark:bg-slate-800/40':'hover:bg-slate-50 dark:hover:bg-slate-800/30'} ${it.connected?'':'opacity-60'}`}>
@@ -108,7 +114,7 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
                 {(() => {
                   const names = toolsPreview[it.name] || [];
                   const text = names.join(', ');
-                  return names.length < 5 ? text : `${names.slice(0,5).join(', ')}…`;
+                  return names.length < 3 ? text : `${names.slice(0,3).join(', ')}…`;
                 })()}
               </div>
             )}

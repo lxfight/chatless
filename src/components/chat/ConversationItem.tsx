@@ -73,10 +73,10 @@ function ConversationItemImpl({
     >
       <li
         className={cn(
-          "group relative flex flex-col gap-1 px-2 py-2 rounded-lg transition-all duration-200 cursor-pointer",
+          "group relative flex flex-col gap-0.5 px-2 py-1.5 rounded-md transition-all duration-200 cursor-pointer border-b border-slate-100/70 dark:border-slate-800/40",
           isCurrent
             ? "text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-500/10"
-            : "text-slate-600 dark:text-slate-400 hover:bg-gray-50/80 dark:hover:bg-gray-800/30 hover:text-slate-900 dark:hover:text-slate-200 hover:shadow-sm"
+            : "text-slate-600 dark:text-slate-400 hover:bg-gray-50/80 dark:hover:bg-gray-800/30 hover:text-slate-900 dark:hover:text-slate-200"
         )}
         onClick={() => onSelect(conversation.id)}
       >
@@ -96,7 +96,7 @@ function ConversationItemImpl({
             />
           ) : (
             <div
-              className="flex-1 text-sm font-medium truncate cursor-pointer leading-tight"
+              className="flex-1 text-[13px] font-medium truncate cursor-pointer leading-tight"
               onClick={(e) => onTitleClick(e, conversation)}
               onDoubleClick={(e) => onRenameStart(e, conversation)}
             >
@@ -105,7 +105,7 @@ function ConversationItemImpl({
           )}
         </div>
 
-        <div className="flex items-center justify-between text-xs mt-0.5">
+        <div className="flex items-center justify-between text-[11px] mt-0.5">
           <div className="flex-1 min-w-0 flex items-center gap-2 pr-1 text-slate-500 dark:text-slate-400">
             <span className="text-[11px] whitespace-nowrap">{compactTime}</span>
             <ModelLabelSpan conversation={conversation} />
@@ -115,7 +115,7 @@ function ConversationItemImpl({
             {conversation.is_important && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Flag className="w-3 h-3 text-red-500" />
+                  <Flag className="w-3 h-3 text-red-500/80" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>重要对话</p>
@@ -125,7 +125,7 @@ function ConversationItemImpl({
             {(conversation as any).is_favorite && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Star className="w-3 h-3 text-yellow-500" />
+                  <Star className="w-3 h-3 text-yellow-500/80" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>已收藏</p>

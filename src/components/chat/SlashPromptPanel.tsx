@@ -8,7 +8,7 @@ import { generateShortcutCandidates } from '@/lib/prompt/shortcut';
 import { StorageUtil } from '@/lib/storage';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, Zap } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface SlashPromptPanelProps {
@@ -36,6 +36,22 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   const pendingVarsRef = useRef(pendingVars);
   useEffect(() => { pendingVarsRef.current = pendingVars; }, [pendingVars]);
   const panelRef = useRef<HTMLDivElement | null>(null);
+
+  // 轮播提示（固定列表 + 定时切换）
+  const hintList = useMemo(() => (
+    [
+      ['空格', '代入变量'],
+      ['|', '分隔/结束参数输入'],
+      ['/tag:', '过滤'],
+      ['Enter', '使用'],
+      ['Alt+Enter', '设为系统']
+    ] as const
+  ), []);
+  const [hintIndex, setHintIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setHintIndex((i) => (i + 1) % hintList.length), 3500);
+    return () => clearInterval(timer);
+  }, [hintList.length]);
 
   useEffect(() => {
     if (open) {
@@ -105,6 +121,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
 
   const filtered = useMemo(() => {
     const q = (queryText || '').trim().toLowerCase();
+    if (q === '/') return [] as any[]; // 仅输入斜线：不展开任何项
     let tagFilter: string | null = null;
     let text = q;
     const tagMatch = q.match(/tag:([^\s]+)/);
@@ -127,9 +144,9 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       .filter((p) => {
         const byTag = tagFilter ? (p.tags || []).some((t) => t.toLowerCase().includes(tagFilter)) : true;
         if (!byTag) return false;
-        if (!text) return true;
+        if (!text || text === '/') return false; // 避免空或仅斜线时误命中
         const hay = `${p.name} ${(p.tags || []).join(' ')} ${p.description || ''}`.toLowerCase();
-        const hasSaved = (p as any).shortcuts?.some((s:string)=> s.toLowerCase().startsWith(token));
+        const hasSaved = token && (p as any).shortcuts?.some((s:string)=> s.toLowerCase().startsWith(token));
         const suggested = token && generateShortcutCandidates(p.name, p.tags || [], p.languages || []).some((s)=> s.startsWith(token));
         return hay.includes(text) || hasSaved || suggested;
       })
@@ -141,26 +158,65 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
         const suggestedHit = token && !hasSavedPrefix && generateShortcutCandidates(p.name, p.tags || [], p.languages || []).some(s=>s.startsWith(token));
         return { p, hasExactSaved, hasSavedPrefix, isPreferred, suggestedHit };
       });
-    if (!q) {
-      // 打开时优先展示：收藏其一 + 最近使用 Top，最多 10 个
-      const withScore = list.map(({p}) => ({
-        p,
-        score: (p.favorite ? 1000 : 0) + (p.stats?.uses || 0) * 10 + (p.stats?.lastUsedAt || 0) / 1e12,
-      }));
-      return withScore.sort((a,b)=>b.score-a.score).map(x=>({ p: x.p, note: ''})).slice(0, 10);
-    }
-    // 排序：exact saved > preferred memory > saved prefix > suggested > 其他文本命中
+    // 返回最多 50 条匹配用于“展开集合”
     const sorted = list.sort((a,b)=>{
       const scoreA = (a.hasExactSaved?1000:0) + (a.isPreferred?500:0) + (a.hasSavedPrefix?100:0) + (a.suggestedHit?10:0);
       const scoreB = (b.hasExactSaved?1000:0) + (b.isPreferred?500:0) + (b.hasSavedPrefix?100:0) + (b.suggestedHit?10:0);
       return scoreB - scoreA;
     });
-    return sorted.slice(0, 20).map(x=>({ p: x.p, note: x.suggestedHit && !x.hasSavedPrefix ? '(建议)' : '' }));
+    return sorted.slice(0, 50).map(x=>({ p: x.p, note: x.suggestedHit && !x.hasSavedPrefix ? '(建议)' : '' }));
   }, [prompts, queryText]);
 
   // 将最新的 filtered 列表写入 Ref，供键盘事件读取
   const filteredRef = useRef<any[]>([]);
   useEffect(() => { filteredRef.current = filtered as any[]; }, [filtered]);
+
+  // 可导航列表：有匹配项时使用匹配集合，否则（例如仅输入'/'）使用全部提示词
+  const navigableRef = useRef<any[]>([]);
+  useEffect(() => {
+    if ((filtered?.length || 0) > 0) {
+      navigableRef.current = (filtered as any[]).map((x:any)=> x.p);
+    } else {
+      navigableRef.current = prompts as any[];
+    }
+  }, [filtered, prompts]);
+
+  // 悬浮项 id：鼠标在面板上移动时临时生效；移出面板后恢复到选中项
+  const [hoverId, setHoverId] = useState<string | null>(null);
+
+  // 选中项：仅输入 '/' 时不选中；有匹配项时默认选中第一条
+  const onlySlash = useMemo(() => {
+    const q = (queryText || '').trim();
+    return q === '/';
+  }, [queryText]);
+
+  useEffect(() => {
+    if (onlySlash) {
+      setActiveIndex(-1);
+      activeIndexRef.current = -1 as any;
+    } else if ((filtered?.length || 0) > 0) {
+      setActiveIndex(0);
+      activeIndexRef.current = 0;
+    } else {
+      setActiveIndex(-1);
+      activeIndexRef.current = -1 as any;
+    }
+    // 每次查询变化时，清空悬浮，避免保留无效 hoverId 导致不展开
+    setHoverId(null);
+  }, [onlySlash, filtered?.length, queryText]);
+
+  // 打开面板时也清空悬浮，避免沿用上一次的 hoverId
+  useEffect(() => { if (open) setHoverId(null); }, [open]);
+
+  // 当前选中项 id（用于同步展开项）
+  const selectedId = useMemo(() => {
+    if (activeIndex < 0) return null;
+    if (onlySlash) {
+      const list = navigableRef.current || [];
+      return list[activeIndex]?.id ?? null;
+    }
+    return (filtered[activeIndex]?.p?.id) ?? null;
+  }, [activeIndex, onlySlash, filtered]);
 
   // 当列表变化时，纠正 activeIndex，避免键盘高亮与提交不一致
   useEffect(() => {
@@ -260,37 +316,45 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       if (e.key === 'Escape') { onOpenChange(false); return; }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = Math.min(activeIndexRef.current + 1, (filteredRef.current).length - 1);
+        const list = navigableRef.current || [];
+        const start = activeIndexRef.current < 0 ? 0 : activeIndexRef.current + 1;
+        const next = Math.min(start, list.length - 1);
         activeIndexRef.current = next;
         setActiveIndex(next);
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const prev = Math.max(activeIndexRef.current - 1, 0);
+        const list = navigableRef.current || [];
+        const base = activeIndexRef.current < 0 ? 0 : activeIndexRef.current - 1;
+        const prev = Math.max(base, 0);
         activeIndexRef.current = prev;
         setActiveIndex(prev);
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const list: any[] = filteredRef.current;
-        const idx = Math.max(0, Math.min(activeIndexRef.current, list.length - 1));
+        const list: any[] = navigableRef.current || [];
+        let idx = activeIndexRef.current;
+        if (idx < 0) {
+          // 无选中：优先 hover，其次第一项
+          if (hoverId) idx = Math.max(0, list.findIndex((it:any)=> (it.p?.id||it.id) === hoverId));
+          if (idx < 0) idx = 0;
+        }
+        if (idx < 0 || idx >= list.length) return;
         const id = (list[idx])?.p?.id || (list[idx])?.id;
-        if (id) {
-          try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch {}
-          // 新规则：回车直接发送；Alt+回车应用为系统（Shift+Alt 为一次性）
-          const useApply = (e as any).altKey || (e as any).metaKey; // 允许 ⌘ 兼容
-          if (useApply) {
-            const oneOff = (e as any).shiftKey;
-            onSelect(id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
-          } else {
-            onSelect(id, { action: 'fill' });
-          }
+        if (!id) return;
+        try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch {}
+        const useApply = (e as any).altKey || (e as any).metaKey;
+        if (useApply) {
+          const oneOff = (e as any).shiftKey;
+          onSelect(id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
+        } else {
+          onSelect(id, { action: 'fill' });
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onSelect, onOpenChange]);
+  }, [open, onSelect, onOpenChange, hoverId]);
 
   if (!open) return null;
 
@@ -300,119 +364,86 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     <div
       ref={panelRef}
       className={cn(
-        "fixed z-[2147483600] w-[min(720px,92vw)] rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-gray-900 shadow-lg overflow-hidden",
+        "fixed z-[2147483600] w-[min(720px,92vw)] rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-white dark:bg-gray-900 shadow-lg overflow-hidden",
         open ? "opacity-100 scale-100" : "opacity-0 scale-95"
       )}
       style={{ left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(720, window.innerWidth*0.92) - 8)), bottom: Math.max(8, window.innerHeight - rect.top + 8) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="px-3 pt-2 pb-2 border-b border-slate-200/70 dark:border-slate-700/60">
-        {/* 顶部提示与工具区 */}
-        <div className="flex items-center justify-between">
-          {/* 动态操作提示：更克制的提示色 */}
-          <div
-            className={cn(
-              "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] text-slate-600 bg-slate-50 border-slate-200 dark:text-slate-300 dark:bg-slate-800/40 dark:border-slate-700",
-              altPreview && "text-purple-700 bg-purple-50 border-purple-200 dark:text-purple-200 dark:bg-purple-900/25 dark:border-purple-800"
-            )}
-          >
-            {altPreview ? (
-              <span>回车：设为系统提示词</span>
-            ) : (
-              <span>回车：代入提示词 Alt+回车：设为系统提示词</span>
-            )}
-          </div>
-          {filtered.length === 0 && (
-            <Button aria-label="添加提示词" variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>
-              <Plus className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-        {/* 使用说明：不抢眼的小字行 */}
-        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-          <span><span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">空格</span> 代入变量，</span>
-          <span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">|</span>
-          <span> 位置参数/结束变量，</span>
-          <span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">/tag:学习</span>
-          <span> 过滤提示词</span>
-        </div>
-      </div>
-      <ScrollArea className="max-h-60">
+      {/* 顶部已去除，防止高度变化时挤压上方内容 */}
+      {/* 列表区域：无滚动时最多 6 项，超出出现滚动条；当仅输入'/'时展示全部提示词的折叠项 */}
+      <ScrollArea className={cn(
+        (queryText || '').trim().startsWith('/') ? (prompts.length > 6 ? 'max-h-60' : '') : (filtered.length > 6 ? 'max-h-60' : '')
+      )} onMouseLeave={() => setHoverId(null)}>
         <ul className="py-1">
-          {filtered.map((item, idx) => (
-            <li key={item.p.id} className={cn('px-3 py-2 cursor-pointer text-sm flex items-start justify-between', idx === activeIndex ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-200 dark:ring-indigo-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30')} onMouseEnter={() => setActiveIndex(idx)} onMouseDown={(e) => {
-              e.preventDefault();
-              const q = (queryText || '').trim().toLowerCase();
-              const token = q.startsWith('/') ? q.replace(/^\//,'') : '';
-              if (token) {
-                (async ()=>{
-                  try {
-                    const cur = (await StorageUtil.getItem<Record<string,string>>('prompt-shortcut-preference', {}, 'user-preferences.json')) || {};
-                    cur[token] = item.p.id;
-                    await StorageUtil.setItem('prompt-shortcut-preference', cur, 'user-preferences.json');
-                    try { (window as any).__prompt_pref_cache__ = cur; } catch {}
-                  } catch {}
-                })();
-              }
-              try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ev); } catch {}
-              const useApply = (e as any).altKey || (e as any).metaKey;
-              if (useApply) {
-                const oneOff = (e as any).shiftKey;
-                onSelect(item.p.id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
-              } else {
-                onSelect(item.p.id, { action: 'fill' });
-              }
-            }}>
-              {/* 选中左侧强调条 */}
-              <div className={cn("mr-2 mt-0.5 rounded-full", idx===activeIndex ? "w-1.5 h-6 bg-indigo-500" : "w-1.5 h-6 bg-transparent")}/>
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
-                  <span className="truncate">{item.p.name}</span>
-                  {Array.isArray((item.p as any).shortcuts) && (item.p as any).shortcuts.length > 0 && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {((item.p as any).shortcuts as string[]).slice(0,3).map(s => (
-                        <span key={s} className="px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-[11px] text-slate-700">/{s}</span>
-                      ))}
-                      {((item.p as any).shortcuts as string[]).length > 3 && (
-                        <span className="text-[11px] text-slate-600">+{((item.p as any).shortcuts as string[]).length - 3}</span>
-                      )}
-                    </div>
-                  )}
+          {(() => {
+            const q = (queryText || '').trim().toLowerCase();
+            const startWithSlash = q.startsWith('/');
+            // 展开集合：匹配到的提示词 id 集合
+            const expandedId = (hoverId ?? selectedId) || '';
+            let source: any[];
+            if (startWithSlash) {
+              source = (q === '/' || q === '') ? (prompts as any[]) : (filtered as any[]).map((x:any)=> x.p);
+            } else {
+              source = (filtered as any[]).map((x:any)=> x.p);
+            }
+            return source.map((p:any, idx:number) => (
+              <li key={p.id}
+                  className={cn('px-3 py-2 cursor-pointer text-sm flex flex-col rounded-md transition-colors', (hoverId ? hoverId===p.id : selectedId===p.id) ? 'bg-slate-100 ring-1 ring-slate-300 dark:bg-slate-800/40 dark:ring-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30')}
+                  onMouseEnter={() => { setHoverId(p.id); setActiveIndex(idx); activeIndexRef.current = idx; }}
+                  onMouseDown={(e)=>{
+                    e.preventDefault();
+                    // 确保点击也能代入：将该项设为选中后触发填充
+                    setActiveIndex(idx); activeIndexRef.current = idx; setHoverId(p.id);
+                    const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars });
+                    try { window.dispatchEvent(ev); } catch {}
+                    onSelect(p.id, { action: 'fill' } as any);
+                  }}
+              >
+                {/* 折叠标题行：名称在左、命令/shortcut右对齐，无边框，更醒目 */}
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{p.name}</span>
+                  <span className="ml-2 text-xs text-amber-700 dark:text-amber-300 font-semibold tabular-nums">/{((p as any).shortcuts?.[0] || (p.name||'')[0]?.toLowerCase() || '')}</span>
                 </div>
-                {item.p.tags && item.p.tags.length > 0 && (
-                  <div className="mt-0.5 flex flex-wrap gap-1">
-                    {item.p.tags.slice(0,6).map((t:string) => (
-                      <span key={t} className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">{t}</span>
-                    ))}
-                    {item.p.tags.length > 6 && (
-                      <span className="text-[11px] text-slate-500">+{item.p.tags.length - 6}</span>
+                {/* 匹配项展开：显示标签和片段预览 */}
+                {(expandedId === p.id) && (
+                  <div className="mt-1">
+                    {p.tags && p.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {p.tags.slice(0,6).map((t:string) => (
+                          <span key={t} className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">{t}</span>
+                        ))}
+                        {p.tags.length > 6 && (
+                          <span className="text-[11px] text-slate-500">+{p.tags.length - 6}</span>
+                        )}
+                      </div>
                     )}
+                    <div className="mt-1 rounded bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
+                      {renderHighlighted(p.content || '', computeVariableValues(p))}
+                    </div>
                   </div>
                 )}
-                <div className="mt-1 rounded bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
-                  {renderHighlighted(item.p.content, computeVariableValues(item.p))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                {item.p.stats?.uses ? <span className="text-[11px] text-gray-400">{item.p.stats.uses} 次</span> : null}
-                {item.note && <span className="text-[11px] text-indigo-600">{item.note}</span>}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  onMouseDown={(ev)=>{ ev.preventDefault(); try { const ce = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ce); } catch {} ; onSelect(item.p.id, { action: 'fill' }); }}
-                  title="代入到输入框（不直接发送）"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </li>
-          ))}
-          {filtered.length === 0 && (
+              </li>
+            ));
+          })()}
+          {(filtered.length === 0 && (queryText || '').trim() !== '/' ) && (
             <li className="px-3 py-2 text-[12px] text-gray-600 dark:text-gray-300">没有匹配的提示词 · 试试 <span className="font-medium">tag:写作</span></li>
           )}
         </ul>
       </ScrollArea>
+      {/* 底部控制区：左 / 徽标；中间居中的轮播提示；右设置 */}
+      <div className="px-3 py-1.5 border-t border-slate-200 dark:border-slate-700 flex items-center text-[11px] text-slate-600 dark:text-slate-400 select-none gap-2">
+        <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[11px]">/</span>
+        <div className="flex-1 flex items-center justify-center">
+          <div key={hintIndex} className="flex items-center gap-2 transition-all duration-300 ease-out translate-y-0 opacity-100">
+            <span className="px-1.5 py-0.5 rounded border border-slate-300/70 bg-slate-50 dark:bg-slate-800 dark:border-slate-600 font-mono">{hintList[hintIndex][0]}</span>
+            <span>{hintList[hintIndex][1]}</span>
+          </div>
+        </div>
+        <button className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" onMouseDown={(e)=>{ e.preventDefault(); window.location.assign('/prompts'); }} title="管理提示词">
+          <Settings className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 

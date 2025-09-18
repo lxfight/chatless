@@ -106,7 +106,7 @@ export function ChatHeader({
           ))}
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 bg-slate-50/60 dark:bg-slate-800/40 px-2 py-1 rounded-md">
           <ModelSelector 
             allMetadata={allMetadata}
             currentModelId={currentModelId}
@@ -115,7 +115,9 @@ export function ChatHeader({
             disabled={isModelSelectorDisabled}
           />
           {/* 旧的右上角 MCP 选择已移除，改为输入框上拉面板 */}
-          <PromptPill />
+          <div className="text-xs">
+            <PromptPill />
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -128,7 +130,7 @@ export function ChatHeader({
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200">
+            <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem onSelect={handleNewChat}>新建对话</DropdownMenuItem>
               <DropdownMenuItem onSelect={onShare}>分享对话</DropdownMenuItem>
               <DropdownMenuItem onSelect={onDownload}>导出对话</DropdownMenuItem>

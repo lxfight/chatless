@@ -249,7 +249,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           {/* 侧边栏头部已隐藏 */}
 
           {/* 搜索框 + 新建按钮 */}
-          <div className="flex-shrink-0 p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900">
+          <div className="flex-shrink-0 p-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900">
             {/* 搜索框（右侧内置“新建”按钮，保持与主头部对齐的高度和间距） */}
             <div className="flex items-center">
               <div className="flex-1 min-w-0">
@@ -258,7 +258,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     placeholder="搜索对话..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-full bg-transparent border-none focus:ring-0 text-sm h-7"
+                    className="w-full bg-transparent border-none focus:ring-0 text-xs h-7"
                   />
                   {/* 右侧区域：清除 + 新建 */}
                   <div className="absolute top-1/2 -translate-y-1/2 right-1.5 flex items-center gap-1.5">
@@ -287,38 +287,38 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
               <div 
                 className={cn(
-                  "flex-1 text-center py-3 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'recent' 
                     ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/10" 
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                 )} 
                 onClick={() => handleFilterChange('recent')}
               >
-                <Clock className="w-4 h-4" />
+                <Clock className="w-3 h-3" />
                 <span>最近</span>
               </div>
               <div 
                 className={cn(
-                  "flex-1 text-center py-3 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'favorite' 
                     ? "text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-500 dark:border-yellow-400 bg-yellow-50 dark:bg-yellow-500/10" 
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                 )} 
                 onClick={() => handleFilterChange('favorite')}
               >
-                <Star className={cn("w-4 h-4", activeFilter === 'favorite' && "fill-current")} />
+                <Star className={cn("w-3 h-3", activeFilter === 'favorite' && "fill-current")} />
                 <span>收藏</span>
               </div>
               <div 
                 className={cn(
-                  "flex-1 text-center py-3 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'important' 
                     ? "text-red-600 border-b-2 border-red-500 bg-red-50" 
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                 )} 
                 onClick={() => handleFilterChange('important')}
               >
-                <Flag className="w-4 h-4" />
+                <Flag className="w-3 h-3" />
                 <span>重要</span>
               </div>
             </div>
@@ -339,7 +339,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           <div
             onMouseDown={handleDragStart}
             className={cn(
-              "relative w-2 cursor-col-resize group transition-colors duration-150",
+              "relative w-1 cursor-col-resize group transition-colors duration-150",
               isDragging ? "bg-blue-500/20" : "dark:bg-slate-900 bg-transparent hover:bg-blue-500/10"
             )}
           >

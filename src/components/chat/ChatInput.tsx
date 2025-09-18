@@ -232,11 +232,17 @@ export function ChatInput({
   // 用渲染结果替换 /指令与其变量片段；若存在 “| ”，会将其后的内容以换行附加在渲染结果后
   const replaceSlashWithRendered = (text: string, rendered: string): string => {
     const parsed = parseLeadingSlash(text);
-    if (!parsed) return text;
+    if (!parsed) {
+      // 兼容：只有一个斜线，或以空格+斜线结尾的情况
+      // 保留前导空白，将末尾的单个 '/' 替换为渲染内容
+      if (/^\s*\/$/u.test(text)) return text.replace(/\//u, rendered);
+      if (/(^|\s)\/$/u.test(text)) return text.replace(/(^|\s)\/$/u, `$1${rendered}`);
+      return text;
+    }
     const { leadingSpace, varPart, postText, hasDelimiter } = parsed;
     const after = hasDelimiter && postText ? `\n${postText}` : '';
     // 构造要替换的前缀（/token + 可选空格 + varPart，不包含分隔符）
-    const prefix = new RegExp(`^${leadingSpace.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}\\/[^\s]+(?:\\s+[^|｜]*)?`, 'u');
+    const prefix = new RegExp(`^${leadingSpace.replace(/[-\/\\^$*+?.()|[\]{}]/g,'\\$&')}\\/[^\s]+(?:\\s+[^|｜]*)?`, 'u');
     return text.replace(prefix, `${leadingSpace}${rendered}${after}`);
   };
 
@@ -511,7 +517,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="input-area bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3 overflow-x-hidden">
+    <div className="input-area bg-white/50 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-3 overflow-x-hidden">
       {/* 编辑模式提示栏 */}
       {editingMessage && (
         <div className="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 text-xs text-yellow-800 dark:text-yellow-200 rounded-md px-3 py-1 mb-2">
@@ -669,7 +675,7 @@ export function ChatInput({
             return parts;
           };
           if (!parsed && hasMentionOverlay) {
-            // 无 / 指令时，仅做 @ 提示的淡绿色高亮
+            // 无 / 指令时，仅做 @ 提示的淡绿色高亮（严格对齐：不添加任何额外字符/空格）
             return (
               <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
                 <div className="pl-10 pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
@@ -687,7 +693,7 @@ export function ChatInput({
                 {/* 保留前导空格 */}
                 {leadingSpace}
                 {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
-                <span className="rounded bg-yellow-100/70 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-100 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
+                <span className="rounded bg-amber-100/70 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
                 {/* 竖线后的普通文本按原样展示（不高亮）*/}
                 {hasDelimiter && postRaw ? <>{renderMentions(postRaw)}</> : null}
               </div>
