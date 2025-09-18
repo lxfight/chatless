@@ -14,6 +14,7 @@ import {
 } from '@/components/icons/SidebarIcons';
 import { shouldShowDevTools } from '@/lib/utils/environment';
 import { useEffect, useState } from 'react';
+import { DockHoverScaler } from '@/components/ui/DockHoverScaler';
 
 // 基础侧边栏导航项
 const baseNavItems = [
@@ -45,22 +46,28 @@ export function Sidebar() {
   
   return (
     <div
-      className="fixed left-0 top-0 h-screen bg-white dark:bg-gray-900 border-r border-slate-200/60 dark:border-slate-800/60 flex flex-col items-center pt-3 pb-4 z-50"
-      style={{ width: 'var(--sidebar-width, 4.5rem)' }}
+      className="fixed left-0 top-2 h-[calc(100vh-1rem)] bg-white dark:bg-gray-900 border-r border-slate-200/60 dark:border-slate-800/60 flex flex-col items-center pt-2 pb-3 z-50 rounded-xl"
+      style={{ width: 'var(--sidebar-width, 5rem)' }}
     >
-      <div className="flex-1 flex flex-col items-center gap-4 overflow-y-auto py-2 no-scrollbar">
-        {navItems.map((item) => {
-          return (
-            <SidebarNavButton
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              dev={item.href === '/dev-tools'}
-            />
-          );
-        })}
-      </div>
+      <DockHoverScaler
+        orientation="vertical"
+        maxScale={1.28}
+        influenceRadius={100}
+        transitionMs={90}
+        className="flex-1 flex flex-col items-center gap-2 overflow-y-auto py-2 no-scrollbar"
+        itemClassName="block py-1.5"
+        itemTag="div"
+      >
+        {navItems.map((item) => (
+          <SidebarNavButton
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            dev={item.href === '/dev-tools'}
+          />
+        ))}
+      </DockHoverScaler>
     </div>
   );
 } 

@@ -287,7 +287,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
               <div 
                 className={cn(
-                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'recent' 
                     ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/10" 
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -299,7 +299,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               </div>
               <div 
                 className={cn(
-                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'favorite' 
                     ? "text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-500 dark:border-yellow-400 bg-yellow-50 dark:bg-yellow-500/10" 
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -311,7 +311,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               </div>
               <div 
                 className={cn(
-                  "flex-1 text-center py-1.5 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
+                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
                   activeFilter === 'important' 
                     ? "text-red-600 border-b-2 border-red-500 bg-red-50" 
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
