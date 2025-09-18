@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useChatStore } from '@/store/chatStore';
-import { Share, Download, Edit, MessageSquare, Trash2, MoreVertical, Menu } from 'lucide-react';
+import { MoreVertical, Menu } from 'lucide-react';
 import { ModelSelector } from "./ModelSelector";
 import { ProviderMetadata } from "@/lib/metadata/types";
 import { DeleteConversationDialog } from './DeleteConversationDialog';
@@ -44,8 +44,8 @@ export function ChatHeader({
   tokenCount = 0
 }: ChatHeaderProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [mcpAll, setMcpAll] = useState<string[]>([]);
-  const [mcpConnected, setMcpConnected] = useState<string[]>([]);
+  const [_mcpAll, setMcpAll] = useState<string[]>([]);
+  const [_mcpConnected, setMcpConnected] = useState<string[]>([]);
   const conversationId = useChatStore((s)=>s.currentConversationId);
   const [enabledForConv, setEnabledForConv] = useState<string[]>([]);
 
@@ -73,7 +73,7 @@ export function ChatHeader({
     })();
   }, [conversationId]);
 
-  const toggleServer = async (name: string) => {
+  const _toggleServer = async (name: string) => {
     let next: string[];
     if (enabledForConv.includes(name)) next = enabledForConv.filter(n => n !== name);
     else next = [...enabledForConv, name];
@@ -84,7 +84,7 @@ export function ChatHeader({
   return (
     <>
       <div className="px-1 py-1 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 shadow-sm">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer" title="切换侧边栏">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>

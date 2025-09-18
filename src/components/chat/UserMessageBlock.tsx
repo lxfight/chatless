@@ -99,7 +99,7 @@ export const UserMessageBlock = ({
 
   return (
     <div className="relative max-w-full will-change-auto">
-      <div className="bg-blue-50 dark:bg-blue-900/60 text-blue-900 dark:text-blue-50 p-4 rounded-lg rounded-tr-sm shadow-sm max-w-full transition-all duration-200">
+      <div className="bg-blue-50 dark:bg-blue-900/60 text-blue-900 dark:text-blue-50 p-2 rounded-lg rounded-tr-sm shadow-sm max-w-full transition-all duration-200">
         {/* 知识库引用部分 - 使用 flex 和 truncate 优化布局 */}
         {knowledgeBaseReference && (
           <div className="mb-3 p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-xl">
@@ -126,7 +126,7 @@ export const UserMessageBlock = ({
         
         {/* 用户消息内容 - 优化文本显示 */}
         {content && (
-          <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-full mb-2">
+          <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-full">
             {content}
           </div>
         )}
@@ -157,13 +157,13 @@ export const UserMessageBlock = ({
       </div>
       
       {/* 操作按钮部分 - 优化定位和布局 */}
-      <div className="absolute top-1/2 -translate-y-1/2 left-0 transform -translate-x-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 will-change-transform">
+      <div className="absolute top-1/2 -translate-y-1/2 -left-3 md:-left-4 transform -translate-x-full z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 will-change-transform">
         {onEdit && id && (
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onEdit(id)}
-            className="h-7 w-7 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
+            className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
             title="编辑"
           >
             <Pencil className="w-4 h-4" />
@@ -175,7 +175,7 @@ export const UserMessageBlock = ({
             size="icon"
             onClick={() => handleCopy(content)}
             className={cn(
-              "h-7 w-7 shrink-0 transition-all duration-200",
+              "h-6 w-6 shrink-0 transition-all duration-200",
               isCopied
                 ? "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                 : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -186,6 +186,7 @@ export const UserMessageBlock = ({
           </Button>
         )}
       </div>
+      
     </div>
   );
 }; 

@@ -698,7 +698,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder="开始对话吧… 输入 / 可快速调用提示词 输入 @ 可指定MCP服务"
           className={cn(
-            "relative z-[1] w-full pl-14 pr-16 py-[10px] pb-10 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
+            "relative z-[1] w-full pl-10 pr-14 py-[10px] pb-10 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
             (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={undefined}
