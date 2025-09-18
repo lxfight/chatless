@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import StorageUtil from '@/lib/storage';
 import { useUiPreferences } from '@/store/uiPreferences';
 import { cn } from "@/lib/utils";
@@ -132,6 +132,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     document.addEventListener('mouseup', handleMouseUp);
   };
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredQuery = useDeferredValue(searchQuery);
   const [isSearching, setIsSearching] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'recent' | 'favorite' | 'important'>('recent');
   
@@ -192,7 +193,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     
     // 如果在搜索模式，应用搜索筛选
     if (isSearching) {
-      const normalizedQuery = searchQuery.toLowerCase().trim();
+      const normalizedQuery = deferredQuery.toLowerCase().trim();
       
       result = result.filter((conv: Conversation) => {
         // 搜索会话标题
@@ -210,7 +211,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     }
     
     return result;
-  }, [conversations, searchQuery, isSearching, activeFilter]);
+  }, [conversations, deferredQuery, isSearching, activeFilter]);
 
   const handleNewChat = async () => {
     const defaultModelId = "default-model";

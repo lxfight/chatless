@@ -155,7 +155,7 @@ export default function ChatPage() {
   const handleCancelEdit = () => setEditingMessage(null);
 
   // 保存思考时长的回调函数
-  const handleSaveThinkingDuration = (messageId: string, duration: number) => {
+  const handleSaveThinkingDuration = (_messageId: string, _duration: number) => {
     // 这里可以添加额外的逻辑，比如记录到日志或发送到分析服务
   };
 
@@ -186,10 +186,11 @@ export default function ChatPage() {
     );
   }
 
-  const toolbarMessages: Message[] = (currentConversation?.messages || [])
-    .filter((msg): msg is Message & { created_at: number; updated_at: number } => 
-      typeof msg.created_at === 'number' && typeof msg.updated_at === 'number'
-    );
+  // 预留：如需根据消息时间显示工具栏，可以使用下方筛选（当前未用）
+  // const toolbarMessages: Message[] = (currentConversation?.messages || [])
+  //   .filter((msg): msg is Message & { created_at: number; updated_at: number } => 
+  //     typeof msg.created_at === 'number' && typeof msg.updated_at === 'number'
+  //   );
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-gray-900">

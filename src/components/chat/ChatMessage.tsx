@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Copy, Star, RefreshCcw, Check } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
@@ -65,11 +65,11 @@ const formatTimestamp = (timestamp: string | undefined): string => {
     return date.toLocaleDateString();
   } catch (e) {
     void e;
-    return timestamp;
+    return timestamp || '';
   }
 };
 
-export function ChatMessage({
+function ChatMessageComponent({
   id,
   content,
   role,
@@ -115,9 +115,6 @@ export function ChatMessage({
 
   const messageContent = useMemo(() => {
     if (DEBUG_CHAT_MESSAGE) { /* noop */ }
-    
-
-    
     return isUser 
       ? <UserMessageBlock 
           id={id}
@@ -136,7 +133,7 @@ export function ChatMessage({
           thinking_start_time={thinking_start_time}
           id={id}
           // 关键：把上层透传的 segments 优先交给 AIMessageBlock 做段驱动渲染（包含 think 段）
-          segments={Array.isArray(segments) ? segments as any : undefined}
+          segments={Array.isArray(segments) ? (segments as any) : undefined}
           viewModel={viewModel as any}
           onStreamingComplete={(duration) => {
             if (onSaveThinkingDuration) {
@@ -144,14 +141,14 @@ export function ChatMessage({
             }
           }}
         />;
-  }, [content, segments, isUser, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, id, isStreaming, thinking_duration, onSaveThinkingDuration]);
+  }, [isUser, id, content, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, isStreaming, thinking_duration, thinking_start_time, onSaveThinkingDuration, segments, viewModel]);
 
-  const handleCopy = async (content: string) => {
+  const handleCopy = async (contentToCopy: string) => {
     try {
       if (onCopy) {
-        onCopy(content);
+        onCopy(contentToCopy);
       } else {
-        await navigator.clipboard.writeText(content);
+        await navigator.clipboard.writeText(contentToCopy);
       }
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -183,7 +180,7 @@ export function ChatMessage({
             id,
             content,
             !isUser,
-            onCopy || ((content) => { void content; }),
+            onCopy || ((c) => { void c; }),
             isUser ? onEdit : undefined,
             !isUser ? onRetry : undefined,
             onStar
@@ -271,4 +268,25 @@ export function ChatMessage({
       </div>
     </div>
   );
-} 
+}
+
+export const ChatMessage = React.memo(
+  ChatMessageComponent,
+  (prev: ChatMessageProps, next: ChatMessageProps) => {
+    // 仅在关键属性变化时才重渲染
+    return (
+      prev.id === next.id &&
+      prev.role === next.role &&
+      prev.status === next.status &&
+      prev.content === next.content &&
+      prev.model === next.model &&
+      prev.timestamp === next.timestamp &&
+      prev.thinking_duration === next.thinking_duration &&
+      prev.thinking_start_time === next.thinking_start_time &&
+      (prev.images?.length || 0) === (next.images?.length || 0) &&
+      // 结构化段的引用地址不变时视作不变（上层保证不可变更新）
+      prev.segments === next.segments &&
+      prev.viewModel === next.viewModel
+    );
+  }
+); 

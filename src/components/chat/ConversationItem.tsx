@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, createConversationMenuItems } from "@/components/ui/context-menu";
@@ -31,7 +31,7 @@ interface ConversationItemProps {
   onExport: (id: string) => void;
 }
 
-export function ConversationItem({
+function ConversationItemImpl({
   conversation,
   isCurrent,
   isRenaming,
@@ -49,12 +49,13 @@ export function ConversationItem({
   onDuplicate,
   onExport,
 }: ConversationItemProps) {
-  const formattedTime = formatDistanceToNow(conversation.updated_at, {
-    addSuffix: true,
-    locale: zhCN,
-  });
-  // 文案更紧凑：将“ 大约 ”替换为“ 约 ”
-  const compactTime = formattedTime.replace(/^大约\s*/, '约 ');
+  const compactTime = useMemo(() => {
+    const formattedTime = formatDistanceToNow(conversation.updated_at, {
+      addSuffix: true,
+      locale: zhCN,
+    });
+    return formattedTime.replace(/^大约\s*/, '约 ');
+  }, [conversation.updated_at]);
 
   return (
     <ContextMenu
@@ -136,25 +137,32 @@ export function ConversationItem({
       </li>
     </ContextMenu>
   );
-} 
+}
 
 function ModelLabelSpan({ conversation }: { conversation: Conversation }) {
   const metadata = useProviderMetaStore((s)=> s.list as unknown as ProviderMetadata[]);
-  // 统一解析：始终从元数据按 provider+model_id（或仅 model_id）解析 label，不再读取会话里的临时字段
+  const maps = useMemo(() => {
+    const byModel = new Map<string, string>();
+    const byProvModel = new Map<string, string>();
+    for (const p of (metadata || [])) {
+      const provName = (p as any).name as string;
+      const models = (p as any).models || [];
+      for (const m of models) {
+        const id = m?.name as string;
+        const label = (m?.label as string) || '';
+        if (id && label) {
+          if (!byModel.has(id)) byModel.set(id, label);
+          byProvModel.set(`${provName}::${id}`, label);
+        }
+      }
+    }
+    return { byModel, byProvModel };
+  }, [metadata]);
+
   const prov = (conversation as any).model_provider as string | undefined;
   const id = conversation.model_id;
-  let label: string | undefined = undefined;
-  if (prov) {
-    const p = (metadata || []).find(pp => pp.name === prov);
-    const m = p?.models?.find((mm: any) => mm.name === id);
-    label = m?.label;
-  }
-  if (!label) {
-    for (const p of (metadata || [])) {
-      const m = p.models?.find((mm:any)=> mm.name === id);
-      if (m?.label) { label = m.label; break; }
-    }
-  }
+  const key = prov ? `${prov}::${id}` : '';
+  const label = (prov && maps.byProvModel.get(key)) || maps.byModel.get(id);
   const display = label || conversation.model_id;
   return (
     <span
@@ -165,3 +173,22 @@ function ModelLabelSpan({ conversation }: { conversation: Conversation }) {
     </span>
   );
 }
+
+// 防止列表滚动时的重复渲染：仅在关键属性变更时更新
+export const ConversationItem = React.memo(ConversationItemImpl, (prev, next) => {
+  const a = prev.conversation;
+  const b = next.conversation;
+  const sameConv = a.id === b.id
+    && a.title === b.title
+    && a.updated_at === b.updated_at
+    && a.model_id === b.model_id
+    && (a as any).model_provider === (b as any).model_provider
+    && (a as any).is_favorite === (b as any).is_favorite
+    && a.is_important === b.is_important;
+  return (
+    sameConv
+    && prev.isCurrent === next.isCurrent
+    && prev.isRenaming === next.isRenaming
+    && prev.renameInputValue === next.renameInputValue
+  );
+});
