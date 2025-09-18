@@ -92,6 +92,7 @@
     "updater:allow-download-and-install",
     "updater:allow-download",
     "updater:allow-install",
+    "window-state:default",
     "process:default",
     "process:allow-restart",
     "os:default"

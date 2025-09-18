@@ -62,6 +62,7 @@
     "@tauri-apps/plugin-store": "~2",
     "@tauri-apps/plugin-updater": "^2.2.2",
     "@tauri-apps/plugin-upload": "^2.2.2",
+    "@tauri-apps/plugin-window-state": "~2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",

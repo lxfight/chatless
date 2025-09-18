@@ -1,11 +1,11 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use anyhow::Result;
 use crc32fast;
+use log::LevelFilter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
-use log::LevelFilter;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[path = "env_setup.rs"]
@@ -15,7 +15,12 @@ pub mod env_setup;
 pub mod mcp;
 
 #[tauri::command]
-fn exit(code: i32) {
+fn exit(app: tauri::AppHandle, code: i32) {
+  #[cfg(not(any(target_os = "android", target_os = "ios")))]
+  {
+    use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+    let _ = app.save_window_state(StateFlags::all());
+  }
   std::process::exit(code);
 }
 
@@ -47,19 +52,19 @@ fn greet() -> String {
 /// 检查 npx 是否可用
 #[tauri::command]
 fn check_npx_availability() -> env_setup::ToolAvailability {
-    env_setup::check_npx_availability()
+  env_setup::check_npx_availability()
 }
 
 /// 获取完整的环境健康状态
 #[tauri::command]
 fn get_environment_health() -> env_setup::EnvironmentHealth {
-    env_setup::get_environment_health()
+  env_setup::get_environment_health()
 }
 
 /// 检查 MCP 服务是否可以正常运行
 #[tauri::command]
 fn can_run_mcp_services() -> bool {
-    env_setup::can_run_mcp_services()
+  env_setup::can_run_mcp_services()
 }
 
 /// Tauri 命令：使用模拟数据生成嵌入向量（用于测试和回退）
@@ -88,6 +93,19 @@ pub fn run() {
     .plugin(tauri_plugin_os::init())
     .plugin(tauri_plugin_process::init())
     .setup(|app| {
+      #[cfg(not(any(target_os = "android", target_os = "ios")))]
+      {
+        app
+          .handle()
+          .plugin(tauri_plugin_window_state::Builder::default().build());
+        // 主动恢复一次，确保未被其他初始化逻辑覆盖
+        {
+          use tauri_plugin_window_state::{WindowExt, StateFlags};
+          if let Some(win) = app.get_webview_window("main") {
+            let _ = win.restore_state(StateFlags::all());
+          }
+        }
+      }
       // 尝试在启动时初始化 ONNX Runtime，但不再因失败而中断应用
       let lib_name = if cfg!(target_os = "windows") {
         "onnxruntime.dll"

@@ -2,18 +2,18 @@
 use futures_util::StreamExt;
 use lazy_static::lazy_static;
 use reqwest::Method;
+use rmcp::{
+  model::{ServerCapabilities, ServerInfo},
+  transport::sse_server::SseServer,
+  ServerHandler,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
-use tokio::sync::broadcast;
-use tokio::net::TcpListener;
 use tokio::io::AsyncWriteExt;
-use rmcp::{
-  ServerHandler,
-  model::{ServerCapabilities, ServerInfo},
-  transport::sse_server::SseServer,
-};
+use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 
 lazy_static! {
     // 可选：如果需要本地测试服务器，这里保留子进程句柄
@@ -64,7 +64,9 @@ pub async fn start_sse(
   let client = match crate::http_client::get_browser_like_client() {
     Ok(client) => (*client).clone(), // 从Arc<Client>转换为Client
     Err(e) => {
-      app.emit("sse-error", format!("Failed to get HTTP client: {}", e)).ok();
+      app
+        .emit("sse-error", format!("Failed to get HTTP client: {}", e))
+        .ok();
       return Err(format!("Failed to get HTTP client: {}", e));
     }
   };
@@ -187,7 +189,9 @@ pub async fn start_local_sse_server(address: String) -> Result<(), String> {
   tauri::async_runtime::spawn(async move {
     let mut counter: u64 = 0;
     loop {
-      let Ok((mut socket, _)) = listener.accept().await else { continue };
+      let Ok((mut socket, _)) = listener.accept().await else {
+        continue;
+      };
       tauri::async_runtime::spawn(async move {
         let mut buf = [0u8; 1024];
         // 读取一次请求（忽略请求体与路径解析，简单匹配 /sse）
