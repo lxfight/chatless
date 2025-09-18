@@ -21,12 +21,7 @@ import { ModelParametersService } from '@/lib/model-parameters';
 import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
 import { usePromptStore } from '@/store/promptStore';
 import { renderPromptContent } from '@/lib/prompt/render';
-import { 
-  generateTitleFromFirstMessage,
-  isDefaultTitle,
-  extractFirstUserMessageSeed,
-  shouldGenerateTitleAfterAssistantComplete,
-} from '@/lib/chat/TitleGenerator';
+// 动态导入 Title 相关函数，避免静态未用告警
 
 // type StoreMessage = any;
 
@@ -93,7 +88,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   
   // 防抖状态引用移除，保持最小必要状态
   const debouncedTokenUpdateRef = useRef<NodeJS.Timeout | null>(null);
-  const noop = useCallback((_: unknown = undefined) => {}, []);
 
   const navigateToSettings = useCallback((tab: string = 'localModels') => {
     router.push(`/settings?tab=${tab}`);
@@ -235,7 +229,17 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       return;
     }
 
-    const apiKeyValid = await checkApiKeyValidity(currentProviderName, modelToUse);
+    // —— 统一计算本次会话应当使用的 Provider ——
+    let effectiveProvider = currentProviderName;
+    try {
+      const { specializedStorage } = await import('@/lib/storage');
+      const lastPair = await specializedStorage.models.getLastSelectedModelPair();
+      if (lastPair && lastPair.modelId === modelToUse && lastPair.provider) {
+        effectiveProvider = lastPair.provider;
+      }
+    } catch { /* ignore, fallback to currentProviderName */ }
+
+    const apiKeyValid = await checkApiKeyValidity(effectiveProvider, modelToUse);
     if (!apiKeyValid) {
       toast.error('API密钥无效', {
         description: '请前往设置页面配置有效的API密钥',
@@ -267,7 +271,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     // const isCreatingNewConversation = !conversationId;
     if (!conversationId) {
       try {
-        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, currentProviderName);
+        conversationId = await createConversation(`新对话 ${new Date().toLocaleTimeString()}`, modelToUse, effectiveProvider);
       } catch {
         toast.error('创建对话失败', { description: '无法创建新的对话，请重试。' });
         return;
@@ -442,9 +446,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           // try { console.log('[TOK:events]', events.map((e:any)=>e.type)); } catch { /* noop */ }
           const st = useChatStore.getState();
           for (const ev of events) {
-            if (ev.type === 'think_start') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any); try { console.log('[TOK→FSM] THINK_START'); } catch {} }
+            if (ev.type === 'think_start') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any); console.log('[TOK→FSM] THINK_START'); }
             else if (ev.type === 'think_chunk') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any); }
-            else if (ev.type === 'think_end') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any); try { console.log('[TOK→FSM] THINK_END'); } catch {} }
+            else if (ev.type === 'think_end') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any); console.log('[TOK→FSM] THINK_END'); }
             else if (ev.type === 'tool_call') {
               try { console.log('[TOK:event.tool_call]', ev.server, ev.tool); } catch { /* noop */ }
               const cardId = crypto.randomUUID();
@@ -468,7 +472,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
                       tool: ev.tool,
                       args: ev.args,
                       _runningMarker: marker,
-                      provider: currentProviderName,
+                      provider: effectiveProvider,
                       model: modelToUse,
                       historyForLlm: historyForLlm as any,
                       originalUserContent: content,
@@ -568,7 +572,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
                     tool: parsed.tool,
                     args: parsed.args,
                     _runningMarker: marker,
-                    provider: currentProviderName,
+                    provider: effectiveProvider,
                     model: modelToUse,
                     historyForLlm: historyForLlm as any,
                     originalUserContent: content,
@@ -617,7 +621,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             if (stillThinking) {
               st2.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
             }
-          } catch {}
+          } catch { void 0; }
           st.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
           try {
             const st2 = useChatStore.getState();
@@ -633,7 +637,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             });
             // 打印 AI 原文（用于排查模型是否真的给了 tool_call/think_end）
             console.log('[RAW-FINAL]', currentContentRef.current);
-          } catch {}
+          } catch { void 0; }
 
           // 标题生成策略：
           // 1) 若本轮已出现工具卡片（代表进入了 MCP 递归），则不在此处生成，交由 Orchestrator 收尾时机处理；
@@ -646,7 +650,16 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
             const hasToolCard = segs.some((s:any)=>s && s.kind==='toolCard');
             if (!hasToolCard) {
               const schedule = (fn: () => void) => {
-                try { (window as any).requestIdleCallback ? (window as any).requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 0); } catch { setTimeout(fn, 0); }
+                try {
+                  const ric = (window as any).requestIdleCallback;
+                  if (typeof ric === 'function') {
+                    ric(fn, { timeout: 2000 });
+                  } else {
+                    setTimeout(fn, 0);
+                  }
+                } catch {
+                  setTimeout(fn, 0);
+                }
               };
               schedule(() => {
                 (async () => {
@@ -659,7 +672,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
                     const seedContent = extractFirstUserMessageSeed(conv);
                     if (!seedContent.trim()) return;
                     const gen = await generateTitleFromFirstMessage(
-                      currentProviderName,
+                      effectiveProvider,
                       modelToUse,
                       seedContent,
                       { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
@@ -738,7 +751,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         }
         
         // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
-        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, chatOptions);
+        const patchedOptions = ParameterPolicyEngine.apply(effectiveProvider, modelToUse, chatOptions);
         // —— MCP 集成：附加当前会话启用的 MCP 服务器清单 ——
         try {
           const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
@@ -760,18 +773,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         } catch {
           // 忽略获取启用服务器失败
         }
-        // 强约束：始终使用“最后一次用户显式选择的 provider/model”成对调用
-        try {
-          const { specializedStorage } = await import('@/lib/storage');
-          const lastPair = await specializedStorage.models.getLastSelectedModelPair();
-          const effectiveProvider = lastPair?.modelId === modelToUse && lastPair?.provider ? lastPair.provider : currentProviderName;
-          await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
-        } catch {
-          await streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
-        }
+        await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
       } catch {
         // 获取模型参数失败，降级为默认参数
-        const patchedOptions = ParameterPolicyEngine.apply(currentProviderName, modelToUse, {});
+        const patchedOptions = ParameterPolicyEngine.apply(effectiveProvider, modelToUse, {});
         try {
           const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
           let enabled = currentConversationId ? await getEnabledServersForConversation(currentConversationId) : [];
@@ -791,14 +796,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         } catch {
           // 忽略获取启用服务器失败
         }
-        try {
-          const { specializedStorage } = await import('@/lib/storage');
-          const lastPair = await specializedStorage.models.getLastSelectedModelPair();
-          const effectiveProvider = lastPair?.modelId === modelToUse && lastPair?.provider ? lastPair.provider : currentProviderName;
-          await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
-        } catch {
-          await streamChat(currentProviderName, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
-        }
+        await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
       }
     } else {
        // 未选择模型
