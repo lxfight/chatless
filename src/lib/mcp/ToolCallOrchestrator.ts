@@ -366,18 +366,13 @@ async function continueWithToolResult(params: {
               const {
                 shouldGenerateTitleAfterAssistantComplete,
                 extractFirstUserMessageSeed,
-                generateTitleFromFirstMessage,
                 isDefaultTitle,
               } = await import('@/lib/chat/TitleGenerator');
+              const { generateTitle } = await import('@/lib/chat/TitleService');
               if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
               const seed = extractFirstUserMessageSeed(conv);
               if (!seed || !seed.trim()) return;
-              const gen = await generateTitleFromFirstMessage(
-                provider,
-                model,
-                seed,
-                { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
-              );
+              const gen = await generateTitle(provider, model, seed, { maxLength: 24, language: 'zh' });
               const st2 = useChatStore.getState();
               const conv2 = st2.conversations.find(c => c.id === conversationId);
               if (conv2 && isDefaultTitle(conv2.title) && gen && gen.trim()) {

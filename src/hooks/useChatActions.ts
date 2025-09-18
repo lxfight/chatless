@@ -6,19 +6,16 @@ import { toast, trimToastDescription } from '@/components/ui/sonner';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatStore } from "@/store/chatStore";
-import { 
-  streamChat, 
-  cancelStream, 
-  type Message as LlmMessage,
-  StreamCallbacks
-} from '@/lib/llm';
+import { cancelStream, type Message as LlmMessage, StreamCallbacks } from '@/lib/llm';
+import { ChatGateway } from '@/lib/chat/ChatGateway';
+import { HistoryBuilder } from '@/lib/chat/HistoryBuilder';
 import type { Message, Conversation } from "@/types/chat";
 import { exportConversationMarkdown } from '@/lib/chat/actions/download';
 import { retryAssistantMessage } from '@/lib/chat/actions/retry';
 import { runRagFlow } from '@/lib/chat/actions/ragFlow';
 import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
-import { ParameterPolicyEngine } from '@/lib/llm/ParameterPolicy';
+import { composeChatOptions } from '@/lib/chat/OptionComposer';
 import { usePromptStore } from '@/store/promptStore';
 import { renderPromptContent } from '@/lib/prompt/render';
 // 动态导入 Title 相关函数，避免静态未用告警
@@ -353,7 +350,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     }
 
     // 构建历史消息（含系统提示词 + MCP 上下文【混合模式】）
-    const historyForLlm: LlmMessage[] = [];
+    const hb = new HistoryBuilder();
     try {
       const conv = currentConversationId ? useChatStore.getState().conversations.find((c:any)=>c.id===currentConversationId) : null;
       const applied = conv?.system_prompt_applied;
@@ -361,16 +358,14 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         const prompt = usePromptStore.getState().prompts.find((p:any)=>p.id===applied.promptId);
         if (prompt) {
           const rendered = renderPromptContent(prompt.content, applied.variableValues);
-          if (rendered && rendered.trim()) {
-            historyForLlm.push({ role: 'system', content: rendered } as any);
-          }
+          if (rendered && rendered.trim()) hb.addSystem(rendered);
         }
       }
       // 使用独立模块进行 MCP 系统注入（带缓存与限流）
       try {
         const { buildMcpSystemInjections } = await import('@/lib/mcp/promptInjector');
         const injection = await buildMcpSystemInjections(content, currentConversationId || undefined);
-        for (const m of injection.systemMessages) historyForLlm.push(m as any);
+        for (const m of injection.systemMessages) hb.addSystem((m as any).content);
       } catch {
         // 忽略注入失败
       }
@@ -380,21 +375,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     if (currentConversation?.messages) {
       // 只取最近的几条消息，避免上下文过长
       const recentMessages = currentConversation.messages.slice(-10);
-      for (const msg of recentMessages) {
-        if (msg.role === 'user' || msg.role === 'assistant') {
-          historyForLlm.push({
-            role: msg.role,
-            content: msg.content || '',
-            images: msg.images
-          });
-        }
-      }
+      hb.addMany(recentMessages
+        .filter((msg:any)=> msg.role==='user'||msg.role==='assistant')
+        .map((msg:any)=> ({ role: msg.role, content: msg.content || '', images: msg.images })) as any);
     }
-    historyForLlm.push({ 
-      role: 'user', 
-      content,
-      images: options?.images
-    });
+    hb.addUser(content, options?.images);
+    const historyForLlm: LlmMessage[] = hb.take();
 
     // 调试信息已移除，避免控制台噪音
 
@@ -667,16 +653,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
                     const state = useChatStore.getState();
                     const conv = state.conversations.find(c => c.id === finalConversationId);
                     if (!conv) return;
-                    const { shouldGenerateTitleAfterAssistantComplete, extractFirstUserMessageSeed, generateTitleFromFirstMessage, isDefaultTitle } = await import('@/lib/chat/TitleGenerator');
+                    const { shouldGenerateTitleAfterAssistantComplete, extractFirstUserMessageSeed, isDefaultTitle } = await import('@/lib/chat/TitleGenerator');
+                    const { generateTitle } = await import('@/lib/chat/TitleService');
                     if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
                     const seedContent = extractFirstUserMessageSeed(conv);
                     if (!seedContent.trim()) return;
-                    const gen = await generateTitleFromFirstMessage(
-                      effectiveProvider,
-                      modelToUse,
-                      seedContent,
-                      { maxLength: 24, language: 'zh', fallbackPolicy: 'none' }
-                    );
+                    const gen = await generateTitle(effectiveProvider, modelToUse, seedContent, { maxLength: 24, language: 'zh' });
                     const st3 = useChatStore.getState();
                     const conv3 = st3.conversations.find(c => c.id === finalConversationId);
                     if (conv3 && isDefaultTitle(conv3.title) && gen && gen.trim()) {
@@ -743,60 +725,17 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       
       try {
         if (sessionParameters) {
-          // 会话参数（仅改动项）
           chatOptions = ModelParametersService.convertToChatOptions(sessionParameters);
         } else {
-          // 无会话参数：不下发通用参数，但允许策略引擎注入“模型级默认/必要高级参数”
           chatOptions = {};
         }
-        
-        // 始终走策略引擎，让模型级必要参数（如 Gemini 的 thinkingBudget）按规则注入
-        const patchedOptions = ParameterPolicyEngine.apply(effectiveProvider, modelToUse, chatOptions);
-        // —— MCP 集成：附加当前会话启用的 MCP 服务器清单 ——
-        try {
-          const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
-          let enabled = currentConversationId ? await getEnabledServersForConversation(currentConversationId) : [];
-          if (!enabled || enabled.length === 0) {
-            const global = await getGlobalEnabledServers();
-            if (global && global.length) enabled = global;
-          }
-          if (!enabled || enabled.length === 0) enabled = await getConnectedServers();
-          // 将本条消息中的 @mcp 放到最前
-          const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g; const mentioned: string[] = []; let mm: RegExpExecArray | null;
-          while ((mm = mentionRe.exec(content))) { const n = mm[1]; if (n && !mentioned.includes(n)) mentioned.push(n); }
-          if (mentioned.length) {
-            const all = await getAllConfiguredServers(); const map = new Map(all.map(n => [n.toLowerCase(), n] as const));
-            const filtered = mentioned.map(n => map.get(n.toLowerCase())).filter(Boolean) as string[];
-            if (filtered.length) enabled = Array.from(new Set<string>([...filtered, ...enabled]));
-          }
-          (patchedOptions as any).mcpServers = enabled || [];
-        } catch {
-          // 忽略获取启用服务器失败
-        }
-        await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        const composed = await composeChatOptions(effectiveProvider, modelToUse, chatOptions, currentConversationId || null, content);
+        const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+        await gateway.stream(historyForLlm, streamCallbacks);
       } catch {
-        // 获取模型参数失败，降级为默认参数
-        const patchedOptions = ParameterPolicyEngine.apply(effectiveProvider, modelToUse, {});
-        try {
-          const { getEnabledServersForConversation, getConnectedServers, getGlobalEnabledServers, getAllConfiguredServers } = await import('@/lib/mcp/chatIntegration');
-          let enabled = currentConversationId ? await getEnabledServersForConversation(currentConversationId) : [];
-          if (!enabled || enabled.length === 0) {
-            const global = await getGlobalEnabledServers();
-            if (global && global.length) enabled = global;
-          }
-          if (!enabled || enabled.length === 0) enabled = await getConnectedServers();
-          const mentionRe = /@([a-zA-Z0-9_-]{1,64})/g; const mentioned: string[] = []; let mm: RegExpExecArray | null;
-          while ((mm = mentionRe.exec(content))) { const n = mm[1]; if (n && !mentioned.includes(n)) mentioned.push(n); }
-          if (mentioned.length) {
-            const all = await getAllConfiguredServers(); const map = new Map(all.map(n => [n.toLowerCase(), n] as const));
-            const filtered = mentioned.map(n => map.get(n.toLowerCase())).filter(Boolean) as string[];
-            if (filtered.length) enabled = Array.from(new Set<string>([...filtered, ...enabled]));
-          }
-          (patchedOptions as any).mcpServers = enabled || [];
-        } catch {
-          // 忽略获取启用服务器失败
-        }
-        await streamChat(effectiveProvider, modelToUse, historyForLlm, streamCallbacks, patchedOptions);
+        const composed = await composeChatOptions(effectiveProvider, modelToUse, {}, currentConversationId || null, content);
+        const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+        await gateway.stream(historyForLlm, streamCallbacks);
       }
     } else {
        // 未选择模型

@@ -1,5 +1,3 @@
-import { chat } from '@/lib/llm';
-import type { Message } from '@/lib/llm/types';
 import type { Conversation } from '@/types/chat';
 
 export interface TitleGeneratorOptions {
@@ -93,75 +91,7 @@ export function shouldGenerateTitleAfterAssistantComplete(conversation: Conversa
   return !!firstSeed;
 }
 
-/**
- * 构造用于标题生成的消息列表
- */
-function buildTitlePromptMessages(content: string, opts: TitleGeneratorOptions): Message[] {
-  const max = opts.maxLength ?? 24;
-  const lang = opts.language ?? 'zh';
-
-  // 严格格式：仅输出 JSON 对象 {"title":"..."}
-  const system =
-    lang === 'zh'
-      ? `你是一个标题助手。请基于用户第一句消息生成一个会话标题。
-严格遵循以下要求：
-1) 仅输出一个 JSON 对象，格式严格为：{"title":"<标题>"}
-2) 标题不超过${max}个字符，不含引号、句号、换行、表情或多余空白
-3) 贴近用户原话关键词，避免过度概括
-4) 不输出任何解释、前后缀、示例、思考过程或其它文本（包括 <think> 标签）
-5) 直接给出 JSON，不要使用代码块标记，不要换行`
-      : `You are a title assistant. Generate a title from the user's first message.
-Follow these rules strictly:
-1) Output ONLY a JSON object of the form {"title":"<title>"}
-2) Title max ${max} chars, no quotes, punctuation, line breaks or emojis
-3) Keep key phrases from the original message, avoid over-generalization
-4) Do NOT output explanations, prefixes, suffixes, examples, or thoughts (including <think>)
-5) Output JSON only, no code fences, no extra lines`;
-
-  return [
-    { role: 'system', content: system },
-    { role: 'user', content },
-  ];
-}
-
-/**
- * 使用当前 Provider/Model 基于第一条消息生成会话标题
- */
-export async function generateTitleFromFirstMessage(
-  provider: string,
-  model: string,
-  firstUserMessage: string,
-  options: TitleGeneratorOptions = {}
-): Promise<string> {
-  const maxLength = options.maxLength ?? 24;
-  try {
-    console.log('[TitleGenerator] start', { provider, model, seedLength: (firstUserMessage || '').length, lang: options.language ?? 'zh' });
-    const messages = buildTitlePromptMessages(firstUserMessage, { maxLength, language: options.language ?? 'zh' });
-    const { content } = await chat(provider, model, messages, { temperature: 0.2 });
-    console.debug('[TitleGenerator] 原始模型输出长度:', (content || '').length);
-    console.debug('[TitleGenerator] 原始模型输出前200字:', String(content || '').slice(0, 200));
-    // 尝试优先从结构化输出中解析
-    const parsed = extractTitleFromOutput(content, maxLength);
-    console.debug('[TitleGenerator] 解析后的标题:', parsed);
-    if (parsed) return parsed;
-    // 退化到通用清洗
-    const normalized = normalizeTitle(content, maxLength);
-    console.debug('[TitleGenerator] 清洗后的标题:', normalized);
-    if (normalized) return normalized;
-  } catch (e) {
-    // 忽略错误，走降级
-    console.warn('[TitleGenerator] 生成标题失败，使用降级策略：', e);
-  }
-
-  // 降级策略
-  const policy = options.fallbackPolicy ?? 'none';
-  if (policy === 'trim') {
-    const fallback = normalizeTitle(firstUserMessage, maxLength);
-    return fallback || '新对话';
-  }
-  // policy === 'none'：不改变标题，由调用方决定保留默认标题
-  return '';
-}
+// 已迁移到 TitleService 作为唯一生成入口；此文件保留解析/判断工具函数
 
 /**
  * 从模型输出解析标题，优先识别 JSON 或标签格式
