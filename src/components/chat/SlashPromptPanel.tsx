@@ -10,7 +10,6 @@ import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Plus, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SlashPromptPanelProps {
   open: boolean;
@@ -25,8 +24,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   const prompts = usePromptStore((s) => s.prompts);
   const loadFromDatabase = usePromptStore((s)=> (s as any).loadFromDatabase);
   const [activeIndex, setActiveIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [anchorRect, setAnchorRect] = useState<{left:number; width:number; top:number} | null>(null);
+  const [anchorRect, setAnchorRect] = useState<{left:number; width:number; top:number; bottom:number} | null>(null);
   const [pendingVars, setPendingVars] = useState<Record<string, any>>({});
   const router = useRouter();
   const [altPreview, setAltPreview] = useState(false);
@@ -37,6 +35,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   // filtered 的 Ref 需在其定义之后设置（见下方 useMemo）
   const pendingVarsRef = useRef(pendingVars);
   useEffect(() => { pendingVarsRef.current = pendingVars; }, [pendingVars]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -50,7 +49,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
           const el = anchorRef?.current as HTMLElement | null;
           if (!el) return;
           const rect = el.getBoundingClientRect();
-          setAnchorRect({ left: rect.left, width: rect.width, top: rect.top });
+          setAnchorRect({ left: rect.left, width: rect.width, top: rect.top, bottom: rect.bottom });
         } catch {}
       };
       calc();
@@ -295,55 +294,54 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
 
   if (!open) return null;
 
-  const fixedStyle = anchorRect ? {
-    position: 'fixed' as const,
-    left: `${anchorRect.left}px`,
-    width: `${anchorRect.width}px`,
-    bottom: `${window.innerHeight - anchorRect.top + 36}px`,
-    zIndex: 2147483000,
-  } : undefined;
+  const rect = anchorRect || { left: 0, width: 0, top: 0, bottom: 0 };
 
   const panel = (
-    <div ref={containerRef} className="bg-white dark:bg-gray-900/95 shadow-md border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden" style={fixedStyle}>
-      {/* 顶部提示：一行操作提示 + 一行位置参数提示（按需显示） */}
-      <div className="px-3 pt-2 pb-1.5 relative">
-        {/* 动态操作提示：默认发送（绿色），按住 Alt 变为应用为系统提示词（紫色） */}
-        <div
-          className={cn(
-            "inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px]",
-            altPreview
-              ? "text-purple-700 bg-purple-50 border-purple-200 dark:text-purple-200 dark:bg-purple-900/20 dark:border-purple-800"
-              : "text-green-700 bg-green-50 border-green-200 dark:text-green-200 dark:bg-green-900/20 dark:border-green-800"
-          )}
-        >
-          {altPreview ? (
-            <span>回车：设为系统提示词</span>
-          ) : (
-            <span>回车：代入提示词　Alt+回车：设为系统提示词</span>
+    <div
+      ref={panelRef}
+      className={cn(
+        "fixed z-[2147483600] w-[min(720px,92vw)] rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-gray-900 shadow-lg overflow-hidden",
+        open ? "opacity-100 scale-100" : "opacity-0 scale-95"
+      )}
+      style={{ left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(720, window.innerWidth*0.92) - 8)), bottom: Math.max(8, window.innerHeight - rect.top + 8) }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 pt-2 pb-2 border-b border-slate-200/70 dark:border-slate-700/60">
+        {/* 顶部提示与工具区 */}
+        <div className="flex items-center justify-between">
+          {/* 动态操作提示：更克制的提示色 */}
+          <div
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] text-slate-600 bg-slate-50 border-slate-200 dark:text-slate-300 dark:bg-slate-800/40 dark:border-slate-700",
+              altPreview && "text-purple-700 bg-purple-50 border-purple-200 dark:text-purple-200 dark:bg-purple-900/25 dark:border-purple-800"
+            )}
+          >
+            {altPreview ? (
+              <span>回车：设为系统提示词</span>
+            ) : (
+              <span>回车：代入提示词 Alt+回车：设为系统提示词</span>
+            )}
+          </div>
+          {filtered.length === 0 && (
+            <Button aria-label="添加提示词" variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>
+              <Plus className="w-4 h-4" />
+            </Button>
           )}
         </div>
-        {/* 引导说明：为“指令/分隔符/标签筛选”等片段添加背景以区分文案 */}
-        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-          <span><span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">空格</span>继续输入变量，</span>
-          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">|</span>
-          <span> 分隔位置参数/结束变量；</span>
-          <span className="px-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-gray-700 dark:text-gray-300">/tag:写作</span>
-          <span> 可过滤标签</span>
+        {/* 使用说明：不抢眼的小字行 */}
+        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <span><span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">空格</span> 代入变量，</span>
+          <span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">|</span>
+          <span> 位置参数/结束变量，</span>
+          <span className="px-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300">/tag:学习</span>
+          <span> 过滤提示词</span>
         </div>
-        {filtered.length === 0 && (
-          <Button aria-label="添加提示词" variant="ghost" size="icon" className="absolute top-1.5 right-1.5 h-7 w-7 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" onMouseDown={(e)=>{ e.preventDefault(); onOpenChange(false); router.push('/prompts'); }}>
-            <Plus className="w-4 h-4" />
-          </Button>
-        )}
-        {/* 去掉位置参数提示，简洁显示 */}
       </div>
-      {/* 按需预览已移除，避免与条目内的内容预览重复 */}
       <ScrollArea className="max-h-60">
         <ul className="py-1">
           {filtered.map((item, idx) => (
-            <li key={item.p.id} className={cn('px-3 py-2 cursor-pointer text-sm flex items-center justify-between', idx === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60')} onMouseEnter={() => setActiveIndex(idx)} onMouseDown={(e) => {
+            <li key={item.p.id} className={cn('px-3 py-2 cursor-pointer text-sm flex items-start justify-between', idx === activeIndex ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-200 dark:ring-indigo-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30')} onMouseEnter={() => setActiveIndex(idx)} onMouseDown={(e) => {
               e.preventDefault();
-              // 记忆本次选择的指令 -> 提示词映射
               const q = (queryText || '').trim().toLowerCase();
               const token = q.startsWith('/') ? q.replace(/^\//,'') : '';
               if (token) {
@@ -356,9 +354,8 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
                   } catch {}
                 })();
               }
-              // 选择时把解析到的变量透传给父层（用于代入渲染到输入框 / 应用为系统提示词）
               try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ev); } catch {}
-              const useApply = (e as any).altKey || (e as any).metaKey; // Alt 或 ⌘
+              const useApply = (e as any).altKey || (e as any).metaKey;
               if (useApply) {
                 const oneOff = (e as any).shiftKey;
                 onSelect(item.p.id, { action: 'apply', mode: oneOff ? 'oneOff' : 'permanent' });
@@ -366,34 +363,33 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
                 onSelect(item.p.id, { action: 'fill' });
               }
             }}>
-              <div className="min-w-0">
+              {/* 选中左侧强调条 */}
+              <div className={cn("mr-2 mt-0.5 rounded-full", idx===activeIndex ? "w-1.5 h-6 bg-indigo-500" : "w-1.5 h-6 bg-transparent")}/>
+              <div className="min-w-0 flex-1">
                 <div className="font-medium text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
                   <span className="truncate">{item.p.name}</span>
-                  {/* 显示已绑定的快捷指令，最多展示3个 */}
                   {Array.isArray((item.p as any).shortcuts) && (item.p as any).shortcuts.length > 0 && (
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {((item.p as any).shortcuts as string[]).slice(0,3).map(s => (
-                        <span key={s} className="px-1.5 py-0.5 rounded-md border border-indigo-200 bg-indigo-50/80 text-[11px] text-indigo-700">/{s}</span>
+                        <span key={s} className="px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-[11px] text-slate-700">/{s}</span>
                       ))}
                       {((item.p as any).shortcuts as string[]).length > 3 && (
-                        <span className="text-[11px] text-indigo-600">+{((item.p as any).shortcuts as string[]).length - 3}</span>
+                        <span className="text-[11px] text-slate-600">+{((item.p as any).shortcuts as string[]).length - 3}</span>
                       )}
                     </div>
                   )}
                 </div>
-                {/* 标签以小徽章展示，过多时自动折行 */}
                 {item.p.tags && item.p.tags.length > 0 && (
                   <div className="mt-0.5 flex flex-wrap gap-1">
                     {item.p.tags.slice(0,6).map((t:string) => (
-                      <span key={t} className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[11px] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">{t}</span>
+                      <span key={t} className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">{t}</span>
                     ))}
                     {item.p.tags.length > 6 && (
-                      <span className="text-[11px] text-gray-500">+{item.p.tags.length - 6}</span>
+                      <span className="text-[11px] text-slate-500">+{item.p.tags.length - 6}</span>
                     )}
                   </div>
                 )}
-                {/* 内容占位预览：在模板中将 {{var}} 以灰色chip展示，若输入有值则显示值；限制最多三行，过长省略 */}
-                <div className="mt-1 rounded bg-gray-50/70 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
+                <div className="mt-1 rounded bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
                   {renderHighlighted(item.p.content, computeVariableValues(item.p))}
                 </div>
               </div>
@@ -403,7 +399,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  className="h-6 px-2 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                   onMouseDown={(ev)=>{ ev.preventDefault(); try { const ce = new CustomEvent('prompt-inline-vars', { detail: pendingVars }); window.dispatchEvent(ce); } catch {} ; onSelect(item.p.id, { action: 'fill' }); }}
                   title="代入到输入框（不直接发送）"
                 >
@@ -413,9 +409,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
             </li>
           ))}
           {filtered.length === 0 && (
-            <li className="px-3 py-2 text-[12px] text-gray-600 dark:text-gray-300">
-              没有匹配的提示词 · 试试 <span className="font-medium">tag:写作</span>
-            </li>
+            <li className="px-3 py-2 text-[12px] text-gray-600 dark:text-gray-300">没有匹配的提示词 · 试试 <span className="font-medium">tag:写作</span></li>
           )}
         </ul>
       </ScrollArea>

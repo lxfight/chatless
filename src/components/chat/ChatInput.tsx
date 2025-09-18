@@ -186,26 +186,29 @@ export function ChatInput({
     return text.replace(/(^|\s)\/[^\s]+/u, (match) => (match.startsWith(' ') ? ' ' : ''));
   };
 
-  // 解析起始的 /指令 及其参数与可选 “| ” 分隔后的后续文本
+  // 解析起始的 /指令 及其参数与可选分隔符与后续文本（分隔符支持半/全角 |，后随可选空格）
   const parseLeadingSlash = (text: string):
-    | { leadingSpace: string; token: string; varPart: string; postText: string; hasDelimiter: boolean; prefixRaw: string; postRaw: string }
+    | { leadingSpace: string; token: string; varPart: string; postText: string; hasDelimiter: boolean; prefixRaw: string; postRaw: string; delimiterRaw: string }
     | null => {
     const m = text.match(/^(\s*)\/([^\s]+)(.*)$/u);
     if (!m) return null;
     const leadingSpace = m[1] || '';
     const token = m[2];
     const tail = m[3] || '';
-    const idx1 = tail.indexOf('| ');
-    const idx2 = tail.indexOf('｜ ');
-    const idx = [idx1, idx2].filter((v) => v >= 0).sort((a, b) => a - b)[0];
-    if (idx !== undefined) {
+    const idx1 = tail.indexOf('|');
+    const idx2 = tail.indexOf('｜');
+    const cand = [idx1, idx2].filter((v) => v >= 0).sort((a, b) => a - b);
+    if (cand.length > 0) {
+      const idx = cand[0];
       const before = tail.slice(0, idx); // 原样保留（包含空格）
-      const afterRaw = tail.slice(idx + 2); // 原样保留
+      const hasSpace = tail.charAt(idx + 1) === ' ';
+      const delimiterRaw = tail.slice(idx, idx + 1 + (hasSpace ? 1 : 0));
+      const afterRaw = tail.slice(idx + 1 + (hasSpace ? 1 : 0)); // 原样保留
       const varPart = before.trim();
       const postText = afterRaw.trim();
-      return { leadingSpace, token, varPart, postText, hasDelimiter: true, prefixRaw: before, postRaw: afterRaw };
+      return { leadingSpace, token, varPart, postText, hasDelimiter: true, prefixRaw: before, postRaw: afterRaw, delimiterRaw };
     }
-    return { leadingSpace, token, varPart: tail.trim(), postText: '', hasDelimiter: false, prefixRaw: tail, postRaw: '' };
+    return { leadingSpace, token, varPart: tail.trim(), postText: '', hasDelimiter: false, prefixRaw: tail, postRaw: '', delimiterRaw: '' };
   };
 
   // 覆盖层与 textarea 使用一致字体度量，避免像素误差
@@ -550,7 +553,7 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="relative mt-1">
+      <div className="relative flex w-full rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm shadow-sm">
         <SlashPromptPanel
           open={isPanelOpen}
           onOpenChange={setIsPanelOpen}
@@ -669,18 +672,18 @@ export function ChatInput({
             // 无 / 指令时，仅做 @ 提示的淡绿色高亮
             return (
               <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-                <div className="pl-14 pr-16 py-[11px] pb-12 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+                <div className="pl-10 pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
                   {renderMentions(inputValue)}
                 </div>
               </div>
             );
           }
           if (!parsed) return null;
-          const { leadingSpace, token, prefixRaw, hasDelimiter, postRaw } = parsed;
-          const prefixText = `/${token}${prefixRaw}${hasDelimiter ? ' | ' : ''}`;
+          const { leadingSpace, token, prefixRaw, hasDelimiter, postRaw, delimiterRaw } = parsed;
+          const prefixText = `/${token}${prefixRaw}${hasDelimiter ? delimiterRaw : ''}`;
           return (
             <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-              <div className="pl-14 pr-16 py-[11px] pb-12 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+              <div className="pl-10 pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
                 {/* 保留前导空格 */}
                 {leadingSpace}
                 {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
@@ -698,7 +701,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder="开始对话吧… 输入 / 可快速调用提示词 输入 @ 可指定MCP服务"
           className={cn(
-            "relative z-[1] w-full pl-10 pr-14 py-[10px] pb-10 resize-none rounded-md border border-gray-300/70 dark:border-gray-600 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
+            "relative z-[1] w-full pl-10 pr-14 py-[10px] pb-10 resize-none rounded-lg border border-slate-300/50 dark:border-slate-600/50 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
             (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={undefined}
@@ -727,7 +730,7 @@ export function ChatInput({
                   size="icon"
                   onClick={() => imageInputRef.current?.click()}
                   disabled={disabled || isLoading}
-                  className="h-7 w-7 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
                 >
                   <Image className="w-4 h-4" />
                 </Button>
@@ -741,7 +744,7 @@ export function ChatInput({
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={disabled || isLoading || !!attachedDocument}
-                  className="h-7 w-7 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
                 >
                   {isParsingDocument ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -778,7 +781,7 @@ export function ChatInput({
                     onClick={() => setSessionParametersDialogOpen(true)}
                     disabled={disabled || isLoading}
                     className={cn(
-                      "h-7 w-7 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600",
+                      "h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0",
                       currentSessionParameters && "text-blue-500 hover:text-blue-600"
                     )}
                   >
@@ -829,7 +832,7 @@ export function ChatInput({
                 variant="ghost"
                 size="icon"
                 onClick={onStopGeneration}
-                className="h-8 w-8 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full"
+                className="h-8 w-8 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-full"
                 title="停止生成"
              >
                 <StopCircle className="w-5 h-5" />
@@ -842,7 +845,7 @@ export function ChatInput({
                 onClick={handleSend}
                 disabled={disabled || isLoading || (!inputValue.trim() && !attachedDocument)}
                 className={cn(
-                  "h-8 w-8 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity",
+                  "h-8 w-8 rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-opacity",
                   (disabled || isLoading || (!inputValue.trim() && !attachedDocument)) && 'opacity-0 pointer-events-none'
                 )}
               >

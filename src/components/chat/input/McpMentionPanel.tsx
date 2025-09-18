@@ -94,10 +94,10 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
   if (!open || !pos) return null;
 
   const panel = (
-    <div style={{ position: 'fixed', left: pos.left, bottom: pos.bottom, width: pos.width, zIndex: 2147483600 }} className="bg-white dark:bg-gray-900 shadow-md border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+    <div style={{ position: 'fixed', left: pos.left, bottom: pos.bottom, width: pos.width, zIndex: 2147483600 }} className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-gray-900/50 backdrop-blur-sm shadow-lg overflow-hidden">
       <ul className="max-h-56 overflow-auto py-1">
         {items.map((it, idx) => (
-          <li key={it.name} onMouseDown={(e)=>{ e.preventDefault(); onSelect(it.name); }} onMouseEnter={()=>{ activeRef.current = idx; setItems((v)=>[...v]); }} className={`px-3 py-1.5 text-sm cursor-pointer ${idx===activeRef.current?'bg-emerald-50/70 dark:bg-emerald-900/30':''} ${it.connected?'':'opacity-60'}`}>
+          <li key={it.name} onMouseDown={(e)=>{ e.preventDefault(); onSelect(it.name); }} onMouseEnter={()=>{ activeRef.current = idx; setItems((v)=>[...v]); }} className={`px-3 py-1.5 text-sm cursor-pointer ${idx===activeRef.current?'bg-slate-100/70 dark:bg-slate-800/40':'hover:bg-slate-50 dark:hover:bg-slate-800/30'} ${it.connected?'':'opacity-60'}`}>
             <div className="flex items-center gap-2">
               <span className="px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px]">@</span>
               <span className="truncate font-medium">{it.name}</span>

@@ -116,9 +116,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
 
   return (
     <div className={cn(
-      "relative w-full max-w-full overflow-hidden mb-2 p-2.5 rounded-lg border border-indigo-200/80 dark:border-indigo-700/50", 
-      "bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-900/20 dark:to-purple-900/20",
-      "shadow-sm hover:shadow-md transition-all duration-200",
+      "relative w-full max-w-full overflow-hidden mb-2 p-2.5 rounded-xl border border-indigo-200/70 dark:border-indigo-700/60 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 dark:from-indigo-900/25 dark:to-purple-900/25 backdrop-blur-[2px] shadow-sm hover:shadow-md transition-all duration-200",
       className
     )}>
       {/* X按钮 - 右上角 */}
@@ -126,10 +124,10 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
         variant="ghost"
         size="icon"
         onClick={onRemove}
-        className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-600 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 z-10"
+        className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-white/80 dark:bg-gray-800/70 shadow-sm border border-gray-200/70 dark:border-gray-600/60 text-gray-400 hover:text-red-500 hover:bg-red-50/80 dark:hover:bg-red-900/30 transition-all duration-200 z-10"
         title="移除知识库"
       >
-        <X className="w-2.5 h-2.5" />
+        <X className="w-3 h-3" />
       </Button>
 
       <div className="flex items-center gap-2.5 pr-1 min-w-0">
