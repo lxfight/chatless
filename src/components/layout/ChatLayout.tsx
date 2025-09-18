@@ -6,7 +6,7 @@ import { useUiPreferences } from '@/store/uiPreferences';
 import { cn } from "@/lib/utils";
 import {  X, Clock, Star, Flag, RotateCcw, ListPlus } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
-import { SidebarHeader } from './SidebarHeader';
+// import { SidebarHeader } from './SidebarHeader';
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 import { useChatStore } from "@/store/chatStore";
 import { Message, Conversation } from "@/types/chat";
@@ -23,23 +23,38 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(!collapseChatSidebar);
   // 侧边栏默认宽度 224px（Tailwind w-56），更加节省空间
   const DEFAULT_SIDEBAR_WIDTH = 224;
-  const [sidebarWidth, setSidebarWidth] = useState<number>(DEFAULT_SIDEBAR_WIDTH);
+  // 首屏消除闪烁：优先使用 localStorage 中的同步宽度作为初始值
+  const getInitialSidebarPx = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('ui_chat_sidebar_px');
+        const px = raw ? parseInt(raw, 10) : NaN;
+        if (!Number.isNaN(px)) return px;
+      }
+    } catch { /* noop */ }
+    return DEFAULT_SIDEBAR_WIDTH;
+  };
+  const [sidebarWidth, setSidebarWidth] = useState<number>(getInitialSidebarPx());
   const sidebarWidthRef = useRef(sidebarWidth);
   const resetBtnRef = useRef<HTMLButtonElement | null>(null);
   const SIDEBAR_PX_KEY = 'ui_chat_sidebar_px';
   const MIN_SIDEBAR_WIDTH = 200; // 最小宽度
   const MAX_SIDEBAR_WIDTH = 480; // 最大宽度，防止聊天区域过窄
+  const [mounted, setMounted] = useState(false);
 
-  // 组件挂载时读取已保存宽度
+  // 组件挂载时读取（异步）Tauri Store，完成后标记 mounted 以启用过渡动画
   useEffect(() => {
     (async () => {
-      const saved = await StorageUtil.getItem<number>(SIDEBAR_PX_KEY, DEFAULT_SIDEBAR_WIDTH, 'user-preferences.json'); // fallback 已更新
+      const saved = await StorageUtil.getItem<number>(SIDEBAR_PX_KEY, getInitialSidebarPx(), 'user-preferences.json');
       if (typeof saved === 'number' && saved >= MIN_SIDEBAR_WIDTH && saved <= window.innerWidth - 400) {
-        setSidebarWidth(saved);
-        sidebarWidthRef.current = saved;
+        if (saved !== sidebarWidthRef.current) {
+          setSidebarWidth(saved);
+          sidebarWidthRef.current = saved;
+          try { window.localStorage.setItem(SIDEBAR_PX_KEY, String(saved)); } catch { /* noop */ }
+        }
       }
+      setMounted(true);
     })();
-     
   }, []);
 
   // 同步 ref
@@ -97,9 +112,11 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         } else {
           // 拖拽结束后保存当前宽度
           StorageUtil.setItem<number>(SIDEBAR_PX_KEY, sidebarWidthRef.current, 'user-preferences.json');
+          try { window.localStorage.setItem(SIDEBAR_PX_KEY, String(sidebarWidthRef.current)); } catch { /* noop */ }
         }
       } else {
         StorageUtil.setItem<number>(SIDEBAR_PX_KEY, sidebarWidthRef.current, 'user-preferences.json');
+        try { window.localStorage.setItem(SIDEBAR_PX_KEY, String(sidebarWidthRef.current)); } catch { /* noop */ }
       }
 
       // 恢复 userSelect
@@ -211,6 +228,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
     sidebarWidthRef.current = DEFAULT_SIDEBAR_WIDTH;
     StorageUtil.setItem<number>(SIDEBAR_PX_KEY, DEFAULT_SIDEBAR_WIDTH, 'user-preferences.json');
+    try { window.localStorage.setItem(SIDEBAR_PX_KEY, String(DEFAULT_SIDEBAR_WIDTH)); } catch { /* noop */ }
   }, []);
 
   return (
@@ -220,7 +238,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         <aside
           style={{ width: isSidebarOpen ? sidebarWidth : 0 }}
           className={cn(
-            "bg-white dark:bg-gray-900 flex flex-col min-h-0 transition-all duration-300 flex-shrink-0",
+            "bg-white dark:bg-gray-900 flex flex-col min-h-0 flex-shrink-0",
+            mounted ? "transition-all duration-300" : "transition-none",
             isSidebarOpen
               ? "border-r border-slate-200/50 dark:border-slate-800/50 translate-x-0"
               : "-translate-x-full overflow-hidden"
@@ -230,36 +249,34 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
           {/* 搜索框 + 新建按钮 */}
           <div className="flex-shrink-0 p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900">
-            <div className="flex items-center gap-3">
-              {/* 搜索框 */}
+            {/* 搜索框（右侧内置“新建”按钮，保持与主头部对齐的高度和间距） */}
+            <div className="flex items-center">
               <div className="flex-1 min-w-0">
-                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5">
+                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg pl-2.5 pr-9 py-1 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5 h-9">
                   <SearchInput
                     placeholder="搜索对话..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-full bg-transparent border-none focus:ring-0 text-sm h-8"
+                    className="w-full bg-transparent border-none focus:ring-0 text-sm h-7"
                   />
-                  {isSearching && (
-                    <button 
-                      onClick={handleClearSearch}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
-                      aria-label="清除搜索"
-                    >
-                      <X className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                    </button>
-                  )}
+                  {/* 右侧区域：清除 + 新建 */}
+                  <div className="absolute top-1/2 -translate-y-1/2 right-1.5 flex items-center gap-1.5">
+                    {isSearching && (
+                      <button
+                        onClick={handleClearSearch}
+                        className="p-1 rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
+                        aria-label="清除搜索"
+                      >
+                        <X className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                      </button>
+                    )}
+                    <IconButton
+                      onClick={handleNewChat}
+                      title="新建对话"
+                      icon={ListPlus}
+                    />
+                  </div>
                 </div>
-                
-              </div>
-              
-              {/* 新建按钮 */}
-              <div className="flex-shrink-0">
-              <IconButton
-                  onClick={handleNewChat}
-                  title="新建对话"
-                  icon={ListPlus}
-                />
               </div>
             </div>
           </div>

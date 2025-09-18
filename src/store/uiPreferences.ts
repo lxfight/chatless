@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import StorageUtil from "@/lib/storage";
+import type { SectionIconPreset } from "@/components/settings/SectionIcon";
 
 const SHOW_SETTING_ICONS_KEY = "ui_show_setting_icons";
 const SIMPLE_MODE_KEY = "ui_simple_mode";
@@ -24,6 +25,7 @@ interface UiPreferencesState {
   showSettingIcons: boolean;
   simpleMode: boolean;
   lowAnimationMode: boolean;
+  settingsIconPreset: SectionIconPreset; // 新增：设置页图标预设
 
   // 布局
   sidebarWidth: SidebarWidth;
@@ -48,6 +50,7 @@ interface UiPreferencesState {
   setShowSettingIcons: (show: boolean) => void;
   setSimpleMode: (flag: boolean) => void;
   setLowAnimationMode: (flag: boolean) => void;
+  setSettingsIconPreset: (p: SectionIconPreset) => void;
   setSidebarWidth: (w: SidebarWidth) => void;
   setSidebarIconSize: (s: IconSize) => void;
   setCollapseChatSidebar: (flag: boolean) => void;
@@ -64,6 +67,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
   showSettingIcons: true,
   simpleMode: true,
   lowAnimationMode: false,
+  settingsIconPreset: 'brand',
 
   sidebarWidth: 'narrow',
   collapseChatSidebar: true,
@@ -91,6 +95,11 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
   setLowAnimationMode: (flag) => {
     set({ lowAnimationMode: flag });
     StorageUtil.setItem<boolean>(LOW_ANIMATION_KEY, flag, 'user-preferences.json');
+  },
+
+  setSettingsIconPreset: (p) => {
+    set({ settingsIconPreset: p });
+    StorageUtil.setItem<SectionIconPreset>('ui_settings_icon_preset', p, 'user-preferences.json');
   },
 
   setSidebarWidth: (w) => {
@@ -135,7 +144,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
 
 // 异步初始化首选项
 (async () => {
-  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed] = await Promise.all([
+  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed, iconPreset] = await Promise.all([
     StorageUtil.getItem<boolean>(SHOW_SETTING_ICONS_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SIMPLE_MODE_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(LOW_ANIMATION_KEY, false, 'user-preferences.json'),
@@ -147,6 +156,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'ctrl+p', 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<ScrollSpeed>('ui_chat_scroll_speed', 'normal', 'user-preferences.json'),
+    StorageUtil.getItem<SectionIconPreset>('ui_settings_icon_preset', 'brand', 'user-preferences.json'),
   ]);
 
   useUiPreferences.setState({
@@ -161,6 +171,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     cmdPaletteShortcut: cpShortcut || 'ctrl+p',
     showCloseConfirmation: showCloseConfirm ?? true,
     chatScrollSpeed: (scrollSpeed as ScrollSpeed) ?? 'normal',
+    settingsIconPreset: (iconPreset as SectionIconPreset) ?? 'brand',
     initialized: true,
   });
 })(); 

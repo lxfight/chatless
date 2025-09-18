@@ -200,11 +200,10 @@ export function AiModelSettings() {
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <SettingsSectionHeader
-          icon={ServerCog}
-          title="管理提供商"
-          iconBgColor="from-purple-500 to-indigo-500"
-        />
+      <div className="mb-8">
+        <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">管理提供商</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置提供商，包括提供商列表、提供商状态、提供商操作等。</p>
+      </div>
 
         {/* 操作栏：保留右侧操作按钮，仅移除上方搜索与筛选 */}
         <div className='flex justify-end'>
@@ -227,10 +226,13 @@ export function AiModelSettings() {
              
 
 <button
-className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center"
+  className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 flex items-center justify-center transition-all duration-200
+    hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600
+    active:bg-gray-200 active:border-blue-500 active:text-blue-700
+    focus:outline-none"
 >
-<Settings className="w-5 h-5" />
-                </button>
+  <Settings className="w-5 h-5" />
+</button>
 
               }
             />

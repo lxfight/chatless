@@ -1,10 +1,10 @@
 "use client";
 
-import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { Palette } from 'lucide-react';
 import { ToggleSwitch } from "./ToggleSwitch";
 import { SelectField } from "./SelectField";
 import { useUiPreferences } from "@/store/uiPreferences";
+import type { SectionIconPreset } from "./SectionIcon";
 
 export function PersonalizationSettings() {
   const ui = useUiPreferences();
@@ -92,6 +92,20 @@ export function PersonalizationSettings() {
            value={ui.chatScrollSpeed as any}
            onChange={(v) => ui.setChatScrollSpeed(v as any)}
          />
+
+        <SelectField
+          label="设置页图标样式"
+          options={[
+            { value: 'brand', label: '品牌渐变' },
+            { value: 'teal', label: '绿色渐变' },
+            { value: 'indigo', label: '靛蓝渐变' },
+            { value: 'gray', label: '中性灰底' },
+            { value: 'glass', label: '玻璃质感' },
+            { value: 'outline', label: '细边框' },
+          ]}
+          value={ui.settingsIconPreset as SectionIconPreset}
+          onChange={(v) => ui.setSettingsIconPreset(v as SectionIconPreset)}
+        />
        </div>
     </div>
   );
