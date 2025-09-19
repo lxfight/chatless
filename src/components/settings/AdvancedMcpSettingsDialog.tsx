@@ -35,7 +35,7 @@ export default function AdvancedMcpSettingsDialog({ open, onOpenChange, maxDepth
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">取消</Button>
-          <Button size="sm" disabled={saving} onClick={async () => { setSaving(true); await onSave(val); setSaving(false); onOpenChange(false); }}>保存</Button>
+          <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white" disabled={saving} onClick={async () => { setSaving(true); await onSave(val); setSaving(false); onOpenChange(false); }}>保存</Button>
         </div>
       </DialogContent>
     </Dialog>

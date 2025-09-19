@@ -30,7 +30,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
 import { AddProvidersDialog } from './AddProvidersDialog';
-import { Button } from '@/components/ui/button';
 // 头部过滤器已内化到表头，无需 Select 组件
 // duplicate import removed
 
@@ -198,9 +197,9 @@ export function AiModelSettings() {
 
   // --- 渲染逻辑 ---
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="space-y-4">
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">管理提供商</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">在此设置提供商，包括提供商列表、提供商状态、提供商操作等。</p>
       </div>
@@ -208,17 +207,20 @@ export function AiModelSettings() {
         {/* 操作栏：保留右侧操作按钮，仅移除上方搜索与筛选 */}
         <div className='flex justify-end'>
         <div className="flex items-center gap-3">
-            {/* 刷新按钮 */}
-            <Button
-              variant="outline"
-              size="sm"
+            {/* 刷新：图标按钮 */}
+            <button
+              aria-label="刷新"
+              title="刷新"
               onClick={handleGlobalRefresh}
               disabled={isRefreshing || isLoading}
-              className="h-9 px-4 text-sm font-medium border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 group"
+              className={cn(
+                "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+                "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+              )}
             >
-              <RotateCcw className={cn("w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200", isRefreshing && 'animate-spin')} />
-              刷新
-            </Button>
+              <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
+            </button>
             
             {/* 添加提供商按钮 */}
             <AddProvidersDialog
@@ -226,10 +228,11 @@ export function AiModelSettings() {
              
 
 <button
-  className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 flex items-center justify-center transition-all duration-200
-    hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600
-    active:bg-gray-200 active:border-blue-500 active:text-blue-700
-    focus:outline-none"
+  className={cn(
+    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+  )}
 >
   <Settings className="w-5 h-5" />
 </button>
@@ -241,7 +244,7 @@ export function AiModelSettings() {
 
 
       {/* Provider 列表 - 去卡片化设计 */}
-      <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="mt-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
         {/* 表头优化：列名与内容对齐；状态列使用下拉；“提供商”列点击图标再展开搜索 */}
         <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-12 gap-4 items-center text-[13px] font-medium text-gray-600 dark:text-gray-400">
@@ -250,7 +253,7 @@ export function AiModelSettings() {
               <span>提供商</span>
               <div className="ml-2 h-7 flex items-center">
                 {headSearchOpen ? (
-                  <div className="w-56 h-full flex items-center">
+                  <div className="w-32 h-full flex items-center">
                     <SearchInput
                       value={searchQuery}
                       onChange={(e)=>setSearchQuery(e.target.value)}
@@ -274,10 +277,13 @@ export function AiModelSettings() {
               </div>
             </div>
             <div className="col-span-3 flex items-center">
-              <span>状态</span>
+              <span>状态：</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="ml-2 px-2 h-6 rounded-md border border-gray-300 dark:border-gray-600 text-xs bg-white/70 dark:bg-gray-700/70 hover:bg-gray-100 dark:hover:bg-gray-700">
+                  <button
+                    className="ml-1 px-1 h-6 text-xs text-blue-600 dark:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none "
+                    title="更改状态筛选"
+                  >
                     {statusFilter === 'all' && '全部'}
                     {statusFilter === 'recently_checked' && '最近检查'}
                     {statusFilter === 'needs_key' && '未配置密钥'}

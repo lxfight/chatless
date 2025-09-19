@@ -40,6 +40,34 @@ export function PersonalizationSettings() {
          />
 
          <SelectField
+          label="应用窗口尺寸"
+          options={[
+            { value: '900x700', label: '900 × 700（默认）' },
+            { value: '1024x768', label: '1024 × 768' },
+            { value: '1280x800', label: '1280 × 800' },
+            { value: '1366x768', label: '1366 × 768' },
+            { value: '1440x900', label: '1440 × 900' },
+            { value: '1600x900', label: '1600 × 900' },
+          ]}
+          value={ui.windowSizePreset as any}
+          onChange={async (v) => {
+            ui.setWindowSizePreset(v as any);
+            const [w,h] = (v as string).split('x').map((n)=>parseInt(n,10));
+            if (Number.isFinite(w) && Number.isFinite(h)) {
+              try {
+                const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+                const win = getCurrentWindow();
+                await win.setSize(new LogicalSize(w, h));
+                const { saveWindowState, StateFlags } = await import('@tauri-apps/plugin-window-state');
+                await saveWindowState(StateFlags.ALL);
+              } catch (err) {
+                console.warn('设置窗口尺寸失败:', err);
+              }
+            }
+          }}
+        />
+
+        <SelectField
            label="主侧边栏宽度"
            options={[
              { value: 'narrow', label: '窄' },
@@ -93,7 +121,7 @@ export function PersonalizationSettings() {
            onChange={(v) => ui.setChatScrollSpeed(v as any)}
          />
 
-        <SelectField
+        {/* <SelectField
           label="设置页图标样式"
           options={[
             { value: 'brand', label: '品牌渐变' },
@@ -105,7 +133,7 @@ export function PersonalizationSettings() {
           ]}
           value={ui.settingsIconPreset as SectionIconPreset}
           onChange={(v) => ui.setSettingsIconPreset(v as SectionIconPreset)}
-        />
+        /> */}
        </div>
     </div>
   );

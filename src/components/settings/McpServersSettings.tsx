@@ -7,6 +7,8 @@ import { toast, trimToastDescription } from "@/components/ui/sonner";
 import { downloadService } from "@/lib/utils/downloadService";
 import { detectTauriEnvironment } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
+import { cn } from "@/lib/utils";
+
 import { 
   Plus, 
   Upload, 
@@ -715,7 +717,11 @@ export function McpServersSettings() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <button 
-                  className="w-10 h-10 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 flex items-center justify-center" 
+                  className={cn(
+                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  )} 
                   onClick={beginAdd}
                 >
                   <Plus className="w-5 h-5" />
@@ -728,7 +734,11 @@ export function McpServersSettings() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <button 
-                  className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center" 
+                  className={cn(
+                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  )} 
                   onClick={()=>{ setImportOpen(true); setImportText(""); }}
                 >
                   <Upload className="w-5 h-5" />
@@ -741,7 +751,11 @@ export function McpServersSettings() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <button 
-                  className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center" 
+                  className={cn(
+                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  )} 
                   onClick={async()=>{
                     try {
                       // 参考 AdvancedSettings 的下载服务，兼容 macOS/Tauri
@@ -783,7 +797,11 @@ export function McpServersSettings() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="w-10 h-10 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center"
+                className={cn(
+                  "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
+                  "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                  "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                )}
                 onClick={() => setAdvDialogOpen(true)}
               >
                 <Settings className="w-5 h-5" />
@@ -922,7 +940,7 @@ export function McpServersSettings() {
               <div className="flex items-center justify-between">
                 <div className="font-medium flex items-center gap-2">
                   <span>{s.name}</span>
-                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full ${
+                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${
                     st === 'connected' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                     st === 'connecting' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
                     st === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
@@ -993,7 +1011,11 @@ export function McpServersSettings() {
                    <Tooltip>
                      <TooltipTrigger asChild>
                        <button 
-                         className="w-8 h-8 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-60 transition-all duration-200 flex items-center justify-center" 
+                         className={cn(
+                           "w-8 h-8 rounded-lg border border-blue-200 dark:border-blue-600 flex items-center justify-center",
+                           "text-blue-600 dark:text-blue-400 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-60 transition-all duration-200",
+                           "disabled:opacity-60 transition-all duration-200 flex items-center justify-center"
+                         )} 
                          disabled={loading} 
                          onClick={()=>connect(s)}
                        >
@@ -1007,7 +1029,10 @@ export function McpServersSettings() {
                    {/* 三点菜单：不常用操作 */}
                    <DropdownMenu.Root>
                      <DropdownMenu.Trigger asChild>
-                       <button className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md">
+                       <button className={cn(
+                         "w-8 h-8 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md",
+                         "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                       )}>
                          <MoreVertical className="w-4 h-4" />
                        </button>
                      </DropdownMenu.Trigger>

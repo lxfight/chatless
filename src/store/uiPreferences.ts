@@ -16,6 +16,7 @@ type SidebarWidth = 'narrow' | 'medium' | 'wide' | 'xwide';
 type IconSize = 'small' | 'medium' | 'large';
 
 type ScrollSpeed = 'calm' | 'normal' | 'fast';
+type WindowSizePreset = '900x700' | '1024x768' | '1280x800' | '1366x768' | '1440x900' | '1600x900';
 
 interface UiPreferencesState {
   // 基础
@@ -45,6 +46,8 @@ interface UiPreferencesState {
 
   // 滚屏速度（个性化）
   chatScrollSpeed: ScrollSpeed;
+  // 窗口尺寸预设
+  windowSizePreset: WindowSizePreset;
 
   // setter
   setShowSettingIcons: (show: boolean) => void;
@@ -59,6 +62,7 @@ interface UiPreferencesState {
   setCmdPaletteShortcut: (sc: string) => void;
   setShowCloseConfirmation: (flag: boolean) => void;
   setChatScrollSpeed: (v: ScrollSpeed) => void;
+  setWindowSizePreset: (v: WindowSizePreset) => void;
 }
 
 export const useUiPreferences = create<UiPreferencesState>((set) => ({
@@ -81,6 +85,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
 
   showCloseConfirmation: true,
   chatScrollSpeed: 'normal',
+  windowSizePreset: '900x700',
 
   setShowSettingIcons: (show) => {
     set({ showSettingIcons: show });
@@ -140,11 +145,15 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     set({ chatScrollSpeed: v });
     StorageUtil.setItem<ScrollSpeed>('ui_chat_scroll_speed', v, 'user-preferences.json');
   },
+  setWindowSizePreset: (v) => {
+    set({ windowSizePreset: v });
+    StorageUtil.setItem<WindowSizePreset>('ui_window_size_preset', v, 'user-preferences.json');
+  },
 }));
 
 // 异步初始化首选项
 (async () => {
-  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed, iconPreset] = await Promise.all([
+  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed, iconPreset, windowSizePreset] = await Promise.all([
     StorageUtil.getItem<boolean>(SHOW_SETTING_ICONS_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SIMPLE_MODE_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(LOW_ANIMATION_KEY, false, 'user-preferences.json'),
@@ -157,6 +166,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<ScrollSpeed>('ui_chat_scroll_speed', 'normal', 'user-preferences.json'),
     StorageUtil.getItem<SectionIconPreset>('ui_settings_icon_preset', 'brand', 'user-preferences.json'),
+    StorageUtil.getItem<WindowSizePreset>('ui_window_size_preset', '900x700', 'user-preferences.json'),
   ]);
 
   useUiPreferences.setState({
@@ -172,6 +182,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     showCloseConfirmation: showCloseConfirm ?? true,
     chatScrollSpeed: (scrollSpeed as ScrollSpeed) ?? 'normal',
     settingsIconPreset: (iconPreset as SectionIconPreset) ?? 'brand',
+    windowSizePreset: (windowSizePreset as WindowSizePreset) ?? '900x700',
     initialized: true,
   });
 })(); 
