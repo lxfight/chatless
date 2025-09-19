@@ -27,6 +27,8 @@
 ### 已知问题
 - 将MCP指令从面板代入到输入框后，光标轻度错位
 - 知识库搜索不工作
+- 概率出现SSE Error: "error decoding response body"
+- Markdown逐字解析导致界面发生跳动
 
 
 ## [0.3.16] - 2025-09-11
