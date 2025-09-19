@@ -216,7 +216,7 @@ export function AiModelSettings() {
               className={cn(
                 "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
                 "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
               )}
             >
               <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
@@ -231,7 +231,7 @@ export function AiModelSettings() {
   className={cn(
     "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
     "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
   )}
 >
   <Settings className="w-5 h-5" />
