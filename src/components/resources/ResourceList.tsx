@@ -90,7 +90,7 @@ export function ResourceList({
   }
 
   return (
-    <div className="h-full overflow-auto pb-4 rounded-lg border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900/80">
+    <div className="h-full overflow-auto pb-4 rounded-xl bg-white/60 dark:bg-slate-900/40">
       {filteredResources.map(resource => (
         <ResourceItem 
           key={resource.id}

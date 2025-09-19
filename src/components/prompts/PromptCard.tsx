@@ -45,18 +45,18 @@ export function PromptCard({
   return (
     <div className="prompt-card bg-white/95 dark:bg-gray-900/70 border border-gray-200/70 dark:border-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col">
       {/* 头部 */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-gray-800/80">
-        <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate pr-2" title={title}>{title}</h3>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800/80">
+        <h3 className="font-medium text-[14px] text-gray-900 dark:text-gray-100 truncate pr-2" title={title}>{title}</h3>
         <div className="flex items-center gap-1.5">
-          <Button variant="soft" size="sm" className="h-7 px-2.5" onClick={() => onApply(id)}>应用</Button>
-          <Button variant="ghost" size="icon" className={cn("h-8 w-8", isFavorite ? "text-yellow-500" : "text-gray-400 hover:text-yellow-500")} onClick={() => onToggleFavorite(id)}>
+          <button className="h-7 px-2.5 rounded-md border text-[13px] leading-7 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => onApply(id)}>应用</button>
+          <button aria-label="收藏" className={cn("h-8 w-8 rounded-md flex items-center justify-center", isFavorite ? "text-yellow-500" : "text-gray-400 hover:text-yellow-500")} onClick={() => onToggleFavorite(id)}>
             <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
-          </Button>
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+              <button className="h-8 w-8 rounded-md text-gray-400 hover:text-gray-600 flex items-center justify-center">
                 <MoreVertical className="h-4 w-4" />
-              </Button>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-28">
               <DropdownMenuItem onClick={()=>onEdit(id)}>

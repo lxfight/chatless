@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Download, Grid, List, BarChart3, RefreshCw, X } from 'lucide-react';
+import { Trash2, Download, Grid, List, BarChart3, RefreshCw, X, Search } from 'lucide-react';
 import { SearchInput } from '@/components/ui/search-input';
 import { useHistoryStore } from '@/store/historyStore';
 import { useState } from 'react';
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Input } from "../ui/input";
 
 export default function HistoryToolbar() {
   const {
@@ -92,14 +93,18 @@ export default function HistoryToolbar() {
           {/* 左侧：搜索 */}
           <div className="flex items-center gap-3 flex-1">
             {/* 搜索框 */}
-            <div className="flex-1 max-w-md">
-              <SearchInput
+            
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+              <Input 
+                type="text" 
                 placeholder="搜索对话标题、内容..."
                 value={localSearchQuery}
                 onChange={(e) => setLocalSearchQuery(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyPress}
+                className="pl-10 pr-3 py-1.5 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-full focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0 transition-all duration-200"
               />
-              {localSearchQuery && (
+               {localSearchQuery && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -111,6 +116,7 @@ export default function HistoryToolbar() {
                 </Button>
               )}
             </div>
+            
           </div>
 
           {/* 右侧：排序和视图控制 */}

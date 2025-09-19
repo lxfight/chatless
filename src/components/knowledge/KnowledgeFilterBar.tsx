@@ -1,11 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { IconButton } from '@/components/ui/icon-button';
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { SearchInput } from '@/components/ui/search-input';
+import { Input } from "../ui/input";
 
 const filters = [
   { id: 'all', name: '全部' },
@@ -53,7 +54,15 @@ export function KnowledgeFilterBar({
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden md:block max-w-xs">
-          <SearchInput placeholder="搜索知识库..." />
+        <div className="relative w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+              <Input 
+                type="text" 
+                placeholder="搜索知识库..." 
+                
+                className="pl-10 pr-3 py-1.5 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-full focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0 transition-all duration-200"
+              />
+            </div>
         </div>
 
         <Select value={sortBy} onValueChange={onSortChange}>

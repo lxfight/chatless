@@ -41,27 +41,27 @@ export function PromptsHeader() {
 
   return (
     <div className="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      <div className="max-w-6xl mx-auto space-y-3">
+      <div className="max-w-6xl mx-auto space-y-2">
         {/* 主要操作区域 */}
         <div className="flex items-center justify-between gap-4">
           {/* 左侧：搜索和筛选 */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* 搜索框 */}
-            <div className="relative">
+            <div className="relative w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <Input 
                 type="text" 
                 placeholder="搜索提示词..." 
                 value={ui?.searchQuery || ''}
                 onChange={(e)=>setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-72 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0 transition-all duration-200"
+                className="pl-10 pr-3 py-1.5 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-full focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0 transition-all duration-200"
               />
             </div>
 
             {/* 标签筛选器 - 使用下拉菜单 */}
             <div className="relative">
               <Select value={ui?.tagFilter || '__all__'} onValueChange={(v)=>setTagFilter(v === '__all__' ? null : v)}>
-                <SelectTrigger className="h-9 px-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200">
+                <SelectTrigger className="h-8 px-3 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200 min-w-[9rem]">
                   <Filter className="w-4 h-4 mr-2 text-gray-500" />
                   <SelectValue placeholder="选择标签" />
                 </SelectTrigger>
@@ -77,27 +77,26 @@ export function PromptsHeader() {
             </div>
 
             {/* 收藏筛选器 */}
-            <Button 
-              variant={ui?.favoriteOnly ? "default" : "outline"} 
-              size="sm" 
-              className="h-9 px-3 rounded-lg transition-all duration-200" 
+            <button
               onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}
+              className={cn(
+                "h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-[13px]",
+                ui?.favoriteOnly ? "bg-yellow-50 text-yellow-700 border-yellow-200" : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700"
+              )}
             >
-              <Star className={cn("w-4 h-4 mr-2", ui?.favoriteOnly && "fill-current")} />
-              {ui?.favoriteOnly ? '收藏中' : '只看收藏'}
-            </Button>
+              <Star className={cn("w-4 h-4", ui?.favoriteOnly && "fill-current text-yellow-600")}/>
+              <span className="">{ui?.favoriteOnly ? '收藏中' : '只看收藏'}</span>
+            </button>
           </div>
 
           {/* 右侧：新建按钮 */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-9 px-4 rounded-lg" 
+          <button
             onClick={() => setOpen(true)}
+            className="h-8 px-3 rounded-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 flex items-center gap-2 text-[13px]"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            新建提示词
-          </Button>
+            <Plus className="w-4 h-4" />
+            <span className="">新建提示词</span>
+          </button>
         </div>
 
         {/* 次要操作区域和常用标签 */}
@@ -115,9 +114,9 @@ export function PromptsHeader() {
                     key={tag}
                     variant={ui?.tagFilter === tag ? "default" : "secondary"}
                     className={cn(
-                      "cursor-pointer transition-all duration-200 hover:scale-105",
+                      "cursor-pointer transition-all duration-200",
                       ui?.tagFilter === tag 
-                        ? "bg-blue-500 text-white" 
+                        ? "bg-blue-500/20 text-blue-700" 
                         : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                     )}
                     onClick={() => setTagFilter(ui?.tagFilter === tag ? null : tag)}
@@ -133,7 +132,7 @@ export function PromptsHeader() {
           <div className="flex items-center gap-2">
             <SortAsc className="w-4 h-4 text-gray-400" />
             <Select value={ui?.sortBy || 'recent'} onValueChange={(v)=>setSortBy(v as any)}>
-              <SelectTrigger className="h-8 px-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200">
+              <SelectTrigger className="h-8 px-3 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200">
                 <SelectValue placeholder="排序方式" />
               </SelectTrigger>
               <SelectContent>

@@ -486,7 +486,7 @@ export function ResourceManager({ onRefresh, totalFileCount = 0, isLoadingStats 
       </div>
       
       {/* 工具栏：排序 & 过滤 */}
-      <div className="flex items-center gap-4 px-4 pt-2 pb-2">
+      <div className="flex items-center gap-4 px-4 pt-2 pb-1.5">
         {/* 文件统计显示 */}
         <div className="flex items-center gap-1 text-sm">
           <span className="text-slate-600 dark:text-slate-400">文件统计:</span>
@@ -524,7 +524,7 @@ export function ResourceManager({ onRefresh, totalFileCount = 0, isLoadingStats 
       {/* 资源分类和列表 */}
       <div className="flex-1 overflow-hidden flex flex-col px-4 pb-2">
         <Tabs defaultValue="documents" className="w-full h-full flex flex-col" onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 mb-3 flex-shrink-0">
+          <TabsList className="grid grid-cols-4 mb-2 flex-shrink-0">
             <TabsTrigger value="documents">文档</TabsTrigger>
             <TabsTrigger value="files">文件</TabsTrigger>
             <TabsTrigger value="chat">聊天文件</TabsTrigger>

@@ -92,7 +92,8 @@ export function ResourceItem({
       <SectionCard
         onClick={() => {}}
         hoverable
-        className="flex items-center gap-3 p-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-600">
+        variant="flat"
+        className="flex items-center gap-3 p-2.5 transition-colors hover:bg-gray-50/80 dark:hover:bg-slate-800/60">
         {/* 文件图标 */}
         <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 flex-shrink-0">
           {getFileIcon(title)}
@@ -130,7 +131,7 @@ export function ResourceItem({
               </div>
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-0.5 flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1">
               <HardDrive className="h-3 w-3" />
               {formatFileSize(fileSize)}
