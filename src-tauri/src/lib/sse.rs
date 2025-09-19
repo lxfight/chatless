@@ -83,8 +83,10 @@ pub async fn start_sse(
       _ => client.get(&url),
     };
 
-    // Accept 头确保 SSE
-    req_builder = req_builder.header("Accept", "text/event-stream");
+    // Accept 头确保 SSE，且禁用压缩，避免解压中途失败导致的 "error decoding response body"
+    req_builder = req_builder
+      .header("Accept", "text/event-stream")
+      .header("Accept-Encoding", "identity");
 
     // 追加自定义头
     if let Some(hdrs) = &headers {
@@ -121,6 +123,8 @@ pub async fn start_sse(
       .ok();
 
     let mut stream = res.bytes_stream();
+    // 跨 chunk 行缓冲，避免一行在两个 chunk 之间被拆分导致上层解析失败
+    let mut line_buffer = String::new();
     loop {
       tokio::select! {
           _ = shutdown_rx.recv() => {
@@ -131,7 +135,13 @@ pub async fn start_sse(
               match item {
                   Ok(bytes) => {
                       let chunk = String::from_utf8_lossy(&bytes);
-                      for line in chunk.lines() {
+                      line_buffer.push_str(&chunk);
+                      while let Some(pos) = line_buffer.find('\n') {
+                          let mut line = line_buffer[..pos].to_string();
+                          // 移除已消费内容与换行符
+                          line_buffer.drain(..pos+1);
+                          if line.ends_with('\r') { line.pop(); }
+
                           let payload = if let Some(data) = line.strip_prefix("data:") {
                               data.trim()
                           } else {

@@ -132,6 +132,109 @@ export class OllamaProvider extends BaseProvider {
     };
 
     try {
+      // 首选：使用 Tauri HTTP（支持跨域/自签证书）进行 NDJSON 流解析
+      let resp: any = null;
+      try {
+        const { tauriFetch } = await import('@/lib/request');
+        resp = await tauriFetch(url, {
+          method: 'POST',
+          rawResponse: true,
+          browserHeaders: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/x-ndjson, application/json, text/event-stream'
+          },
+          body,
+          debugTag: 'OllamaStream'
+        });
+      } catch {
+        resp = null;
+      }
+      
+      // 次选：浏览器 fetch
+      if (!resp) {
+        try {
+          resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/x-ndjson, application/json, text/event-stream'
+            },
+            body: JSON.stringify(body),
+          });
+        } catch {
+          resp = null;
+        }
+      }
+
+      // 若 fetch 不可用或失败，退回到 SSEClient（某些代理会把 NDJSON 包装成 SSE）
+      if (!resp || !resp.ok) {
+        await this.startSSEFallback(url, body, cb);
+        return;
+      }
+
+      const contentType = (resp.headers.get?.('Content-Type') || '').toLowerCase();
+      if (contentType.includes('text/event-stream')) {
+        // 服务端实际返回 SSE，切到 SSE 解析
+        await this.startSSEFallback(url, body, cb);
+        return;
+      }
+
+      // NDJSON / JSON 流解析
+      cb.onStart?.();
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        throw new Error('ReadableStream reader not available');
+      }
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      const processJson = (json: any) => {
+        if (!json) return;
+        if (json.done === true) {
+          cb.onComplete?.();
+          return;
+        }
+        const token = json?.message?.content;
+        if (typeof token === 'string' && token.length > 0) {
+          cb.onToken?.(token);
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          // flush 缓冲区
+          const last = buffer.trim();
+          if (last) {
+            try { processJson(JSON.parse(last)); } catch { /* ignore */ }
+          }
+          cb.onComplete?.();
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!line || line === '[DONE]') continue;
+          // 兼容偶发的 'data: {...}' 片段
+          const payload = line.startsWith('data:') ? line.slice(5).trim() : line;
+          try {
+            const json = JSON.parse(payload);
+            processJson(json);
+          } catch {
+            // 非JSON行忽略
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('[OllamaProvider] stream error:', error);
+      cb.onError?.(error);
+    }
+  }
+
+  private async startSSEFallback(url: string, body: unknown, cb: StreamCallbacks) {
+    try {
       await this.sseClient.startConnection(
         {
           url,
@@ -144,57 +247,33 @@ export class OllamaProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
-            // Ollama SSE 通常以多行 \n 分隔，并带有 'data: ' 前缀，这里进行稳健解析
             const processJson = (json: any) => {
               if (!json) return;
-              if (json.done === true) {
-                console.debug('[OllamaProvider] Stream completed, triggering onComplete');
-                cb.onComplete?.();
-                this.sseClient.stopConnection();
-                return;
-              }
+              if (json.done === true) { cb.onComplete?.(); this.sseClient.stopConnection(); return; }
               const token = json?.message?.content;
-              if (typeof token === 'string' && token.length > 0) {
-                cb.onToken?.(token);
-              }
+              if (typeof token === 'string' && token.length > 0) { cb.onToken?.(token); }
             };
-
             try {
-              // 可能是单个 JSON，也可能包含多行 'data: {json}'
               const text = String(rawData || '').trim();
               if (!text) return;
-
-              // 情况一：原始就是 JSON
               if (text[0] === '{' || text[0] === '[') {
-                try { processJson(JSON.parse(text)); return; } catch {}
+                try { processJson(JSON.parse(text)); return; } catch { /* ignore */ }
               }
-
-              // 情况二：拆分处理每一行的 data: 片段
               const lines = text.split(/\r?\n/);
               for (const line of lines) {
-                const l = line.trim();
-                if (!l) continue;
+                const l = line.trim(); if (!l) continue;
                 if (l.startsWith('data:')) {
-                  const payload = l.slice(5).trim();
-                  if (!payload || payload === '[DONE]') { continue; }
-                  try {
-                    const json = JSON.parse(payload);
-                    processJson(json);
-                  } catch (e) {
-                    // 跳过无法解析的片段（避免将原始JSON直接注入UI）
-                    console.debug('[OllamaProvider] skip non-JSON SSE line:', payload?.slice(0,120));
-                  }
+                  const payload = l.slice(5).trim(); if (!payload || payload === '[DONE]') continue;
+                  try { processJson(JSON.parse(payload)); } catch { /* ignore non-JSON line */ }
                 }
               }
-            } catch (error) {
-              console.error('[OllamaProvider] Failed to handle SSE data:', error);
-            }
+            } catch (e) { console.error('[OllamaProvider] Failed to handle fallback SSE data:', e); }
           }
         }
       );
-    } catch (error: any) {
-      console.error('[OllamaProvider] SSE connection failed:', error);
-      cb.onError?.(error);
+    } catch (err) {
+      console.error('[OllamaProvider] SSE fallback failed:', err);
+      cb.onError?.(err as any);
     }
   }
 
@@ -219,7 +298,7 @@ export class OllamaProvider extends BaseProvider {
           verboseDebug: true,
           debugTag: 'ModelList'
         }));
-      } catch (fetchError) {
+      } catch {
         // 如果tauriFetch失败，尝试使用原生fetch
         try {
           resp = await fetch(url, { 

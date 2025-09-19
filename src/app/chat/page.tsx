@@ -32,12 +32,12 @@ interface Conversation {
 export default function ChatPage() {
   const [isClient, setIsClient] = useState(false);
   const [isInputAreaHovered, setIsInputAreaHovered] = useState(false);
+  const ensureMessagesLoaded = useChatStore((state) => state.ensureMessagesLoaded);
   const currentConversationId = useChatStore((state) => state.currentConversationId);
-  const currentConversation = useChatStore((state) =>
-    currentConversationId
-      ? (state.conversations.find((c) => c.id === currentConversationId) as Conversation | undefined)
-      : null
-  );
+  const currentConversation = useChatStore((state) => {
+    const id = state.currentConversationId;
+    return id ? (state.conversations.find((c:any) => c.id === id) as Conversation | undefined) : null;
+  });
   
   const searchParams = useSearchParams();
   const selectedKnowledgeBaseId = searchParams.get('knowledgeBase');
@@ -118,18 +118,25 @@ export default function ChatPage() {
       isLoading
   );
 
+  // 注册 Virtuoso 的按ID滚动API，供“跳转到消息”使用
+  const scrollToMessageRef = useRef<((id: string) => void) | null>(null);
+  const registerScrollToMessage = (fn: (id: string) => void) => { scrollToMessageRef.current = fn; };
+
   // 初次进入/切换会话时，强制定位到底部
   useEffect(() => {
     const raf = requestAnimationFrame(() => handleScrollToBottom());
     return () => cancelAnimationFrame(raf);
   }, [currentConversationId]);
 
-  // 新消息追加后（长度变化）自动滚动到底部
+  // 新消息追加后（长度变化）自动滚动到底部（更激进，确保到真正底部）
   useEffect(() => {
     const len = (currentConversation?.messages as Message[] | undefined)?.length || 0;
     if (len === 0) return;
+    // 先同步一次，随后在下一帧和100ms后再各补一次，避免渲染/布局时序导致未到达真正底部
+    handleScrollToBottom();
     const raf = requestAnimationFrame(() => handleScrollToBottom());
-    return () => cancelAnimationFrame(raf);
+    const t = setTimeout(() => handleScrollToBottom(), 100);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
   }, [currentConversation?.messages?.length]);
 
   // 从后台切回到该标签页时，确保定位到底部
@@ -147,15 +154,26 @@ export default function ChatPage() {
   }, [setScrollToBottomCallback, handleScrollToBottom]);
 
   const navigateToMessage = (msgId: string) => {
-    const el = messageRefs.current[msgId];
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (scrollToMessageRef.current) {
+      scrollToMessageRef.current(msgId);
+      return;
     }
+    const el = messageRefs.current[msgId];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // 惰性加载：当切换到某个会话时才加载其消息
+  useEffect(() => {
+    if (!currentConversationId) return;
+    void ensureMessagesLoaded(currentConversationId);
+  }, [currentConversationId, ensureMessagesLoaded]);
+
+  // 实时渲染：直接使用会话消息，确保流式更新不被延迟
+  const liveMessages = (currentConversation?.messages as Message[] | undefined) || [];
 
   const handleEditMessage = (messageId: string, _content: string) => {
     if (!currentConversation) return;
@@ -236,11 +254,11 @@ export default function ChatPage() {
             ref={scrollContainerRef}
             onMouseEnter={() => { if (scrollContainerRef.current) scrollContainerRef.current.style.overflowY = 'auto'; }}
             onMouseLeave={() => { if (scrollContainerRef.current) scrollContainerRef.current.style.overflowY = 'hidden'; }}
-            style={{ overflowY: 'hidden' }}
+            style={{ overflowY: 'hidden', scrollbarGutter: 'stable' }}
           >
             <ChatMessageList
               chatId={currentConversationId}
-              messages={currentConversation.messages as Message[]}
+              messages={liveMessages}
               isLoading={isLoading}
               onEditMessage={handleEditMessage}
               onRetryMessage={handleRetryMessage}
@@ -248,12 +266,14 @@ export default function ChatPage() {
               onSaveThinkingDuration={handleSaveThinkingDuration}
               messageRefs={messageRefs}
               messagesEndRef={managedEndRef}
+              scrollParentRef={scrollContainerRef}
+              onRegisterScrollToMessage={registerScrollToMessage}
             />
             {/* managedEndRef 已由组件内部渲染，无需此处额外 div */}
           </div>
           {/* 工具栏 - 超过3条消息时显示，且不在输入框区域时显示 */}
           <div 
-            className={`fixed right-24 bottom-46 z-40 md:right-10 transition-opacity duration-300 ${
+            className={`fixed right-6 md:right-6 bottom-32 md:bottom-40 z-40 transition-opacity duration-300 ${
               isInputAreaHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
           >

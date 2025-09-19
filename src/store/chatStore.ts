@@ -23,10 +23,14 @@ interface ChatState {
   isGenerating: boolean;
   lastUsedModelPerChat: Record<string, string>;
   sessionLastSelectedModel: string | null;
+  /** 已加载消息的会话标记，避免重复加载 */
+  _messagesLoaded: Record<string, boolean>;
 }
 
 interface ChatActions {
   loadConversations: () => Promise<void>;
+  /** 确保指定会话的消息已加载（惰性加载） */
+  ensureMessagesLoaded: (conversationId: string) => Promise<void>;
   createConversation: (title: string, modelId: string, providerName?: string) => Promise<string>;
   deleteConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversationId: string) => void;
@@ -98,6 +102,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
       isGenerating: false,
       lastUsedModelPerChat: {},
       sessionLastSelectedModel: null,
+      _messagesLoaded: {},
 
       loadConversations: async () => {
         console.log(`🔄 [LOAD-CONVERSATIONS] 开始加载对话列表`);
@@ -121,7 +126,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
           }
           
           const conversationRepo = dbService.getConversationRepository();
-          const messageRepo = dbService.getMessageRepository();
 
           startupMonitor.startPhase('获取对话列表');
           const conversations = await conversationRepo.findAll(
@@ -132,22 +136,60 @@ export const useChatStore = create<ChatState & ChatActions>()(
 
           console.log(`🔄 [LOAD-CONVERSATIONS] 从数据库加载了 ${conversations.length} 个对话`);
 
-          // 并行加载消息以提升性能
-          startupMonitor.startPhase('并行加载消息');
-          const messagePromises = conversations.map(async (conv) => {
-            const messages = await messageRepo.getMessagesByConversation(conv.id);
-            return { conversationId: conv.id, messages };
+          startupMonitor.startPhase('数据处理');
+
+          const loadedConversations: Conversation[] = conversations.map((conv) => {
+            const convAny = conv as any;
+            const conversationData: Conversation = {
+              id: convAny.id,
+              title: convAny.title,
+              created_at: convAny.created_at || convAny.created_at,
+              updated_at: convAny.updated_at || convAny.updated_at,
+              model_id: convAny.model_id || convAny.model_id || 'default',
+              model_provider: convAny.model_provider || null,
+              model_full_id: convAny.model_full_id || (convAny.model_provider ? `${convAny.model_provider}/${convAny.model_id}` : convAny.model_id),
+              is_important: convAny.is_important === true || convAny.is_important === 1,
+              is_favorite: convAny.is_favorite === true || convAny.is_favorite === 1,
+              messages: [], // 首次不加载消息，按需加载
+            };
+            return conversationData;
+          });
+          startupMonitor.endPhase('数据处理');
+
+          console.debug(`🔄 [STORE] Loaded ${loadedConversations.length} conversations.`);
+          set({ 
+            conversations: loadedConversations, 
+            isLoadingConversations: false 
           });
 
-          const messageResults = await Promise.all(messagePromises);
-          startupMonitor.endPhase('并行加载消息');
-          
-          const messageMap = new Map(
-            messageResults.map(result => [result.conversationId, result.messages])
-          );
+          if (!get().currentConversationId && loadedConversations.length > 0) {
+            console.log(`🔄 [LOAD-CONVERSATIONS] 设置当前会话: ${loadedConversations[0].id}`);
+            set({ currentConversationId: loadedConversations[0].id });
+          }
 
-          startupMonitor.startPhase('数据处理');
-          // 简易解析：从 content 中恢复 MCP 卡片标记为 segments
+          console.log(`[LOAD-CONVERSATIONS] 会话加载完成，总计: ${loadedConversations.length} 个`);
+          startupMonitor.endPhase('对话列表加载');
+        } catch (error) {
+          startupMonitor.endPhase('对话列表加载');
+          startupMonitor.endPhase('获取对话列表');
+          startupMonitor.endPhase('数据处理');
+          
+          console.error('❌ [LOAD-CONVERSATIONS] 加载对话失败:', error);
+          set({ isLoadingConversations: false });
+        }
+      },
+
+      ensureMessagesLoaded: async (conversationId: string) => {
+        if (!conversationId) return;
+        const loaded = get()._messagesLoaded[conversationId];
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (loaded && conv && Array.isArray(conv.messages) && conv.messages.length > 0) return;
+
+        try {
+          const dbService = getDatabaseService();
+          const messageRepo = dbService.getMessageRepository();
+          const messages = await messageRepo.getMessagesByConversation(conversationId);
+
           const parseToolCardsFromContent = (content: string, messageId: string) => {
             const segs: any[] = [];
             if (!content) return segs;
@@ -180,108 +222,60 @@ export const useChatStore = create<ChatState & ChatActions>()(
             return segs;
           };
 
-          const loadedConversations: Conversation[] = conversations.map((conv) => {
-            const messages = messageMap.get(conv.id) || [];
-
-            const processedMessages: Message[] = messages.map((msg: any) => {
-              
-              let doc_ref = undefined;
-              if (msg.document_reference) {
-                if (typeof msg.document_reference === 'object' && !Array.isArray(msg.document_reference)) {
-                  doc_ref = msg.document_reference;
-                } 
-                else if (typeof msg.document_reference === 'string') {
-                  try {
-                    doc_ref = JSON.parse(msg.document_reference);
-                  } catch (e) {
-                    console.error(`[STORE] 解析文档引用失败 (msgId: ${msg.id}):`, e);
-                  }
-                }
+          const processed: Message[] = messages.map((msg: any) => {
+            let doc_ref = undefined;
+            if (msg.document_reference) {
+              if (typeof msg.document_reference === 'object' && !Array.isArray(msg.document_reference)) {
+                doc_ref = msg.document_reference;
+              } else if (typeof msg.document_reference === 'string') {
+                try { doc_ref = JSON.parse(msg.document_reference); } catch { /* noop */ }
               }
-
-              let kb_ref = undefined;
-              if (msg.knowledge_base_reference) {
-                if (typeof msg.knowledge_base_reference === 'object' && !Array.isArray(msg.knowledge_base_reference)) {
-                  kb_ref = msg.knowledge_base_reference;
-                }
-                else if (typeof msg.knowledge_base_reference === 'string') {
-                  try {
-                    kb_ref = JSON.parse(msg.knowledge_base_reference);
-                  } catch (e) {
-                    console.error(`[STORE] 解析知识库引用失败 (msgId: ${msg.id}):`, e);
-                  }
-                }
+            }
+            let kb_ref = undefined;
+            if (msg.knowledge_base_reference) {
+              if (typeof msg.knowledge_base_reference === 'object' && !Array.isArray(msg.knowledge_base_reference)) {
+                kb_ref = msg.knowledge_base_reference;
+              } else if (typeof msg.knowledge_base_reference === 'string') {
+                try { kb_ref = JSON.parse(msg.knowledge_base_reference); } catch { /* noop */ }
               }
-              
-              const base: Message = {
-                id: msg.id,
-                conversation_id: msg.conversation_id,
-                role: msg.role,
-                content: msg.content,
-                created_at: msg.created_at,
-                updated_at: msg.updated_at,
-                status: msg.status,
-                model: msg.model || undefined,
-                document_reference: doc_ref,
-                knowledge_base_reference: kb_ref,
-                context_data: msg.context_data || undefined,
-                thinking_start_time: msg.thinking_start_time,
-                thinking_duration: msg.thinking_duration,
-                images: parseImagesField(msg.images),
-              };
-
-              // 恢复 MCP 卡片为 segments（优先使用数据库中的 segments；否则从 content 兜底解析）
-              try {
-                const segsFromDb = Array.isArray(msg.segments) ? (msg.segments as any[]) : [];
-                const segs = segsFromDb.length > 0 ? segsFromDb : parseToolCardsFromContent(base.content || '', base.id);
-                if (Array.isArray(segs) && segs.length > 0) {
-                  (base as any).segments = segs;
-                  (base as any).segments_vm = { items: segs.map((s:any)=>({ ...s })), flags: { isThinking: false, isComplete: true, hasToolCalls: true } };
-                }
-              } catch { /* noop */ }
-
-              return base;
-            });
-
-            const convAny = conv as any;
-            const conversationData: Conversation = {
-              id: convAny.id,
-              title: convAny.title,
-              created_at: convAny.created_at || convAny.created_at,
-              updated_at: convAny.updated_at || convAny.updated_at,
-              model_id: convAny.model_id || convAny.model_id || 'default',
-              model_provider: convAny.model_provider || null,
-              model_full_id: convAny.model_full_id || (convAny.model_provider ? `${convAny.model_provider}/${convAny.model_id}` : convAny.model_id),
-              is_important: convAny.is_important === true || convAny.is_important === 1,
-              is_favorite: convAny.is_favorite === true || convAny.is_favorite === 1,
-              messages: processedMessages,
+            }
+            const base: Message = {
+              id: msg.id,
+              conversation_id: msg.conversation_id,
+              role: msg.role,
+              content: msg.content,
+              created_at: msg.created_at,
+              updated_at: msg.updated_at,
+              status: msg.status,
+              model: msg.model || undefined,
+              document_reference: doc_ref,
+              knowledge_base_reference: kb_ref,
+              context_data: msg.context_data || undefined,
+              thinking_start_time: msg.thinking_start_time,
+              thinking_duration: msg.thinking_duration,
+              images: parseImagesField(msg.images),
             };
-
-            return conversationData;
+            try {
+              const segsFromDb = Array.isArray(msg.segments) ? (msg.segments as any[]) : [];
+              const segs = segsFromDb.length > 0 ? segsFromDb : parseToolCardsFromContent(base.content || '', base.id);
+              if (Array.isArray(segs) && segs.length > 0) {
+                (base as any).segments = segs;
+                (base as any).segments_vm = { items: segs.map((s:any)=>({ ...s })), flags: { isThinking: false, isComplete: true, hasToolCalls: true } };
+              }
+            } catch { /* noop */ }
+            return base;
           });
-          startupMonitor.endPhase('数据处理');
 
-          console.debug(`🔄 [STORE] Loaded ${loadedConversations.length} conversations.`);
-          set({ 
-            conversations: loadedConversations, 
-            isLoadingConversations: false 
+          set(state => {
+            const target = state.conversations.find(c => c.id === conversationId);
+            if (target) {
+              (target as any).messages = processed;
+              state._messagesLoaded[conversationId] = true;
+              target.updated_at = Date.now();
+            }
           });
-
-          if (!get().currentConversationId && loadedConversations.length > 0) {
-            console.log(`🔄 [LOAD-CONVERSATIONS] 设置当前会话: ${loadedConversations[0].id}`);
-            set({ currentConversationId: loadedConversations[0].id });
-          }
-
-          console.log(`[LOAD-CONVERSATIONS] 会话加载完成，总计: ${loadedConversations.length} 个`);
-          startupMonitor.endPhase('对话列表加载');
-        } catch (error) {
-          startupMonitor.endPhase('对话列表加载');
-          startupMonitor.endPhase('获取对话列表');
-          startupMonitor.endPhase('并行加载消息');
-          startupMonitor.endPhase('数据处理');
-          
-          console.error('❌ [LOAD-CONVERSATIONS] 加载对话失败:', error);
-          set({ isLoadingConversations: false });
+        } catch (e) {
+          console.error('[STORE] ensureMessagesLoaded 失败:', e);
         }
       },
 

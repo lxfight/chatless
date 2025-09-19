@@ -106,42 +106,40 @@ pub fn run() {
           }
         }
       }
-      // 尝试在启动时初始化 ONNX Runtime，但不再因失败而中断应用
-      let lib_name = if cfg!(target_os = "windows") {
-        "onnxruntime.dll"
-      } else if cfg!(target_os = "macos") {
-        "libonnxruntime.dylib"
-      } else {
-        "libonnxruntime.so"
-      };
-
-      match app
-        .path()
-        .resolve(lib_name, BaseDirectory::Resource)
-      {
-        Ok(resource_path) => {
-          println!("Attempting to load {lib_name} from: {:?}", resource_path);
-          if resource_path.exists() {
-            if let Err(e) = ort::init_from(resource_path.to_string_lossy().as_ref()).commit() {
-              eprintln!(
-                "[WARN] Failed to initialize ONNX Runtime at startup: {}. Features depending on ORT may be unavailable until re-initialized.",
-                e
-              );
-            }
+      // 尝试在后台线程初始化 ONNX Runtime，避免阻塞启动
+      std::thread::spawn({
+        let app_handle = app.handle().clone();
+        move || {
+          let lib_name = if cfg!(target_os = "windows") {
+            "onnxruntime.dll"
+          } else if cfg!(target_os = "macos") {
+            "libonnxruntime.dylib"
           } else {
-            eprintln!(
-              "[WARN] ORT dynamic library not found at {:?}. You can still use the app without embedding features.",
-              resource_path
-            );
+            "libonnxruntime.so"
+          };
+
+          match app_handle
+            .path()
+            .resolve(lib_name, BaseDirectory::Resource)
+          {
+            Ok(resource_path) => {
+              println!("[ORT] Background init: attempting to load {lib_name} from: {:?}", resource_path);
+              if resource_path.exists() {
+                if let Err(e) = ort::init_from(resource_path.to_string_lossy().as_ref()).commit() {
+                  eprintln!("[WARN] ORT background init failed: {}", e);
+                } else {
+                  println!("[ORT] Background init succeeded");
+                }
+              } else {
+                eprintln!("[WARN] ORT library not found at {:?}", resource_path);
+              }
+            }
+            Err(e) => {
+              eprintln!("[WARN] ORT resource resolve failed: {}", e);
+            }
           }
         }
-        Err(e) => {
-          eprintln!(
-            "[WARN] Failed to resolve ORT resource path: {}. Skipping ORT init at startup.",
-            e
-          );
-        }
-      }
+      });
 
       // 托盘图标统一由前端控制，避免与后端重复创建导致出现多个托盘图标
 

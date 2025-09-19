@@ -138,8 +138,19 @@ export function TauriApp({ children }: TauriAppProps) {
         await loadConversations();
         startupMonitor.endPhase('会话加载');
 
-        // MCP 服务器初始化（不阻塞其他流程）
-        setTimeout(() => { serverManager.init(); }, 300);
+        // MCP 服务器初始化：空闲时段再启动，避免与首屏竞争
+        try {
+          const scheduleIdle = (fn: () => void) => {
+            // 使用 requestIdleCallback，如不可用则退回 setTimeout
+            const anyWin: any = window as any;
+            if (typeof anyWin.requestIdleCallback === 'function') {
+              anyWin.requestIdleCallback(() => fn());
+            } else {
+              setTimeout(fn, 1200);
+            }
+          };
+          scheduleIdle(() => { serverManager.init(); });
+        } catch { /* noop */ }
 
         console.log('✅ [TauriApp] 应用初始化完成');
       } catch (error) {

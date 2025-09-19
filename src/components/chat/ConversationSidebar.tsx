@@ -4,8 +4,9 @@ import React, { useState, useEffect } from "react";
 import { Conversation } from "@/types/chat";
 import { useChatStore } from "@/store/chatStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Virtuoso } from 'react-virtuoso';
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Loader2Icon, SearchIcon, MessageSquare } from "lucide-react";
+import { SearchIcon, MessageSquare } from "lucide-react";
 import FoldingLoader from '@/components/ui/FoldingLoader';
 import { ConversationItem } from "./ConversationItem";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
@@ -36,7 +37,7 @@ export function ConversationSidebar({
 
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameInputValue, setRenameInputValue] = useState("");
-  const [clickTimeoutId, setClickTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [clickTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   
@@ -55,11 +56,7 @@ export function ConversationSidebar({
     setConversationToDelete(null);
   };
 
-  const handleRenameStart = (e: any, conv: Conversation) => {
-    if (e?.preventDefault) e.preventDefault();
-    setRenamingConversationId(conv.id);
-    setRenameInputValue(conv.title);
-  };
+  // 保留双击标题进入重命名
 
   const handleTitleDoubleClick = (e: any, conv: Conversation) => {
     if (e?.preventDefault) e.preventDefault();
@@ -97,9 +94,7 @@ export function ConversationSidebar({
     };
   }, [clickTimeoutId]);
 
-  const handleStarConversation = (conversationId: string) => {
-    toggleStarConversation(conversationId);
-  };
+  // 星标直接使用 toggleStarConversation
 
   const handleToggleImportant = (conversationId: string) => {
     toggleImportant(conversationId);
@@ -146,31 +141,39 @@ export function ConversationSidebar({
 
   return (
     <TooltipProvider>
-      <ScrollArea className="flex-1 px-2 pt-1 pb-2 h-full">
-        <ul className="space-y-1">
-          {conversationsToShow.map((conv) => (
-            <ConversationItem
-              key={conv.id}
-              conversation={conv}
-              isCurrent={currentConversationId === conv.id}
-              isRenaming={renamingConversationId === conv.id}
-              renameInputValue={renameInputValue}
-              onSelect={setCurrentConversation}
-              onRenameStart={handleTitleDoubleClick}
-              onTitleClick={handleTitleClick}
-              onRenameChange={setRenameInputValue}
-              onRenameSubmit={handleRenameSubmit}
-              onRenameBlur={handleRenameSubmit}
-              onRenameKeyDown={handleRenameKeyDown}
-              onDelete={handleDeleteClick}
-              onStar={toggleStarConversation}
-              onToggleImportant={toggleImportant}
-              onDuplicate={duplicateConversation}
-              onExport={downloadConversation}
-            />
-          ))}
-        </ul>
-      </ScrollArea>
+      <div className="flex-1 px-2 pt-1 pb-2 h-full">
+        <Virtuoso
+          totalCount={conversationsToShow.length}
+          data={conversationsToShow}
+          useWindowScroll={false}
+          increaseViewportBy={200}
+          computeItemKey={(index, item) => item.id}
+          itemContent={(index, conv) => (
+            <div className="mb-1">
+              <ConversationItem
+                key={conv.id}
+                conversation={conv}
+                isCurrent={currentConversationId === conv.id}
+                isRenaming={renamingConversationId === conv.id}
+                renameInputValue={renameInputValue}
+                onSelect={setCurrentConversation}
+                onRenameStart={handleTitleDoubleClick}
+                onTitleClick={handleTitleClick}
+                onRenameChange={setRenameInputValue}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameBlur={handleRenameSubmit}
+                onRenameKeyDown={handleRenameKeyDown}
+                onDelete={handleDeleteClick}
+                onStar={toggleStarConversation}
+                onToggleImportant={handleToggleImportant}
+                onDuplicate={handleDuplicateConversation}
+                onExport={downloadConversation}
+              />
+            </div>
+          )}
+          style={{ height: '100%' }}
+        />
+      </div>
       <DeleteConversationDialog
         isOpen={isAlertOpen}
         onOpenChange={setIsAlertOpen}

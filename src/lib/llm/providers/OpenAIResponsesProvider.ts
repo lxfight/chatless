@@ -105,14 +105,137 @@ export class OpenAIResponsesProvider extends BaseProvider {
     };
 
     try {
+      // 优先：Tauri HTTP（跨域/自签证书友好）
+      let resp: any = null;
+      try {
+        const { tauriFetch } = await import('@/lib/request');
+        resp = await tauriFetch(url, {
+          method: 'POST',
+          rawResponse: true,
+          browserHeaders: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/x-ndjson, application/json, text/event-stream',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body,
+          debugTag: 'OpenAIResponsesStream',
+        });
+      } catch {
+        resp = null;
+      }
+
+      // 次选：浏览器 fetch
+      if (!resp) {
+        try {
+          resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/x-ndjson, application/json, text/event-stream',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+          });
+        } catch {
+          resp = null;
+        }
+      }
+
+      if (!resp || !resp.ok) {
+        await this.startSSEFallback(url, apiKey, body, cb);
+        return;
+      }
+
+      const contentType = (resp.headers.get?.('Content-Type') || '').toLowerCase();
+      if (contentType.includes('text/event-stream')) {
+        await this.startSSEFallback(url, apiKey, body, cb);
+        return;
+      }
+
+      // NDJSON/JSON 流解析
+      cb.onStart?.();
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error('ReadableStream reader not available');
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      const processEvent = (eventName: string | null, data: any) => {
+        const route = eventName || data?.event || data?.type || '';
+        const pickPiece = (obj: any) => (typeof obj?.delta === 'string' ? obj.delta : (typeof obj?.text === 'string' ? obj.text : (typeof obj?.content === 'string' ? obj.content : undefined)));
+        switch (route) {
+          case 'response.reasoning.delta': {
+            const piece = pickPiece(data);
+            if (piece) {
+              if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; }
+              cb.onToken?.(piece);
+            }
+            break;
+          }
+          case 'response.output_text.delta': {
+            const piece = pickPiece(data);
+            if (piece) { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } cb.onToken?.(piece); }
+            break;
+          }
+          case 'response.output_text.done': {
+            if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
+            break;
+          }
+          case 'response.completed': {
+            if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
+            cb.onComplete?.();
+            break;
+          }
+          default: {
+            const piece = pickPiece(data);
+            if (piece) { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } cb.onToken?.(piece); }
+            break;
+          }
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          const last = buffer.trim();
+          if (last) {
+            const line = last.startsWith('data:') ? last.slice(5).trim() : last;
+            if (line === '[DONE]') { if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>'); cb.onComplete?.(); break; }
+            try { processEvent(null, JSON.parse(line)); } catch { /* ignore */ }
+          }
+          if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>');
+          cb.onComplete?.();
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const raw = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!raw) continue;
+          if (raw === '[DONE]') { if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>'); cb.onComplete?.(); return; }
+          if (raw.startsWith('event:')) { lastEvent = raw.slice(6).trim(); continue; }
+          const payload = raw.startsWith('data:') ? raw.slice(5).trim() : raw;
+          try { processEvent(lastEvent, JSON.parse(payload)); } catch { /* ignore */ }
+        }
+      }
+    } catch (error: any) {
+      console.error('[OpenAIResponsesProvider] stream error:', error);
+      cb.onError?.(error);
+    }
+  }
+
+  private async startSSEFallback(url: string, apiKey: string, body: unknown, cb: StreamCallbacks) {
+    let lastEvent: string | null = null;
+    let thinkingStarted = false;
+    let thinkingEnded = false;
+    const flushThinkingIfNeeded = () => { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } };
+    try {
       await this.sseClient.startConnection(
         {
           url,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body,
           debugTag: 'OpenAIResponsesProvider',
         },
@@ -120,92 +243,35 @@ export class OpenAIResponsesProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawLine: string) => {
-            const line = rawLine.trim();
-            if (!line) return;
-
-            // 兼容 [DONE]
-            if (line === '[DONE]') {
-              flushThinkingIfNeeded();
-              cb.onComplete?.();
-              this.sseClient.stopConnection();
-              return;
-            }
-
-            // 记录 event 行
-            if (line.startsWith('event:')) {
-              lastEvent = line.slice(6).trim();
-              return;
-            }
-
-            // 剩余行按 JSON payload 尝试解析
-            let data: any = null;
-            try {
-              data = JSON.parse(line);
-            } catch (_) {
-              // 忽略非 JSON 行
-              return;
-            }
-
-            // 根据上一次的 event 类型路由
+            const line = rawLine.trim(); if (!line) return;
+            if (line === '[DONE]') { flushThinkingIfNeeded(); cb.onComplete?.(); this.sseClient.stopConnection(); return; }
+            if (line.startsWith('event:')) { lastEvent = line.slice(6).trim(); return; }
+            let data: any = null; try { data = JSON.parse(line); } catch { return; }
             switch (lastEvent) {
               case 'response.reasoning.delta': {
-                const piece: string | undefined =
-                  (typeof data?.delta === 'string' ? data.delta : undefined) ||
-                  (typeof data?.text === 'string' ? data.text : undefined) ||
-                  (typeof data?.content === 'string' ? data.content : undefined);
-                if (piece && piece.length > 0) {
-                  if (!thinkingStarted) {
-                    cb.onToken?.('<think>');
-                    thinkingStarted = true;
-                    thinkingEnded = false;
-                  }
-                  cb.onToken?.(piece);
-                }
+                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
+                if (piece) { if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; } cb.onToken?.(piece); }
                 break;
               }
               case 'response.output_text.delta': {
-                const piece: string | undefined =
-                  (typeof data?.delta === 'string' ? data.delta : undefined) ||
-                  (typeof data?.text === 'string' ? data.text : undefined) ||
-                  (typeof data?.content === 'string' ? data.content : undefined);
-                if (piece && piece.length > 0) {
-                  // 第一次出现正文时，关闭思考段
-                  flushThinkingIfNeeded();
-                  cb.onToken?.(piece);
-                }
+                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
+                if (piece) { flushThinkingIfNeeded(); cb.onToken?.(piece); }
                 break;
               }
-              case 'response.output_text.done': {
-                // 输出完成事件（不一定是整体完成）
-                flushThinkingIfNeeded();
-                break;
-              }
-              case 'response.completed': {
-                // 整体完成
-                flushThinkingIfNeeded();
-                cb.onComplete?.();
-                this.sseClient.stopConnection();
-                break;
-              }
+              case 'response.output_text.done': { flushThinkingIfNeeded(); break; }
+              case 'response.completed': { flushThinkingIfNeeded(); cb.onComplete?.(); this.sseClient.stopConnection(); break; }
               default: {
-                // 兜底：若没有 event 或未知事件，但负载含有 text/delta 字段，也尝试输出
-                const piece: string | undefined =
-                  (typeof data?.delta === 'string' ? data.delta : undefined) ||
-                  (typeof data?.text === 'string' ? data.text : undefined) ||
-                  (typeof data?.content === 'string' ? data.content : undefined);
-                if (piece && piece.length > 0) {
-                  flushThinkingIfNeeded();
-                  cb.onToken?.(piece);
-                }
+                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
+                if (piece) { flushThinkingIfNeeded(); cb.onToken?.(piece); }
                 break;
               }
             }
           },
         }
       );
-    } catch (error: any) {
-      console.error('[OpenAIResponsesProvider] SSE connection failed:', error);
-      cb.onError?.(error);
+    } catch (error) {
+      console.error('[OpenAIResponsesProvider] SSE fallback failed:', error);
+      cb.onError?.(error as any);
     }
   }
 
