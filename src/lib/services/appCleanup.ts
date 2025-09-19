@@ -110,6 +110,14 @@ export class AppCleanupService {
           }
         }
 
+        // 退出前显式保存窗口状态
+        try {
+          const { saveWindowState, StateFlags } = await import('@tauri-apps/plugin-window-state');
+          await saveWindowState(StateFlags.ALL);
+        } catch (error) {
+          console.warn('⚠️ 保存窗口状态失败（onCloseRequested）:', error);
+        }
+
         // 用户确认关闭或设置中禁用了确认对话框，执行清理操作
         await this.cleanup();
       });
@@ -128,7 +136,15 @@ export class AppCleanupService {
       event.returnValue = '';
       
       setTimeout(() => {
-        this.cleanup().catch(console.error);
+        void (async () => {
+          try {
+            const { saveWindowState, StateFlags } = await import('@tauri-apps/plugin-window-state');
+            await saveWindowState(StateFlags.ALL);
+          } catch (error) {
+            console.warn('⚠️ 保存窗口状态失败（beforeunload）:', error);
+          }
+          this.cleanup().catch(console.error);
+        })();
       }, 100);
     };
 
