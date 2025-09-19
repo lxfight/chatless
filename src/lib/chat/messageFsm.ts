@@ -33,7 +33,6 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
       }
       const base = ensureTextTail(model.segments, '');
       const next = appendText(base, action.chunk);
-      try { console.log('[FSM:TOKEN_APPEND]', { id: model.id, addLen: (action.chunk||'').length, segLen: next.length }); } catch { /* noop */ }
       return { ...model, segments: next };
     }
     case 'THINK_START': {

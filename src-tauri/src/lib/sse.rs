@@ -61,7 +61,8 @@ pub async fn start_sse(
     *guard = Some(shutdown_tx);
   }
 
-  let client = match crate::http_client::get_browser_like_client() {
+  // 使用最小化HTTP客户端，禁用压缩并强制HTTP/1.1，避免流解码错误
+  let client = match crate::http_client::get_minimal_client() {
     Ok(client) => (*client).clone(), // 从Arc<Client>转换为Client
     Err(e) => {
       app
@@ -110,6 +111,8 @@ pub async fn start_sse(
         return;
       }
     };
+
+    // 移除额外的响应头日志（保留修复性改动）
 
     if !res.status().is_success() {
       let status = res.status();

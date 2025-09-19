@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -955,4 +956,36 @@ li+li { margin-top: 0.375rem; }
   margin-bottom: 0.35rem;
   padding-left: 0.6rem;
   border-left: 3px solid rgba(148,163,184,0.4);
+}
+
+/* === Chat Markdown table enhancements (simple & safe) === */
+.prose table{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.prose thead th{
+  position: sticky; /* stick while scrolling聊天区 */
+  top: 0;
+  z-index: 1;
+  background-color: rgba(255,255,255,0.8);
+  backdrop-filter: blur(2px);
+}
+.dark .prose thead th{
+  background-color: rgba(15,23,42,0.75); /* slate-900/75 */
+}
+.prose th,
+.prose td{
+  padding: 0.375rem 0.75rem; /* 紧凑行高 */
+  border-bottom: 1px solid rgba(148,163,184,0.25); /* slate-400/25 */
+}
+.dark .prose th,
+.dark .prose td{
+  border-bottom: 1px solid rgba(100,116,139,0.3); /* slate-500/30 */
+}
+.prose tbody tr:nth-child(odd){
+  background-color: rgba(0,0,0,0.02);
+}
+.dark .prose tbody tr:nth-child(odd){
+  background-color: rgba(255,255,255,0.03);
 }

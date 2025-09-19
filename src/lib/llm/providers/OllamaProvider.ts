@@ -211,7 +211,8 @@ export class OllamaProvider extends BaseProvider {
           cb.onComplete?.();
           break;
         }
-        buffer += decoder.decode(value, { stream: true });
+        const decoded = decoder.decode(value, { stream: true });
+        buffer += decoded;
         let idx: number;
         while ((idx = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, idx).trim();
