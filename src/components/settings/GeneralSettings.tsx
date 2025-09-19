@@ -67,7 +67,7 @@ export function GeneralSettings() {
       </div>
 
              {/* 主要设置卡片 */}
-       <div className="border border-gray-100 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
+       <div className="border border-gray-100 dark:border-gray-800 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
          {/* 头部 */}
          <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
            {/* 主图标使用品牌色以提升层级 */}

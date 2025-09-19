@@ -193,9 +193,10 @@ function ChatMessageComponent({
           >
             <div className={cn(
               isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",
+              // 用户消息：暗色下改为更接近背景的轻微浮起效果，降低层次断差
               isUser
-                ? "px-2.5 py-1.5 text-[14px] leading-[1.3] rounded-2xl bg-blue-50/70 dark:bg-blue-900/15 border border-blue-200/50 dark:border-blue-800/30"
-                : "px-3 py-2 rounded-2xl bg-slate-50/70 dark:bg-slate-800/20 border border-slate-200/60 dark:border-slate-700/40",
+                ? "px-2.5 py-1.5 text-[14px] leading-[1.3] rounded-2xl bg-blue-50/80 dark:bg-slate-800/50 border border-blue-200/40 dark:border-slate-700"
+                : "px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50",
               !isUser && "rounded-tl-2xl"
             )}>
               {messageContent}
@@ -254,7 +255,7 @@ function ChatMessageComponent({
                     variant="ghost"
                     size="icon"
                     onClick={() => onStar(id)}
-                    className="h-5 w-5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                    className="h-5 w-5 text-gray-400 hover:text-gray-600 rounded-full ring-1 ring-transparent hover:ring-gray-300 dark:hover:ring-gray-600"
                     title="收藏回答"
                   >
                     <Star className="w-3 h-3" />

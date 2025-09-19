@@ -8,6 +8,7 @@ import { downloadService } from "@/lib/utils/downloadService";
 import { detectTauriEnvironment } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { Select, SelectItem, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { 
   Plus, 
@@ -480,9 +481,9 @@ export function McpServersSettings() {
       }
     };
     return (
-      <div className="border border-gray-100 rounded-xl p-4 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-gray-50 pb-3">
+        <div className="flex items-center justify-between border-b border-gray-50 dark:border-slate-700 pb-3">
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">编辑服务器</h3>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -507,7 +508,7 @@ export function McpServersSettings() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">名称</label>
                 <input 
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                   value={name} 
                   onChange={(e)=>setEditing({ name: e.target.value, config })} 
                   placeholder="输入服务器名称"
@@ -515,15 +516,20 @@ export function McpServersSettings() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">传输类型</label>
-                <select 
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
-                  value={type} 
-                  onChange={(e)=>setConfig({ type: e.target.value as TransportType })}
+                <Select
+                
+                  value={type}
+                  onValueChange={(value) => setEditing({ name, config: { ...config, type: value as TransportType } })}
                 >
-                  <option value="stdio">stdio</option>
-                  <option value="sse">sse</option>
-                  <option value="http">http</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择传输类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stdio">stdio</SelectItem>
+                    <SelectItem value="sse">sse</SelectItem>
+                    <SelectItem value="http">http</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -534,7 +540,7 @@ export function McpServersSettings() {
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">命令</label>
                     <input 
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                       value={config.command || ""} 
                       onChange={(e)=>setConfig({ command: e.target.value })} 
                       placeholder="例如: npx"
@@ -543,7 +549,7 @@ export function McpServersSettings() {
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">参数</label>
                     <input 
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                       placeholder="以空格分隔" 
                       value={(config.args||[]).join(" ")} 
                       onChange={(e)=>setConfig({ args: e.target.value.trim() ? e.target.value.split(/\s+/g) : [] })} 
@@ -554,7 +560,7 @@ export function McpServersSettings() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">环境变量</label>
                   <input 
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                     placeholder="KEY=VALUE,KEY2=VALUE2" 
                     value={(config.env||[]).map(([k,v])=>`${k}=${v}`).join(", ")} 
                     onChange={(e)=>{
@@ -571,7 +577,7 @@ export function McpServersSettings() {
                     type="checkbox" 
                     checked={isCmdWrap} 
                     onChange={toggleCmdWrap}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400">Windows 兼容（cmd /c 包装）</span>
                 </div>
@@ -581,7 +587,7 @@ export function McpServersSettings() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Base URL</label>
                   <input 
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                     placeholder="http(s)://..." 
                     value={config.baseUrl || ""} 
                     onChange={(e)=>setConfig({ baseUrl: e.target.value })} 
@@ -590,7 +596,7 @@ export function McpServersSettings() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">请求头</label>
                   <input 
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm" 
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500/40 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100" 
                     placeholder="Authorization=Bearer xxx, X-Api-Key=xxx" 
                     value={(config.headers||[]).map(([k,v])=>`${k}=${v}`).join(", ")} 
                     onChange={(e)=>{
@@ -609,7 +615,7 @@ export function McpServersSettings() {
             <div className="text-sm text-gray-600 dark:text-gray-400">
               JSON 编辑（可直接粘贴配置，支持 name/type/command/args/env 或 baseUrl/headers）
             </div>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
               <div className="flex">
                 <pre ref={importNumsRef} className="select-none text-right text-xs leading-6 px-2 py-2 w-10 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden" style={{maxHeight: 200}}>
                   {editingJsonText.split('\n').map((_,i)=>String(i+1)).join('\n')}
@@ -655,7 +661,7 @@ export function McpServersSettings() {
         )}
 
         {/* 操作按钮 */}
-        <div className="flex gap-2 pt-3 border-t border-gray-50">
+        <div className="flex gap-2 pt-3 border-t border-gray-50 dark:border-slate-700">
           <Tooltip>
             <TooltipTrigger asChild>
               <button 
@@ -814,7 +820,7 @@ export function McpServersSettings() {
         {renderEditor()}
 
       {importOpen && (
-        <div className="border border-gray-200 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-lg backdrop-blur-sm">
+        <div className="border border-gray-200 dark:border-slate-700 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-lg backdrop-blur-sm">
           {/* 头部区域 */}
           <div className="flex items-start justify-between">
             <div>
@@ -936,15 +942,18 @@ export function McpServersSettings() {
           const tools = st === 'connected' ? (toolsCache?.tools || []) : [];
           
           return (
-            <div key={s.name} className="border rounded-xl p-3 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm overflow-visible">
+            <div key={s.name} className="border border-gray-100 dark:border-slate-800 rounded-xl p-3 bg-white/80 dark:bg-slate-900/50 backdrop-blur-sm overflow-visible">
               <div className="flex items-center justify-between">
                 <div className="font-medium flex items-center gap-2">
                   <span>{s.name}</span>
                   <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${
-                    st === 'connected' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                    st === 'connecting' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                    st === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
-                    'bg-gray-50 text-gray-500 border border-gray-100'
+                    st === 'connected' 
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800/40'
+                      : st === 'connecting' 
+                        ? 'bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/40'
+                        : st === 'error' 
+                          ? 'bg-red-50 text-red-600 border border-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/40'
+                          : 'bg-gray-50 text-gray-500 border border-gray-100 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700/50'
                   }`}>
                     {st === 'connected' ? (
                       <CheckCircle className="w-3 h-3" />
@@ -1037,7 +1046,7 @@ export function McpServersSettings() {
                        </button>
                      </DropdownMenu.Trigger>
                      <DropdownMenu.Portal>
-                       <DropdownMenu.Content className="z-50 w-44 rounded-xl border bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 text-sm" sideOffset={8} align="end">
+                       <DropdownMenu.Content className="z-50 w-44 rounded-xl border bg-white/90 dark:border-gray-700 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 text-sm" sideOffset={8} align="end">
                          <DropdownMenu.Item onSelect={() => beginEdit(s)} className="w-full flex items-center gap-2 px-3 py-2 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                            <Edit className="w-4 h-4" /> 编辑
                          </DropdownMenu.Item>
@@ -1058,7 +1067,7 @@ export function McpServersSettings() {
         })}
       </div>
             {exportText && (
-        <div className="border border-gray-200 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
+        <div className="border border-gray-200 dark:border-slate-700 rounded-xl p-6 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
           <div className="border-b border-gray-100 pb-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">导出 JSON</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">可复制保存为 mcp.json</p>
@@ -1067,7 +1076,7 @@ export function McpServersSettings() {
           <div className="space-y-3">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">配置内容</label>
             <textarea 
-              className="w-full h-40 border border-gray-200 rounded-lg p-3 font-mono text-sm bg-gray-50 dark:bg-gray-800 resize-none" 
+              className="w-full h-40 border border-gray-200 dark:border-slate-700 rounded-lg p-3 font-mono text-sm bg-gray-50 dark:bg-slate-800 resize-none" 
               value={exportText} 
               readOnly 
             />

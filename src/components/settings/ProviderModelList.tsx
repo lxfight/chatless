@@ -270,9 +270,9 @@ export function ProviderModelList(props: ProviderModelListProps) {
       <div className="flex items-center justify-between my-2">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <button type="button" onClick={()=>setFilterThinking(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterThinking? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`} title="仅显示支持思考的模型"><Brain className="w-3.5 h-3.5"/></button>
-            <button type="button" onClick={()=>setFilterTools(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`} title="仅显示支持工具调用的模型"><Workflow className="w-3.5 h-3.5"/></button>
-            <button type="button" onClick={()=>setFilterVision(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-300'}`} title="仅显示支持视觉的模型"><Camera className="w-3.5 h-3.5"/></button>
+            <button type="button" onClick={()=>setFilterThinking(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterThinking? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'ring-1 ring-gray-300 dark:ring-gray-600 text-gray-600 dark:text-gray-300 bg-transparent'}`} title="仅显示支持思考的模型"><Brain className="w-3.5 h-3.5"/></button>
+            <button type="button" onClick={()=>setFilterTools(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterTools? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'ring-1 ring-gray-300 dark:ring-gray-600 text-gray-600 dark:text-gray-300 bg-transparent'}`} title="仅显示支持工具调用的模型"><Workflow className="w-3.5 h-3.5"/></button>
+            <button type="button" onClick={()=>setFilterVision(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'ring-1 ring-gray-300 dark:ring-gray-600 text-gray-600 dark:text-gray-300 bg-transparent'}`} title="仅显示支持视觉的模型"><Camera className="w-3.5 h-3.5"/></button>
           </div>
           {/* 搜索框：默认显示放大镜，点击后展开，不改变行高 */}
           {(() => {

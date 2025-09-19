@@ -99,7 +99,8 @@ export const UserMessageBlock = ({
 
   return (
     <div className="relative max-w-full will-change-auto">
-      <div className="bg-blue-50 dark:bg-blue-900/60 text-blue-900 dark:text-blue-50 p-2 rounded-lg rounded-tr-sm shadow-sm max-w-full transition-all duration-200">
+      {/* 去除内层气泡底色与边框，避免与外层气泡叠加造成“深外浅内”的观感 */}
+      <div className="max-w-full text-blue-900 dark:text-blue-50 transition-all duration-200">
         {/* 知识库引用部分 - 使用 flex 和 truncate 优化布局 */}
         {knowledgeBaseReference && (
           <div className="mb-3 p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-xl">

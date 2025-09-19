@@ -80,7 +80,7 @@ export function ProviderTableRow({
         statusText = '未配置密钥';
         StatusIcon = KeyRound;
         badgeVariant = 'secondary';
-        badgeClasses = "text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium";
+        badgeClasses = "text-gray-700 dark:text-gray-200 ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent px-2 py-1 text-xs font-medium rounded";
         break;
       case 'NO_FETCHER':
         statusText = '未实现检查';
@@ -120,7 +120,7 @@ export function ProviderTableRow({
 
   return (
     <>
-      <div className={"px-4 py-3 rounded-lg transition-colors "+(isExpanded?"bg-indigo-50/60 dark:bg-indigo-900/20 ring-1 ring-indigo-200 dark:ring-indigo-700":"hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20 hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-700")}> 
+      <div className={"px-4 py-3 rounded-lg transition-colors "+(isExpanded?"bg-blue-50/30 dark:bg-blue-900/18 ring-1 ring-blue-200 dark:ring-blue-700/50":"hover:bg-blue-50/20 dark:hover:bg-blue-900/12 hover:ring-1 hover:ring-blue-200 dark:hover:ring-blue-700/40")}>
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
           <div className="col-span-1 flex items-center gap-2">
@@ -222,7 +222,7 @@ export function ProviderTableRow({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuItem onClick={() => setEditDialogOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                     <Pencil className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                   </div>
                   <div className="flex flex-col">
@@ -231,7 +231,7 @@ export function ProviderTableRow({
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setAdvancedOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                     <Sliders className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                   </div>
                   <div className="flex flex-col">
@@ -241,7 +241,7 @@ export function ProviderTableRow({
                   {hasAdvanced && <span className="ml-auto w-2 h-2 rounded-full bg-blue-500" />}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-700 dark:text-gray-300" /> : <ChevronDown className="w-4 h-4 text-gray-700 dark:text-gray-300" />}
                   </div>
                   <div className="flex flex-col">
@@ -250,7 +250,7 @@ export function ProviderTableRow({
                 </DropdownMenuItem>
                 {isDevelopmentEnvironment() && (
                   <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
-                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                       <BugPlay className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                     </div>
                     <div className="flex flex-col">

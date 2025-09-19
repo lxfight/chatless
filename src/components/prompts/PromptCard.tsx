@@ -43,12 +43,12 @@ export function PromptCard({
 }: PromptCardProps) {
 
   return (
-    <div className="prompt-card bg-white/95 dark:bg-gray-900/70 border border-gray-200/70 dark:border-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col">
+    <div className="prompt-card bg-white/95 dark:bg-slate-900/60 border border-gray-200/70 dark:border-slate-800/70 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col">
       {/* 头部 */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800/80">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-slate-800/70">
         <h3 className="font-medium text-[14px] text-gray-900 dark:text-gray-100 truncate pr-2" title={title}>{title}</h3>
         <div className="flex items-center gap-1.5">
-          <button className="h-7 px-2.5 rounded-md border text-[13px] leading-7 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => onApply(id)}>应用</button>
+          <button className="h-7 px-2.5 rounded-md border text-[13px] leading-7 bg-white dark:bg-slate-800/80 border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700/80" onClick={() => onApply(id)}>应用</button>
           <button aria-label="收藏" className={cn("h-8 w-8 rounded-md flex items-center justify-center", isFavorite ? "text-yellow-500" : "text-gray-400 hover:text-yellow-500")} onClick={() => onToggleFavorite(id)}>
             <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
           </button>
@@ -77,7 +77,7 @@ export function PromptCard({
         ) : null}
 
         {/* 内容预览：使用 line-clamp 提升空间利用 */}
-        <div className="rounded-lg bg-slate-50/70 dark:bg-gray-800/40 ring-1 ring-gray-200/70 dark:ring-gray-700/60 px-3 py-2">
+        <div className="rounded-lg bg-slate-50/70 dark:bg-slate-800/40 ring-1 ring-gray-200/70 dark:ring-slate-700/60 px-3 py-2">
           <pre className="whitespace-pre-wrap break-words text-[12px] leading-5 text-gray-800 dark:text-gray-200 line-clamp-5">{content}</pre>
         </div>
 

@@ -10,7 +10,7 @@ export function PersonalizationSettings() {
   const ui = useUiPreferences();
 
   return (
-    <div className="border border-gray-100 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
+    <div className="border border-gray-100 dark:border-gray-800 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
       {/* 头部 */}
       <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
         <Palette className="w-5 h-5 text-gray-600 dark:text-gray-400" />

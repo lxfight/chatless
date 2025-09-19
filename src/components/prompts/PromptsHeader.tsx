@@ -80,8 +80,10 @@ export function PromptsHeader() {
             <button
               onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}
               className={cn(
-                "h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-[13px]",
-                ui?.favoriteOnly ? "bg-yellow-50 text-yellow-700 border-yellow-200" : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700"
+                "h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-[13px] transition-colors",
+                ui?.favoriteOnly 
+                  ? "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700/80"
               )}
             >
               <Star className={cn("w-4 h-4", ui?.favoriteOnly && "fill-current text-yellow-600")}/>
@@ -92,7 +94,7 @@ export function PromptsHeader() {
           {/* 右侧：新建按钮 */}
           <button
             onClick={() => setOpen(true)}
-            className="h-8 px-3 rounded-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 flex items-center gap-2 text-[13px]"
+            className="h-8 px-3 rounded-lg border bg-white border-gray-200 text-gray-700 flex items-center gap-2 text-[13px] hover:bg-gray-50 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700/80"
           >
             <Plus className="w-4 h-4" />
             <span className="">新建提示词</span>

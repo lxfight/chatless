@@ -693,7 +693,7 @@ export function ChatInput({
                 {/* 保留前导空格 */}
                 {leadingSpace}
                 {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
-                <span className="rounded bg-amber-100/70 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
+                <span className="rounded bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-100/90 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
                 {/* 竖线后的普通文本按原样展示（不高亮）*/}
                 {hasDelimiter && postRaw ? <>{renderMentions(postRaw)}</> : null}
               </div>

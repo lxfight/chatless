@@ -14,7 +14,7 @@ export function ProviderRenameModelDialog({ providerName, modelName, currentLabe
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md cursor-pointer" onSelect={(e:any)=>e?.preventDefault?.()}>
-          <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-md">
+          <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
             <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" />
           </div>
           <div className="flex flex-col">

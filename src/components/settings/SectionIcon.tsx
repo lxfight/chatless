@@ -31,7 +31,8 @@ export function SectionIcon({ icon: Icon, preset = "brand", className = "", size
       case "indigo":
         return "bg-gradient-to-br from-indigo-500/15 to-purple-600/15 dark:from-indigo-400/15 dark:to-purple-400/15 ring-1 ring-indigo-300/40 dark:ring-indigo-700/40";
       case "gray":
-        return "bg-gray-200 dark:bg-gray-700";
+        // 改为无底色细描边，避免大片灰底影响观感
+        return "bg-transparent ring-1 ring-gray-300 dark:ring-gray-600";
       case "glass":
         return "bg-white/60 dark:bg-gray-800/40 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm ring-1 ring-white/60 dark:ring-gray-700/60";
       case "outline":

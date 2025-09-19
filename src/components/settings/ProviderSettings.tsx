@@ -173,7 +173,7 @@ function ProviderSettingsImpl({
         statusText = '未配置密钥';
         StatusIcon = KeyRound;
         badgeVariant = 'secondary';
-        badgeClasses = "text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium";
+        badgeClasses = "text-gray-700 dark:text-gray-200 ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent px-2 py-1 text-xs font-medium rounded";
         break;
       case 'NO_FETCHER':
         statusText = '未实现检查';
