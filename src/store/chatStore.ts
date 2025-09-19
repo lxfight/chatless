@@ -48,6 +48,7 @@ interface ChatActions {
   toggleStarConversation: (conversationId: string) => Promise<void>;
   toggleImportant: (conversationId: string) => Promise<void>;
   duplicateConversation: (conversationId: string) => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
   // 段驱动富文本：高频内存更新（不落库）
   appendTextToMessageSegments: (messageId: string, textChunk: string) => void;
   // 段集合覆盖（会在外层按需持久化）
@@ -413,6 +414,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
             knowledge_base_reference: knowledge_base_reference_json,
             context_data: newMessage.context_data || null,
             images: images_json,
+            segments: Array.isArray((newMessage as any).segments) ? JSON.stringify((newMessage as any).segments) : null,
           } as any);
 
           console.log(`[STORE] 消息保存成功: ${newMessage.id}`);
@@ -422,13 +424,40 @@ export const useChatStore = create<ChatState & ChatActions>()(
             const conversation = state.conversations.find((c: Conversation) => c.id === conversation_id);
             const messageIndex = conversation?.messages?.findIndex((m: Message) => m.id === newMessage.id);
             if (conversation && conversation.messages && messageIndex !== undefined && messageIndex > -1) {
-              Object.assign(conversation.messages[messageIndex], { status: 'error' });
+              // 若是助手消息且无任何内容与片段，直接移除，避免出现空气泡
+              const msg = conversation.messages[messageIndex] as any;
+              const noContent = !(msg?.content && String(msg.content).trim().length > 0);
+              const noSegments = !Array.isArray(msg?.segments) || msg.segments.length === 0;
+              if (msg?.role === 'assistant' && noContent && noSegments) {
+                conversation.messages.splice(messageIndex, 1);
+              } else {
+                Object.assign(conversation.messages[messageIndex], { status: 'error' });
+              }
             }
           });
           return null;
         }
 
         return newMessage;
+      },
+
+      // 删除单条消息（用于在错误情况下回滚占位）
+      deleteMessage: async (messageId) => {
+        set(state => {
+          for (const conv of state.conversations) {
+            const idx = conv.messages?.findIndex(m => m.id === messageId) ?? -1;
+            if (idx !== -1) {
+              conv.messages.splice(idx, 1);
+              conv.updated_at = Date.now();
+              break;
+            }
+          }
+        });
+        try {
+          const dbService = getDatabaseService();
+          const messageRepo = dbService.getMessageRepository();
+          await messageRepo.delete(messageId);
+        } catch { /* ignore */ }
       },
 
       // 仅内存：向消息的最后一个 text 段追加文本（若不存在则创建）

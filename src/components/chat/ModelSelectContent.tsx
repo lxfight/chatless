@@ -78,7 +78,7 @@ export function ModelSelectContent({
             autoCorrect="off"
             spellCheck={false}
             placeholder="搜索模型或提供商..."
-            className="w-full py-1.5 pl-9 pr-9 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-200 transition-colors"
+            className="w-full py-1.5 pl-9 pr-9 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-200 transition-colors"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDownCapture={(e) => {

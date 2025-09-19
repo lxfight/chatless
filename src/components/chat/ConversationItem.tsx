@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, createConversationMenuItems } from "@/components/ui/context-menu";
-import { Flag, Star, MessageSquare } from "lucide-react";
+import { Flag, Star } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ function ConversationItemImpl({
   onRenameStart,
   onTitleClick,
   onRenameChange,
-  onRenameSubmit,
+  onRenameSubmit: _onRenameSubmit,
   onRenameBlur,
   onRenameKeyDown,
   onDelete,
@@ -63,8 +63,8 @@ function ConversationItemImpl({
         conversation.id,
         conversation.is_important,
         (conversation as any).is_favorite,
-        (id) => onRenameStart({ stopPropagation: () => {} } as React.MouseEvent, conversation),
-        (id) => onDelete({ stopPropagation: () => {} } as React.MouseEvent, conversation),
+        (_id) => onRenameStart({ stopPropagation: () => {} } as React.MouseEvent, conversation),
+        (_id) => onDelete({ stopPropagation: () => {} } as React.MouseEvent, conversation),
         onStar,
         onToggleImportant,
         onDuplicate,
@@ -95,12 +95,34 @@ function ConversationItemImpl({
               autoFocus
             />
           ) : (
-            <div
-              className="flex-1 text-[13px] font-medium truncate cursor-pointer leading-tight"
-              onClick={(e) => onTitleClick(e, conversation)}
-              onDoubleClick={(e) => onRenameStart(e, conversation)}
-            >
-              {conversation.title}
+            <div className="flex items-center gap-1.5 min-w-0">
+              {conversation.is_important && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Flag className="w-3.5 h-3.5 text-red-500/80 flex-shrink-0" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>重要对话</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {(conversation as any).is_favorite && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Star className="w-3.5 h-3.5 text-yellow-500/80 flex-shrink-0" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>已收藏</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <div
+                className="flex-1 text-[13px] font-medium truncate cursor-pointer leading-tight"
+                onClick={(e) => onTitleClick(e, conversation)}
+                onDoubleClick={(e) => onRenameStart(e, conversation)}
+              >
+                {conversation.title}
+              </div>
             </div>
           )}
         </div>
@@ -111,28 +133,7 @@ function ConversationItemImpl({
             <ModelLabelSpan conversation={conversation} />
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {conversation.is_important && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Flag className="w-3 h-3 text-red-500/80" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>重要对话</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {(conversation as any).is_favorite && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Star className="w-3 h-3 text-yellow-500/80" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>已收藏</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
+          <div className="flex items-center gap-1.5" />
         </div>
       </li>
     </ContextMenu>

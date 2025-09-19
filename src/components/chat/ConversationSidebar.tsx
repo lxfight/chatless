@@ -135,8 +135,8 @@ export function ConversationSidebar({
             </>
           ) : (
             <div className="space-y-2">
-              <MessageSquare className="h-8 w-8 mx-auto text-slate-400/60 dark:text-slate-500/60" />
-              <p className="text-sm">还没有对话记录</p>
+              <MessageSquare className="h-6 w-6 mx-auto text-slate-400/60 dark:text-slate-500/60" />
+              <p className="text-xs">无对话记录，选择一个模型开始对话</p>
             </div>
           )}
         </div>

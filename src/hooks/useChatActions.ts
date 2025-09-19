@@ -31,6 +31,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
   const updateMessageContentInMemory = useChatStore((state) => state.updateMessageContentInMemory);
   const updateConversation = useChatStore((state) => state.updateConversation);
   const renameConversation = useChatStore((state) => state.renameConversation);
@@ -685,16 +686,22 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 停止并尽量flush到最新，再标记错误
         autoSaverRef.current?.stop();
         void autoSaverRef.current?.flush().finally(() => {
-          void updateMessage(assistantMessageId, {
-            status: 'error',
-            content:
-              currentContentRef.current
-                || (error as any)?.userMessage
-                || (error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)))
-                || '发生未知错误',
-            thinking_start_time: thinking_start_time,
-            thinking_duration: thinking_duration,
-          });
+          const hasContent = !!(currentContentRef.current && currentContentRef.current.trim().length > 0);
+          if (!hasContent) {
+            // 没有任何内容产生：删除先前添加的占位AI消息，避免“空气泡”
+            void deleteMessage(assistantMessageId);
+          } else {
+            void updateMessage(assistantMessageId, {
+              status: 'error',
+              content:
+                currentContentRef.current
+                  || (error as any)?.userMessage
+                  || (error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)))
+                  || '发生未知错误',
+              thinking_start_time: thinking_start_time,
+              thinking_duration: thinking_duration,
+            });
+          }
         });
         
         // 清理引用
