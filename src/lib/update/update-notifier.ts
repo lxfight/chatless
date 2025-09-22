@@ -10,6 +10,7 @@ const KEY_AVAILABLE_VERSION = "available_version"; // string
 const KEY_AVAILABLE_SINCE = "available_since"; // number (ms)
 const KEY_LAST_CHECKED_AT = "last_checked_at"; // number (ms)
 const KEY_LAST_ABOUT_SEEN_AT = "last_about_seen_at"; // number (ms)
+const KEY_IGNORED_VERSION = "ignored_version"; // string
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -80,7 +81,9 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             }
           }
         }
-      } catch {}
+      } catch {
+        // noop
+      }
       return { available: false };
     }
 
@@ -109,7 +112,9 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             try {
               const { getVersion } = await import('@tauri-apps/api/app');
               current = await getVersion();
-            } catch {}
+            } catch {
+              // noop
+            }
             const newer = compareVersions(remote, current) > 0;
             if (newer) {
               await setUpdateAvailable(remote);
@@ -117,12 +122,14 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             }
           }
         }
-      } catch {}
+      } catch {
+        // noop
+      }
 
       await clearUpdateAvailable();
       return { available: false };
     }
-  } catch (err) {
+  } catch {
     // 静默失败：在开发场景下尝试 /update.json 兜底
     try {
       if (typeof window !== 'undefined' && location && /^http:\/\/localhost:\d+/.test(location.origin)) {
@@ -134,7 +141,9 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
           try {
             const { getVersion } = await import('@tauri-apps/api/app');
             current = await getVersion();
-          } catch {}
+          } catch {
+            // noop
+          }
           const newer = compareVersions(remote, current) > 0;
           if (newer) {
             await setUpdateAvailable(remote);
@@ -142,7 +151,9 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
           }
         }
       }
-    } catch {}
+    } catch {
+      // noop
+    }
     return getUpdateAvailability();
   }
 }
@@ -169,6 +180,25 @@ function compareVersions(a: string, b: string): number {
     if (na < nb) return -1;
   }
   return 0;
+}
+
+// ===== 忽略版本（用户选择不再提示当前版本） =====
+export async function getIgnoredVersion(): Promise<string | null> {
+  return StorageUtil.getItem<string>(KEY_IGNORED_VERSION, null, STORE);
+}
+
+export async function setIgnoredVersion(version: string): Promise<void> {
+  await StorageUtil.setItem(KEY_IGNORED_VERSION, version, STORE);
+}
+
+export async function clearIgnoredVersion(): Promise<void> {
+  await StorageUtil.removeItem(KEY_IGNORED_VERSION, STORE);
+}
+
+export async function isVersionIgnored(version: string | null | undefined): Promise<boolean> {
+  if (!version) return false;
+  const ignored = await getIgnoredVersion();
+  return !!ignored && ignored === version;
 }
 
 

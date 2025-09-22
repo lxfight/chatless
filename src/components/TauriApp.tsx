@@ -13,6 +13,7 @@ import { appCleanupService } from '@/lib/services/appCleanup';
 import { scheduleBackgroundUpdateChecks } from '@/lib/update/update-notifier';
 import { serverManager } from '@/lib/mcp/ServerManager';
 import StorageUtil from '@/lib/storage';
+import { StartupUpdateToast } from '@/components/update/StartupUpdateToast';
 
 interface TauriAppProps {
   children: React.ReactNode;
@@ -166,6 +167,8 @@ export function TauriApp({ children }: TauriAppProps) {
     <div className="flex h-full">
       {/* 主题初始化组件 - 在客户端渲染时立即应用主题 */}
       <ThemeInitializer />
+      {/* 启动更新提示（右下角通知） */}
+      <StartupUpdateToast />
       
       <Sidebar />
       <div
