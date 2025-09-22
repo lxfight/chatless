@@ -221,7 +221,7 @@ export function useProviderManagement() {
           // 状态，临时显示
           setStatusStore(provider.name, {
             temporaryStatus: p.status as 'CONNECTED' | 'NOT_CONNECTED',
-            temporaryMessage: p.message ?? (p.status==='CONNECTED'?'检查通过':undefined),
+            temporaryMessage: p.message ?? (p.status==='CONNECTED'?'网络可达':undefined),
             lastCheckedAt: now,
           });
         }
@@ -232,7 +232,7 @@ export function useProviderManagement() {
           else if (p.status === 'NO_KEY') toast.error(`${provider.name} 未配置API密钥`, { description: '请在设置中配置API密钥' });
         }
         
-        // 根据状态设置不同的显示时间：检查通过显示5秒，其他状态3秒
+        // 根据状态设置不同的显示时间：网络可达显示5秒，其他状态3秒
         const displayDuration = p.status === 'CONNECTED' ? 5000 : 3000;
         setTimeout(() => {
           setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });

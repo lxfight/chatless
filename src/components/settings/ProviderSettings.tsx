@@ -193,7 +193,7 @@ function ProviderSettingsImpl({
         badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 px-2 py-1 text-xs font-medium";
         break;
       case 'CONNECTED':
-        statusText = '检查通过';
+        statusText = '网络可达';
         StatusIcon = CheckCircle;
         badgeVariant = 'secondary';
         badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30 px-2 py-1 text-xs font-medium";

@@ -100,7 +100,7 @@ export function ProviderTableRow({
         badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 px-2 py-1 text-xs font-medium";
         break;
       case 'CONNECTED':
-        statusText = '检查通过';
+        statusText = '网络可达';
         StatusIcon = CheckCircle;
         badgeVariant = 'secondary';
         badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30 px-2 py-1 text-xs font-medium";
@@ -194,7 +194,7 @@ export function ProviderTableRow({
                     disabled={isConnecting || isInitialChecking}
                     className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                   >
-                    {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                    <Wifi className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="center">
