@@ -14,6 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
+use std::time::Duration;
 
 lazy_static! {
     // 可选：如果需要本地测试服务器，这里保留子进程句柄
@@ -87,7 +88,9 @@ pub async fn start_sse(
     // Accept 头确保 SSE，且禁用压缩，避免解压中途失败导致的 "error decoding response body"
     req_builder = req_builder
       .header("Accept", "text/event-stream")
-      .header("Accept-Encoding", "identity");
+      .header("Accept-Encoding", "identity")
+      // 为长回复流设置更长的单请求超时（30分钟）
+      .timeout(Duration::from_secs(30 * 60));
 
     // 追加自定义头
     if let Some(hdrs) = &headers {

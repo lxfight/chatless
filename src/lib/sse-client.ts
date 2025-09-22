@@ -138,6 +138,18 @@ export class SSEClient {
       this.unlisteners = [unlistenEvent, unlistenStatus, unlistenError];
       this.isConnected = true;
 
+      // 安全护栏：设置绝对超时（30分钟）防止连接无限悬挂
+      const hardTimeout = setTimeout(() => {
+        if (this.isConnected) {
+          console.warn(`[${debugTag}] SSE hard-timeout reached (30min), closing connection to avoid hang`);
+          callbacks.onError?.(new Error('SSE hard-timeout (30min), connection closed'));
+          this.stopConnection();
+        }
+      }, 30 * 60 * 1000);
+
+      // 在清理时移除该超时
+      this.unlisteners.push(() => clearTimeout(hardTimeout));
+
     } catch (error: any) {
       console.error(`[${debugTag}] start_sse failed:`, error);
       callbacks.onError?.(error);
