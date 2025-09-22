@@ -37,7 +37,7 @@ export function AIMessageBlock({
   segments,
   viewModel
 }: AIMessageBlockProps) {
-  const [streamedState, setStreamedState] = useState<null | {
+  const [streamedState, _setStreamedState] = useState<null | {
     thinkingContent: string;
     regularContent: string;
     isThinking: boolean;
@@ -50,21 +50,15 @@ export function AIMessageBlock({
   const prevIsStreaming = useRef(isStreaming);
   const onStreamingCompleteRef = useRef(onStreamingComplete);
   
-  // 跟踪流式结束，仅用于回调与计时
+  // 统一跟踪状态变化，避免双 effect 竞争造成误触发
   useEffect(() => {
-    if (!isStreaming && prevIsStreaming.current) {
-      prevContentLength.current = 0;
-    }
+    const wasStreaming = prevIsStreaming.current;
     prevIsStreaming.current = isStreaming;
-  }, [isStreaming]);
-
-  // 处理流式结束时的回调
-  useEffect(() => {
-    if (!isStreaming && prevIsStreaming.current) {
+    if (wasStreaming && !isStreaming) {
+      // 刚从流式结束
+      prevContentLength.current = 0;
       if (streamedState && !streamedState.isFinished) {
-        if (onStreamingCompleteRef.current) {
-          onStreamingCompleteRef.current(Math.floor(streamedState.elapsedTime / 1000));
-        }
+        onStreamingCompleteRef.current?.(Math.floor(streamedState.elapsedTime / 1000));
       }
     }
   }, [isStreaming, streamedState]);
@@ -107,46 +101,7 @@ export function AIMessageBlock({
     return null;
   }, [content]);
 
-  useEffect(() => {
-    // 如果内容不包含think标签，使用简化的纯文本处理
-    if (!hasThinkTags) {
-      if (isStreaming) {
-        // 流式状态：直接使用当前内容作为regularContent
-        setStreamedState(prevState => {
-          // 只有当内容真正发生变化时才更新状态
-          if (prevState?.regularContent !== content) {
-            return {
-              thinkingContent: '',
-              regularContent: content,
-              isThinking: false,
-              elapsedTime: 0,
-              isFinished: false
-            };
-          }
-          return prevState;
-        });
-      } else {
-        // 非流式状态：内容已完成
-        setStreamedState(prevState => {
-          // 只有当内容真正发生变化时才更新状态
-          if (prevState?.regularContent !== content || !prevState?.isFinished) {
-            return {
-              thinkingContent: '',
-              regularContent: content,
-              isThinking: false,
-              elapsedTime: 0,
-              isFinished: true
-            };
-          }
-          return prevState;
-        });
-      }
-      return;
-    }
-
-    // 包含 think 标签时的历史路径已废弃；流式思考由 tokenizer+FSM 注入 segments 控制
-    return;
-  }, [content, isStreaming, hasThinkTags]);
+  // 已去除非必要的状态写入，避免在流式阶段造成更新环
 
   const historicalState = useMemo(() => {
     if (isStreaming) return null;

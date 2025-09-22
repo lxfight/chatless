@@ -26,6 +26,22 @@ import { useProviderMetaStore } from '@/store/providerMetaStore';
 import { mapToProviderWithStatus } from '@/lib/provider/transform';
 import { ProviderRegistry } from '@/lib/llm';
 
+// 维护对各 Provider 模型仓库的订阅，确保“新增 Provider”也能及时同步模型变更
+const __modelSubscriptions = new Map<string, () => void>();
+function __ensureModelSubscription(name: string, set: (s: Partial<ProviderState>) => void, get: () => ProviderState) {
+  if (__modelSubscriptions.has(name)) return;
+  const unsubscribe = modelRepository.subscribe(name, () => {
+    (async () => {
+      const current = get().providers;
+      const newModels = await modelRepository.get(name) ?? [];
+      const next = current.map((prov) => prov.name === name ? { ...prov, models: newModels } : prov);
+      set({ providers: next });
+      try { useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
+    })().catch((e)=>console.error(e));
+  });
+  __modelSubscriptions.set(name, unsubscribe);
+}
+
 type ProviderWithModels = ProviderEntity & { models?: ReturnType<typeof modelRepository.get> extends Promise<infer R> ? R : any };
 
 interface ProviderState {
@@ -119,8 +135,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     // 取消自动后台刷新：仅在用户主动点击“检查状态”时再触发
 
     // 订阅后续变化
-    providerRepository.subscribe(async (updated) => {
-      const combined = await Promise.all(updated.map(async (p) => ({ ...p, models: await modelRepository.get(p.name) ?? [] })));
+    providerRepository.subscribe((updated) => {
+      (async () => {
+        const combined = await Promise.all(updated.map(async (p) => ({ ...p, models: await modelRepository.get(p.name) ?? [] })));
       
       // 使用用户排序优先
       const userOrder = await providerRepository.getUserOrder();
@@ -136,24 +153,17 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         return aIndex - bIndex;
       });
       
-      set({ providers: sortedCombined });
-
-      // 同步 providerMetaStore
-      try { useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
-    });
-
-    // 订阅各 provider 模型变化
-    list.forEach((p) => {
-      modelRepository.subscribe(p.name, async () => {
-        const current = get().providers;
-        const newModels = await modelRepository.get(p.name) ?? [];
-        const next = current.map((prov) => prov.name === p.name ? { ...prov, models: newModels } : prov);
-        set({ providers: next });
+        set({ providers: sortedCombined });
 
         // 同步 providerMetaStore
-        try { useProviderMetaStore.getState().setList(next.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
-      });
+        try { useProviderMetaStore.getState().setList(sortedCombined.map(mapToProviderWithStatus) as any); } catch (e) { console.error(e); }
+        // 确保新 Provider 也建立模型订阅
+        sortedCombined.forEach((p) => { __ensureModelSubscription(p.name, set, get); });
+      })().catch((e)=>console.error(e));
     });
+
+    // 订阅各 provider 模型变化（含首次）
+    list.forEach((p) => { __ensureModelSubscription(p.name, set, get); });
   },
 
   refresh: async (name: string) => {

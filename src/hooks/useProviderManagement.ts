@@ -145,10 +145,12 @@ export function useProviderManagement() {
         const { providerRepository } = await import('@/lib/provider/ProviderRepository');
         const list = await providerRepository.getAll();
         
-        // 初始化配置状态到新的状态系统
+        // 初始化配置状态：仅依据“输入框（持久化的 apiKey）是否为空”来显示未配置密钥
         const configStatusUpdates: Record<string, any> = {};
         list.forEach(p => {
-          if (p.status === 'NO_KEY' as any) {
+          const needsKey = !!p.requiresKey;
+          const hasKey = !!(p.apiKey && String(p.apiKey).trim());
+          if (needsKey && !hasKey) {
             configStatusUpdates[p.name] = {
               configStatus: 'NO_KEY',
               lastCheckedAt: p.lastChecked || Date.now(),
@@ -158,6 +160,7 @@ export function useProviderManagement() {
         
         if (Object.keys(configStatusUpdates).length > 0) {
           const { bulkSet } = useProviderStatusStore.getState();
+          // 不持久化：仅用于 UI 显示
           bulkSet(configStatusUpdates, false);
         }
         
@@ -168,10 +171,14 @@ export function useProviderManagement() {
         const { checkController } = await import('@/lib/provider/check-controller');
         stale.forEach((p, idx) => {
           setTimeout(() => {
-            try { checkController.requestCheck(p.name, { reason: 'init', debounceMs: 0, withModels: false }); } catch {}
+            try { checkController.requestCheck(p.name, { reason: 'init', debounceMs: 0, withModels: false }); } catch (e) {
+              console.warn('init check request failed', e);
+            }
           }, idx * 150);
         });
-      } catch { /* noop */ }
+      } catch (e) {
+        console.warn('init config status setup failed', e);
+      }
     })();
   }, [setStatusStore]);
 
@@ -211,12 +218,13 @@ export function useProviderManagement() {
         // 根据检查结果设置状态
         const now = Date.now();
         if (p.status === 'NO_KEY') {
-          // 配置状态，需要持久化
+          // 仅根据输入框是否为空来显示未配置密钥，不做持久化
+          const inputEmpty = !(provider.default_api_key && String(provider.default_api_key).trim());
           setStatusStore(provider.name, {
-            configStatus: 'NO_KEY',
-            temporaryMessage: p.message ?? '未配置API密钥',
+            configStatus: inputEmpty ? 'NO_KEY' : undefined,
+            temporaryMessage: inputEmpty ? (p.message ?? '未配置API密钥') : undefined,
             lastCheckedAt: now,
-          }, true);
+          }, false);
         } else {
           // 状态，临时显示
           setStatusStore(provider.name, {
@@ -493,14 +501,14 @@ export function useProviderManagement() {
           useProviderStore.setState({ providers: updated } as any);
           useProviderMetaStore.getState().setList(updated.map((v:any)=>mapToProviderWithStatus(v)) as any);
         }
-      } catch {}
+      } catch (e) {
+        console.warn('sync preferences to stores failed', e);
+      }
       toast.success(`已更新 ${providerName} 的高级设置`);
     } catch (error) {
       console.error("Failed to update provider preferences:", error);
       toast.error("设置更新失败");
-      
-      // 如果保存失败，回滚本地状态
-      // 回滚逻辑省略：下次 repoProviders 重新同步即可
+      // 回滚交由仓库订阅完成
     }
   }, []);
   

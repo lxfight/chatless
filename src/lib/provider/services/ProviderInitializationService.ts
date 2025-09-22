@@ -18,7 +18,8 @@ export class ProviderInitializationService {
     const catalogDef = AVAILABLE_PROVIDERS_CATALOG.find(def => def.name === p.name);
     const requiresKey = catalogDef ? catalogDef.requiresKey : p.name !== "Ollama"; // 兜底逻辑
 
-    const apiKey = requiresKey ? await KeyManager.getProviderKey(p.name) : null;
+    // 优化：若已有持久化 apiKey 则不访问 KeyManager
+    const apiKey = existingConfig?.apiKey ?? (requiresKey ? await KeyManager.getProviderKey(p.name) : null);
     const initStatus = requiresKey && !apiKey ? ProviderStatus.NO_KEY : ProviderStatus.UNKNOWN;
 
     let url = existingConfig?.url || p.baseUrl || "";
@@ -56,6 +57,11 @@ export class ProviderInitializationService {
     const staticList = getStaticModels(providerName);
     if (!staticList?.length) return;
     const existing = (await modelRepository.get(providerName)) || [];
+    // 若静态模型均已存在，则不写入，避免无意义的IO
+    const existingNames = new Set(existing.map((m: any) => m.name));
+    const hasMissing = staticList.some((s) => !existingNames.has(s.id));
+    if (!hasMissing) return;
+
     const byName = new Map<string, { provider: string; name: string; label?: string; aliases: string[] }>();
     for (const m of existing) byName.set(m.name, m as any);
     for (const s of staticList) {
@@ -102,8 +108,38 @@ export class ProviderInitializationService {
     // 2) 合并自定义 Provider（不在注册表中的，原样保留） & 3) 汇总列表
     const finalList = this.collectFinalList(builtInList, existingProviders, registryProviders);
 
-    await providerRepository.saveAll(finalList);
+    // 若最终列表与现存等价（按 name 对应字段相等），跳过写入以优化启动性能
+    if (!this.areProviderListsEqual(existingProviders, finalList)) {
+      await providerRepository.saveAll(finalList);
+    }
     return finalList;
+  }
+
+  private areProviderListsEqual(a: ProviderEntity[], b: ProviderEntity[]): boolean {
+    if (a.length !== b.length) return false;
+    const pick = (p: ProviderEntity) => ({
+      name: p.name,
+      url: p.url || '',
+      requiresKey: !!p.requiresKey,
+      status: p.status,
+      lastChecked: p.lastChecked || 0,
+      apiKey: p.apiKey ?? null,
+      isUserAdded: !!p.isUserAdded,
+      isVisible: p.isVisible !== false,
+      strategy: p.strategy || undefined,
+      displayName: p.displayName || undefined,
+      avatarSeed: p.avatarSeed || undefined,
+      preferences: p.preferences ? { useBrowserRequest: !!p.preferences.useBrowserRequest } : undefined,
+    });
+    const mapA = new Map(a.map((p) => [p.name, pick(p)]));
+    const mapB = new Map(b.map((p) => [p.name, pick(p)]));
+    if (mapA.size !== mapB.size) return false;
+    for (const [name, va] of mapA) {
+      const vb = mapB.get(name);
+      if (!vb) return false;
+      if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+    }
+    return true;
   }
 }
 

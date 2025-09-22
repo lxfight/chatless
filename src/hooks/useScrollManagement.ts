@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useUiPreferences } from '@/store/uiPreferences';
 
 // 放宽“接近底部”的阈值，减少来回切换造成的跳屏
-const SCROLL_BOTTOM_THRESHOLD = 120; 
+// 提高阈值，确保滚动到底部后不会被底部信息条遮挡
+const SCROLL_BOTTOM_THRESHOLD = 220; 
 
 export const useScrollManagement = (
     messagesContainerRef: React.RefObject<HTMLDivElement | null>, 
@@ -162,18 +163,16 @@ export const useScrollManagement = (
   }, [messagesContainerRef]);
 
   const handleScrollToBottom = useCallback(() => {
-    // 优先使用 scrollIntoView
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-    
-    // 备用方案：直接滚动容器到底部
+    // 目标位置：底部再上移一个安全距离，避免被底部工具栏/行内信息遮挡
+    const SAFE_OFFSET = 28; // px
     if (messagesContainerRef.current) {
       const container = messagesContainerRef.current;
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: 'smooth'
-      });
+      const target = Math.max(0, container.scrollHeight - container.clientHeight - SAFE_OFFSET);
+      container.scrollTo({ top: target, behavior: 'smooth' });
+      return;
+    }
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [messagesContainerRef]);
 
