@@ -143,10 +143,14 @@ export function AiModelSettings() {
     try {
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       await providerRepository.setUserOrder(next.map((p: ProviderWithStatus)=>p.name));
-      toast.success('已保存自定义排序');
+      toast.success('已保存自定义排序',{
+        duration: 2000,
+      });
     } catch (e) {
       console.error(e);
-      toast.error('保存排序失败');
+      toast.error('保存排序失败',{
+        duration: 2000,
+      });
     }
   }, [localList]);
 
@@ -167,25 +171,11 @@ export function AiModelSettings() {
     return (
       <div ref={setNodeRef} style={style} className={"group transition-shadow duration-200 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
         <div className="relative">
-          {/* 竖向吸附把手：折叠时显示，展开后隐藏 */}
-          {!providerOpenMap[provider.name] && (
-            <button
-              aria-label="拖拽排序"
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 cursor-grab active:cursor-grabbing text-gray-400/80 hover:text-gray-600 dark:text-gray-400/90 dark:hover:text-gray-200"
-              {...attributes} {...listeners}
-            >
-              <svg viewBox="0 0 6 24" width="6" height="24" fill="currentColor" aria-hidden>
-                <circle cx="3" cy="3" r="1"></circle>
-                <circle cx="3" cy="9" r="1"></circle>
-                <circle cx="3" cy="15" r="1"></circle>
-                <circle cx="3" cy="21" r="1"></circle>
-              </svg>
-            </button>
-          )}
           <div className="flex-1 p-1">
-            {React.cloneElement(children as any, {
+              {React.cloneElement(children as any, {
               open: providerOpenMap[provider.name] ?? false,
-              onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open }))
+              onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open })),
+              dragHandleProps: { ...attributes, ...listeners }
             })}
           </div>
         </div>
@@ -320,6 +310,8 @@ export function AiModelSettings() {
                     onModelApiKeyBlur={handleModelApiKeyBlur}
                     onRefresh={handleSingleProviderRefresh}
                     onPreferenceChange={handlePreferenceChange}
+                    open={providerOpenMap[provider.name] ?? false}
+                    onOpenChange={(open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open }))}
                   />
                 </SortableProviderItem>
               ))}

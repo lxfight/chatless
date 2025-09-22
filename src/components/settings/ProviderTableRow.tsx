@@ -15,6 +15,7 @@ import { isDevelopmentEnvironment } from '@/lib/utils/environment';
 import ModelFetchDebugger from './ModelFetchDebugger';
 import { cn } from '@/lib/utils';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
+import type { ModelMetadata } from '@/lib/metadata/types';
 import { AdvancedSettingsDialog } from '@/components/settings/AdvancedSettingsDialog';
 
 interface ProviderTableRowProps {
@@ -29,6 +30,8 @@ interface ProviderTableRowProps {
   onModelApiKeyBlur: (modelName: string) => void;
   onRefresh: (provider: ProviderWithStatus) => void;
   onPreferenceChange?: (providerName: string, preferences: { useBrowserRequest?: boolean }) => Promise<void>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function formatLastCheckedTime(timestamp: number): string {
@@ -51,9 +54,16 @@ export function ProviderTableRow({
   onModelApiKeyChange,
   onModelApiKeyBlur,
   onRefresh,
-  onPreferenceChange
-}: ProviderTableRowProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  onPreferenceChange,
+  // 来自父级Sortable：把手监听与属性
+  dragHandleProps,
+  open,
+  onOpenChange
+}: ProviderTableRowProps & { dragHandleProps?: any }) {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isExpanded = isControlled ? !!open : internalOpen;
+  const setIsExpanded = (v: boolean) => { if (!isControlled) setInternalOpen(v); onOpenChange?.(v); };
   const [fetchDebuggerOpen, setFetchDebuggerOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -80,7 +90,8 @@ export function ProviderTableRow({
         statusText = '未配置密钥';
         StatusIcon = KeyRound;
         badgeVariant = 'secondary';
-        badgeClasses = "text-gray-700 dark:text-gray-200 ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent px-2 py-1 text-xs font-medium rounded";
+        // 去边框，微底色
+        badgeClasses = "text-gray-700 dark:text-gray-200 bg-gray-100/60 dark:bg-gray-800/40 px-2 py-1 text-xs font-medium rounded";
         break;
       case 'NO_FETCHER':
         statusText = '未实现检查';
@@ -118,23 +129,48 @@ export function ProviderTableRow({
   const { iconSrc } = useStableProviderIcon(provider);
   const fallbackAvatarSrc = getAvatarSync(provider.name.toLowerCase(), provider.name, 20);
 
+  // 订阅模型仓库，保证刷新后本卡片的模型列表即时更新
+  const [localRepoModels, setLocalRepoModels] = React.useState<ModelMetadata[] | null>(null);
+  React.useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    (async () => {
+      try {
+        const { modelRepository } = await import('@/lib/provider/ModelRepository');
+        const list = await modelRepository.get(provider.name);
+        if (list) {
+          setLocalRepoModels(list.map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m).apiKey })) as any);
+        }
+        unsubscribe = modelRepository.subscribe(provider.name, async () => {
+          const latest = await modelRepository.get(provider.name);
+          setLocalRepoModels((latest || []).map((m: any) => ({ name: m.name, label: m.label || m.name, aliases: m.aliases || [], api_key: (m).apiKey })) as any);
+        });
+      } catch (e) { console.error(e); }
+    })();
+    return () => { try { unsubscribe?.(); } catch {} };
+  }, [provider.name]);
+
   return (
     <>
       <div className={"px-4 py-3 rounded-lg transition-colors "+(isExpanded?"bg-blue-50/30 dark:bg-blue-900/18 ring-1 ring-blue-200 dark:ring-blue-700/50":"hover:bg-blue-50/20 dark:hover:bg-blue-900/12 hover:ring-1 hover:ring-blue-200 dark:hover:ring-blue-700/40")}>
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
-          <div className="col-span-1 flex items-center gap-2">
-            <div className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <div className="col-span-1 flex items-center gap-2 select-none">
+            <button
+              type="button"
+              className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded"
+              {...(dragHandleProps || {})}
+              onMouseDown={(e)=>{ e.preventDefault(); }}
+            >
               <GripVertical className="w-4 h-4" />
-            </div>
+            </button>
             <div className="text-gray-400 dark:text-gray-500">
               {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </div>
           </div>
 
           {/* 可点击区域 - 提供商、状态 */}
-          <div 
-            className="col-span-9 flex items-center gap-4 cursor-pointer"
+            <div 
+            className="col-span-9 flex items-center gap-4 cursor-pointer select-text"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {/* 提供商 */}
@@ -152,9 +188,9 @@ export function ProviderTableRow({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{provider.displayName || provider.name}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {provider.models?.length || 0} 个模型
-                </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {((localRepoModels ?? provider.models ?? []) as any[]).length} 个模型
+              </div>
               </div>
             </div>
 
@@ -286,7 +322,7 @@ export function ProviderTableRow({
               
               <ProviderModelList
                 provider={provider}
-                modelsForDisplay={provider.models || []}
+                modelsForDisplay={(localRepoModels ?? provider.models ?? []) as any}
                 modelSearch=""
                 setModelSearch={() => {}}
                 showApiKeyFields={true}

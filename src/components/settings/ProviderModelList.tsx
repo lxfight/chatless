@@ -121,6 +121,39 @@ export function ProviderModelList(props: ProviderModelListProps) {
     }
   };
 
+  // —— 刷新模型逻辑（复用于多个按钮位置） ——
+  const refreshModels = async () => {
+    try {
+      const scroller = getScroller();
+      const prevY = scroller.scrollTop;
+      // 冻结列表容器高度，避免布局变化导致的回弹
+      const root = rootRef.current as HTMLElement | null;
+      const prevMinH = root ? root.style.minHeight : '';
+      if (root) root.style.minHeight = `${root.offsetHeight}px`;
+      // 在刷新窗口内锁定滚动位置
+      let keep = true; let setting = false;
+      const onScroll = () => {
+        if (!keep || setting) return;
+        if (Math.abs(scroller.scrollTop - prevY) > 1) {
+          setting = true; scroller.scrollTop = prevY; setting = false;
+        }
+      };
+      scroller.addEventListener('scroll', onScroll, { passive: true });
+      const { providerModelService } = await import('@/lib/provider/services/ProviderModelService');
+      await providerModelService.fetchIfNeeded(provider.name);
+      const { modelRepository } = await import('@/lib/provider/ModelRepository');
+      const latest = await modelRepository.get(provider.name);
+      toast.success('已刷新模型列表', { description: `${latest?.length || 0} 个模型` });
+      restoreScroll(scroller, prevY);
+      setTimeout(() => {
+        keep = false; scroller.removeEventListener('scroll', onScroll);
+        if (root) root.style.minHeight = prevMinH;
+      }, 600);
+    } catch (e:any) {
+      toast.error('刷新模型失败', { description: e?.message || String(e) });
+    }
+  };
+
   // 载入策略覆盖，用于回显
   React.useEffect(() => {
     (async () => {
@@ -371,50 +404,16 @@ export function ProviderModelList(props: ProviderModelListProps) {
               >全选本页</Button>
             </>
           )}
-          {!isOllama && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {!isOllama && (
               <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
-              {provider.displayStatus === 'CONNECTED' && (
-                <Button
-                  variant="secondary"
-                  className="h-6 px-1 text-xs"
-                  onClick={async ()=>{
-                    try {
-                      const scroller = getScroller();
-                      const prevY = scroller.scrollTop;
-                      // 冻结列表容器高度，避免布局变化导致的回弹
-                      const root = rootRef.current as HTMLElement | null;
-                      const prevMinH = root ? root.style.minHeight : '';
-                      if (root) root.style.minHeight = `${root.offsetHeight}px`;
-                      // 在刷新窗口内锁定滚动位置，若发生变化立即还原
-                      let keep = true; let setting = false;
-                      const onScroll = () => {
-                        if (!keep || setting) return;
-                        if (Math.abs(scroller.scrollTop - prevY) > 1) {
-                          setting = true; scroller.scrollTop = prevY; setting = false;
-                        }
-                      };
-                      scroller.addEventListener('scroll', onScroll, { passive: true });
-                      const { providerModelService } = await import('@/lib/provider/services/ProviderModelService');
-                      await providerModelService.fetchIfNeeded(provider.name);
-                      const { modelRepository } = await import('@/lib/provider/ModelRepository');
-                      const latest = await modelRepository.get(provider.name);
-                      toast.success('已刷新模型列表', { description: `${latest?.length || 0} 个模型` });
-                      // 多帧恢复，覆盖可能的后续渲染导致的跳动
-                      restoreScroll(scroller, prevY);
-                      // 解锁与样式恢复
-                      setTimeout(() => {
-                        keep = false; scroller.removeEventListener('scroll', onScroll);
-                        if (root) root.style.minHeight = prevMinH;
-                      }, 600);
-                    } catch (e:any) {
-                      toast.error('刷新模型失败', { description: e?.message || String(e) });
-                    }
-                  }}
-                >刷新</Button>
-              )}
-            </div>
-          )}
+            )}
+            <Button
+              variant="secondary"
+              className="h-6 px-1 text-xs"
+              onClick={refreshModels}
+            >刷新模型</Button>
+          </div>
         </div>
       </div>
 
@@ -455,6 +454,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>上一页</button>
                   <span>{safePage}/{totalPages}</span>
                   <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>下一页</button>
+                  <button className="px-2 py-1 border rounded" onClick={refreshModels}>刷新模型</button>
                   {batchMode && isMultiStrategyProvider ? (
                     (() => {
                       const ids = pageItems.map(x=>x.name);
@@ -513,11 +513,24 @@ export function ProviderModelList(props: ProviderModelListProps) {
             );
           })()
         ) : (
-          <p className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2">
-            {provider.models && provider.models.length === 0
-              ? (provider.displayStatus === 'CONNECTING' ? '正在加载模型...' : '未找到可用模型。')
-              : (provider.displayStatus === 'NO_KEY' ? '已显示已知/静态模型。配置 API 密钥后可拉取最新模型。' : '')}
-          </p>
+          (()=>{
+            const noModels = provider.models && provider.models.length === 0;
+            const connecting = provider.displayStatus === 'CONNECTING';
+            const noKey = provider.displayStatus === 'NO_KEY';
+            if (noModels && !connecting) {
+              return (
+                <div className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2 flex items-center justify-between">
+                  <span>未找到可用模型。</span>
+                  <button className="px-2 py-1 border rounded" onClick={refreshModels}>刷新模型</button>
+                </div>
+              );
+            }
+            return (
+              <p className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2">
+                {noModels ? '正在加载模型...' : (noKey ? '已显示已知/静态模型。配置 API 密钥后可拉取最新模型。' : '')}
+              </p>
+            );
+          })()
         )}
       </div>
     </div>
