@@ -1,10 +1,10 @@
 'use client';
 
 import HistoryCard from './HistoryCard';
-import { useEffect, useMemo, useCallback, useState, useRef } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useHistoryStore } from '@/store/historyStore';
 import { Loader2, Search, Archive } from 'lucide-react';
-import { memo } from 'react';
+// no-op
 import { useRouter } from 'next/navigation';
 import {
   AlertDialog,
@@ -53,7 +53,7 @@ export default function HistoryList() {
   }, [loadGroupedHistory, loadStats]);
 
   // 优化的事件处理函数 - 使用 useCallback 避免不必要的重渲染
-  const handleSelectChange = useCallback((id: string, selected: boolean) => {
+  const handleSelectChange = useCallback((id: string, _selected: boolean) => {
     toggleSelection(id);
   }, [toggleSelection]);
 
@@ -67,16 +67,13 @@ export default function HistoryList() {
 
   // 实现查看对话功能 - 导航到聊天页面并加载指定对话
   const handleView = useCallback((id: string) => {
-    console.log('查看对话:', id);
-    // 导航到聊天页面，传递会话ID作为查询参数
-    router.push(`/chat?conversation=${id}&mode=view`);
+    // 使用统一的 conversation 参数，避免解析不一致
+    router.push(`/chat?conversation=${id}`);
   }, [router]);
 
   // 实现继续对话功能 - 导航到聊天页面并设置为可编辑模式
   const handleContinue = useCallback((id: string) => {
-    console.log('继续对话:', id);
-    // 导航到聊天页面，传递会话ID并设置为编辑模式
-    router.push(`/chat?conversation=${id}&mode=continue`);
+    router.push(`/chat?conversation=${id}`);
   }, [router]);
 
   const handleDelete = useCallback(async (id: string) => {
@@ -184,7 +181,7 @@ export default function HistoryList() {
     <>
       <div className="flex-1 bg-white dark:bg-gray-900 flex flex-col">
         {/* 统计信息条 - 更清晰的信息显示 */}
-        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/70 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 flex items-center justify-between">
+        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/70 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-4">
             <span className="font-medium">
               共 {totalConversations} 个对话

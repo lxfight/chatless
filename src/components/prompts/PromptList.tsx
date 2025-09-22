@@ -7,7 +7,7 @@ import { usePromptStore } from "@/store/promptStore";
 import { useChatStore } from "@/store/chatStore";
 import { toast } from "@/components/ui/sonner";
 import { PromptEditorDialog } from "./PromptEditorDialog";
-import { useCallback } from 'react';
+//
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface PromptListProps {
@@ -26,16 +26,13 @@ export function PromptList({ prompts }: PromptListProps) {
   const updateConversation = useChatStore((s)=>s.updateConversation);
   const currentConversationId = useChatStore((s)=>s.currentConversationId);
 
-  const handleSelectChange = () => {};
-
-  // Placeholder handlers - implement actual logic
+  // 仅使用收藏/编辑/删除/应用
   const handleToggleFavorite = (id: string) => toggleFavorite(id);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingInitial = useMemo(() => allPrompts.find(p=>p.id===editingId) || null, [allPrompts, editingId]);
   const handleEdit = (id: string) => { setEditingId(id); setEditorOpen(true); };
-  const handleCopy = (id: string) => console.log("Copy:", id);
-  const handleMove = (id: string) => console.log("Move:", id);
+  // 删除无用的占位函数
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const handleDelete = (id: string) => { setPendingDeleteId(id); };
 
@@ -58,7 +55,7 @@ export function PromptList({ prompts }: PromptListProps) {
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 auto-rows-fr">
         {prompts.map((prompt) => (
           <PromptCard 
             key={prompt.id} 

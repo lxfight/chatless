@@ -64,7 +64,7 @@ export function ChatMessageList({
                 }
               }}
               data-message-id={message.id}
-              className='ml-2 mr-2'
+              className='ml-4 mr-2'
               style={{ minHeight: 56, contain: 'layout paint', transform: 'translateZ(0)' }}
             >
               <ChatMessage

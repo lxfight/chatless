@@ -160,7 +160,7 @@ function ChatMessageComponent({
   return (
     <div
       className={cn(
-        "flex chat-transition group mb-4 relative w-full",
+        "flex chat-transition group mt-4 mb-4 relative w-full",
         isUser 
           ? "flex-row-reverse justify-start max-w-[85%] ml-auto" 
           : "max-w-[85%]"
@@ -195,8 +195,8 @@ function ChatMessageComponent({
               isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",
               // 用户消息：暗色下改为更接近背景的轻微浮起效果，降低层次断差
               isUser
-                ? "px-2.5 py-1.5 text-[14px] leading-[1.3] rounded-2xl bg-blue-50/80 dark:bg-slate-800/50 border border-blue-200/40 dark:border-slate-700"
-                : "px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50",
+                ? "px-2.5 py-2 text-[14px] leading-[1.3] rounded-2xl bg-blue-50/80 dark:bg-slate-800/50 border border-blue-200/40 dark:border-slate-700"
+                : "px-2.5 py-2 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50",
               !isUser && "rounded-tl-2xl"
             )}>
               {messageContent}
@@ -207,7 +207,7 @@ function ChatMessageComponent({
         {/* 时间戳和模型信息：仅在非流式时显示，避免生成中抖动 */}
         {!isStreaming && (formattedTime || (!isUser && model)) && (
           <div className={cn(
-            "flex items-center justify-between flex-nowrap text-xs text-slate-500 dark:text-slate-400 mt-1.5",
+            "flex items-center justify-between flex-nowrap text-xs text-slate-500 dark:text-slate-400 ml-2 mt-1.5",
             isUser ? "self-end" : "self-start w-full"
           )}>
             <div className="flex items-center gap-2 min-w-0 whitespace-nowrap overflow-hidden">
@@ -218,13 +218,13 @@ function ChatMessageComponent({
             </div>
             {/* AI消息功能按钮 */}
             {!isUser && (
-              <div className="flex items-center gap-1 ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto translate-x-1">
+              <div className="flex items-center gap-1 mr-3 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto translate-x-1">
                 {onRetry && (
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={onRetry}
-                    className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
+                    className="h-5 w-5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
                     title="重试"
                   >
                     <RefreshCcw className="w-3 h-3" />
@@ -236,7 +236,7 @@ function ChatMessageComponent({
                     size="icon"
                     onClick={() => handleCopy(content)}
                     className={cn(
-                      "h-6 w-6 rounded-full transition-all duration-200",
+                      "h-5 w-5 rounded-full transition-all duration-200",
                       isCopied
                         ? "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                         : " text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"

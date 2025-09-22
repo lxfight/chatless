@@ -9,10 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import Image from 'next/image';
 import { toast } from '@/components/ui/sonner';
-import { syncDynamicProviders } from '@/lib/llm';
+// import { syncDynamicProviders } from '@/lib/llm';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { generateAvatarDataUrl } from '@/lib/avatar';
-import { getStaticModels, type ProviderName } from '@/lib/provider/staticModels';
+// import { getStaticModels, type ProviderName } from '@/lib/provider/staticModels';
 import { MoreVertical, Pencil, Trash2, Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -98,6 +98,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
   const [editingName, setEditingName] = useState<string | null>(null);
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [customUrl, setCustomUrl] = useState('');
+  const [customApiKey, setCustomApiKey] = useState('');
   const [customStrategy, setCustomStrategy] = useState<CatalogStrategy>('openai-compatible');
   const [isSavingCustom, setIsSavingCustom] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +113,14 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
       setCustomDisplayName(editProvider.displayName || editProvider.name); // 使用displayName或回退到name
       setCustomUrl(editProvider.api_base_url);
       setCustomStrategy(editProvider.strategy as CatalogStrategy);
+      // 读取已保存的密钥（用于 UI 显示，可为空）
+      (async () => {
+        try {
+          const list = await providerRepository.getAll();
+          const target = list.find(p => p.name === editProvider.name);
+          setCustomApiKey((target as any)?.apiKey || '');
+        } catch { /* noop */ }
+      })();
       setCustomModalOpen(true);
     } else if (!editProvider) {
       setIsEditMode(false);
@@ -187,6 +196,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
   const saveCustomProvider = async () => {
     const displayName = customDisplayName.trim();
     const url = customUrl.trim();
+    const apiKey = (customApiKey || '').trim();
     
     // 验证提供商名称
     const nameValidation = validateProviderName(displayName);
@@ -236,7 +246,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
         displayName,
       } as any);
       // 再统一通过用例写入可选的 url（触发刷新链路）
-      await updateProviderConfigUseCase.execute(finalId, { url, displayName, strategy: customStrategy });
+      await updateProviderConfigUseCase.execute(finalId, { url, displayName, strategy: customStrategy, apiKey: apiKey || null });
       setVisibleMap(m=>({ ...m, [finalId]: true }));
       setCustomProviders(prev => ([...prev, { id: finalId, displayName, url, strategy: customStrategy, isVisible: true }]));
       toast.success('已添加自定义 Provider');
@@ -257,6 +267,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
     setCustomDisplayName((target as any).displayName || target.name);
       setCustomUrl(target.url || '');
       setCustomStrategy((target as any).strategy || 'openai-compatible');
+      setCustomApiKey((target as any)?.apiKey || '');
       setIsEditMode(true);
       setEditingName(target.name);
       setCustomModalOpen(true);
@@ -269,6 +280,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
     try {
       const url = customUrl.trim();
       const displayName = customDisplayName.trim();
+      const apiKey = (customApiKey || '').trim();
       
       // 验证提供商名称
       const nameValidation = validateProviderName(displayName);
@@ -286,7 +298,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
         return;
       }
       const { updateProviderConfigUseCase } = await import('@/lib/provider/usecases/UpdateProviderConfig');
-      await updateProviderConfigUseCase.execute(editingName, { displayName: displayName || editingName, url, strategy: customStrategy });
+      await updateProviderConfigUseCase.execute(editingName, { displayName: displayName || editingName, url, strategy: customStrategy, apiKey: apiKey || null });
       setCustomProviders(prev => prev.map(cp => cp.id === editingName ? { ...cp, url: customUrl.trim(), strategy: customStrategy, displayName: customDisplayName.trim() || editingName } : cp));
       toast.success('已保存修改');
       setCustomModalOpen(false);
@@ -379,6 +391,10 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
             <div>
               <label className="block text-xs text-gray-500 mb-1">服务地址（可选）</label>
               <Input value={customUrl} onChange={(e)=>setCustomUrl(e.target.value)} placeholder="例如：https://api.example.com/v1" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">API 密钥（可选）</label>
+              <Input value={customApiKey} onChange={(e)=>setCustomApiKey(e.target.value)} placeholder="粘贴密钥（可选）" type="password" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">API 策略</label>
@@ -545,6 +561,10 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
                   <label className="block text-xs text-gray-500 mb-1">服务地址（可选）</label>
                   <Input value={customUrl} onChange={(e)=>setCustomUrl(e.target.value)} placeholder="https://api.example.com/v1" />
                 </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">API 密钥（可选）</label>
+              <Input value={customApiKey} onChange={(e)=>setCustomApiKey(e.target.value)} placeholder="粘贴密钥（可选）" type="password" />
+            </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">API 策略</label>
                   <Select value={customStrategy} onValueChange={(v)=>setCustomStrategy(v as CatalogStrategy)}>

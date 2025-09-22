@@ -46,7 +46,7 @@ export function ChatToolbar({
     <TooltipProvider>
       <div
         className={cn(
-          "flex items-center gap-0.5 px-1 bg-white/40 dark:bg-slate-800/40 backdrop-blur-sm rounded-full border border-gray-200/30 dark:border-gray-600/30",
+          "flex items-center gap-0.5 px-0.5 bg-white/40 dark:bg-slate-800/40 backdrop-blur-sm rounded-full border border-gray-200/30 dark:border-gray-600/30",
           className
         )}
       >
@@ -56,9 +56,9 @@ export function ChatToolbar({
               variant="ghost"
               size="sm"
               onClick={onScrollToTop}
-              className="h-6 w-6 p-0 opacity-40 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+              className="h-6 w-6 p-0 opacity-60 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
             >
-              <ArrowUpIcon className="h-3 w-3" />
+              <ArrowUpIcon className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -72,9 +72,9 @@ export function ChatToolbar({
               variant="ghost"
               size="sm"
               onClick={onScrollToBottom}
-              className="h-6 w-6 p-0 opacity-40 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+              className="h-6 w-6 p-0 opacity-60 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
             >
-              <ArrowDownIcon className="h-3 w-3" />
+              <ArrowDownIcon className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -89,9 +89,9 @@ export function ChatToolbar({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 opacity-40 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+                  className="h-6 w-6 p-0 opacity-60 hover:opacity-80 dark:opacity-50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
                 >
-                  <LocateFixed className="h-3 w-3" />
+                  <LocateFixed className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>

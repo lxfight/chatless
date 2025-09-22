@@ -119,7 +119,7 @@ export function validateProviderName(name: string): {
 
   const trimmed = name.trim();
   
-  // 检查长度
+  // 检查长度（2-24）
   if (trimmed.length < 2) {
     return {
       isValid: false,
@@ -128,22 +128,23 @@ export function validateProviderName(name: string): {
     };
   }
 
-  // 限制最大长度为 20 个字符
-  if (trimmed.length > 20) {
+  // 限制最大长度为 24 个字符
+  if (trimmed.length > 24) {
     return {
       isValid: false,
       error: '名称过长',
-      suggestion: '请使用不超过 20 个字符'
+      suggestion: '请使用不超过 24 个字符'
     };
   }
 
-  // 检查是否包含非法字符：仅允许中文、英文、数字和空格（不支持特殊符号）
-  const validPattern = /^[\u4e00-\u9fffA-Za-z0-9 ]+$/;
+  // 检查是否包含非法字符：仅允许中文、英文（大小写）、数字、下划线与连字符
+  // 注：不允许空格，避免产生难以识别的ID
+  const validPattern = /^[\u4e00-\u9fffA-Za-z0-9_-]+$/;
   if (!validPattern.test(trimmed)) {
     return {
       isValid: false,
       error: '名称包含非法字符',
-      suggestion: '仅支持中文、英文、数字和空格，不允许特殊符号'
+      suggestion: '仅支持中文、英文字母、数字、下划线(_) 和连字符(-)'
     };
   }
 

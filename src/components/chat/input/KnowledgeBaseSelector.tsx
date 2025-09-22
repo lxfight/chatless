@@ -62,7 +62,7 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
         size="icon"
         onClick={() => setIsOpen(true)}
         className={cn(
-          "h-7 w-7 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer",
+          "h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0",
           selectedKnowledgeBase && "text-blue-600 bg-blue-50 dark:bg-blue-900/20"
         )}
         title={selectedKnowledgeBase ? '更换知识库' : '选择知识库'}

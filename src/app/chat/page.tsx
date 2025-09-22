@@ -41,6 +41,8 @@ export default function ChatPage() {
   
   const searchParams = useSearchParams();
   const selectedKnowledgeBaseId = searchParams.get('knowledgeBase');
+  const deepLinkConversationId = searchParams.get('conversation') || searchParams.get('conversationId');
+  const setCurrentConversation = useChatStore((s)=>s.setCurrentConversation);
   
   const { 
     llmInitialized, 
@@ -166,6 +168,13 @@ export default function ChatPage() {
     setIsClient(true);
   }, []);
 
+  // 处理从历史记录等处带参跳转
+  useEffect(() => {
+    if (deepLinkConversationId) {
+      setCurrentConversation(deepLinkConversationId);
+    }
+  }, [deepLinkConversationId, setCurrentConversation]);
+
   // 惰性加载：当切换到某个会话时才加载其消息
   useEffect(() => {
     if (!currentConversationId) return;
@@ -273,7 +282,7 @@ export default function ChatPage() {
           </div>
           {/* 工具栏 - 超过3条消息时显示，且不在输入框区域时显示 */}
           <div 
-            className={`fixed right-6 md:right-6 bottom-32 md:bottom-40 z-40 transition-opacity duration-300 ${
+            className={`fixed right-6 md:right-6 bottom-30 md:bottom-38 z-40 transition-opacity duration-300 ${
               isInputAreaHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
           >
@@ -285,10 +294,11 @@ export default function ChatPage() {
             />
           </div>
           <div 
-            className="px-4 py-4 bg-transparent"
+            className="px-4 py-2 bg-transparent"
             onMouseEnter={() => setIsInputAreaHovered(true)}
             onMouseLeave={() => setIsInputAreaHovered(false)}
           >
+            <div className="max-w-4xl mx-auto w-full">
             <ChatInput
               isLoading={isLoading}
               onSendMessage={handleSendMessage}
@@ -307,6 +317,7 @@ export default function ChatPage() {
               currentSessionParameters={currentSessionParameters}
               conversationId={currentConversationId}
             />
+            </div>
           </div>
         </main>
       </div>
