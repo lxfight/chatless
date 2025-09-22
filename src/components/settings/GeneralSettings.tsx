@@ -63,8 +63,12 @@ export function GeneralSettings() {
       {/* 页面标题 */}
       <div className="mb-8">
         <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">常规设置</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置常规选项，包括界面语言、主题模式、字体大小等。</p>
-      </div>
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            在此设置常规选项，包括界面语言、主题模式、字体大小等。
+          </p>
+        </div>
+        </div>
 
              {/* 主要设置卡片 */}
        <div className="border border-gray-100 dark:border-gray-800 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">

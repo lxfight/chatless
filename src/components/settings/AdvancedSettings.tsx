@@ -193,8 +193,12 @@ export function AdvancedSettings() {
     <div className="space-y-4">
        <div className="mb-8">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">高级设置</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置高级选项，部分设置请谨慎修改，包括日志系统、性能报告等。</p>
-      </div>  
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            在此设置高级选项，部分设置请谨慎修改，包括日志系统、性能报告等。
+          </p>
+        </div>
+           </div>  
 
       {/* 网络设置 */}
       <NetworkSettings />

@@ -103,7 +103,7 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
       </div>
 
       {/* 右侧：输入与菜单，整体右对齐 */}
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto  mr-4 flex items-center gap-1">
         {/* 健康检查：悬浮可见的小按钮 */}
         {(() => {
           const prompt = "Respond with only the word 'OK'";

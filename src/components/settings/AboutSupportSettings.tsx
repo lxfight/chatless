@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -138,8 +138,11 @@ export function AboutSupportSettings() {
       {/* 页面标题 */}
       <div className="mb-8">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">关于与支持</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">在此查看关于与支持相关信息，包括版本信息、更新检查、帮助中心等。</p>
-      </div>
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            在此查看关于与支持相关信息，包括版本信息、更新检查、帮助中心等。
+          </p>
+        </div>  </div>
       {/* 应用信息卡片 */}
       <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
         <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">

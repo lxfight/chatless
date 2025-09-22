@@ -328,9 +328,13 @@ export function ProviderModelList(props: ProviderModelListProps) {
             );
           })()}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 md:flex-nowrap flex-wrap">
           {isMultiStrategyProvider && (
             <Button variant="outline" className="h-6 px-1 text-xs" onClick={()=>setBatchMode(v=>!v)}>{batchMode? '退出' : '批量设置策略'}</Button>
+          )}
+          {/* 添加模型按钮：仅在非批量模式下显示 */}
+          {!batchMode && !isOllama && (
+            <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
           )}
           {isMultiStrategyProvider && batchMode && (
             <>
@@ -347,8 +351,8 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   <SelectItem value="__clear__" className="text-xs text-red-600">清除覆盖（恢复默认）</SelectItem>
                 </SelectContent>
               </Select>
-              <Button className="h-6 px-1 text-xs" onClick={() => applyBatch()}>应用到选中</Button>
-              <Button variant="secondary" className="h-6 px-1 text-xs" onClick={clearBatch}>清除覆盖</Button>
+              <Button className="h-6 px-1 text-xs bg-white/80 text-gray-800 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300" onClick={() => applyBatch()}>应用到选中</Button>
+              <Button variant="secondary" className="h-6 px-1 text-xs bg-white/80 text-gray-800 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300" onClick={clearBatch}>清除覆盖</Button>
               <Button
                 variant="ghost"
                 className="h-6 px-1 text-[11px]"
@@ -378,7 +382,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
               >
                 全选/反选
               </Button>
-              <Button
+              {/* <Button
                 variant="ghost"
                 className="h-6 px-1 text-[11px]"
                 onClick={() => {
@@ -401,10 +405,10 @@ export function ProviderModelList(props: ProviderModelListProps) {
                   })();
                   setAll(currentPageItems.map(x=>x.name), true);
                 }}
-              >全选本页</Button>
+              >全选本页</Button> */}
             </>
           )}
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             {!isOllama && (
               <ProviderAddModelDialog providerName={provider.name} onAdded={() => setModelSearch('')} />
             )}
@@ -413,7 +417,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
               className="h-6 px-1 text-xs"
               onClick={refreshModels}
             >刷新模型</Button>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -451,10 +455,10 @@ export function ProviderModelList(props: ProviderModelListProps) {
                 {/* 分页控件 */}
                 <div className="flex items-center justify-end gap-2 text-xs text-gray-500">
                   <span>共 {total} 个模型</span>
-                  <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>上一页</button>
+                  <button className="px-2 py-1 border rounded disabled:opacity-50 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300" disabled={safePage<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>上一页</button>
                   <span>{safePage}/{totalPages}</span>
-                  <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={safePage>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>下一页</button>
-                  <button className="px-2 py-1 border rounded" onClick={refreshModels}>刷新模型</button>
+                  <button className="px-2 py-1 border rounded hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300 disabled:opacity-50" disabled={safePage>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>下一页</button>
+                  <button className="px-2 py-1 border rounded hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300" onClick={refreshModels}>刷新模型</button>
                   {batchMode && isMultiStrategyProvider ? (
                     (() => {
                       const ids = pageItems.map(x=>x.name);
@@ -494,7 +498,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
                             return (
                               <button
                                 type="button"
-                                className="text-[11px] px-2 py-0.5 border rounded text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="text-[10px] py-0.5  rounded text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 onClick={() => setAll(groupIds, next)}
                               >
                                 {allChecked ? '取消本组' : '全选本组'}
@@ -502,6 +506,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
                             );
                           })()
                         ) : null}
+                        
                       </div>
                       <div className="space-y-2">
                         {list.sort(compareModels).map(renderItem)}

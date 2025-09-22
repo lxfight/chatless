@@ -170,7 +170,7 @@ export function ProviderTableRow({
 
           {/* 可点击区域 - 提供商、状态 */}
             <div 
-            className="col-span-9 flex items-center gap-4 cursor-pointer select-text"
+            className="col-span-9 flex items-center px-2 gap-4 cursor-pointer select-text"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {/* 提供商 */}

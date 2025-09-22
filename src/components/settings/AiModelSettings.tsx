@@ -191,8 +191,12 @@ export function AiModelSettings() {
       <div className="space-y-4">
       <div className="mb-6">
         <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">管理提供商</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">在此设置提供商，包括提供商列表、提供商状态、提供商操作等。</p>
-      </div>
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            在此添加/编辑提供商，并进行连接管理。聊天会话中可选择已连接提供商，AI 将按需调用工具/资源/提示。
+          </p>
+        </div>
+          </div>
 
         {/* 操作栏：保留右侧操作按钮，仅移除上方搜索与筛选 */}
         <div className='flex justify-end'>
