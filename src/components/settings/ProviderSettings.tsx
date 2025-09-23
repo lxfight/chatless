@@ -422,16 +422,15 @@ function ProviderSettingsImpl({
       </CollapsibleContent>
     </Collapsible>
 
+
     {/* 模型参数设置弹窗 */}
-    {selectedModelForParams && (
-      <ModelParametersDialog
-        open={parametersDialogOpen}
-        onOpenChange={setParametersDialogOpen}
-        providerName={selectedModelForParams.providerName}
-        modelId={selectedModelForParams.modelId}
-        modelLabel={selectedModelForParams.modelLabel}
-      />
-    )}
+    <ModelParametersDialog
+      open={parametersDialogOpen && !!selectedModelForParams}
+      onOpenChange={setParametersDialogOpen}
+      providerName={selectedModelForParams?.providerName || ''}
+      modelId={selectedModelForParams?.modelId || ''}
+      modelLabel={selectedModelForParams?.modelLabel}
+    />
 
     {/* 模型获取调试器弹窗（独立组件） */}
     <ModelFetchDebugger open={fetchDebuggerOpen} onOpenChange={setFetchDebuggerOpen} provider={provider} baseUrl={localUrl || provider.api_base_url || ''} />

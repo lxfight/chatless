@@ -49,10 +49,7 @@ export const useScrollManagement = (
     if (isNewConversation) {
       setShouldAutoScroll(true);
       setIsUserScrolling(false);
-      // 新会话首次定位到底部，无动画，防止突兀
-      requestAnimationFrame(() => {
-        endEl.scrollIntoView({ behavior: 'auto' });
-      });
+      // 初次进入会话：不自动滚动，由上层决定定位（如最后一条用户消息）
     } else if (shouldAutoScroll && !isUserScrolling && isLoading) {
       // 正在流式生成时，始终使用自定义“跟随到底部”动画（短距离也动画），避免瞬时跳变
       const container = messagesContainerRef.current;

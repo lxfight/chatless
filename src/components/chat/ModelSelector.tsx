@@ -333,15 +333,13 @@ export function ModelSelector({
       </Select>
 
       {/* 模型参数设置弹窗 */}
-      {selectedModelForParams && (
-        <ModelParametersDialog
-          open={parametersDialogOpen}
-          onOpenChange={setParametersDialogOpen}
-          providerName={selectedModelForParams.providerName}
-          modelId={selectedModelForParams.modelId}
-          modelLabel={selectedModelForParams.modelLabel}
-        />
-      )}
+      <ModelParametersDialog
+        open={parametersDialogOpen && !!selectedModelForParams}
+        onOpenChange={setParametersDialogOpen}
+        providerName={selectedModelForParams?.providerName || ''}
+        modelId={selectedModelForParams?.modelId || ''}
+        modelLabel={selectedModelForParams?.modelLabel}
+      />
     </>
   );
 } 

@@ -9,6 +9,8 @@ import { SSEClient } from '@/lib/sse-client';
  */
 export class OpenAICompatibleProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private aborted: boolean = false;
+  private currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
   constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI-Compatible') {
     super(displayName, baseUrl, apiKey);
@@ -89,14 +91,17 @@ export class OpenAICompatibleProvider extends BaseProvider {
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
     const mapped: any = { ...opts };
-    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
-    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
-    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
-    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined)
-      mapped.frequency_penalty = opts.frequencyPenalty;
-    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined)
-      mapped.presence_penalty = opts.presencePenalty;
-    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+    const o: any = opts as any;
+    if (o.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxTokens;
+    if (o.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxOutputTokens;
+    if (o.topP !== undefined && mapped.top_p === undefined) mapped.top_p = o.topP;
+    if (o.topK !== undefined && mapped.top_k === undefined) mapped.top_k = o.topK;
+    if (o.minP !== undefined && mapped.min_p === undefined) mapped.min_p = o.minP;
+    if (o.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined)
+      mapped.frequency_penalty = o.frequencyPenalty;
+    if (o.presencePenalty !== undefined && mapped.presence_penalty === undefined)
+      mapped.presence_penalty = o.presencePenalty;
+    if (o.stop !== undefined && mapped.stop === undefined) mapped.stop = o.stop;
 
     const body = {
       model,
@@ -110,6 +115,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
     let thinkingEnded = false;
 
     try {
+      this.aborted = false;
       // 优先：Tauri HTTP（跨域/证书更稳健）
       let resp: any = null;
       try {
@@ -162,6 +168,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
       cb.onStart?.();
       const reader = resp.body?.getReader();
       if (!reader) throw new Error('ReadableStream reader not available');
+      this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       const processDelta = (json: any) => {
@@ -187,6 +194,11 @@ export class OpenAICompatibleProvider extends BaseProvider {
       };
 
       while (true) {
+        if (this.aborted) {
+          try { await reader.cancel(); } catch { /* noop */ }
+          this.currentReader = null;
+          return;
+        }
         const { value, done } = await reader.read();
         if (done) {
           const last = buffer.trim();
@@ -279,6 +291,9 @@ export class OpenAICompatibleProvider extends BaseProvider {
   }
 
   cancelStream(): void {
+    this.aborted = true;
+    try { this.currentReader?.cancel(); } catch { /* noop */ }
+    this.currentReader = null;
     this.sseClient.stopConnection();
   }
 }

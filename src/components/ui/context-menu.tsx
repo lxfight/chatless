@@ -207,7 +207,8 @@ export const createMessageMenuItems = (
   onCopy: (content: string) => void,
   onEdit?: (id: string) => void,
   onRetry?: (id: string) => void,
-  onStar?: (id: string) => void
+  onStar?: (id: string) => void,
+  onDelete?: (id: string) => void
 ): MenuItem[] => {
   const items: MenuItem[] = [
     {
@@ -258,6 +259,21 @@ export const createMessageMenuItems = (
         id: 'star',
         text: '收藏回答',
         action: () => onStar(messageId)
+      }
+    );
+  }
+
+  if (onDelete) {
+    items.push(
+      {
+        id: 'separator-4',
+        text: '',
+        separator: true
+      },
+      {
+        id: 'delete',
+        text: '删除消息',
+        action: () => onDelete(messageId)
       }
     );
   }

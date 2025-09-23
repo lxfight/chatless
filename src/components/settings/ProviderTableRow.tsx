@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { AdvancedSettingsDialog } from '@/components/settings/AdvancedSettingsDialog';
+import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
 
 interface ProviderTableRowProps {
   provider: ProviderWithStatus;
@@ -69,6 +70,24 @@ export function ProviderTableRow({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasAdvanced = !!(provider.preferences?.useBrowserRequest);
 
+  // 模型参数设置对话框状态
+  const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
+  const [selectedModelForParams, setSelectedModelForParams] = useState<{
+    providerName: string;
+    modelId: string;
+    modelLabel?: string;
+  } | null>(null);
+
+  // 处理打开模型参数设置弹窗
+  const handleOpenParameters = (modelId: string, modelLabel?: string) => {
+    setSelectedModelForParams({ 
+      providerName: provider.name, 
+      modelId, 
+      modelLabel 
+    });
+    setParametersDialogOpen(true);
+  };
+
   // 本行的可编辑本地状态（确保输入可键入）
   const [localUrl, setLocalUrl] = useState<string>(provider.api_base_url || '');
   const [localDefaultApiKey, setLocalDefaultApiKey] = useState<string>(provider.default_api_key || '');
@@ -76,6 +95,9 @@ export function ProviderTableRow({
     setLocalUrl(provider.api_base_url || '');
     setLocalDefaultApiKey(provider.default_api_key || '');
   }, [provider.name, provider.api_base_url, provider.default_api_key]);
+  
+  // 模型搜索本地状态（用于 ProviderModelList 的筛选输入框）
+  const [modelSearch, setModelSearch] = useState<string>('');
   
   // 状态显示逻辑
   let statusText: string | undefined;
@@ -323,14 +345,14 @@ export function ProviderTableRow({
               <ProviderModelList
                 provider={provider}
                 modelsForDisplay={(localRepoModels ?? provider.models ?? []) as any}
-                modelSearch=""
-                setModelSearch={() => {}}
+                modelSearch={modelSearch}
+                setModelSearch={setModelSearch}
                 showApiKeyFields={true}
                 localModelApiKeys={{}}
                 setLocalModelApiKeys={() => {}}
                 onModelApiKeyChange={onModelApiKeyChange}
                 onModelApiKeyBlur={onModelApiKeyBlur}
-                onOpenParameters={() => {}}
+                onOpenParameters={handleOpenParameters}
               />
             </div>
           </CollapsibleContent>
@@ -367,6 +389,15 @@ export function ProviderTableRow({
         onOpenChange={setAdvancedOpen}
         provider={provider}
         onPreferenceChange={onPreferenceChange}
+      />
+
+      {/* 模型参数设置弹窗 */}
+      <ModelParametersDialog
+        open={parametersDialogOpen && !!selectedModelForParams}
+        onOpenChange={setParametersDialogOpen}
+        providerName={selectedModelForParams?.providerName || ''}
+        modelId={selectedModelForParams?.modelId || ''}
+        modelLabel={selectedModelForParams?.modelLabel}
       />
     </>
   );

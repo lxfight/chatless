@@ -123,17 +123,60 @@ export default function ChatPage() {
   // 注册 Virtuoso 的按ID滚动API，供“跳转到消息”使用
   const scrollToMessageRef = useRef<((id: string) => void) | null>(null);
   const registerScrollToMessage = (fn: (id: string) => void) => { scrollToMessageRef.current = fn; };
-
-  // 初次进入/切换会话时，强制定位到底部
+  // 轻动画高亮暂时关闭
+  const _highlightMessage = (_id: string, _retries: number = 0) => {};
+  // 统一的消息定位：将目标消息放置在视口约 35% 位置
+  const TARGET_VIEWPORT_BIAS = 0.35; // 0 顶部, 1 底部
+  const scrollToMessageWithBias = (id: string, options?: { smooth?: boolean; retries?: number }) => {
+    const smooth = options?.smooth ?? false;
+    const retries = options?.retries ?? 8;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const el = messageRefs.current[id];
+    if (el) {
+      try {
+        const crect = container.getBoundingClientRect();
+        const erect = el.getBoundingClientRect();
+        const delta = erect.top - crect.top;
+        const desired = container.scrollTop + delta - container.clientHeight * TARGET_VIEWPORT_BIAS;
+        const max = Math.max(0, container.scrollHeight - container.clientHeight);
+        const target = Math.min(max, Math.max(0, desired));
+        container.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' });
+      } catch { /* noop */ }
+      return;
+    }
+    if (retries > 0) {
+      window.setTimeout(() => scrollToMessageWithBias(id, { smooth, retries: retries - 1 }), 60);
+    }
+  };
+  // 进入/切换会话时定位到“最后一条用户消息”，不再强制到底部
+  const initialAnchoredRef = useRef(false);
   useEffect(() => {
-    const raf = requestAnimationFrame(() => handleScrollToBottom());
-    return () => cancelAnimationFrame(raf);
+    initialAnchoredRef.current = false;
   }, [currentConversationId]);
+
+  useEffect(() => {
+    if (initialAnchoredRef.current) return;
+    const msgs = (currentConversation?.messages as Message[] | undefined) || [];
+    const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+    if (!lastUser) return; // 没有用户消息则不主动滚动
+    const doScroll = () => {
+      if (scrollToMessageRef.current) {
+        scrollToMessageRef.current(lastUser.id);
+      }
+      scrollToMessageWithBias(lastUser.id, { smooth: false, retries: 10 });
+      initialAnchoredRef.current = true;
+    };
+    const raf = requestAnimationFrame(doScroll);
+    return () => cancelAnimationFrame(raf);
+  }, [currentConversationId, currentConversation?.messages?.length]);
 
   // 新消息追加后（长度变化）自动滚动到底部（更激进，确保到真正底部）
   useEffect(() => {
     const len = (currentConversation?.messages as Message[] | undefined)?.length || 0;
     if (len === 0) return;
+    // 初次进入会话定位尚未完成时，避免把视图拉到底部
+    if (!initialAnchoredRef.current) return;
     // 先同步一次，随后在下一帧和100ms后再各补一次，避免渲染/布局时序导致未到达真正底部
     handleScrollToBottom();
     const raf = requestAnimationFrame(() => handleScrollToBottom());
@@ -141,12 +184,26 @@ export default function ChatPage() {
     return () => { cancelAnimationFrame(raf); clearTimeout(t); };
   }, [currentConversation?.messages?.length]);
 
-  // 从后台切回到该标签页时，确保定位到底部
+  // 从后台切回到该标签页时，若尚未完成初次定位则先锚定到最后一条用户消息，否则确保到底部
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') handleScrollToBottom(); };
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!initialAnchoredRef.current) {
+        const msgs = (currentConversation?.messages as Message[] | undefined) || [];
+        const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+        if (!lastUser) return;
+        if (scrollToMessageRef.current) {
+          scrollToMessageRef.current(lastUser.id);
+        }
+        scrollToMessageWithBias(lastUser.id, { smooth: false, retries: 10 });
+        initialAnchoredRef.current = true;
+        return;
+      }
+      handleScrollToBottom();
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [handleScrollToBottom]);
+  }, [handleScrollToBottom, currentConversation?.messages]);
 
   // 设置滚动到底部的回调函数
   useEffect(() => {
@@ -156,12 +213,7 @@ export default function ChatPage() {
   }, [setScrollToBottomCallback, handleScrollToBottom]);
 
   const navigateToMessage = (msgId: string) => {
-    if (scrollToMessageRef.current) {
-      scrollToMessageRef.current(msgId);
-      return;
-    }
-    const el = messageRefs.current[msgId];
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrollToMessageWithBias(msgId, { smooth: true, retries: 10 });
   };
 
   useEffect(() => {
@@ -277,6 +329,11 @@ export default function ChatPage() {
               messagesEndRef={managedEndRef}
               scrollParentRef={scrollContainerRef}
               onRegisterScrollToMessage={registerScrollToMessage}
+            initialTopMostItemIndex={(() => {
+              const msgs = liveMessages;
+              const idx = [...msgs].map((m)=>m.role).lastIndexOf('user');
+              return idx >= 0 ? idx : undefined as any;
+            })()}
             />
             {/* managedEndRef 已由组件内部渲染，无需此处额外 div */}
           </div>

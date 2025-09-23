@@ -1,20 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { X, Plus, RotateCcw, Settings, Check } from "lucide-react";
+import { X, Plus, RotateCcw, Settings, Check, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { specializedStorage } from "@/lib/storage";
 import { ModelParametersService } from "@/lib/model-parameters";
 import { ParameterPolicyEngine } from "@/lib/llm/ParameterPolicy";
-import type { ModelParameters, ModelConfig } from "@/types/model-params";
+import type { ModelParameters } from "@/types/model-params";
 import { DEFAULT_MODEL_PARAMETERS, MODEL_PARAMETER_LIMITS } from "@/types/model-params";
+
+// 自定义参数接口
+interface CustomParameter {
+  key: string;
+  value: string;
+  asString: boolean; // 是否强制作为字符串处理
+}
 
 interface ModelParametersDialogProps {
   open: boolean;
@@ -36,6 +43,7 @@ export function ModelParametersDialog({
   const [newStopSequence, setNewStopSequence] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [customParameters, setCustomParameters] = useState<CustomParameter[]>([]);
   const [savedParameters, setSavedParameters] = useState<ModelParameters | null>(null);
   const [advancedEditorOpen, setAdvancedEditorOpen] = useState(true);
   const [advancedJsonText, setAdvancedJsonText] = useState<string>('{}');
@@ -46,7 +54,7 @@ export function ModelParametersDialog({
 
   // 加载保存的参数
   useEffect(() => {
-    if (open) {
+    if (open && providerName && modelId) {
       loadModelParameters();
     }
   }, [open, providerName, modelId]);
@@ -58,9 +66,12 @@ export function ModelParametersDialog({
         parameters.temperature !== savedParameters.temperature ||
         parameters.maxTokens !== savedParameters.maxTokens ||
         parameters.topP !== savedParameters.topP ||
+        (parameters as any).topK !== (savedParameters as any).topK ||
+        (parameters as any).minP !== (savedParameters as any).minP ||
         parameters.frequencyPenalty !== savedParameters.frequencyPenalty ||
         parameters.presencePenalty !== savedParameters.presencePenalty ||
-        JSON.stringify(stopSequences) !== JSON.stringify(savedParameters.stopSequences || []);
+        JSON.stringify(stopSequences) !== JSON.stringify(savedParameters.stopSequences || []) ||
+        customParameters.length > 0; // 如果有自定义参数就视为有变更
       setHasChanges(hasParameterChanges);
     } else {
       // 如果没有保存的参数，与系统默认参数比较
@@ -68,14 +79,21 @@ export function ModelParametersDialog({
         parameters.temperature !== DEFAULT_MODEL_PARAMETERS.temperature ||
         parameters.maxTokens !== DEFAULT_MODEL_PARAMETERS.maxTokens ||
         parameters.topP !== DEFAULT_MODEL_PARAMETERS.topP ||
+        (parameters as any).topK !== (DEFAULT_MODEL_PARAMETERS as any).topK ||
+        (parameters as any).minP !== (DEFAULT_MODEL_PARAMETERS as any).minP ||
         parameters.frequencyPenalty !== DEFAULT_MODEL_PARAMETERS.frequencyPenalty ||
         parameters.presencePenalty !== DEFAULT_MODEL_PARAMETERS.presencePenalty ||
-        stopSequences.length > 0;
+        stopSequences.length > 0 ||
+        customParameters.length > 0; // 如果有自定义参数就视为有变更
       setHasChanges(hasParameterChanges);
     }
-  }, [parameters, stopSequences, savedParameters]);
+  }, [parameters, stopSequences, savedParameters, customParameters]);
 
   const loadModelParameters = async () => {
+    if (!providerName || !modelId) {
+      return;
+    }
+    
     try {
       const savedParams = await specializedStorage.models.getModelParameters(providerName, modelId);
       if (savedParams) {
@@ -84,17 +102,34 @@ export function ModelParametersDialog({
         setSavedParameters(savedParams as ModelParameters);
         const adv = (savedParams as ModelParameters).advancedOptions || {};
         setAdvancedJsonText(JSON.stringify(adv, null, 2));
+        
+        // 加载自定义参数
+        const customParams: CustomParameter[] = [];
+        Object.entries(adv).forEach(([key, value]) => {
+          // 排除标准参数
+          if (!['temperature', 'maxTokens', 'topP', 'topK', 'minP', 'frequencyPenalty', 'presencePenalty', 'stopSequences'].includes(key)) {
+            const asString = typeof value === 'string' && !['true', 'false'].includes(value.toLowerCase()) && isNaN(Number(value));
+            customParams.push({
+              key,
+              value: String(value),
+              asString
+            });
+          }
+        });
+        setCustomParameters(customParams);
       } else {
         setParameters(DEFAULT_MODEL_PARAMETERS);
         setStopSequences([]);
         setSavedParameters(null);
         setAdvancedJsonText('{}');
+        setCustomParameters([]);
       }
     } catch (error) {
       console.error('加载模型参数失败:', error);
       setParameters(DEFAULT_MODEL_PARAMETERS);
       setStopSequences([]);
       setSavedParameters(null);
+      setCustomParameters([]);
     }
   };
 
@@ -116,10 +151,18 @@ export function ModelParametersDialog({
         return;
       }
 
+      // 合并自定义参数到 advancedOptions
+      const customParamsObj: Record<string, any> = {};
+      customParameters.forEach(param => {
+        if (param.key.trim()) {
+          customParamsObj[param.key] = convertValue(param.value, param.asString);
+        }
+      });
+
       const configToSave = {
         ...parameters,
         stopSequences,
-        advancedOptions: advanced
+        advancedOptions: { ...advanced, ...customParamsObj }
       };
       await specializedStorage.models.setModelParameters(providerName, modelId, configToSave);
       onOpenChange(false);
@@ -135,9 +178,10 @@ export function ModelParametersDialog({
     setStopSequences([]);
     setSavedParameters(null);
     setAdvancedJsonText('{}');
+    setCustomParameters([]);
   };
 
-  // 仅计算“应用预览”，不再自动回填界面
+  // 仅计算"应用预览"，不再自动回填界面
   useEffect(() => {
     try {
       let advanced: Record<string, any> = {};
@@ -160,7 +204,7 @@ export function ModelParametersDialog({
     }
   }, [parameters, stopSequences, advancedJsonText, providerName, modelId]);
 
-  // 将“应用预览”反写回表单（提高可编辑性）
+  // 将"应用预览"反写回表单（提高可编辑性）
   const applyPreviewIntoForm = () => {
     try {
       const applied = JSON.parse(appliedOptionsJson || '{}');
@@ -171,6 +215,8 @@ export function ModelParametersDialog({
         temperature: parsed.temperature,
         maxTokens: parsed.maxTokens,
         topP: parsed.topP,
+        topK: (parsed as any).topK,
+        minP: (parsed as any).minP,
         frequencyPenalty: parsed.frequencyPenalty,
         presencePenalty: parsed.presencePenalty,
       }));
@@ -187,6 +233,7 @@ export function ModelParametersDialog({
     setStopSequences([]);
     setSavedParameters(null);
     setHasChanges(false);
+    setCustomParameters([]);
   };
 
   const addStopSequence = () => {
@@ -207,78 +254,91 @@ export function ModelParametersDialog({
     }
   };
 
-  // ========== Slider helpers ==========
+  // 计算滑动条百分比
   const calcPercent = (value: number, min: number, max: number) => {
     if (max === min) return 0;
     return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
   };
 
-  const trackBg = (
-    value: number,
-    min: number,
-    max: number,
-    disabled?: boolean
-  ) => {
-    if (disabled) {
-      return `linear-gradient(to right, rgb(209 213 219) 0%, rgb(209 213 219) 100%)`;
+  // 自定义参数相关函数
+  const convertValue = (value: string, asString: boolean = false): any => {
+    if (asString) return value;
+    
+    // 尝试转换为数字
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && isFinite(numValue) && value.trim() !== '') {
+      return numValue;
     }
-    const p = calcPercent(value, min, max);
-    return `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${p}%, rgb(229 231 235) ${p}%, rgb(229 231 235) 100%)`;
+    
+    // 尝试转换为布尔值
+    const lowerValue = value.toLowerCase().trim();
+    if (lowerValue === 'true') return true;
+    if (lowerValue === 'false') return false;
+    
+    // 默认返回字符串
+    return value;
   };
 
-  // 刻度暂时移除（原生 datalist 在部分环境不可见 + 自绘刻度先行下线）
-
-  const ParameterSlider = ({
-    id,
-    label,
-    value,
-    onChange,
-    min,
-    max,
-    step,
-    description,
-  }: {
-    id: string;
-    label: string;
-    value: number;
-    onChange: (value: number) => void;
-    min: number;
-    max: number;
-    step: number;
-    description: string;
-  }) => {
-    const clamp = (v: number) => (v < min ? min : v > max ? max : v);
-    const toNumber = (s: string) => {
-      const n = Number(s);
-      return Number.isFinite(n) ? n : value;
-    };
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <Label htmlFor={id} className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-20">
-            {label}
-          </Label>
-          <div className="flex-1" />
-          <Input
-            type="number"
-            inputMode="decimal"
-            step={step}
-            min={min}
-            max={max}
-            value={value}
-            onChange={(e) => onChange(clamp(toNumber(e.target.value)))}
-            onBlur={(e) => onChange(clamp(toNumber(e.target.value)))}
-            className="h-7 w-20 text-right font-mono"
-          />
-        </div>
-        <p className="text-xs text-gray-500 leading-relaxed ml-24">{description}</p>
-      </div>
-    );
+  const addCustomParameter = () => {
+    setCustomParameters(prev => [...prev, { key: '', value: '', asString: false }]);
   };
+
+  const updateCustomParameter = (index: number, field: keyof CustomParameter, value: any) => {
+    setCustomParameters(prev => prev.map((param, i) => 
+      i === index ? { ...param, [field]: value } : param
+    ));
+  };
+
+  const removeCustomParameter = (index: number) => {
+    setCustomParameters(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // 生成预览JSON
+  const generatePreviewJson = () => {
+    const result: any = {};
+    
+    // 标准参数
+    if (parameters.enableTemperature && parameters.temperature !== undefined) {
+      result.temperature = parameters.temperature;
+    }
+    if (parameters.enableMaxTokens && parameters.maxTokens !== undefined) {
+      result.maxTokens = parameters.maxTokens;
+    }
+    if (parameters.enableTopP && parameters.topP !== undefined) {
+      result.topP = parameters.topP;
+    }
+    if (parameters.enableTopK && parameters.topK !== undefined) {
+      result.topK = parameters.topK;
+    }
+    if (parameters.enableMinP && parameters.minP !== undefined) {
+      result.minP = parameters.minP;
+    }
+    if (parameters.enableFrequencyPenalty && parameters.frequencyPenalty !== undefined) {
+      result.frequencyPenalty = parameters.frequencyPenalty;
+    }
+    if (parameters.enablePresencePenalty && parameters.presencePenalty !== undefined) {
+      result.presencePenalty = parameters.presencePenalty;
+    }
+    if (stopSequences.length > 0) {
+      result.stopSequences = stopSequences;
+    }
+    
+    // 自定义参数
+    customParameters.forEach(param => {
+      if (param.key.trim()) {
+        result[param.key] = convertValue(param.value, param.asString);
+      }
+    });
+    
+    return result;
+  };
+
+  const previewJson = generatePreviewJson();
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl p-0 max-h-[85vh] overflow-hidden">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -287,9 +347,12 @@ export function ModelParametersDialog({
                 <Settings className="w-5 h-5 text-blue-500 dark:text-blue-400" />
               </div>
               <div>
-                <DialogTitle className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   模型参数设置
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  配置此模型的参数设置，这些设置将仅应用于此特定模型。
+                </DialogDescription>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300">
                     {modelLabel || modelId}
@@ -300,208 +363,377 @@ export function ModelParametersDialog({
                     </Badge>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-gray-500">此处设置为该模型的默认参数，影响所有会话。你仍可在“会话参数设置”中临时覆盖。</p>
+                <p className="mt-1 text-xs text-gray-500">此处设置为该模型的默认参数，影响所有会话。你仍可在"会话参数设置"中临时覆盖。</p>
               </div>
             </div>
-            <div className="flex items-center gap-2" />
           </div>
         </DialogHeader>
 
         {/* Content */}
-        <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* 调试布局已移除 */}
-          {/* 原生滑条单项测试已移除 */}
-            {(
-              <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTemperature === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>多样性<span className="ml-1 text-[9px] text-gray-400">{parameters.enableTemperature === false ? '不下发' : '将覆盖默认'}</span></Label>
+        <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          
+          {/* Temperature */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enableTemperature !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTemperature: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Temperature</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>控制输出的随机性。数值越低越确定，越高越有创意。常用范围：0.5–1.0。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
                 <input
                   type="range"
-                  className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   min={MODEL_PARAMETER_LIMITS.temperature.min}
                   max={MODEL_PARAMETER_LIMITS.temperature.max}
                   step={MODEL_PARAMETER_LIMITS.temperature.step}
-                  value={parameters.temperature}
-                  onChange={(e)=>setParameters(prev=>({...prev, temperature: parseFloat(e.target.value)}))}
-                  style={{ background: trackBg(parameters.temperature, MODEL_PARAMETER_LIMITS.temperature.min, MODEL_PARAMETER_LIMITS.temperature.max, parameters.enableTemperature === false) }}
+                value={parameters.temperature || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, temperature: parseFloat(e.target.value) || 0 }))}
+                style={{
+                  background: parameters.enableTemperature === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent(parameters.temperature || 0, MODEL_PARAMETER_LIMITS.temperature.min, MODEL_PARAMETER_LIMITS.temperature.max)}%, #e5e7eb ${calcPercent(parameters.temperature || 0, MODEL_PARAMETER_LIMITS.temperature.min, MODEL_PARAMETER_LIMITS.temperature.max)}%, #e5e7eb 100%)`
+                }}
                   disabled={parameters.enableTemperature === false}
-                  list="ticks-temperature"
                 />
-                {/* datalist 刻度移除 */}
-                <Checkbox aria-label="enable temperature" checked={parameters.enableTemperature !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enableTemperature: Boolean(v)}))} />
               </div>
-              <div className="flex items-center ml-32 gap-2">
-                <p className="text-xs text-gray-400 font-mono">temperature</p>
-                <div className="flex-1" />
                 <Input
                   type="number"
-                  className="h-7 w-24 text-right font-mono rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                  value={parameters.temperature}
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.temperature.inputMin}
+              max={MODEL_PARAMETER_LIMITS.temperature.inputMax}
+              value={parameters.temperature || 0}
                   step={MODEL_PARAMETER_LIMITS.temperature.step}
-                  onChange={(e)=>setParameters(prev=>({...prev, temperature: parseFloat(e.target.value || '0')}))}
+              onChange={(e) => setParameters(prev => ({ ...prev, temperature: parseFloat(e.target.value || '0') }))}
                   disabled={parameters.enableTemperature === false}
                 />
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed ml-32">数值越低越“确定”，越高越“有创意”。常用：0.5–1.0。</p>
-            </div>
-          )}
 
-          {(
-              <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableMaxTokens === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>回复长度上限<span className="ml-1 text-[9px] text-gray-400">{parameters.enableMaxTokens === false ? '不下发' : '将覆盖默认'}</span></Label>
+          {/* Max Tokens */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enableMaxTokens !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableMaxTokens: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Max Tokens</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>限制单次回复能生成的最大 Token 数。控制输出长度的硬性限制。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
                 <input
                   type="range"
-                  className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   min={MODEL_PARAMETER_LIMITS.maxTokens.min}
                   max={MODEL_PARAMETER_LIMITS.maxTokens.max}
                   step={MODEL_PARAMETER_LIMITS.maxTokens.step}
-                  value={parameters.maxTokens}
-                  onChange={(e)=>setParameters(prev=>({...prev, maxTokens: parseFloat(e.target.value)}))}
-                  style={{ background: trackBg(parameters.maxTokens, MODEL_PARAMETER_LIMITS.maxTokens.min, MODEL_PARAMETER_LIMITS.maxTokens.max, parameters.enableMaxTokens === false) }}
+                value={parameters.maxTokens || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, maxTokens: parseInt(e.target.value) || 0 }))}
+                style={{
+                  background: parameters.enableMaxTokens === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent(parameters.maxTokens || 0, MODEL_PARAMETER_LIMITS.maxTokens.min, MODEL_PARAMETER_LIMITS.maxTokens.max)}%, #e5e7eb ${calcPercent(parameters.maxTokens || 0, MODEL_PARAMETER_LIMITS.maxTokens.min, MODEL_PARAMETER_LIMITS.maxTokens.max)}%, #e5e7eb 100%)`
+                }}
                   disabled={parameters.enableMaxTokens === false}
-                  list="ticks-maxTokens"
                 />
-                {/* datalist 刻度移除 */}
-                <Checkbox aria-label="enable maxTokens" checked={parameters.enableMaxTokens !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enableMaxTokens: Boolean(v)}))} />
               </div>
-              <div className="flex items-center ml-32 gap-2">
-                <p className="text-xs text-gray-400 font-mono">maxTokens</p>
-                <div className="flex-1" />
                 <Input
                   type="number"
-                  className="h-7 w-28 text-right font-mono rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                  value={parameters.maxTokens}
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.maxTokens.inputMin}
+              max={MODEL_PARAMETER_LIMITS.maxTokens.inputMax}
+              value={parameters.maxTokens || 0}
                   step={MODEL_PARAMETER_LIMITS.maxTokens.step}
-                  onChange={(e)=>{
-                    const raw = e.target.value;
-                    setParameters(prev=>({...prev, maxTokens: parseFloat(raw || '0')}));
-                  }}
+              onChange={(e) => setParameters(prev => ({ ...prev, maxTokens: parseInt(e.target.value || '0') }))}
                   disabled={parameters.enableMaxTokens === false}
                 />
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed ml-32">限制单次回复能生成的最大 Token 数。</p>
-            </div>
-          )}
 
-          {(
-              <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableTopP === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>采样阈值<span className="ml-1 text-[9px] text-gray-400">{parameters.enableTopP === false ? '不下发' : '将覆盖默认'}</span></Label>
+          {/* Top P */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enableTopP !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTopP: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Top P</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>从累计概率最高的候选中采样。越低越保守。与 Temperature 一般二选一调节。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
                 <input
                   type="range"
-                  className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   min={MODEL_PARAMETER_LIMITS.topP.min}
                   max={MODEL_PARAMETER_LIMITS.topP.max}
                   step={MODEL_PARAMETER_LIMITS.topP.step}
-                  value={parameters.topP}
-                  onChange={(e)=>setParameters(prev=>({...prev, topP: parseFloat(e.target.value)}))}
-                  style={{ background: trackBg(parameters.topP, MODEL_PARAMETER_LIMITS.topP.min, MODEL_PARAMETER_LIMITS.topP.max, parameters.enableTopP === false) }}
+                value={parameters.topP || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, topP: parseFloat(e.target.value) || 0 }))}
+                style={{
+                  background: parameters.enableTopP === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent(parameters.topP || 0, MODEL_PARAMETER_LIMITS.topP.min, MODEL_PARAMETER_LIMITS.topP.max)}%, #e5e7eb ${calcPercent(parameters.topP || 0, MODEL_PARAMETER_LIMITS.topP.min, MODEL_PARAMETER_LIMITS.topP.max)}%, #e5e7eb 100%)`
+                }}
                   disabled={parameters.enableTopP === false}
-                  list="ticks-topP"
                 />
-                {/* datalist 刻度移除 */}
-                <Checkbox aria-label="enable topP" checked={parameters.enableTopP !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enableTopP: Boolean(v)}))} />
               </div>
-              <div className="flex items-center ml-32 gap-2">
-                <p className="text-xs text-gray-400 font-mono">topP</p>
-                <div className="flex-1" />
                 <Input
                   type="number"
-                  className="h-7 w-24 text-right font-mono rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                  value={parameters.topP}
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.topP.inputMin}
+              max={MODEL_PARAMETER_LIMITS.topP.inputMax}
+              value={parameters.topP || 0}
                   step={MODEL_PARAMETER_LIMITS.topP.step}
-                  onChange={(e)=>setParameters(prev=>({...prev, topP: parseFloat(e.target.value || '0')}))}
+              onChange={(e) => setParameters(prev => ({ ...prev, topP: parseFloat(e.target.value || '0') }))}
                   disabled={parameters.enableTopP === false}
                 />
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed ml-32">从累计概率最高的候选中采样。越低越保守。与 Temperature 一般二选一调节。</p>
-            </div>
-          )}
 
-          {(
-              <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enableFrequencyPenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>频率惩罚<span className="ml-1 text-[9px] text-gray-400">{parameters.enableFrequencyPenalty === false ? '不下发' : '将覆盖默认'}</span></Label>
+          {/* Top K */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={(parameters as any).enableTopK !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTopK: Boolean(checked) } as any))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Top K</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>只考虑概率最高的 K 个候选词。与 Temperature 一般二选一调节。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
+              <input
+                type="range"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                min={MODEL_PARAMETER_LIMITS.topK.min}
+                max={MODEL_PARAMETER_LIMITS.topK.max}
+                step={MODEL_PARAMETER_LIMITS.topK.step}
+                value={(parameters as any).topK || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, topK: parseInt(e.target.value) || 0 } as any))}
+                style={{
+                  background: (parameters as any).enableTopK === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent((parameters as any).topK || 0, MODEL_PARAMETER_LIMITS.topK.min, MODEL_PARAMETER_LIMITS.topK.max)}%, #e5e7eb ${calcPercent((parameters as any).topK || 0, MODEL_PARAMETER_LIMITS.topK.min, MODEL_PARAMETER_LIMITS.topK.max)}%, #e5e7eb 100%)`
+                }}
+                disabled={(parameters as any).enableTopK === false}
+              />
+            </div>
+            <Input
+              type="number"
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.topK.inputMin}
+              max={MODEL_PARAMETER_LIMITS.topK.inputMax}
+              value={(parameters as any).topK || 0}
+              step={MODEL_PARAMETER_LIMITS.topK.step}
+              onChange={(e) => setParameters(prev => ({ ...prev, topK: parseInt(e.target.value || '0') } as any))}
+              disabled={(parameters as any).enableTopK === false}
+            />
+          </div>
+
+          {/* Min P */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={(parameters as any).enableMinP !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableMinP: Boolean(checked) } as any))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Min P</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>设置最低概率阈值，低于此值的候选词会被过滤。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
+              <input
+                type="range"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                min={MODEL_PARAMETER_LIMITS.minP.min}
+                max={MODEL_PARAMETER_LIMITS.minP.max}
+                step={MODEL_PARAMETER_LIMITS.minP.step}
+                value={(parameters as any).minP || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, minP: parseFloat(e.target.value) || 0 } as any))}
+                style={{
+                  background: (parameters as any).enableMinP === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent((parameters as any).minP || 0, MODEL_PARAMETER_LIMITS.minP.min, MODEL_PARAMETER_LIMITS.minP.max)}%, #e5e7eb ${calcPercent((parameters as any).minP || 0, MODEL_PARAMETER_LIMITS.minP.min, MODEL_PARAMETER_LIMITS.minP.max)}%, #e5e7eb 100%)`
+                }}
+                disabled={(parameters as any).enableMinP === false}
+              />
+            </div>
+            <Input
+              type="number"
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.minP.inputMin}
+              max={MODEL_PARAMETER_LIMITS.minP.inputMax}
+              value={(parameters as any).minP || 0}
+              step={MODEL_PARAMETER_LIMITS.minP.step}
+              onChange={(e) => setParameters(prev => ({ ...prev, minP: parseFloat(e.target.value || '0') } as any))}
+              disabled={(parameters as any).enableMinP === false}
+            />
+            </div>
+
+          {/* Frequency Penalty */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enableFrequencyPenalty !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableFrequencyPenalty: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Frequency Penalty</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>增大可降低重复词汇的概率。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
                 <input
                   type="range"
-                  className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   min={MODEL_PARAMETER_LIMITS.frequencyPenalty.min}
                   max={MODEL_PARAMETER_LIMITS.frequencyPenalty.max}
                   step={MODEL_PARAMETER_LIMITS.frequencyPenalty.step}
-                  value={parameters.frequencyPenalty}
-                  onChange={(e)=>setParameters(prev=>({...prev, frequencyPenalty: parseFloat(e.target.value)}))}
-                  style={{ background: trackBg(parameters.frequencyPenalty, MODEL_PARAMETER_LIMITS.frequencyPenalty.min, MODEL_PARAMETER_LIMITS.frequencyPenalty.max, parameters.enableFrequencyPenalty === false) }}
+                value={parameters.frequencyPenalty || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, frequencyPenalty: parseFloat(e.target.value) || 0 }))}
+                style={{
+                  background: parameters.enableFrequencyPenalty === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent(parameters.frequencyPenalty || 0, MODEL_PARAMETER_LIMITS.frequencyPenalty.min, MODEL_PARAMETER_LIMITS.frequencyPenalty.max)}%, #e5e7eb ${calcPercent(parameters.frequencyPenalty || 0, MODEL_PARAMETER_LIMITS.frequencyPenalty.min, MODEL_PARAMETER_LIMITS.frequencyPenalty.max)}%, #e5e7eb 100%)`
+                }}
                   disabled={parameters.enableFrequencyPenalty === false}
-                  list="ticks-frequencyPenalty"
                 />
-                {/* datalist 刻度移除 */}
-                <Checkbox aria-label="enable frequencyPenalty" checked={parameters.enableFrequencyPenalty !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enableFrequencyPenalty: Boolean(v)}))} />
               </div>
-              <div className="flex items-center ml-32 gap-2">
-                <p className="text-xs text-gray-400 font-mono">frequencyPenalty</p>
-                <div className="flex-1" />
                 <Input
                   type="number"
-                  className="h-7 w-24 text-right font-mono rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                  value={parameters.frequencyPenalty}
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.frequencyPenalty.inputMin}
+              max={MODEL_PARAMETER_LIMITS.frequencyPenalty.inputMax}
+              value={parameters.frequencyPenalty || 0}
                   step={MODEL_PARAMETER_LIMITS.frequencyPenalty.step}
-                  onChange={(e)=>setParameters(prev=>({...prev, frequencyPenalty: parseFloat(e.target.value || '0')}))}
+              onChange={(e) => setParameters(prev => ({ ...prev, frequencyPenalty: parseFloat(e.target.value || '0') }))}
                   disabled={parameters.enableFrequencyPenalty === false}
                 />
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed ml-32">增大可降低重复词汇的概率。</p>
-            </div>
-          )}
 
-          {(
-              <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <Label className={cn("text-sm font-medium w-32 shrink-0", parameters.enablePresencePenalty === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300")}>新主题倾向<span className="ml-1 text-[9px] text-gray-400">{parameters.enablePresencePenalty === false ? '不下发' : '将覆盖默认'}</span></Label>
+          {/* Presence Penalty */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enablePresencePenalty !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enablePresencePenalty: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Presence Penalty</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>增大可鼓励模型引入新话题。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1">
                 <input
                   type="range"
-                  className="flex-1 appearance-none w-full h-1.5 rounded-full cursor-pointer bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-105 disabled:[&::-webkit-slider-thumb]:shadow-none disabled:[&::-webkit-slider-thumb]:bg-gray-200 disabled:[&::-webkit-slider-thumb]:border-gray-300 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-track]:rounded-full [&::-webkit-slider-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:h-1.5"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   min={MODEL_PARAMETER_LIMITS.presencePenalty.min}
                   max={MODEL_PARAMETER_LIMITS.presencePenalty.max}
                   step={MODEL_PARAMETER_LIMITS.presencePenalty.step}
-                  value={parameters.presencePenalty}
-                  onChange={(e)=>setParameters(prev=>({...prev, presencePenalty: parseFloat(e.target.value)}))}
-                  style={{ background: trackBg(parameters.presencePenalty, MODEL_PARAMETER_LIMITS.presencePenalty.min, MODEL_PARAMETER_LIMITS.presencePenalty.max, parameters.enablePresencePenalty === false) }}
+                value={parameters.presencePenalty || 0}
+                onChange={(e) => setParameters(prev => ({ ...prev, presencePenalty: parseFloat(e.target.value) || 0 }))}
+                style={{
+                  background: parameters.enablePresencePenalty === false
+                    ? '#e5e7eb'
+                    : `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${calcPercent(parameters.presencePenalty || 0, MODEL_PARAMETER_LIMITS.presencePenalty.min, MODEL_PARAMETER_LIMITS.presencePenalty.max)}%, #e5e7eb ${calcPercent(parameters.presencePenalty || 0, MODEL_PARAMETER_LIMITS.presencePenalty.min, MODEL_PARAMETER_LIMITS.presencePenalty.max)}%, #e5e7eb 100%)`
+                }}
                   disabled={parameters.enablePresencePenalty === false}
-                  list="ticks-presencePenalty"
                 />
-                {/* datalist 刻度移除 */}
-                <Checkbox aria-label="enable presencePenalty" checked={parameters.enablePresencePenalty !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enablePresencePenalty: Boolean(v)}))} />
               </div>
-              <div className="flex items-center ml-32 gap-2">
-                <p className="text-xs text-gray-400 font-mono">presencePenalty</p>
-                <div className="flex-1" />
                 <Input
                   type="number"
-                  className="h-7 w-24 text-right font-mono rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                  value={parameters.presencePenalty}
+              className="w-20 h-8 text-sm"
+              min={MODEL_PARAMETER_LIMITS.presencePenalty.inputMin}
+              max={MODEL_PARAMETER_LIMITS.presencePenalty.inputMax}
+              value={parameters.presencePenalty || 0}
                   step={MODEL_PARAMETER_LIMITS.presencePenalty.step}
-                  onChange={(e)=>setParameters(prev=>({...prev, presencePenalty: parseFloat(e.target.value || '0')}))}
+              onChange={(e) => setParameters(prev => ({ ...prev, presencePenalty: parseFloat(e.target.value || '0') }))}
                   disabled={parameters.enablePresencePenalty === false}
                 />
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed ml-32">增大可鼓励模型引入新话题。</p>
-            </div>
-          )}
 
           {/* Stop Sequences */}
-            <div className="space-y-2">
-            <div className="flex items-center gap-4">
-              <Label className={cn("text-sm font-medium min-w-20", parameters.enableStopSequences === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300") }>
-                停止序列<span className="ml-1 text-[9px] text-gray-400">{parameters.enableStopSequences === false ? '不下发' : '将覆盖默认'}</span>
-              </Label>
-              <div className="flex gap-2 flex-1">
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={parameters.enableStopSequences !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableStopSequences: Boolean(checked) }))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Stop Sequences</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>当生成包含这些序列时停止生成。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1 flex gap-2">
                 <Input
                   value={newStopSequence}
                   onChange={(e) => setNewStopSequence(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="输入停止序列..."
-                  className="flex-1 text-sm rounded-md border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="flex-1 text-sm"
                   disabled={parameters.enableStopSequences === false}
                 />
                 <Button
@@ -515,10 +747,9 @@ export function ModelParametersDialog({
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
-              <Checkbox aria-label="enable stop sequences" checked={parameters.enableStopSequences !== false} onCheckedChange={(v)=>setParameters(prev=>({...prev, enableStopSequences: Boolean(v)}))} />
             </div>
             {stopSequences.length > 0 && (
-              <div className="flex flex-wrap gap-2 ml-24">
+            <div className="flex flex-wrap gap-2 ml-20">
                 {stopSequences.map((sequence, index) => (
                   <Badge 
                     key={index} 
@@ -536,32 +767,82 @@ export function ModelParametersDialog({
                 ))}
               </div>
             )}
-            <p className="text-xs text-gray-400 ml-24 font-mono">stop</p>
-            <p className="text-xs text-gray-500 leading-relaxed ml-24">
-              当生成包含这些序列时停止生成。
-            </p>
+
+          {/* 自定义参数 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">自定义参数</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addCustomParameter}>
+                <Plus className="w-4 h-4 mr-1" />
+                添加参数
+              </Button>
+            </div>
+            
+            {customParameters.map((param, index) => (
+              <div key={index} className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                <Input
+                  placeholder="参数名称"
+                  value={param.key}
+                  onChange={(e) => updateCustomParameter(index, 'key', e.target.value)}
+                  className="w-32 h-8 text-sm"
+                />
+                <Input
+                  placeholder="参数值"
+                  value={param.value}
+                  onChange={(e) => updateCustomParameter(index, 'value', e.target.value)}
+                  className="flex-1 h-8 text-sm"
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={param.asString}
+                    onCheckedChange={(checked) => updateCustomParameter(index, 'asString', Boolean(checked))}
+                  />
+                  <Label className="text-xs text-gray-500 whitespace-nowrap">Treat as string</Label>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => removeCustomParameter(index)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {/* 参数预览 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">参数预览</Label>
+              <Badge variant="secondary" className="text-xs">JSON</Badge>
+            </div>
+            <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-3 rounded-md border overflow-auto max-h-32">
+{JSON.stringify(previewJson, null, 2)}
+            </pre>
           </div>
 
           {/* 高级参数（JSON） */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">高级参数 (JSON)</Label>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">高级设置 (JSON)</Label>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-[10px] cursor-default">!</span>
+                      <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
                     </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs leading-relaxed text-xs">
-                      高级参数会被直接合并到请求选项（遵循各 Provider 的字段定义）。请仅在清楚目标模型/Provider 支持字段时使用；配置不当可能导致请求失败或被策略引擎覆盖。
+                    <TooltipContent side="right" className="max-w-xs">
+                      <p>高级参数会被直接合并到请求选项（遵循各 Provider 的字段定义）。请仅在清楚目标模型/Provider 支持字段时使用；配置不当可能导致请求失败或被策略引擎覆盖。</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setAppliedPreviewOpen(v => !v)}>
+                {/* <Button variant="outline" size="sm" onClick={() => setAppliedPreviewOpen(v => !v)}>
                   {appliedPreviewOpen ? '隐藏预览' : '显示应用预览'}
-                </Button>
+                </Button> */}
                 <Button variant="ghost" size="sm" onClick={() => setAdvancedEditorOpen(v => !v)}>
                   {advancedEditorOpen ? '收起' : '展开'}
                 </Button>
@@ -584,7 +865,7 @@ export function ModelParametersDialog({
             ) : (
               <p className="text-xs text-gray-500">将作为高级选项直接合并到请求选项中（遵循各 Provider 字段）。</p>
             )}
-            <div className={cn("mt-2 space-y-2 overflow-hidden transition-all duration-200", appliedPreviewOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0")}> 
+            {/* <div className={cn("mt-2 space-y-2 overflow-hidden transition-all duration-200", appliedPreviewOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0")}> 
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-gray-500">实际应用参数预览（保存前计算）</Label>
                   <div className="flex items-center gap-2">
@@ -604,7 +885,7 @@ export function ModelParametersDialog({
                 ) : (
                   <pre className="mt-1 max-h-48 overflow-auto text-xs bg-gray-50 dark:bg-gray-900/40 p-3 rounded border border-gray-100 dark:border-gray-800 whitespace-pre-wrap">{appliedOptionsJson}</pre>
                 )}
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -618,14 +899,6 @@ export function ModelParametersDialog({
               className="flex items-center gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <RotateCcw className="w-4 h-4" />
-              重置为模型默认
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleReset}
-              className="flex items-center gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
               重置为系统默认
             </Button>
             <Button 
@@ -634,7 +907,7 @@ export function ModelParametersDialog({
               onClick={handleClearSession}
               className="flex items-center gap-2 ml-auto border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              清除会话参数
+              清除模型参数
             </Button>
             <div className="ml-auto" />
             <Button 

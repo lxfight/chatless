@@ -5,6 +5,8 @@ import { Copy, Star, RefreshCcw, Check } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { ContextMenu, createMessageMenuItems } from '@/components/ui/context-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useChatStore } from '@/store/chatStore';
 import { UserMessageBlock } from './UserMessageBlock';
 import { AIMessageBlock } from './AIMessageBlock';
 import type { Message } from '@/types/chat';
@@ -95,6 +97,8 @@ function ChatMessageComponent({
   viewModel,
 }: ChatMessageProps) {
   const [isCopied, setIsCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const deleteMessage = useChatStore((s)=> s.deleteMessage);
 
   if (DEBUG_CHAT_MESSAGE) { /* noop */ }
   
@@ -183,7 +187,8 @@ function ChatMessageComponent({
             onCopy || ((c) => { void c; }),
             isUser ? onEdit : undefined,
             !isUser ? onRetry : undefined,
-            onStar
+            onStar,
+            () => setConfirmOpen(true)
           )}
         >
           <motion.div
@@ -203,6 +208,24 @@ function ChatMessageComponent({
             </div>
           </motion.div>
         </ContextMenu>
+
+        {/* 删除确认对话框 */}
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除这条消息？</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div>
+                  此操作不可撤销，将永久从会话中移除该条消息。
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { setConfirmOpen(false); try { void deleteMessage(id); } catch { /* noop */ } }}>删除</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
  
         {/* 时间戳和模型信息：仅在非流式时显示，避免生成中抖动 */}
         {!isStreaming && (formattedTime || (!isUser && model)) && (

@@ -33,6 +33,21 @@ export function ProviderModelList(props: ProviderModelListProps) {
     onModelApiKeyChange, onModelApiKeyBlur, onOpenParameters,
   } = props;
 
+  // 搜索框展开状态
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const searchWrapRef = React.useRef<HTMLDivElement | null>(null);
+
+  // 点击外部关闭搜索框
+  React.useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (searchOpen && searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [searchOpen]);
+
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const getScroller = () => {
     let node: HTMLElement | null = rootRef.current;
@@ -308,25 +323,27 @@ export function ProviderModelList(props: ProviderModelListProps) {
             <button type="button" onClick={()=>setFilterVision(v=>!v)} className={`p-1 h-6 w-6 rounded-md flex items-center justify-center ${filterVision? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300':'ring-1 ring-gray-300 dark:ring-gray-600 text-gray-600 dark:text-gray-300 bg-transparent'}`} title="仅显示支持视觉的模型"><Camera className="w-3.5 h-3.5"/></button>
           </div>
           {/* 搜索框：默认显示放大镜，点击后展开，不改变行高 */}
-          {(() => {
-            const [open, setOpen] = React.useState(false);
-            const wrapRef = React.useRef<HTMLDivElement | null>(null);
-            React.useEffect(()=>{
-              function onDown(e: MouseEvent){ if(open && wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); }
-              document.addEventListener('mousedown', onDown); return ()=>document.removeEventListener('mousedown', onDown);
-            }, [open]);
-            return (
-              <div ref={wrapRef} className="h-8 flex items-center">
-                {open ? (
-                  <Input value={modelSearch} onChange={(e) => setModelSearch(e.target.value)} placeholder="输入以筛选模型…" className="h-8 text-sm w-64 border border-gray-300 dark:border-gray-600 rounded-md" autoFocus />
-                ) : (
-                  <button onClick={()=>setOpen(true)} className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="筛选模型">
-                    <svg className="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-                  </button>
-                )}
-              </div>
-            );
-          })()}
+          <div ref={searchWrapRef} className="h-8 flex items-center">
+            {searchOpen ? (
+              <Input 
+                value={modelSearch} 
+                onChange={(e) => setModelSearch(e.target.value)} 
+                placeholder="输入以筛选模型…" 
+                className="h-8 text-sm w-64 border border-gray-300 dark:border-gray-600 rounded-md" 
+                autoFocus 
+              />
+            ) : (
+              <button 
+                onClick={() => setSearchOpen(true)} 
+                className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700" 
+                title="筛选模型"
+              >
+                <svg className="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 md:flex-nowrap flex-wrap">
           {isMultiStrategyProvider && (

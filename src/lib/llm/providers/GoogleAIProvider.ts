@@ -98,6 +98,14 @@ export class GoogleAIProvider extends BaseProvider {
     if (generationConfig.topP === undefined && opts.topP !== undefined) {
       generationConfig.topP = opts.topP;
     }
+    // 自定义扩展：允许 topK/minP 透传到 generationConfig
+    const o: any = opts as any;
+    if (generationConfig.topK === undefined && o.topK !== undefined) {
+      generationConfig.topK = o.topK;
+    }
+    if (generationConfig.minP === undefined && o.minP !== undefined) {
+      generationConfig.minP = o.minP;
+    }
     // OpenAI 风格的 maxTokens → Gemini 的 maxOutputTokens
     if (generationConfig.maxOutputTokens === undefined) {
       const flatMax = (opts as any).maxOutputTokens ?? (opts as any).maxTokens;
@@ -114,7 +122,16 @@ export class GoogleAIProvider extends BaseProvider {
       })),
       generationConfig,
     };
-    // 透传 Gemini 允许的其他顶层字段（若存在）
+    
+    // 透传所有自定义参数，除了已处理的标准参数
+    const standardParams = new Set(['temperature', 'topP', 'topK', 'minP', 'maxTokens', 'maxOutputTokens', 'stop', 'frequencyPenalty', 'presencePenalty']);
+    for (const [key, value] of Object.entries(opts as any)) {
+      if (!standardParams.has(key) && value !== undefined) {
+        body[key] = value;
+      }
+    }
+    
+    // 特定透传（保持向后兼容）
     if ((opts as any).safetySettings) body.safetySettings = (opts as any).safetySettings;
     if ((opts as any).tools) body.tools = (opts as any).tools;
 

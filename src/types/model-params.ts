@@ -3,6 +3,8 @@ export interface ModelParameters {
   enableTemperature?: boolean;
   enableMaxTokens?: boolean;
   enableTopP?: boolean;
+  enableTopK?: boolean;
+  enableMinP?: boolean;
   enableFrequencyPenalty?: boolean;
   enablePresencePenalty?: boolean;
   enableStopSequences?: boolean;
@@ -10,6 +12,8 @@ export interface ModelParameters {
   temperature: number;
   maxTokens: number;
   topP: number;
+  topK: number;
+  minP: number;
   frequencyPenalty: number;
   presencePenalty: number;
   stopSequences: string[];
@@ -29,12 +33,16 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
   enableTemperature: false,
   enableMaxTokens: false,
   enableTopP: false,
+  enableTopK: false,
+  enableMinP: false,
   enableFrequencyPenalty: false,
   enablePresencePenalty: false,
   enableStopSequences: false,
   temperature: 0.7,
   maxTokens: 2048,
   topP: 1.0,
+  topK: 0,
+  minP: 0,
   frequencyPenalty: 0.0,
   presencePenalty: 0.0,
   stopSequences: [],
@@ -42,9 +50,32 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
 };
 
 export const MODEL_PARAMETER_LIMITS = {
-  temperature: { min: 0.0, max: 2.0, step: 0.1 },
-  maxTokens: { min: 1, max: 8192, step: 1 },
-  topP: { min: 0.0, max: 1.0, step: 0.1 },
-  frequencyPenalty: { min: -2.0, max: 2.0, step: 0.1 },
-  presencePenalty: { min: -2.0, max: 2.0, step: 0.1 }
+  temperature: { 
+    min: 0.0, max: 2.0, step: 0.1,
+    inputMin: 0.0, inputMax: 10.0
+  },
+  maxTokens: { 
+    min: 1, max: 8192, step: 1,
+    inputMin: 1, inputMax: 1000000
+  },
+  topP: { 
+    min: 0.0, max: 1.0, step: 0.1,
+    inputMin: 0.0, inputMax: 1.0
+  },
+  topK: { 
+    min: 0, max: 200, step: 1,
+    inputMin: 0, inputMax: 10000
+  },
+  minP: { 
+    min: 0.0, max: 1.0, step: 0.05,
+    inputMin: 0.0, inputMax: 1.0
+  },
+  frequencyPenalty: { 
+    min: -2.0, max: 2.0, step: 0.1,
+    inputMin: -10.0, inputMax: 10.0
+  },
+  presencePenalty: { 
+    min: -2.0, max: 2.0, step: 0.1,
+    inputMin: -10.0, inputMax: 10.0
+  }
 }; 

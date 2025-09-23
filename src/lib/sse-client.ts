@@ -43,6 +43,10 @@ export class SSEClient {
   private isConnected = false;
   private debugTag: string;
   private eventSource: EventSource | null = null;
+  // 浏览器fetch流的中止控制器（POST模式）
+  private abortController: AbortController | null = null;
+  // 通用停止标志：一旦触发，立即停止向上游分发任何数据
+  private stopping = false;
 
   constructor(debugTag: string = 'SSEClient') {
     this.debugTag = debugTag;
@@ -57,6 +61,9 @@ export class SSEClient {
   ): Promise<void> {
     // 如果已有连接，先停止
     await this.stopConnection();
+
+    // 重置停止标志
+    this.stopping = false;
 
     const {
       url,
@@ -97,6 +104,8 @@ export class SSEClient {
       const unlistenEvent = await listen<string>('sse-event', (e) => {
         const data = e.payload;
         if (!data) return;
+        // 若已停止或未连接，立即丢弃数据，避免晚到事件污染上层
+        if (!this.isConnected || this.stopping) return;
 
         // 直接传递原始数据给业务层处理
         callbacks.onData?.(data);
@@ -180,12 +189,15 @@ export class SSEClient {
 
         console.debug(`[${debugTag}] 启动浏览器SSE连接 (POST):`, url);
 
+        // 为本次请求创建并保存 AbortController，便于 stopConnection() 立即终止网络
+        this.abortController = this.createAbortController();
+
         const response = await fetch(url, {
           method: 'POST',
           headers: requestHeaders,
           body: typeof body === 'string' ? body : JSON.stringify(body || {}),
           // 添加信号支持，便于取消
-          signal: this.createAbortController()?.signal
+          signal: this.abortController?.signal
         });
 
         if (!response.ok) {
@@ -220,11 +232,11 @@ export class SSEClient {
               if (trimmedLine.startsWith('data: ')) {
                 const data = trimmedLine.substring(6);
                 // 将[DONE]信号传递给业务层处理，与Tauri端保持一致
-                callbacks.onData?.(data);
+                if (this.isConnected && !this.stopping) callbacks.onData?.(data);
               } else {
                 // 对于非data:开头的行，直接作为数据传递（与Tauri端一致）
                 // 这包括直接的JSON数据和其他格式数据
-                callbacks.onData?.(trimmedLine);
+                if (this.isConnected && !this.stopping) callbacks.onData?.(trimmedLine);
               }
             }
           }
@@ -232,7 +244,7 @@ export class SSEClient {
 
         const readStream = async () => {
           try {
-            while (this.isConnected) {
+            while (this.isConnected && !this.stopping) {
               const { done, value } = await reader.read();
               
               if (done) {
@@ -267,6 +279,9 @@ export class SSEClient {
         // 保存清理函数
         this.unlisteners = [() => {
           this.isConnected = false;
+          // 先尝试中止底层网络
+          try { this.abortController?.abort(); } catch { /* noop */ }
+          this.abortController = null;
           reader.cancel().catch(e => 
             console.warn(`[${debugTag}] Failed to cancel reader:`, e)
           );
@@ -366,6 +381,10 @@ export class SSEClient {
    * 停止SSE连接
    */
   async stopConnection(): Promise<void> {
+    // 先标记停止，并立即标记断开，阻止任何后续回调传播
+    this.stopping = true;
+    this.isConnected = false;
+
     if (this.unlisteners.length > 0) {
       // 清理监听器
       this.unlisteners.forEach(unlisten => unlisten());
@@ -385,7 +404,11 @@ export class SSEClient {
       }
     }
     
-    this.isConnected = false;
+    // 无论何种模式，尝试中止可能存在的 fetch 流
+    try { this.abortController?.abort(); } catch { /* noop */ }
+    this.abortController = null;
+
+    // isConnected 已在前面置为 false
   }
 
   /**

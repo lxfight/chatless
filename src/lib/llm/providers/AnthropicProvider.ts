@@ -75,6 +75,8 @@ export class AnthropicProvider extends BaseProvider {
     if (options.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxOutputTokens;
     if (options.stop !== undefined && mapped.stop_sequences === undefined) mapped.stop_sequences = options.stop;
     if (options.topP !== undefined && mapped.top_p === undefined) mapped.top_p = options.topP;
+    if (options.topK !== undefined && mapped.top_k === undefined) mapped.top_k = options.topK;
+    if (options.minP !== undefined && mapped.min_p === undefined) mapped.min_p = options.minP;
 
     const body = {
       model,

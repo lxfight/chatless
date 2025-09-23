@@ -220,8 +220,9 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
             {/* 参数设置 */}
             <DropdownMenuItem 
               className="flex items-center gap-3 px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md cursor-pointer" 
-              onClick={(e:any)=>{ e?.preventDefault?.(); setTimeout(()=>onOpenParameters(model.name, model.label), 0); }}
-              onSelect={(e:any)=>{ e?.preventDefault?.(); setTimeout(()=>onOpenParameters(model.name, model.label), 0); }}
+              onSelect={() => {
+                onOpenParameters(model.name, model.label);
+              }}
             >
               <div className="flex items-center justify-center w-7 h-7 bg-gray-100 dark:bg-gray-700 rounded-md">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
@@ -401,6 +402,7 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
             )}
           </div>
         )}
+
       </div>
     </div>
   );

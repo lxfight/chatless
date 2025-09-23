@@ -3,6 +3,8 @@ import { SSEClient } from '@/lib/sse-client';
 
 export class OllamaProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private aborted: boolean = false;
+  private currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
   constructor(baseUrl: string) {
     super('Ollama', baseUrl);
@@ -124,11 +126,45 @@ export class OllamaProvider extends BaseProvider {
       return message;
     });
     
+    // 构建Ollama选项，先处理自定义参数，再处理标准参数
+    const ollamaOptions: Record<string, any> = {};
+    
+    // 1. 先添加所有自定义参数（避免被标准参数覆盖）
+    if (opts.options && typeof opts.options === 'object') {
+      Object.assign(ollamaOptions, opts.options);
+    }
+    
+    // 2. 添加opts顶层的所有自定义参数
+    for (const [key, value] of Object.entries(opts as any)) {
+      // 跳过已处理的标准参数和内部字段
+      if (!['options', 'temperature', 'topP', 'topK', 'minP', 'stop', 'maxTokens', 'maxOutputTokens', 
+           'numPredict', 'numCtx', 'repeatLastN', 'repeatPenalty', 'seed', 'frequencyPenalty', 'presencePenalty'].includes(key)) {
+        ollamaOptions[key] = value;
+      }
+    }
+    
+    // 3. 最后添加标准参数映射（确保正确的格式）
+    if (typeof (opts as any).temperature === 'number') ollamaOptions.temperature = (opts as any).temperature;
+    if (typeof (opts as any).topP === 'number') ollamaOptions.top_p = (opts as any).topP;
+    if (typeof (opts as any).topK === 'number') ollamaOptions.top_k = (opts as any).topK;
+    if (typeof (opts as any).minP === 'number') ollamaOptions.min_p = (opts as any).minP;
+    if (typeof (opts as any).stop !== 'undefined') ollamaOptions.stop = (opts as any).stop;
+    
+    // Ollama 专有参数
+    if (typeof (opts as any).numPredict === 'number') ollamaOptions.num_predict = (opts as any).numPredict;
+    else if (typeof (opts as any).maxTokens === 'number') ollamaOptions.num_predict = (opts as any).maxTokens;
+    else if (typeof (opts as any).maxOutputTokens === 'number') ollamaOptions.num_predict = (opts as any).maxOutputTokens;
+    
+    if (typeof (opts as any).numCtx === 'number') ollamaOptions.num_ctx = (opts as any).numCtx;
+    if (typeof (opts as any).repeatLastN === 'number') ollamaOptions.repeat_last_n = (opts as any).repeatLastN;
+    if (typeof (opts as any).repeatPenalty === 'number') ollamaOptions.repeat_penalty = (opts as any).repeatPenalty;
+    if (typeof (opts as any).seed === 'number') ollamaOptions.seed = (opts as any).seed;
+
     const body = {
       model,
       stream: true,
       messages: processedMessages,
-      options: opts.options ?? {},
+      options: ollamaOptions,
     };
 
     try {
@@ -186,6 +222,7 @@ export class OllamaProvider extends BaseProvider {
       if (!reader) {
         throw new Error('ReadableStream reader not available');
       }
+      this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       const processJson = (json: any) => {
@@ -201,6 +238,11 @@ export class OllamaProvider extends BaseProvider {
       };
 
       while (true) {
+        if (this.aborted) {
+          try { await reader.cancel(); } catch { /* noop */ }
+          this.currentReader = null;
+          return;
+        }
         const { value, done } = await reader.read();
         if (done) {
           // flush 缓冲区
@@ -344,6 +386,9 @@ export class OllamaProvider extends BaseProvider {
    * 取消流式连接
    */
   cancelStream(): void {
+    this.aborted = true;
+    try { this.currentReader?.cancel(); } catch { /* noop */ }
+    this.currentReader = null;
     this.sseClient.stopConnection();
   }
 }

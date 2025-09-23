@@ -83,6 +83,12 @@ export class ModelParametersService {
     if (shouldSet(parameters.enableTopP, parameters.topP, def.topP)) {
       opts.topP = parameters.topP;
     }
+    if (shouldSet((parameters as any).enableTopK, (parameters as any).topK, (def as any).topK)) {
+      (opts as any).topK = (parameters as any).topK;
+    }
+    if (shouldSet((parameters as any).enableMinP, (parameters as any).minP, (def as any).minP)) {
+      (opts as any).minP = (parameters as any).minP;
+    }
     if (shouldSet(parameters.enableFrequencyPenalty, parameters.frequencyPenalty, def.frequencyPenalty)) {
       opts.frequencyPenalty = parameters.frequencyPenalty;
     }
@@ -119,6 +125,14 @@ export class ModelParametersService {
       (typeof src.topP === 'number' ? src.topP :
         (typeof gen.topP === 'number' ? gen.topP : DEFAULT_MODEL_PARAMETERS.topP));
 
+    const topK: number =
+      (typeof src.topK === 'number' ? src.topK :
+        (typeof gen.topK === 'number' ? gen.topK : (DEFAULT_MODEL_PARAMETERS as any).topK || 0));
+
+    const minP: number =
+      (typeof src.minP === 'number' ? src.minP :
+        (typeof gen.minP === 'number' ? gen.minP : (DEFAULT_MODEL_PARAMETERS as any).minP || 0));
+
     const frequencyPenalty: number =
       (typeof src.frequencyPenalty === 'number' ? src.frequencyPenalty : DEFAULT_MODEL_PARAMETERS.frequencyPenalty);
 
@@ -136,6 +150,8 @@ export class ModelParametersService {
     delete advanced.maxTokens;
     delete advanced.maxOutputTokens;
     delete advanced.topP;
+    delete advanced.topK;
+    delete advanced.minP;
     delete advanced.frequencyPenalty;
     delete advanced.presencePenalty;
     delete advanced.stop;
@@ -152,11 +168,13 @@ export class ModelParametersService {
       temperature,
       maxTokens,
       topP,
+      topK,
+      minP,
       frequencyPenalty,
       presencePenalty,
       stopSequences: stopSeq,
       advancedOptions: advanced,
-    };
+    } as any;
   }
 
   // ========== 会话参数相关方法 ==========

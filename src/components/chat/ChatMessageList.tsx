@@ -20,6 +20,8 @@ interface ChatMessageListProps {
   scrollParentRef?: React.RefObject<HTMLDivElement | null>;
   /** 注册一个按消息ID滚动的API，便于父组件实现“跳转到具体消息” */
   onRegisterScrollToMessage?: (fn: (id: string) => void) => void;
+  /** 首次挂载时的初始可视区域顶端索引（用于快速定位） */
+  initialTopMostItemIndex?: number;
 }
 
 export function ChatMessageList({
@@ -34,6 +36,7 @@ export function ChatMessageList({
   messagesEndRef,
   scrollParentRef,
   onRegisterScrollToMessage,
+  initialTopMostItemIndex,
 }: ChatMessageListProps) {
 
   if (messages.length === 0 && !isLoading) {
@@ -53,6 +56,7 @@ export function ChatMessageList({
         customScrollParent={scrollParentRef?.current || undefined}
         increaseViewportBy={400}
         followOutput={'smooth'}
+        initialTopMostItemIndex={typeof initialTopMostItemIndex === 'number' ? initialTopMostItemIndex : undefined}
         computeItemKey={(index, item) => item.id}
         itemContent={(index: number, message: Message) => {
           return (
@@ -105,7 +109,7 @@ export function ChatMessageList({
           const api = (id: string) => {
             const idx = messages.findIndex((m) => m.id === id);
             if (idx >= 0 && typeof anyInst.scrollToIndex === 'function') {
-              anyInst.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+              anyInst.scrollToIndex({ index: idx, align: 'start', behavior: 'auto' });
             }
           };
           onRegisterScrollToMessage(api);

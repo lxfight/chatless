@@ -249,13 +249,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       return;
     }
 
-    // 重置流式更新状态
+    // 重置流式更新状态（仅内部缓存）。tokenCount 在 onStart 开始流时再置零，避免提前清零影响可视化
     currentContentRef.current = '';
     pendingContentRef.current = '';
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
     }
-    setTokenCount(0);
     
     // 重置批量更新状态
     batchUpdateRef.current = {
@@ -414,6 +413,10 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           }
         }, 5000);
         setGenerationTimeout(genTimeoutRef.current);
+
+        // 在真正开始流时再清零 token 计数和批量状态
+        setTokenCount(0);
+        batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
       },
       onToken: (token) => {
         // 生产期保留较少的 token 级日志
@@ -727,22 +730,58 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     (streamCallbacks as any).__instanceId = streamInstanceId;
 
     if (modelToUse) {
-      // 参数优先级：会话参数 > 模型默认参数 > 系统默认参数
-      let chatOptions = {};
-      
+      // 参数优先级：会话参数（可覆盖/可显式禁用） > 模型级参数 > 系统默认
+      let baseOptions: Record<string, any> = {};
+
       try {
+        // 1) 取模型级参数并转换为通用聊天选项
+        const modelParams = await ModelParametersService.getModelParameters(effectiveProvider, modelToUse);
+        const modelOpts = ModelParametersService.convertToChatOptions(modelParams);
+
+        // 2) 取会话级参数（可能为空），转换为聊天选项
+        let sessionOpts: Record<string, any> = {};
         if (sessionParameters) {
-          chatOptions = ModelParametersService.convertToChatOptions(sessionParameters);
-        } else {
-          chatOptions = {};
+          sessionOpts = ModelParametersService.convertToChatOptions(sessionParameters);
         }
-        const composed = await composeChatOptions(effectiveProvider, modelToUse, chatOptions, currentConversationId || null, content);
+
+        // 3) 处理“显式禁用”的会话级开关：
+        //    若用户在会话级将某项 enableX = false，则需要从继承的模型参数里删除对应项
+        const filteredModelOpts: Record<string, any> = { ...modelOpts };
+        const maybeDelete = (flag: boolean | undefined, key: string) => {
+          if (flag === false && key in filteredModelOpts) delete filteredModelOpts[key];
+        };
+        if (sessionParameters) {
+          const sp: any = sessionParameters;
+          maybeDelete(sp.enableTemperature, 'temperature');
+          maybeDelete(sp.enableMaxTokens, 'maxTokens');
+          maybeDelete(sp.enableTopP, 'topP');
+          maybeDelete(sp.enableTopK, 'topK');
+          maybeDelete(sp.enableMinP, 'minP');
+          maybeDelete(sp.enableFrequencyPenalty, 'frequencyPenalty');
+          maybeDelete(sp.enablePresencePenalty, 'presencePenalty');
+          // Stop 序列在 convertToChatOptions 中映射为 stop
+          maybeDelete(sp.enableStopSequences, 'stop');
+        }
+
+        // 4) 合并，确保会话级覆盖模型级
+        baseOptions = { ...filteredModelOpts, ...sessionOpts };
+
+        const composed = await composeChatOptions(effectiveProvider, modelToUse, baseOptions, currentConversationId || null, content);
         const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
         await gateway.stream(historyForLlm, streamCallbacks);
       } catch {
-        const composed = await composeChatOptions(effectiveProvider, modelToUse, {}, currentConversationId || null, content);
-        const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
-        await gateway.stream(historyForLlm, streamCallbacks);
+        // 回退策略：尽量保证仍可发送
+        try {
+          let fallbackOpts: Record<string, any> = {};
+          if (sessionParameters) fallbackOpts = ModelParametersService.convertToChatOptions(sessionParameters);
+          const composed = await composeChatOptions(effectiveProvider, modelToUse, fallbackOpts, currentConversationId || null, content);
+          const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+          await gateway.stream(historyForLlm, streamCallbacks);
+        } catch {
+          const composed = await composeChatOptions(effectiveProvider, modelToUse, {}, currentConversationId || null, content);
+          const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+          await gateway.stream(historyForLlm, streamCallbacks);
+        }
       }
     } else {
        // 未选择模型
@@ -789,9 +828,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     if (debouncedTokenUpdateRef.current) clearTimeout(debouncedTokenUpdateRef.current);
     setGenerationTimeout(null);
     
-    // 清理引用
-    currentContentRef.current = '';
-    setTokenCount(0);
+    // 不清空 currentContentRef，保留已生成文本；也不重置 tokenCount，让用户看到该次统计
     
     // 更新当前消息状态为已停止
     if (currentConversation?.messages) {
@@ -804,6 +841,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           ? Math.floor((Date.now() - lastAssistantMessage.thinking_start_time) / 1000)
           : 0;
         
+        // 若用户主动停止且思考栏仍在计时，手动发出 THINK_END 以终止计时显示
+        try {
+          const st = useChatStore.getState();
+          const conv = st.conversations.find(c => c.id === currentConversationId);
+          const msg: any = conv?.messages.find(m => m.id === lastAssistantMessage.id);
+          const segs = Array.isArray(msg?.segments) ? msg.segments : [];
+          const stillThinking = segs.length && segs[segs.length - 1]?.kind === 'think';
+          if (stillThinking) {
+            st.dispatchMessageAction(lastAssistantMessage.id, { type: 'THINK_END' } as any);
+          }
+        } catch { /* noop */ }
+
         void updateMessage(lastAssistantMessage.id, {
           status: 'error',
           content: lastAssistantMessage.content + '\n\n[用户停止了生成]',

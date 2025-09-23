@@ -4,6 +4,7 @@ import { SSEClient } from '@/lib/sse-client';
 
 export class OpenAIProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private aborted: boolean = false;
 
   constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI') {
     super(displayName, baseUrl, apiKey);
@@ -66,12 +67,15 @@ export class OpenAIProvider extends BaseProvider {
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
     // 将通用选项映射为 OpenAI 字段（snake_case）
     const mapped: any = { ...opts };
-    if (opts.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxTokens;
-    if (opts.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = opts.maxOutputTokens;
-    if (opts.topP !== undefined && mapped.top_p === undefined) mapped.top_p = opts.topP;
-    if (opts.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = opts.frequencyPenalty;
-    if (opts.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = opts.presencePenalty;
-    if (opts.stop !== undefined && mapped.stop === undefined) mapped.stop = opts.stop;
+    const o: any = opts as any;
+    if (o.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxTokens;
+    if (o.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxOutputTokens;
+    if (o.topP !== undefined && mapped.top_p === undefined) mapped.top_p = o.topP;
+    if (o.topK !== undefined && mapped.top_k === undefined) mapped.top_k = o.topK;
+    if (o.minP !== undefined && mapped.min_p === undefined) mapped.min_p = o.minP;
+    if (o.frequencyPenalty !== undefined && mapped.frequency_penalty === undefined) mapped.frequency_penalty = o.frequencyPenalty;
+    if (o.presencePenalty !== undefined && mapped.presence_penalty === undefined) mapped.presence_penalty = o.presencePenalty;
+    if (o.stop !== undefined && mapped.stop === undefined) mapped.stop = o.stop;
 
     const body = {
       model,
@@ -81,6 +85,7 @@ export class OpenAIProvider extends BaseProvider {
     };
 
     try {
+      this.aborted = false;
       await this.sseClient.startConnection(
         {
           url,
@@ -96,6 +101,7 @@ export class OpenAIProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
+            if (this.aborted) { this.sseClient.stopConnection(); return; }
             // 严格 OpenAI：只处理以 data: 开头的行
             if (!rawData.startsWith('data:')) return;
             const jsonStr = rawData.substring(5).trim();
@@ -132,6 +138,7 @@ export class OpenAIProvider extends BaseProvider {
    * 取消流式连接
    */
   cancelStream(): void {
+    this.aborted = true;
     this.sseClient.stopConnection();
   }
 }

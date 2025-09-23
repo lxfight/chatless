@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Conversation } from "@/types/chat";
 import { useChatStore } from "@/store/chatStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -34,6 +34,9 @@ export function ConversationSidebar({
   const isLoading = useChatStore((state) => state.isLoadingConversations);
 
   const conversationsToShow = filteredConversations || storeConversations;
+  const ensureMessagesLoaded = useChatStore((state) => state.ensureMessagesLoaded);
+  const hoverTimersRef = useRef<Record<string, number>>({});
+  const prefetchInFlightRef = useRef<Set<string>>(new Set());
 
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameInputValue, setRenameInputValue] = useState("");
@@ -149,7 +152,43 @@ export function ConversationSidebar({
           increaseViewportBy={200}
           computeItemKey={(index, item) => item.id}
           itemContent={(index, conv) => (
-            <div className="mb-1">
+            <div
+              className="mb-1"
+              onMouseEnter={() => {
+                try {
+                  const id = conv.id;
+                  // 已有消息或正在预取/已有计时器则跳过
+                  if ((Array.isArray(conv.messages) && conv.messages.length > 0)) return;
+                  if (hoverTimersRef.current[id]) return;
+                  if (prefetchInFlightRef.current.has(id)) return;
+                  hoverTimersRef.current[id] = window.setTimeout(() => {
+                    // 悬停短暂后异步预加载消息（一次性、去重、不阻塞UI）
+                    if (prefetchInFlightRef.current.has(id)) {
+                      // 已在进行，直接清理计时器
+                      window.clearTimeout(hoverTimersRef.current[id]);
+                      delete hoverTimersRef.current[id];
+                      return;
+                    }
+                    prefetchInFlightRef.current.add(id);
+                    void ensureMessagesLoaded(id).finally(() => {
+                      prefetchInFlightRef.current.delete(id);
+                    });
+                    // 触发后立即清理计时器
+                    window.clearTimeout(hoverTimersRef.current[id]);
+                    delete hoverTimersRef.current[id];
+                  }, 180);
+                } catch {}
+              }}
+              onMouseLeave={() => {
+                try {
+                  const id = conv.id;
+                  if (hoverTimersRef.current[id]) {
+                    window.clearTimeout(hoverTimersRef.current[id]);
+                    delete hoverTimersRef.current[id];
+                  }
+                } catch {}
+              }}
+            >
               <ConversationItem
                 key={conv.id}
                 conversation={conv}
