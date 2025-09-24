@@ -58,7 +58,8 @@ export function McpServersSettings() {
   const [editing, setEditing] = useState<SavedServer | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  const [loading, setLoading] = useState(false);
+  // 按服务器粒度管理加载态，避免一个操作影响全部按钮
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -405,7 +406,7 @@ export function McpServersSettings() {
   };
 
   const connect = async (s: SavedServer) => {
-    setLoading(true);
+    setLoadingMap(prev => ({ ...prev, [s.name]: true }));
     setError("");
     // 状态由 ServerManager.updateStatus 控制
     try {
@@ -420,16 +421,16 @@ export function McpServersSettings() {
       // 失败时状态由 ServerManager 更新
       toast.error("连接失败", { description: trimToastDescription(e) });
     }
-    setLoading(false);
+    setLoadingMap(prev => ({ ...prev, [s.name]: false }));
   };
 
   const disconnect = async (name: string) => {
-    setLoading(true);
+    setLoadingMap(prev => ({ ...prev, [name]: true }));
     setError("");
     try { await serverManager.stopServer(name); setError(""); toast.success("已断开", { description: name }); }
     catch (e) { setError(String(e)); toast.error("断开失败", { description: trimToastDescription(e) }); }
     // 状态和工具缓存清理由 ServerManager.stopServer 处理
-    setLoading(false);
+    setLoadingMap(prev => ({ ...prev, [name]: false }));
   };
 
   const renderEditor = () => {
@@ -1116,10 +1117,10 @@ export function McpServersSettings() {
                            "text-blue-600 dark:text-blue-400 hover:bg-blue-50  disabled:opacity-60 transition-all duration-200",
                            "disabled:opacity-60 transition-all duration-200 flex items-center justify-center"
                          )} 
-                         disabled={loading} 
-                         onClick={()=>connect(s)}
+                        disabled={!!loadingMap[s.name]} 
+                        onClick={()=>connect(s)}
                        >
-                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                        {loadingMap[s.name] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                        </button>
                      </TooltipTrigger>
                      <TooltipContent>

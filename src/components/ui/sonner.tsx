@@ -98,27 +98,74 @@ const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
   return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      // 使用更高对比度且更轻盈的样式，确保亮色模式可读性
-      position={props.position || "bottom-right"}
-      toastOptions={{
-        ...props.toastOptions,
-        classNames: {
-          ...props.toastOptions?.classNames,
-          toast:
-            "rounded-lg border px-3 py-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.08)] " +
-            "bg-white/90 text-slate-800 border-slate-200 " +
-            "dark:bg-slate-900/90 dark:text-slate-100 dark:border-slate-700",
-          title: "text-[13px] font-semibold",
-          description: "text-[12px] text-slate-600 dark:text-slate-300",
-          actionButton: "text-[12px]",
-          cancelButton: "text-[12px]",
-        },
-      }}
-      {...props}
-    />
+    <>
+      <Sonner
+        theme={theme as ToasterProps["theme"]}
+        className="toaster group"
+        // 使用更高对比度且更轻盈的样式，确保亮色/暗色模式的可读性
+        position={props.position || "bottom-right"}
+        toastOptions={{
+          ...props.toastOptions,
+          classNames: {
+            ...props.toastOptions?.classNames,
+            // 精致轻盈风格：半透明毛玻璃、柔和阴影、可选中文本
+            toast:
+              "relative rounded-xl border px-3.5 py-2.5 backdrop-blur-lg " +
+              "shadow-[0_8px_28px_rgba(0,0,0,0.08)] ring-1 ring-black/5 " +
+              "bg-white/80 text-slate-800 border-white/40 " +
+              "dark:bg-slate-900/80 dark:text-slate-100 dark:border-white/10 dark:ring-white/10 " +
+              "[&]:cursor-text select-text",
+            title: "text-[13px] font-semibold leading-5",
+            description: "text-[12px] leading-5 text-slate-600 dark:text-slate-300",
+            actionButton: "text-[12px]",
+            cancelButton: "text-[12px]",
+          },
+        }}
+        {...props}
+      />
+
+      {/* 全局覆写：1) 允许文本选择 2) 禁止拖动位移 3) 细化左右色条与主题色 */}
+      <style jsx global>{`
+        /* 允许在通知内选择文本以便复制 */
+        .toaster [data-sonner-toast] {
+          -webkit-user-select: text;
+          user-select: text;
+          /* 细化外观：左侧细色条用于类型区分 */
+          border-left-width: 2px;
+          border-left-style: solid;
+        }
+
+        /* 禁止在拖拽/滑动状态下的平移，避免选中文本时卡片跟随鼠标移动 */
+        .toaster [data-sonner-toast][data-swiping],
+        .toaster [data-sonner-toast][data-dragging],
+        .toaster [data-sonner-toast][data-swipe] {
+          transform: none !important;
+          translate: 0 !important;
+        }
+
+        /* 触摸环境下也避免横向滑动导致位移 */
+        .toaster [data-sonner-toast] { touch-action: manipulation; }
+
+        /* 不同类型的轻量配色（左侧色条） */
+        .toaster [data-sonner-toast][data-type='success'] { border-left-color: #10b981; }
+        .toaster [data-sonner-toast][data-type='error'] { border-left-color: #ef4444; }
+        .toaster [data-sonner-toast][data-type='warning'] { border-left-color: #f59e0b; }
+        .toaster [data-sonner-toast][data-type='info'],
+        .toaster [data-sonner-toast][data-type='message'] { border-left-color: #0ea5e9; }
+
+        /* 悬停时略微提升阴影与背景透明度，保持轻盈质感 */
+        .toaster [data-sonner-toast]:hover {
+          box-shadow: 0 10px 30px rgba(0,0,0,0.10);
+          background: color-mix(in srgb, rgba(255,255,255,0.86) 100%, transparent);
+        }
+        @media (prefers-color-scheme: dark) {
+          .toaster [data-sonner-toast]:hover {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            background: color-mix(in srgb, rgba(15,23,42,0.86) 100%, transparent);
+          }
+        }
+      `}</style>
+    </>
   )
 }
 
