@@ -253,7 +253,7 @@ export function useProviderManagement() {
             if (p.status === 'CONNECTED') {
               toast.success(title, { description: 'API 基本可用，密钥请使用时再确认' ,duration: 5000});
             } else {
-              toast.error(title, { description: 'API 无法访问，请检查地址或API策略' ,duration: 5000});
+              toast.error(title, { description: 'API 无法访问，请检查网络状态，服务地址或API策略' ,duration: 5000});
             }
           }
         }
