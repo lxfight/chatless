@@ -22,7 +22,7 @@ export function NetworkSettings() {
           value={proxyUrl}
           onChange={(e) => setProxyUrl(e.target.value)}
           placeholder="http://127.0.0.1:7890"
-          description="如需使用自定义代理，请输入代理地址 (支持 http:// 或 socks5://)"
+          description="如需使用自定义代理，请输入代理地址 (支持 http://)"
         />
         <ToggleSwitch
           label="使用系统代理"
