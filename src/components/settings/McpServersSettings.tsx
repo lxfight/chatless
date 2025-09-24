@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { McpServerConfig } from "@/lib/mcp/McpClient";
 import { serverManager } from "@/lib/mcp/ServerManager";
 import { useMcpServerStatuses, useMcpStore } from "@/store/mcpStore";
@@ -14,8 +14,6 @@ import {
   Plus, 
   Upload, 
   Download, 
-  ChevronDown, 
-  ChevronUp,
   RotateCcw,
   MoreVertical,
   Edit,
@@ -58,6 +56,7 @@ type SavedServer = {
 export function McpServersSettings() {
   const [servers, setServers] = useState<SavedServer[]>([]);
   const [editing, setEditing] = useState<SavedServer | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -70,6 +69,7 @@ export function McpServersSettings() {
   const [editingJsonMode, setEditingJsonMode] = useState(false);
   const [editingJsonText, setEditingJsonText] = useState("");
   const [editingJsonError, setEditingJsonError] = useState("");
+  const [addingJsonText, setAddingJsonText] = useState("");
   
   // 使用zustand store管理MCP状态
   const serverStatuses = useMcpServerStatuses();
@@ -115,7 +115,7 @@ export function McpServersSettings() {
     try {
       const { Store } = await import("@tauri-apps/plugin-store");
       const store = await Store.load("mcp_servers.json");
-      let list = (await store.get<SavedServer[]>("servers")) || [];
+      const list = (await store.get<SavedServer[]>("servers")) || [];
       
       // 如果没有配置，记录日志但不自动创建
       if (list.length === 0) {
@@ -143,60 +143,70 @@ export function McpServersSettings() {
   }, []);
 
   // —— JSON Import/Export ——
+  const parseServersFromRaw = useCallback((raw: any): SavedServer[] => {
+    const imported: SavedServer[] = [];
+    // Format A: Continue/Cursor 风格 { mcpServers: { name: { command, args, url, env } } }
+    if (raw && raw.mcpServers && typeof raw.mcpServers === 'object') {
+      for (const [name, cfg] of Object.entries<any>(raw.mcpServers)) {
+        if (cfg && typeof cfg === 'object') {
+          if ((cfg as any).url) {
+            const urlStr = String((cfg as any).url);
+            const isSse = urlStr.includes('/sse');
+            imported.push({ name, config: { type: isSse ? 'sse' : 'http', baseUrl: urlStr, headers: [] } });
+          } else {
+            const args: string[] = Array.isArray((cfg as any).args) ? (cfg as any).args : [];
+            const envPairs: [string,string][] = (cfg as any).env ? Object.entries((cfg as any).env).map(([k,v])=>[String(k), String(v)]) : [];
+            imported.push({ name, config: { type: 'stdio', command: (cfg as any).command || 'npx', args, env: envPairs } });
+          }
+        }
+      }
+    }
+    // Format B1: 通用数组 { servers: [ { name, type, command, args, env, url } ] }
+    if (raw && Array.isArray(raw.servers)) {
+      for (const item of raw.servers) {
+        const name = item.name || 'mcp';
+        if (item.type === 'stdio' || (!item.type && (item.command || item.args))) {
+          const envObj = item.env || {};
+          const envPairs: [string,string][] = Object.entries(envObj).map(([k,v]) => [String(k), String(v)]);
+          imported.push({ name, config: { type: 'stdio', command: item.command || 'npx', args: item.args || [], env: envPairs } });
+        } else if (item.type === 'sse' || item.type === 'http' || item.url || item.baseUrl) {
+          const url = item.url || item.baseUrl;
+          const type = item.type ? item.type : (String(url||'').includes('/sse') ? 'sse' : 'http');
+          imported.push({ name, config: { type, baseUrl: url, headers: [] } });
+        }
+      }
+    }
+    // Format B2: 通用对象 { servers: { name: { type, ... } } }
+    if (raw && raw.servers && typeof raw.servers === 'object' && !Array.isArray(raw.servers)) {
+      for (const [name, item] of Object.entries<any>(raw.servers)) {
+        if (!item || typeof item !== 'object') continue;
+        if (item.type === 'stdio' || (!item.type && (item.command || item.args))) {
+          const envObj = item.env || {};
+          const envPairs: [string,string][] = Object.entries(envObj).map(([k,v]) => [String(k), String(v)]);
+          imported.push({ name, config: { type: 'stdio', command: item.command || 'npx', args: item.args || [], env: envPairs } });
+        } else if (item.type === 'sse' || item.type === 'http' || item.url || item.baseUrl) {
+          const url = item.url || item.baseUrl;
+          const type = item.type ? item.type : (String(url||'').includes('/sse') ? 'sse' : 'http');
+          imported.push({ name, config: { type, baseUrl: url, headers: [] } });
+        }
+      }
+    }
+    return imported;
+  }, []);
+
   const importFromJson = async () => {
     setError("");
     setImportError("");
     try {
       const raw = JSON.parse(importText);
-      const imported: SavedServer[] = [];
-      // Format A: Continue/Cursor 风格 { mcpServers: { name: { command, args, url } } }
-      if (raw && raw.mcpServers && typeof raw.mcpServers === 'object') {
-        for (const [name, cfg] of Object.entries<any>(raw.mcpServers)) {
-          if (cfg && typeof cfg === 'object') {
-            if ((cfg).url) {
-              const isSse = String((cfg).url).includes('/sse');
-              imported.push({ name, config: { type: isSse ? 'sse' : 'http', baseUrl: (cfg).url, headers: [] } as any });
-            } else {
-              const args: string[] = Array.isArray((cfg).args) ? (cfg).args : [];
-              imported.push({ name, config: { type: 'stdio', command: (cfg).command || 'npx', args, env: [] } as any });
-            }
-          }
-        }
-      }
-      // Format B1: 通用数组 { servers: [ { name, type, command, args, env, url } ] }
-      if (raw && Array.isArray(raw.servers)) {
-        for (const item of raw.servers) {
-          const name = item.name || 'mcp';
-          if (item.type === 'stdio') {
-            const envObj = item.env || {};
-            const envPairs: [string,string][] = Object.entries(envObj).map(([k,v]) => [String(k), String(v)]);
-            imported.push({ name, config: { type: 'stdio', command: item.command || 'npx', args: item.args || [], env: envPairs } as any });
-          } else if (item.type === 'sse' || item.type === 'http') {
-            const url = item.url || item.baseUrl;
-            imported.push({ name, config: { type: item.type, baseUrl: url, headers: [] } as any });
-          }
-        }
-      }
-      // Format B2: 通用对象 { servers: { name: { type, ... } } }
-      if (raw && raw.servers && typeof raw.servers === 'object' && !Array.isArray(raw.servers)) {
-        for (const [name, item] of Object.entries<any>(raw.servers)) {
-          if (!item || typeof item !== 'object') continue;
-          if (item.type === 'stdio' || (!item.type && (item.command || item.args))) {
-            const envObj = item.env || {};
-            const envPairs: [string,string][] = Object.entries(envObj).map(([k,v]) => [String(k), String(v)]);
-            imported.push({ name, config: { type: 'stdio', command: item.command || 'npx', args: item.args || [], env: envPairs } as any });
-          } else if (item.type === 'sse' || item.type === 'http' || item.url || item.baseUrl) {
-            const url = item.url || item.baseUrl;
-            const type = item.type ? item.type : (String(url||'').includes('/sse') ? 'sse' : 'http');
-            imported.push({ name, config: { type, baseUrl: url, headers: [] } as any });
-          }
-        }
-      }
+      const imported: SavedServer[] = parseServersFromRaw(raw);
       if (imported.length === 0) throw new Error('无法识别的 JSON 格式');
       const byName = new Map(servers.map(s => [s.name, s] as const));
       for (const s of imported) byName.set(s.name, { ...s, enabled: true });
       const next = Array.from(byName.values());
       await saveServers(next);
+      // 再次读取存储，确保不同运行环境（Tauri/浏览器）下列表立即刷新
+      await loadServers();
       setImportOpen(false);
       setImportText("");
       toast.success("导入成功", { description: `共 ${imported.length} 条` });
@@ -327,11 +337,13 @@ export function McpServersSettings() {
 
   const beginAdd = () => {
     setEditing({ name: "", config: emptyConfig });
+    setIsAdding(true);
     setError("");
   };
 
   const beginEdit = (s: SavedServer) => {
     setEditing(JSON.parse(JSON.stringify(s)));
+    setIsAdding(false);
     setError("");
     setEditingJsonMode(false);
     setEditingJsonText("");
@@ -353,6 +365,7 @@ export function McpServersSettings() {
     }
     await saveServers(next);
     setEditing(null);
+    setIsAdding(false);
     // 新增或更新后自动连接一次（降低心智负担）
     try {
       const s = next.find(x=>x.name===name);
@@ -484,20 +497,32 @@ export function McpServersSettings() {
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4 bg-white dark:bg-gray-900 shadow-sm">
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-gray-50 dark:border-slate-700 pb-3">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">编辑服务器</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button 
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm" 
-                onClick={()=>{ if (!editingJsonMode) buildEditingJson(); setEditingJsonMode(!editingJsonMode); }}
-              >
-                {editingJsonMode ? '切换到表单' : '切换到 JSON'}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{editingJsonMode ? '切换到表单编辑模式' : '切换到 JSON 编辑模式'}</p>
-            </TooltipContent>
-          </Tooltip>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{isAdding ? '新增服务器' : '编辑服务器'}</h3>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm" 
+                  onClick={()=>{ if (!editingJsonMode) buildEditingJson(); setEditingJsonMode(!editingJsonMode); }}
+                >
+                  {editingJsonMode ? '切换到表单' : '切换到 JSON'}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{editingJsonMode ? '切换到表单编辑模式' : '切换到 JSON 编辑模式'}</p>
+              </TooltipContent>
+            </Tooltip>
+            {/* 统一右上角关闭样式 */}
+            <button
+              onClick={cancelEdit}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+              aria-label="关闭"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* 表单内容 */}
@@ -612,44 +637,113 @@ export function McpServersSettings() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              JSON 编辑（可直接粘贴配置，支持 name/type/command/args/env 或 baseUrl/headers）
-            </div>
-            <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-              <div className="flex">
-                <pre ref={importNumsRef} className="select-none text-right text-xs leading-6 px-2 py-2 w-10 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden" style={{maxHeight: 200}}>
-                  {editingJsonText.split('\n').map((_,i)=>String(i+1)).join('\n')}
-                </pre>
-                <textarea 
-                  value={editingJsonText} 
-                  onChange={(e)=>setEditingJsonText(e.target.value)} 
-                  onScroll={(e)=>{ if(importNumsRef.current){ importNumsRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop; } }} 
-                  className="flex-1 font-mono text-sm p-2 leading-6 bg-white dark:bg-gray-900 outline-none resize-none" 
-                  style={{maxHeight:200}} 
-                  placeholder="在此粘贴 JSON 配置..."
-                />
-              </div>
-            </div>
-            {editingJsonError && (
-              <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                {editingJsonError}
-              </div>
-            )}
-            <div className="flex justify-end">
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {!isAdding ? (
+              <>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  JSON 编辑（可直接粘贴配置，支持 name/type/command/args/env 或 baseUrl/headers）
+                </div>
+                <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div className="flex">
+                    <pre ref={importNumsRef} className="select-none text-right text-xs leading-6 px-1.5 py-2 w-8 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden" style={{maxHeight: 200}}>
+                      {editingJsonText.split('\n').map((_,i)=>String(i+1)).join('\n')}
+                    </pre>
+                    <textarea 
+                      value={editingJsonText} 
+                      onChange={(e)=>setEditingJsonText(e.target.value)} 
+                      onScroll={(e)=>{ if(importNumsRef.current){ importNumsRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop; } }} 
+                      className="flex-1 font-mono text-sm p-2 leading-6 bg-white dark:bg-gray-900 outline-none resize-none" 
+                      style={{maxHeight:200}} 
+                      placeholder="在此粘贴 JSON 配置..."
+                    />
+                  </div>
+                </div>
+                {editingJsonError && (
+                  <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+                    {editingJsonError}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button 
+                        className="px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 text-sm" 
+                        onClick={applyEditingJson}
+                      >
+                        应用到表单
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>将 JSON 配置应用到表单中</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  快速新增：粘贴整段 MCP 配置，自动识别 {`{ mcpServers: { name: { command,args,env } | { url } } }`}、或通用 {`servers`} 数组/对象。
+                </div>
+                <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div className="flex">
+                    <pre className="select-none text-right text-xs leading-6 px-1.5 py-2 w-8 bg-gray-50 dark:bg-gray-800 text-gray-400 overflow-hidden" style={{height: 280}}>
+                      {addingJsonText.split('\n').map((_,i)=>String(i+1)).join('\n')}
+                    </pre>
+                  <textarea 
+                    value={addingJsonText} 
+                    onChange={(e)=>setAddingJsonText(e.target.value)} 
+                    className="flex-1 font-mono text-sm p-3 leading-6 bg-white dark:bg-gray-900 outline-none resize-y" 
+                    style={{height: 280}} 
+                    placeholder={`直接粘贴 JSON 配置并点击“解析并创建”。\n\n示例：\n{\n  \"mcpServers\": {\n    \"filesystem\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/path/to/allowed/files\"]\n    },\n    \"git\": {\n      \"command\": \"uvx\",\n      \"args\": [\"mcp-server-git\", \"--repository\", \"path/to/git/repo\"]\n    },\n    \"github\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"],\n      \"env\": { \"GITHUB_PERSONAL_ACCESS_TOKEN\": \"<YOUR_TOKEN>\" }\n    },\n    \"postgres\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-postgres\", \"postgresql://localhost/mydb\"]\n    }\n  }\n}`}
+                  />
+                  </div>
+                </div>
+                {editingJsonError && (
+                  <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+                    {editingJsonError}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <button 
+                    className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
+                    onClick={()=>{ setAddingJsonText(""); setEditingJsonError(""); }}
+                  >
+                    清空
+                  </button>
                   <button 
                     className="px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 text-sm" 
-                    onClick={applyEditingJson}
+                    onClick={async()=>{
+                      try {
+                        const raw = JSON.parse(addingJsonText||"{}");
+                        const imported = parseServersFromRaw(raw);
+                        if (imported.length === 0) throw new Error('无法识别的 JSON 格式');
+                        if (imported.length === 1) {
+                          // 单条则应用到表单，便于确认后保存
+                          const s = imported[0];
+                          setEditing({ name: s.name, config: s.config });
+                          setEditingJsonMode(false);
+                          setIsAdding(false);
+                          toast.success('已解析为单个服务器', { description: s.name });
+                        } else {
+                          const byName = new Map(servers.map(s => [s.name, s] as const));
+                          for (const s of imported) byName.set(s.name, { ...s, enabled: true });
+                          const next = Array.from(byName.values());
+                          await saveServers(next);
+                          setEditing(null);
+                          setIsAdding(false);
+                          toast.success('已批量新增', { description: `共 ${imported.length} 条` });
+                        }
+                        setAddingJsonText("");
+                        setEditingJsonError("");
+                      } catch (e) {
+                        setEditingJsonError('JSON 解析失败: ' + String(e));
+                      }
+                    }}
                   >
-                    应用到表单
+                    解析并创建
                   </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>将 JSON 配置应用到表单中</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -660,8 +754,11 @@ export function McpServersSettings() {
           </div>
         )}
 
-        {/* 操作按钮 */}
-        <div className="flex gap-2 pt-3 border-t border-gray-50 dark:border-slate-700">
+        {/* 底部操作：仅在非“新增+JSON”模式下显示，避免与“解析并创建”冲突 */}
+        {!(
+          isAdding && editingJsonMode
+        ) && (
+        <div className="flex gap-2 pt-3 border-t border-gray-50 dark:border-slate-700 justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
               <button 
@@ -678,19 +775,6 @@ export function McpServersSettings() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button 
-                className="px-4 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm" 
-                onClick={cancelEdit}
-              >
-                取消
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>取消编辑</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button 
                 className="px-4 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 text-sm" 
                 onClick={testConnect}
               >
@@ -702,6 +786,7 @@ export function McpServersSettings() {
             </TooltipContent>
           </Tooltip>
         </div>
+        )}
       </div>
     );
   };
@@ -730,7 +815,7 @@ export function McpServersSettings() {
                   className={cn(
                     "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
                     "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-all"
                   )} 
                   onClick={beginAdd}
                 >
@@ -747,7 +832,7 @@ export function McpServersSettings() {
                   className={cn(
                     "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
                     "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
                   )} 
                   onClick={()=>{ setImportOpen(true); setImportText(""); }}
                 >
@@ -764,7 +849,7 @@ export function McpServersSettings() {
                   className={cn(
                     "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
                     "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
                   )} 
                   onClick={async()=>{
                     try {
@@ -810,7 +895,7 @@ export function McpServersSettings() {
                 className={cn(
                   "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
                   "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                  "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
                 )}
                 onClick={() => setAdvDialogOpen(true)}
               >
@@ -914,12 +999,7 @@ export function McpServersSettings() {
               {importText.trim() ? '准备导入配置' : '请粘贴 JSON 配置'}
             </div>
             <div className="flex gap-2">
-              <button 
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm font-medium" 
-                onClick={()=>{ setImportOpen(false); setImportText(""); }}
-              >
-                取消
-              </button>
+              {/* 统一右上角关闭，不再保留取消 */}
               <button 
                 className={`px-6 py-2 rounded-lg text-white transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md ${
                   importText.trim() 
@@ -987,7 +1067,7 @@ export function McpServersSettings() {
                           {toolCount} 个工具
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-md p-3">
+                      <TooltipContent side="right" sideOffset={8} className="max-w-md p-3 z-[9999]">
                         <div className="space-y-2">
                           <div className="font-medium text-sm text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-1">
                             可用工具列表 ({toolCount})
@@ -1012,7 +1092,9 @@ export function McpServersSettings() {
                                  {/* 右侧：启用勾选框与刷新按钮 */}
                  <div className="flex items-center gap-2">
                    {/* 启用勾选框 */}
-                   <Checkbox
+                   <Tooltip>
+                     <TooltipTrigger asChild>
+                     <Checkbox
                      checked={s.enabled !== false}
                      onCheckedChange={(checked) => {
                        const next = servers.map(x => x.name === s.name ? { ...x, enabled: !!checked } : x);
@@ -1020,13 +1102,18 @@ export function McpServersSettings() {
                      }}
                      className="h-4 w-4"
                    />
+                     </TooltipTrigger>
+                     <TooltipContent>
+                       <p>启用/禁用</p>
+                     </TooltipContent>
+                   </Tooltip>
                    {/* 刷新按钮 */}
                    <Tooltip>
                      <TooltipTrigger asChild>
                        <button 
                          className={cn(
-                           "w-8 h-8 rounded-lg border border-blue-200 dark:border-blue-600 flex items-center justify-center",
-                           "text-blue-600 dark:text-blue-400 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-60 transition-all duration-200",
+                           "w-8 h-8 rounded-lg  flex items-center justify-center",
+                           "text-blue-600 dark:text-blue-400 hover:bg-blue-50  disabled:opacity-60 transition-all duration-200",
                            "disabled:opacity-60 transition-all duration-200 flex items-center justify-center"
                          )} 
                          disabled={loading} 
@@ -1043,7 +1130,7 @@ export function McpServersSettings() {
                    <DropdownMenu.Root>
                      <DropdownMenu.Trigger asChild>
                        <button className={cn(
-                         "w-8 h-8 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md",
+                         "w-8 h-8 rounded-lg  text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md",
                          "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                        )}>
                          <MoreVertical className="w-4 h-4" />
