@@ -4,14 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { 
-  ExternalLink, 
-  Check,
-  MessageSquare
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_INFO, getVersionInfo } from "@/config/app-info";
 import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, checkForUpdatesSilently, clearUpdateAvailable } from "@/lib/update/update-notifier";
-import { isDevelopment } from "@/lib/utils/environment";
+import {  } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { linkOpener } from "@/lib/utils/linkOpener";
 import { toast } from "@/components/ui/sonner";
@@ -41,7 +38,7 @@ export function AboutSupportSettings() {
           }));
         }
       } catch (error) {
-        console.log('无法获取Tauri版本信息，使用默认版本');
+        // 无法获取 Tauri 版本信息时忽略
       }
     };
 
@@ -77,7 +74,7 @@ export function AboutSupportSettings() {
         if (typeof window !== 'undefined') {
           (window as any).__CHATLESS_ONLY_CHECK_UPDATE__ = !!saved;
         }
-      } catch {}
+      } catch { /* noop */ }
     })();
   }, []);
 
@@ -176,6 +173,7 @@ export function AboutSupportSettings() {
                 <span className="ml-2 inline-flex items-center gap-1 text-blue-500">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
                   当前不是最新版本（可用：{notLatest.version}）
+                  <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 text-[10px] font-semibold align-middle">NEW</span>
                 </span>
               )}
             </p>

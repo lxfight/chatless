@@ -16,6 +16,14 @@ const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
 const THREE_DAYS = 3 * ONE_DAY;
 
+// 生产环境兜底的 update.json 检查端点（与 tauri.conf.json 保持一致）
+const UPDATE_ENDPOINTS: string[] = [
+  "https://github.com/kamjin3086/chatless/releases/latest/download/update.json",
+  "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/latest/download/update-proxy.json",
+  "https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update.json",
+  "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update-proxy.json",
+];
+
 export interface UpdateAvailability {
   available: boolean;
   version?: string | null;
@@ -101,7 +109,14 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
       await setUpdateAvailable(version);
       return { available: true, version };
     } else {
-      // 开发场景兜底：尝试读取同源 /update.json（public/update.json）并做简单版本比较
+      // 若插件未报告更新，增加生产环境兜底：直接访问 update.json 端点比较版本
+      const fallback = await tryFetchUpdateFromEndpoints();
+      if (fallback?.available) {
+        await setUpdateAvailable(fallback.version!);
+        return fallback;
+      }
+
+      // 开发场景兜底：尝试读取同源 /update.json（public/update.json）
       try {
         if (location && /^http:\/\/localhost:\d+/.test(location.origin)) {
           const resp = await fetch('/update.json', { cache: 'no-store' });
@@ -112,9 +127,7 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             try {
               const { getVersion } = await import('@tauri-apps/api/app');
               current = await getVersion();
-            } catch {
-              // noop
-            }
+            } catch { /* noop */ }
             const newer = compareVersions(remote, current) > 0;
             if (newer) {
               await setUpdateAvailable(remote);
@@ -122,15 +135,22 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             }
           }
         }
-      } catch {
-        // noop
-      }
+      } catch { /* noop */ }
 
       await clearUpdateAvailable();
       return { available: false };
     }
   } catch {
-    // 静默失败：在开发场景下尝试 /update.json 兜底
+    // 插件检查失败：优先尝试生产环境端点兜底
+    try {
+      const fallback = await tryFetchUpdateFromEndpoints();
+      if (fallback?.available) {
+        await setUpdateAvailable(fallback.version!);
+        return fallback;
+      }
+    } catch { /* noop */ }
+
+    // 开发场景兜底：尝试 /update.json
     try {
       if (typeof window !== 'undefined' && location && /^http:\/\/localhost:\d+/.test(location.origin)) {
         const resp = await fetch('/update.json', { cache: 'no-store' });
@@ -141,9 +161,7 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
           try {
             const { getVersion } = await import('@tauri-apps/api/app');
             current = await getVersion();
-          } catch {
-            // noop
-          }
+          } catch { /* noop */ }
           const newer = compareVersions(remote, current) > 0;
           if (newer) {
             await setUpdateAvailable(remote);
@@ -151,9 +169,8 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
           }
         }
       }
-    } catch {
-      // noop
-    }
+    } catch { /* noop */ }
+
     return getUpdateAvailability();
   }
 }
@@ -180,6 +197,51 @@ function compareVersions(a: string, b: string): number {
     if (na < nb) return -1;
   }
   return 0;
+}
+
+// ===== 生产环境端点兜底实现 =====
+async function tryFetchUpdateFromEndpoints(): Promise<UpdateAvailability | null> {
+  try {
+    // 仅在 Tauri 环境下执行（避免 Web 预览跨域问题）
+    const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+    if (!isTauri) return null;
+
+    // 获取当前应用版本
+    let current = '0.0.0';
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app');
+      current = await getVersion();
+    } catch { /* noop */ }
+
+    // 优先使用 Tauri HTTP 插件以绕过 CORS；失败则回退到 fetch
+    for (const url of UPDATE_ENDPOINTS) {
+      let json: any | null = null;
+      try {
+        const { fetch: httpFetch } = await import('@tauri-apps/plugin-http');
+        const resp: any = await httpFetch(url, { method: 'GET', timeout: 20_000 } as any);
+        if (resp && (resp.ok ?? true) && resp.data) {
+          json = typeof resp.data === 'string' ? JSON.parse(resp.data) : resp.data;
+        }
+      } catch {
+        // 回退到浏览器 fetch（某些环境也可用）
+        try {
+          const resp2 = await fetch(url, { cache: 'no-store' } as RequestInit);
+          if (resp2.ok) json = await resp2.json();
+        } catch { /* noop */ }
+      }
+
+      if (json) {
+        const remote = String(json?.version || '');
+        if (remote) {
+          const newer = compareVersions(remote, current) > 0;
+          if (newer) return { available: true, version: remote };
+        }
+      }
+    }
+    return { available: false };
+  } catch {
+    return null;
+  }
 }
 
 // ===== 忽略版本（用户选择不再提示当前版本） =====
