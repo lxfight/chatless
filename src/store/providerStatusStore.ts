@@ -17,6 +17,9 @@ export type ConfigStatusCode = 'NO_KEY' | 'NO_FETCHER';
 export interface ProviderStatus {
   // 不保存实时状态，只保存检查时间
   lastCheckedAt?: number;
+  // 上次检查结果（稳定显示）
+  lastResult?: 'CONNECTED' | 'NOT_CONNECTED' | 'UNKNOWN';
+  lastMessage?: string | null;
   // 临时状态（检查后显示，不持久化）
   temporaryStatus?: TemporaryStatusCode;
   // 配置状态（持久化，因为这是配置问题）
@@ -62,6 +65,8 @@ export const useProviderStatusStore = create<ProviderStatusState>()((set, get) =
       // 检查是否有变化
       const unchanged = 
         prev.lastCheckedAt === updated.lastCheckedAt &&
+        prev.lastResult === updated.lastResult &&
+        prev.lastMessage === updated.lastMessage &&
         prev.temporaryStatus === updated.temporaryStatus &&
         prev.configStatus === updated.configStatus &&
         prev.temporaryMessage === updated.temporaryMessage;

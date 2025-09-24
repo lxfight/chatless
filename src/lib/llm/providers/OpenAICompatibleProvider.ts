@@ -44,33 +44,39 @@ export class OpenAICompatibleProvider extends BaseProvider {
   }
 
   async checkConnection(): Promise<CheckResult> {
-    const apiKey = await this.getApiKey();
-    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    
-    // 使用专门的连通性检查函数
-    const baseUrl = this.baseUrl.replace(/\/$/, '');
-    console.log(`[OpenAICompatibleProvider] 开始检查网络连通性: ${baseUrl}`);
-    
-    const { checkConnectivity } = await import('@/lib/request');
-    const result = await checkConnectivity(baseUrl, {
-      timeout: 5000,
-      debugTag: 'OpenAICompatibleProvider-Connectivity'
-    });
-    
-    if (result.ok) {
-      console.log(`[OpenAICompatibleProvider] 网络连通性检查成功，状态码: ${result.status}`);
-      return { ok: true, message: '网络连接正常' };
-    } else {
-      console.error(`[OpenAICompatibleProvider] 网络连通性检查失败: ${result.reason}`, result.error);
-      
-      switch (result.reason) {
-        case 'TIMEOUT':
-          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
-        case 'NETWORK':
-          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
-        default:
-          return { ok: false, reason: 'UNKNOWN', message: result.error || '未知错误' };
+    // 与 OpenAI 类似，使用错误密钥做一次标准请求，判断是否可达
+    const base = this.baseUrl.replace(/\/$/, '');
+    const url = `${base}/chat/completions`;
+    const fakeKey = 'invalid_test_key_for_healthcheck';
+    const body = { model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'ping' }], stream: false };
+    try {
+      const { tauriFetch } = await import('@/lib/request');
+      const { judgeApiReachable } = await import('./healthcheck');
+      const resp: any = await tauriFetch(url, {
+        method: 'POST',
+        rawResponse: true,
+        browserHeaders: true,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${fakeKey}` },
+        body,
+        timeout: 5000,
+        fallbackToBrowserOnError: true,
+        debugTag: 'OpenAICompat-HealthCheck',
+        verboseDebug: true,
+        includeBodyInLogs: true
+      });
+      const status = (resp?.status ?? 0) as number;
+      const text = (await resp.text?.()) || '';
+      const judged = judgeApiReachable(status, text);
+      if (!judged.ok) {
+        console.log('[OpenAICompatibleProvider] judged unreachable', { status, text: (text||'').slice(0,200) });
       }
+      if (judged.ok) return { ok: true, message: judged.message, meta: { status } };
+      return { ok: false, reason: 'UNKNOWN', message: `HTTP ${status}`, meta: { status } };
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (/timeout|abort/i.test(msg)) return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
+      if (/network|fetch|ENOTFOUND|ECONN/i.test(msg)) return { ok: false, reason: 'NETWORK', message: '网络错误' };
+      return { ok: false, reason: 'UNKNOWN', message: msg };
     }
   }
 

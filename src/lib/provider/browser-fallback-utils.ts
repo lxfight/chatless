@@ -25,7 +25,7 @@ async function refreshProviderCache(): Promise<void> {
       .filter(provider => provider.url) // 只缓存有URL的provider
       .map(provider => ({
         name: provider.name,
-        url: provider.url!,
+        url: provider.url,
         useBrowserRequest: provider.preferences?.useBrowserRequest || false
       }));
     

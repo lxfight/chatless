@@ -36,33 +36,32 @@ export class GoogleAIProvider extends BaseProvider {
   }
 
   async checkConnection(): Promise<CheckResult> {
-    const apiKey = await this.getApiKey();
-    if (!apiKey) return { ok: false, reason: 'NO_KEY', message: 'NO_KEY' };
-    
-    // 使用专门的连通性检查函数
-    const baseUrl = (this as any).baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com/v1beta';
-    console.log(`[GoogleAIProvider] 开始检查网络连通性: ${baseUrl}`);
-    
-    const { checkConnectivity } = await import('@/lib/request');
-    const result = await checkConnectivity(baseUrl, {
-      timeout: 5000,
-      debugTag: 'GoogleAIProvider-Connectivity'
-    });
-    
-    if (result.ok) {
-      console.log(`[GoogleAIProvider] 网络连通性检查成功，状态码: ${result.status}`);
-      return { ok: true, message: '网络连接正常' };
-    } else {
-      console.error(`[GoogleAIProvider] 网络连通性检查失败: ${result.reason}`, result.error);
-      
-      switch (result.reason) {
-        case 'TIMEOUT':
-          return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
-        case 'NETWORK':
-          return { ok: false, reason: 'NETWORK', message: '网络连接失败' };
-        default:
-          return { ok: false, reason: 'UNKNOWN', message: result.error || '未知错误' };
-      }
+    // Gemini：用错误 key 访问生成端点判定可达
+    const base = (this as any).baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com/v1beta';
+    // 使用简化体，避免某些代理对不完整 payload 返回 400
+    const url = `${base}/models/gemini-pro:generateContent`;
+    const fakeKey = 'invalid_test_key_for_healthcheck';
+    const body = {
+      contents: [{ parts: [{ text: 'ping' }] }]
+    } as any;
+    try {
+      const { tauriFetch } = await import('@/lib/request');
+      const { judgeApiReachable } = await import('./healthcheck');
+      const resp: any = await tauriFetch(`${url}?key=${encodeURIComponent(fakeKey)}`, {
+        method: 'POST', rawResponse: true, browserHeaders: true,
+        headers: { 'Content-Type': 'application/json' },
+        body, timeout: 5000, fallbackToBrowserOnError: true, debugTag: 'GoogleAI-HealthCheck', verboseDebug: true, includeBodyInLogs: true
+      });
+      const status = (resp?.status ?? 0) as number;
+      const text = (await resp.text?.()) || '';
+      const judged = judgeApiReachable(status, text);
+      if (judged.ok) return { ok: true, message: judged.message, meta: { status } };
+      return { ok: false, reason: 'UNKNOWN', message: `HTTP ${status}`, meta: { status } };
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (/timeout|abort/i.test(msg)) return { ok: false, reason: 'TIMEOUT', message: '连接超时' };
+      if (/network|fetch|ENOTFOUND|ECONN/i.test(msg)) return { ok: false, reason: 'NETWORK', message: '网络错误' };
+      return { ok: false, reason: 'UNKNOWN', message: msg };
     }
   }
 

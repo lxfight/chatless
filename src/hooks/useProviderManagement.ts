@@ -34,6 +34,9 @@ export interface ProviderWithStatus extends ProviderMetadata {
   configStatus?: 'NO_KEY' | 'NO_FETCHER';
   // 临时状态的消息
   temporaryMessage?: string | null;
+  // 新增：上次稳定结果（用于悬浮提示）
+  lastResult?: 'CONNECTED' | 'NOT_CONNECTED' | 'UNKNOWN';
+  lastMessage?: string | null;
   
   healthCheckPath?: string;
   authenticatedHealthCheckPath?: string;
@@ -88,6 +91,8 @@ export function useProviderManagement() {
         isConnected: st.temporaryStatus === 'CONNECTED', 
         statusTooltip,
         lastCheckedAt: st.lastCheckedAt,
+        lastResult: (st as any).lastResult,
+        lastMessage: (st as any).lastMessage,
         temporaryStatus: st.temporaryStatus,
         configStatus: st.configStatus,
         temporaryMessage: st.temporaryMessage
@@ -194,15 +199,11 @@ export function useProviderManagement() {
 
   // --- 刷新单个 Provider（由 checkController 统一调度） ---
   const handleSingleProviderRefresh = useCallback(async (provider: ProviderWithStatus, showToast: boolean = true) => {
-    const repoName = provider.aliases?.[0] || provider.name;
+    const repoName = provider.name;
     if (cancelledRef.current) return;
 
-    // 设置临时检查状态
-    setStatusStore(provider.name, {
-      temporaryStatus: 'CONNECTING',
-          temporaryMessage: '正在检查状态...',
-      lastCheckedAt: Date.now(),
-    });
+    // 不再写入“检查中”临时状态，避免文案串入通知
+    setStatusStore(provider.name, { lastCheckedAt: Date.now() }, false);
 
     const { checkController } = await import('@/lib/provider/check-controller');
 
@@ -210,87 +211,95 @@ export function useProviderManagement() {
       const offStart = checkController.on('start', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, true);
+        console.log('[ProviderCheck] start', repoName);
       });
       const offSuccess = checkController.on('success', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
+        console.log('[ProviderCheck] success', repoName, p.status, p.message);
         
         // 根据检查结果设置状态
         const now = Date.now();
         if (p.status === 'NO_KEY') {
-          // 仅根据输入框是否为空来显示未配置密钥，不做持久化
-          const inputEmpty = !(provider.default_api_key && String(provider.default_api_key).trim());
-          setStatusStore(provider.name, {
-            configStatus: inputEmpty ? 'NO_KEY' : undefined,
-            temporaryMessage: inputEmpty ? (p.message ?? '未配置API密钥') : undefined,
-            lastCheckedAt: now,
-          }, false);
+          // 使用 KeyManager 中最新值与 UI 输入框共同判断
+          const run = async () => {
+            try {
+              const { KeyManager } = await import('@/lib/llm/KeyManager');
+              const latest = await KeyManager.getProviderKey(provider.name);
+              const inputEmpty = !(provider.default_api_key && String(provider.default_api_key).trim());
+              const keyEmpty = !(latest && String(latest).trim());
+              setStatusStore(provider.name, {
+                configStatus: (inputEmpty && keyEmpty) ? 'NO_KEY' : undefined,
+                temporaryMessage: (inputEmpty && keyEmpty) ? (p.message ?? '未配置API密钥') : undefined,
+                lastCheckedAt: now,
+              }, false);
+            } catch {
+              // 回退：仅依据输入框
+              const inputEmpty = !(provider.default_api_key && String(provider.default_api_key).trim());
+              setStatusStore(provider.name, {
+                configStatus: inputEmpty ? 'NO_KEY' : undefined,
+                temporaryMessage: inputEmpty ? (p.message ?? '未配置API密钥') : undefined,
+                lastCheckedAt: now,
+              }, false);
+            }
+          };
+          run();
         } else {
-          // 状态，临时显示
-          setStatusStore(provider.name, {
-            temporaryStatus: p.status as 'CONNECTED' | 'NOT_CONNECTED',
-            temporaryMessage: p.message ?? (p.status==='CONNECTED'?'网络可达':undefined),
-            lastCheckedAt: now,
-          });
+          // 不再在行内用徽章展示检查态；这里只记录lastCheckedAt
+          setStatusStore(provider.name, { lastCheckedAt: now }, false);
+          // 统一改用通知反馈结果：标题为 Provider 名称，描述为标准化文案
+          if (showToast) {
+            const title = provider.displayName || provider.name;
+            if (p.status === 'CONNECTED') {
+              toast.success(title, { description: 'API 基本可用，密钥请使用时再确认' ,duration: 5000});
+            } else {
+              toast.error(title, { description: 'API 无法访问，请检查地址或API策略' ,duration: 5000});
+            }
+          }
         }
         
-        if (showToast) {
-          if (p.status === 'CONNECTED') {/*不需要这个多余提示，状态已经显示了*/}
-          else if (p.status === 'NOT_CONNECTED') toast.error(`${provider.name} 检查失败`, { description: p.message || '请检查服务地址和网络连接' });
-          else if (p.status === 'NO_KEY') toast.error(`${provider.name} 未配置API密钥`, { description: '请在设置中配置API密钥' });
-        }
+        // 移除重复通知与临时状态清理
         
-        // 根据状态设置不同的显示时间：网络可达显示5秒，其他状态3秒
-        const displayDuration = p.status === 'CONNECTED' ? 5000 : 3000;
-        setTimeout(() => {
-          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
-        }, displayDuration);
-        
-        offStart(); offSuccess(); offFail(); offTimeout();
+        offStart(); offSuccess(); offFail(); offTimeout(); offCancel();
         resolve();
       });
       const offFail = checkController.on('fail', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
+        console.log('[ProviderCheck] fail', repoName, p.message);
         
-        // 设置临时失败状态
-        setStatusStore(provider.name, {
-          temporaryStatus: 'NOT_CONNECTED',
-          temporaryMessage: p.message || '检查失败',
-          lastCheckedAt: Date.now(),
-        });
-        
-        // 3秒后清除临时状态
-        setTimeout(() => {
-          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
-        }, 3000);
-        
-        if (showToast) toast.error(`刷新 ${provider.name} 失败`, { description: p.message || '请检查网络连接' });
-        offStart(); offSuccess(); offFail(); offTimeout();
+        // 仅通知，不写入临时失败徽章
+        setStatusStore(provider.name, { lastCheckedAt: Date.now() }, false);
+
+        if (showToast) toast.error(`${provider.displayName || provider.name}`, { description: 'API 无法访问，请检查地址或API策略' });
+        offStart(); offSuccess(); offFail(); offTimeout(); offCancel();
         resolve();
       });
       const offTimeout = checkController.on('timeout', (p)=>{
         if (p.name !== repoName) return;
         setConnecting(provider.name, false);
+        console.log('[ProviderCheck] timeout', repoName);
         
-        // 设置临时超时状态
-        setStatusStore(provider.name, {
-          temporaryStatus: 'NOT_CONNECTED',
-          temporaryMessage: '检查超时，请稍后重试',
-          lastCheckedAt: Date.now(),
-        });
-        
-        // 3秒后清除临时状态
-        setTimeout(() => {
-          setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
-        }, 3000);
-        
-        if (showToast) toast.error(`${provider.name} 检查超时`, { description: '请稍后重试或检查网络' });
-        offStart(); offSuccess(); offFail(); offTimeout();
+        // 仅通知，不写入临时超时徽章
+        setStatusStore(provider.name, { lastCheckedAt: Date.now() }, false);
+
+        if (showToast) toast.error(`${provider.displayName || provider.name}`, { description: 'API 无法访问，请检查地址或API策略' });
+        offStart(); offSuccess(); offFail(); offTimeout(); offCancel();
+        resolve();
+      });
+      const offCancel = checkController.on('cancel', (p)=>{
+        if (p.name !== repoName) return;
+        setConnecting(provider.name, false);
+        setStatusStore(provider.name, { temporaryStatus: undefined, temporaryMessage: undefined });
+        console.log('[ProviderCheck] cancel', repoName);
+        offStart(); offSuccess(); offFail(); offTimeout(); offCancel();
         resolve();
       });
 
-      checkController.requestCheck(repoName, { reason: 'manual', debounceMs: 0, withModels: true });
+      // 发起请求
+      console.log('[ProviderCheck] request', repoName);
+      // 健康检查仅判定连通性，不自动拉取模型，避免额外401/噪声
+      checkController.requestCheck(repoName, { reason: 'manual', debounceMs: 0, withModels: false });
     });
   }, [setConnecting, setStatusStore]);
 

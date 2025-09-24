@@ -218,22 +218,28 @@ export async function request<T = any>(inputUrl: string, opts: RequestOptions = 
       
       if (__DEV__) {
         const tag = options.debugTag ? `[${options.debugTag}]` : '';
-        if (options.verboseDebug) {
-          console.log(`${tag}[tauriFetch][response] ${status || 'unknown'} ${statusText || ''}`);
-          const responseHeaders: Record<string, string> = {};
-          resp.headers.forEach((value, key) => {
-            responseHeaders[key] = value;
-          });
-          console.log(`${tag}[tauriFetch][response] headers:`, responseHeaders);
-          if (options.includeBodyInLogs) {
-            try {
-              const cloneText = await (resp as any).text();
-              console.log(`${tag}[tauriFetch][response] body:`, cloneText);
-            } catch {
-              // ignore body log errors
+      if (options.verboseDebug) {
+        console.log(`${tag}[tauriFetch][response] ${status || 'unknown'} ${statusText || ''}`);
+        const responseHeaders: Record<string, string> = {};
+        resp.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+        console.log(`${tag}[tauriFetch][response] headers:`, responseHeaders);
+        if (options.includeBodyInLogs) {
+          try {
+            const enc = (resp.headers.get?.('content-encoding') || '').toLowerCase();
+            if (enc && /(gzip|br|deflate)/.test(enc)) {
+              console.log(`${tag}[tauriFetch][response] body: <compressed: ${enc}>`);
+            } else {
+              const clone = (resp as any).clone ? (resp as any).clone() : resp;
+              const text = await (clone as any).text();
+              console.log(`${tag}[tauriFetch][response] body:`, text);
             }
+          } catch (e) {
+            console.warn(`${tag}[tauriFetch][response] body log failed`, e);
           }
-        } else {
+        }
+      } else {
           console.log(`${tag}[tauriFetch] <- ${status || 'unknown'} ${statusText || ''}`);
         }
       }

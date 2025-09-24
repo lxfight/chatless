@@ -53,6 +53,7 @@ class CheckController {
     if (now - last < minIntervalMs && opts.reason !== 'manual') {
       return; // 节流：短时间内避免重复检查
     }
+    // 若已有待执行的去抖任务或正在进行的检查，直接忽略，避免 silent no-op
     if (this.debounceTimers.has(name)) {
       clearTimeout(this.debounceTimers.get(name));
     }
@@ -73,27 +74,26 @@ class CheckController {
 
   private async run(name: string, opts: RequestOptions) {
     this.lastRunAt.set(name, Date.now());
+    console.log('[ProviderCheck] run -> start', name, opts);
     this.bus.emit('start', { name, status: 'UNKNOWN' });
 
     try {
+      // 统一避免并发：同一 provider 若仍在进行中，取消之前的并复用最新一次
+      const prev = this.inflight.get(name);
+      if (prev) {
+        console.log('[ProviderCheck] cancel previous inflight', name);
+        this.bus.emit('cancel', { name, status: 'UNKNOWN' });
+      }
+
       const promise = providerStatusService.refresh(name).finally(() => {
         this.inflight.delete(name);
       });
       this.inflight.set(name, promise);
 
-      const updated = await promise;
+      const updated = await promise.catch((e)=>{ console.error('[ProviderCheck] error', name, e); throw e; });
       if (!updated) {
         this.bus.emit('fail', { name, status: 'UNKNOWN', message: '刷新失败' });
         return;
-      }
-
-      // 成功后：按需拉取模型，做节流
-      if ((updated as any).status === 'CONNECTED' && (opts.withModels ?? true)) {
-        const lastFetch = this.lastModelFetchAt.get(name) || 0;
-        if (Date.now() - lastFetch > 60_000) {
-          try { await providerModelService.fetchIfNeeded(name); } catch {}
-          this.lastModelFetchAt.set(name, Date.now());
-        }
       }
 
       const status = ((): CheckResult['status'] => {
@@ -105,6 +105,7 @@ class CheckController {
         }
       })();
 
+      // 先向 UI 发出成功事件，避免因后续模型拉取阻塞而卡在“检查中”
       this.bus.emit('success', {
         name,
         entity: updated,
@@ -112,10 +113,32 @@ class CheckController {
         reason: (updated as any).lastReason,
         message: (updated as any).lastMessage ?? null,
       });
+      console.log('[ProviderCheck] success event emitted', name, status);
+      // 将稳定结果写入状态存储，确保“最后检查时间/结果”立即更新
+      try {
+        const { useProviderStatusStore } = await import('@/store/providerStatusStore');
+        const stable: 'CONNECTED' | 'NOT_CONNECTED' | 'UNKNOWN' = (status === 'CONNECTED' || status === 'NOT_CONNECTED') ? status : 'UNKNOWN';
+        useProviderStatusStore.getState().setStatus(name, {
+          lastCheckedAt: (updated as any).lastChecked || Date.now(),
+          lastResult: stable,
+          lastMessage: (updated as any).lastMessage ?? null,
+        }, false);
+      } catch { /* noop */ }
+
+      // 成功后：按需异步拉取模型，做节流
+      if (status === 'CONNECTED' && (opts.withModels ?? true)) {
+        const lastFetch = this.lastModelFetchAt.get(name) || 0;
+        if (Date.now() - lastFetch > 60_000) {
+          this.lastModelFetchAt.set(name, Date.now());
+          setTimeout(() => {
+            providerModelService.fetchIfNeeded(name).catch(() => {});
+          }, 0);
+        }
+      }
     } catch (e: any) {
       const msg = e?.message || String(e ?? '');
-      const isTimeout = msg.includes('TIMEOUT') || msg.toLowerCase().includes('timeout');
-      this.bus.emit(isTimeout ? 'timeout' : 'fail', { name, status: 'NOT_CONNECTED', message: msg });
+      console.log('[ProviderCheck] catch', name, msg);
+      this.bus.emit('fail', { name, status: 'NOT_CONNECTED', message: msg });
     }
   }
 }

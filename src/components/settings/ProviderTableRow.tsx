@@ -1,10 +1,10 @@
 "use client";
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, KeyRound, Loader2, AlertTriangle, Wifi, MoreVertical, ChevronDown, ChevronRight, GripVertical, Sliders, Pencil, BugPlay, ChevronUp } from 'lucide-react';
+import { KeyRound, AlertTriangle, Wifi, MoreVertical, ChevronDown, ChevronRight, GripVertical, Sliders, Pencil, BugPlay, ChevronUp, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ProviderConnectionSection } from './ProviderConnectionSection';
 import { ProviderModelList } from './ProviderModelList';
@@ -18,6 +18,8 @@ import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
 import type { ModelMetadata } from '@/lib/metadata/types';
 import { AdvancedSettingsDialog } from '@/components/settings/AdvancedSettingsDialog';
 import { ModelParametersDialog } from '@/components/chat/ModelParametersDialog';
+import { useProviderStatusStore } from '@/store/providerStatusStore';
+import { useProviderMetaStore } from '@/store/providerMetaStore';
 
 interface ProviderTableRowProps {
   provider: ProviderWithStatus;
@@ -44,6 +46,12 @@ function formatLastCheckedTime(timestamp: number): string {
   else { const days = Math.floor(diff / 86400000); return `${days}天前`; }
 }
 
+// 绝对时间格式化（本地化显示）
+function formatDateTime(ts?: number) {
+  if (!ts) return undefined;
+  try { return new Date(ts).toLocaleString(); } catch { return undefined; }
+}
+
 export function ProviderTableRow({
   provider,
   _index,
@@ -61,6 +69,11 @@ export function ProviderTableRow({
   open,
   onOpenChange
 }: ProviderTableRowProps & { dragHandleProps?: any }) {
+  // 实时订阅该 provider 的最新检查结果，确保无需切页即可更新
+  const live = useProviderStatusStore(s => s.map[provider.name]);
+  const lastCheckedAt = live?.lastCheckedAt ?? provider.lastCheckedAt;
+  const lastResult = (live as any)?.lastResult ?? (provider as any).lastResult;
+  const lastMessage = (live as any)?.lastMessage ?? (provider as any).lastMessage;
   const isControlled = open !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const isExpanded = isControlled ? !!open : internalOpen;
@@ -69,6 +82,9 @@ export function ProviderTableRow({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasAdvanced = !!(provider.preferences?.useBrowserRequest);
+
+  // 连接中状态采用 providerMetaStore 的实时标记，避免依赖父组件传入
+  const isConnectingLive = useProviderMetaStore(s => s.connectingSet.has(provider.name));
 
   // 模型参数设置对话框状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -105,8 +121,13 @@ export function ProviderTableRow({
   let badgeVariant: "secondary" | "destructive" | "outline" = "secondary";
   let badgeClasses = "";
 
+  // 根据本地输入覆盖“未配置密钥”的显示：输入框里只要有值，就不显示 NO_KEY 徽章
+  const effectiveConfigStatus: typeof provider.configStatus = (provider.configStatus === 'NO_KEY' && (localDefaultApiKey && localDefaultApiKey.trim()))
+    ? undefined
+    : provider.configStatus;
+
   // 优先显示配置状态（持久）
-  if (provider.configStatus) {
+  if (effectiveConfigStatus) {
     switch (provider.configStatus) {
       case 'NO_KEY':
         statusText = '未配置密钥';
@@ -123,29 +144,7 @@ export function ProviderTableRow({
         break;
     }
   }
-  // 然后显示临时状态（检查后显示）
-  else if (provider.temporaryStatus) {
-    switch (provider.temporaryStatus) {
-      case 'CONNECTING':
-        statusText = '检查中...';
-        StatusIcon = Loader2;
-        badgeVariant = 'secondary';
-        badgeClasses = "text-yellow-700 dark:text-yellow-300 bg-yellow-100/60 dark:bg-yellow-900/30 px-2 py-1 text-xs font-medium";
-        break;
-      case 'CONNECTED':
-        statusText = '网络可达';
-        StatusIcon = CheckCircle;
-        badgeVariant = 'secondary';
-        badgeClasses = "text-green-700 dark:text-green-300 bg-green-100/60 dark:bg-green-900/30 px-2 py-1 text-xs font-medium";
-        break;
-      case 'NOT_CONNECTED':
-        statusText = '检查失败';
-        StatusIcon = XCircle;
-        badgeVariant = 'secondary';
-        badgeClasses = "text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-900/30 px-2 py-1 text-xs font-medium";
-        break;
-    }
-  }
+  // 设计意见：检查态/连通态改用通知，不在此处展示徽章
 
   // 图标处理
   const { iconSrc } = useStableProviderIcon(provider);
@@ -168,7 +167,7 @@ export function ProviderTableRow({
         });
       } catch (e) { console.error(e); }
     })();
-    return () => { try { unsubscribe?.(); } catch {} };
+    return () => { try { unsubscribe?.(); } catch { /* noop */ } };
   }, [provider.name]);
 
   return (
@@ -227,15 +226,34 @@ export function ProviderTableRow({
                         {statusText}
                       </Badge>
                     </TooltipTrigger>
-                    {provider.statusTooltip && (
-                      <TooltipContent side="bottom" align="start">
-                        <p className="text-xs max-w-xs">{provider.statusTooltip}</p>
-                      </TooltipContent>
-                    )}
+                    <TooltipContent side="bottom" align="start">
+                      <div className="text-xs max-w-xs space-y-1">
+                        {provider.lastCheckedAt ? (
+                          <p>最后检查：{formatLastCheckedTime(provider.lastCheckedAt)}</p>
+                        ) : <p>尚未检查</p>}
+                        {provider.lastResult ? (
+                          <p>上次结果：{provider.lastResult === 'CONNECTED' ? '基本可用' : provider.lastResult === 'NOT_CONNECTED' ? '无法访问' : '未知'}</p>
+                        ) : null}
+                        {provider.lastMessage ? (<p>{provider.lastMessage}</p>) : null}
+                      </div>
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <span className="text-sm text-gray-400 dark:text-gray-500"></span>
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm text-gray-400 dark:text-gray-500"></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="start">
+                      <div className="text-xs max-w-xs space-y-1">
+                        {provider.lastCheckedAt ? (
+                          <p>最后检查：{formatLastCheckedTime(provider.lastCheckedAt)}</p>
+                        ) : <p>尚未检查</p>}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>
@@ -248,24 +266,40 @@ export function ProviderTableRow({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onRefresh(provider)}
-                    disabled={isConnecting || isInitialChecking}
+                    onClick={async () => {
+                      // 刷新前先同步保存输入框的密钥，避免判断基于旧值
+                      try {
+                        if ((localDefaultApiKey ?? '') !== (provider.default_api_key ?? '')) {
+                          await onDefaultApiKeyChange(provider.name, localDefaultApiKey || '');
+                        }
+                      } catch { /* noop */ }
+                      onRefresh(provider);
+                    }}
+                    disabled={isConnectingLive || isInitialChecking}
                     className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                   >
-                    <Wifi className="w-4 h-4" />
+                    {isConnectingLive ? <Loader2 className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="center">
-                  <div className="text-xs max-w-xs">
-                    {isConnecting ? (
+                  <div className="text-xs max-w-xs space-y-1">
+                    {isConnectingLive ? (
                       <p>正在检查状态...</p>
-                    ) : provider.lastCheckedAt ? (
-                      <div>
-                        <p className="font-medium">最后检查：{formatLastCheckedTime(provider.lastCheckedAt)}</p>
-                        <p className="text-gray-500 mt-1">点击重新检查状态</p>
-                      </div>
                     ) : (
-                      <p>点击检查状态</p>
+                      <>
+                        {lastCheckedAt ? (
+                          <p className="font-medium">最后检查：{formatDateTime(lastCheckedAt)}</p>
+                        ) : (
+                          <p>尚未检查</p>
+                        )}
+                        {lastResult ? (
+                          <p>上次结果：{lastResult === 'CONNECTED' ? '基本可用' : lastResult === 'NOT_CONNECTED' ? '无法访问' : '未知'}</p>
+                        ) : null}
+                        {lastMessage ? (
+                          <p className="text-gray-500">{lastMessage}</p>
+                        ) : null}
+                        <p className="text-gray-500 mt-1">点击重新检查状态</p>
+                      </>
                     )}
                   </div>
                 </TooltipContent>
@@ -330,7 +364,7 @@ export function ProviderTableRow({
                 localUrl={localUrl}
                 setLocalUrl={setLocalUrl}
                 onUrlChange={onUrlChange}
-                onResetUrl={() => {}}
+                onResetUrl={() => undefined}
                 showApiKeyFields={true}
                 localDefaultApiKey={localDefaultApiKey}
                 setLocalDefaultApiKey={setLocalDefaultApiKey}
