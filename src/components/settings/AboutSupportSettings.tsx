@@ -124,6 +124,11 @@ export function AboutSupportSettings() {
       // 若可用，一步到位：下载并安装
       if (!onlyCheck && 'downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
+        try {
+          const { clearUpdateAvailable } = await import('@/lib/update/update-notifier');
+          await clearUpdateAvailable();
+          setNotLatest(null);
+        } catch { /* noop */ }
         // Windows 会在安装前自动退出应用（由系统安装器决定）
         toast.success('更新已安装，将重启应用');
         const { relaunch } = await import('@tauri-apps/plugin-process');
