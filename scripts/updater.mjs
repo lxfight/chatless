@@ -9,12 +9,13 @@ const ALPHA_UPDATE_JSON_PROXY = "update-proxy.json";
 
 async function main() {
   const token = process.env.GITHUB_TOKEN;
-  if (!token) {
+  const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
+  if (!token && !DRY_RUN) {
     throw new Error("GITHUB_TOKEN is required");
   }
 
   const { owner, repo } = resolveRepo();
-  const octokit = new Octokit({ auth: token });
+  const octokit = token ? new Octokit({ auth: token }) : new Octokit();
 
   const explicitTag = process.env.RELEASE_TAG;
   const tags = explicitTag
@@ -65,6 +66,19 @@ async function processRelease(octokit, options, tag, isAlpha) {
 
     const updateData = createEmptyUpdate(tag.name, release.body);
 
+    // 收集 Linux 资产候选，便于在收集完成后按优先级选择（.deb > .rpm > AppImage/tarball）
+    const linuxCandidates = {};
+    const ensureArch = (arch) => {
+      if (!linuxCandidates[arch]) linuxCandidates[arch] = { deb: {}, rpm: {}, app: {}, tar: {} };
+      return linuxCandidates[arch];
+    };
+    const detectLinuxArch = (lower) => {
+      if (lower.includes("aarch64") || lower.includes("arm64")) return "aarch64";
+      if (lower.includes("x86_64") || lower.includes("amd64")) return "x86_64";
+      if (lower.includes("i386") || lower.includes("i686") || (lower.includes("x86") && !lower.includes("x86_64"))) return "i686";
+      return "x86_64";
+    };
+
     const fillTasks = release.assets.map(async (asset) => {
       const { name, browser_download_url } = asset;
 
@@ -99,21 +113,23 @@ async function processRelease(octokit, options, tag, isAlpha) {
         updateData.platforms["windows-aarch64"].signature = sig;
       }
 
-      // macOS Intel
+      // macOS Intel（非 aarch64）。如需假定通用包可在 Apple Silicon 使用，可设置环境变量 UPDATER_ASSUME_UNIVERSAL_DARWIN=true
       if (name.endsWith(".app.tar.gz") && !name.includes("aarch") && !name.includes("arm64")) {
         updateData.platforms.darwin.url = browser_download_url;
         updateData.platforms["darwin-intel"].url = browser_download_url;
         updateData.platforms["darwin-x86_64"].url = browser_download_url;
-        // 兼容 Apple Silicon：通用包亦可供 darwin-aarch64 使用
-        updateData.platforms["darwin-aarch64"].url = browser_download_url;
+        if (process.env.UPDATER_ASSUME_UNIVERSAL_DARWIN === "1" || process.env.UPDATER_ASSUME_UNIVERSAL_DARWIN === "true") {
+          updateData.platforms["darwin-aarch64"].url = browser_download_url;
+        }
       }
       if (name.endsWith(".app.tar.gz.sig") && !name.includes("aarch") && !name.includes("arm64")) {
         const sig = await getSignature(browser_download_url);
         updateData.platforms.darwin.signature = sig;
         updateData.platforms["darwin-intel"].signature = sig;
         updateData.platforms["darwin-x86_64"].signature = sig;
-        // 同步写入 Apple Silicon 签名
-        updateData.platforms["darwin-aarch64"].signature = sig;
+        if (process.env.UPDATER_ASSUME_UNIVERSAL_DARWIN === "1" || process.env.UPDATER_ASSUME_UNIVERSAL_DARWIN === "true") {
+          updateData.platforms["darwin-aarch64"].signature = sig;
+        }
       }
 
       // macOS Apple Silicon (aarch64)
@@ -147,27 +163,105 @@ async function processRelease(octokit, options, tag, isAlpha) {
         updateData.platforms["darwin-x86_64"].signature = sig;
       }
 
-      // Linux (common patterns)
+      // Linux (common patterns) —— 先匹配 aarch64/arm64，其次 x86_64/amd64，最后再考虑 i686/x86，避免 "x86_64" 误被识别为 x86
       if (name.endsWith(".AppImage.tar.gz") || name.endsWith("linux-x86_64.tar.gz") || name.endsWith("linux-aarch64.tar.gz")) {
-        if (name.includes("aarch64") || name.includes("arm64")) {
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        if (lower.includes("aarch64") || lower.includes("arm64")) {
           updateData.platforms["linux-aarch64"].url = browser_download_url;
-        } else if (name.includes("i686") || name.includes("x86")) {
+        } else if (lower.includes("x86_64") || lower.includes("amd64")) {
+          updateData.platforms["linux-x86_64"].url = browser_download_url;
+        } else if (lower.includes("i686") || (lower.includes("x86") && !lower.includes("x86_64"))) {
           updateData.platforms["linux-i686"].url = browser_download_url;
           updateData.platforms["linux-x86"].url = browser_download_url;
         } else {
           updateData.platforms["linux-x86_64"].url = browser_download_url;
         }
         updateData.platforms.linux.url = updateData.platforms.linux.url || browser_download_url;
+        // 记录候选（作为 app/tarball 类）
+        ensureArch(arch).app.url = ensureArch(arch).app.url || browser_download_url;
       }
       if (name.endsWith(".AppImage.tar.gz.sig") || name.endsWith("linux-x86_64.tar.gz.sig") || name.endsWith("linux-aarch64.tar.gz.sig")) {
         const sig = await getSignature(browser_download_url);
-        if (name.includes("aarch64") || name.includes("arm64")) {
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        if (lower.includes("aarch64") || lower.includes("arm64")) {
           updateData.platforms["linux-aarch64"].signature = sig;
-        } else if (name.includes("i686") || name.includes("x86")) {
+        } else if (lower.includes("x86_64") || lower.includes("amd64")) {
+          updateData.platforms["linux-x86_64"].signature = sig;
+        } else if (lower.includes("i686") || (lower.includes("x86") && !lower.includes("x86_64"))) {
           updateData.platforms["linux-i686"].signature = sig;
           updateData.platforms["linux-x86"].signature = sig;
         } else {
           updateData.platforms["linux-x86_64"].signature = sig;
+        }
+        updateData.platforms.linux.signature = updateData.platforms.linux.signature || sig;
+        // 记录候选签名
+        ensureArch(arch).app.signature = ensureArch(arch).app.signature || sig;
+      }
+
+      // Linux .deb（仅在对应平台尚未设置 url/signature 时填充，避免覆盖 AppImage/tarball）
+      if (name.endsWith(".deb")) {
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        // 记录 deb 候选
+        ensureArch(arch).deb.url = browser_download_url;
+        if (arch === "aarch64" && !updateData.platforms["linux-aarch64"].url) {
+          updateData.platforms["linux-aarch64"].url = browser_download_url;
+        } else if (arch === "x86_64" && !updateData.platforms["linux-x86_64"].url) {
+          updateData.platforms["linux-x86_64"].url = browser_download_url;
+        } else if (arch === "i686" && !updateData.platforms["linux-i686"].url) {
+          updateData.platforms["linux-i686"].url = browser_download_url;
+          updateData.platforms["linux-x86"].url = browser_download_url;
+        }
+        updateData.platforms.linux.url = updateData.platforms.linux.url || browser_download_url;
+      }
+      if (name.endsWith(".deb.sig")) {
+        const sig = await getSignature(browser_download_url);
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        // 记录 deb 签名
+        ensureArch(arch).deb.signature = sig;
+        if (arch === "aarch64" && !updateData.platforms["linux-aarch64"].signature) {
+          updateData.platforms["linux-aarch64"].signature = sig;
+        } else if (arch === "x86_64" && !updateData.platforms["linux-x86_64"].signature) {
+          updateData.platforms["linux-x86_64"].signature = sig;
+        } else if (arch === "i686" && !updateData.platforms["linux-i686"].signature) {
+          updateData.platforms["linux-i686"].signature = sig;
+          updateData.platforms["linux-x86"].signature = sig;
+        }
+        updateData.platforms.linux.signature = updateData.platforms.linux.signature || sig;
+      }
+
+      // Linux .rpm（同样仅在未设置时填充）
+      if (name.endsWith(".rpm")) {
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        // 记录 rpm 候选
+        ensureArch(arch).rpm.url = browser_download_url;
+        if (arch === "aarch64" && !updateData.platforms["linux-aarch64"].url) {
+          updateData.platforms["linux-aarch64"].url = browser_download_url;
+        } else if (arch === "x86_64" && !updateData.platforms["linux-x86_64"].url) {
+          updateData.platforms["linux-x86_64"].url = browser_download_url;
+        } else if (arch === "i686" && !updateData.platforms["linux-i686"].url) {
+          updateData.platforms["linux-i686"].url = browser_download_url;
+          updateData.platforms["linux-x86"].url = browser_download_url;
+        }
+        updateData.platforms.linux.url = updateData.platforms.linux.url || browser_download_url;
+      }
+      if (name.endsWith(".rpm.sig")) {
+        const sig = await getSignature(browser_download_url);
+        const lower = name.toLowerCase();
+        const arch = detectLinuxArch(lower);
+        // 记录 rpm 签名
+        ensureArch(arch).rpm.signature = sig;
+        if (arch === "aarch64" && !updateData.platforms["linux-aarch64"].signature) {
+          updateData.platforms["linux-aarch64"].signature = sig;
+        } else if (arch === "x86_64" && !updateData.platforms["linux-x86_64"].signature) {
+          updateData.platforms["linux-x86_64"].signature = sig;
+        } else if (arch === "i686" && !updateData.platforms["linux-i686"].signature) {
+          updateData.platforms["linux-i686"].signature = sig;
+          updateData.platforms["linux-x86"].signature = sig;
         }
         updateData.platforms.linux.signature = updateData.platforms.linux.signature || sig;
       }
@@ -180,37 +274,88 @@ async function processRelease(octokit, options, tag, isAlpha) {
       if (!value.url) delete updateData.platforms[key];
     });
 
+    // 可选：严格模式下剔除非标准别名键，避免冗余（默认不启用以保持兼容）
+    if (process.env.UPDATER_STRICT_KEYS === "1" || process.env.UPDATER_STRICT_KEYS === "true") {
+      ["win64", "darwin", "darwin-intel", "linux"].forEach((alias) => {
+        if (updateData.platforms[alias]) delete updateData.platforms[alias];
+      });
+    }
+
+    // Linux 平台选择优先级：.deb > .rpm > AppImage/tarball（按架构独立决策，不覆盖已确定值）
+    const prefer = (archKey, candidateKind) => {
+      const platKey = archKey === "aarch64" ? "linux-aarch64" : archKey === "i686" ? "linux-i686" : "linux-x86_64";
+      if (!updateData.platforms[platKey]) return;
+      const current = updateData.platforms[platKey];
+      const cands = linuxCandidates[archKey] || {};
+      const pick = (k) => (cands[k] && cands[k].url && cands[k].signature ? cands[k] : undefined);
+      const pickUrl = (k) => (cands[k] && cands[k].url ? cands[k] : undefined);
+      // 若当前条目缺失或来自 app/tarball/rpm，且存在更高优先级的 deb，则用 deb；否则若缺失且有 rpm，用 rpm；否则保留已有
+      const isWeak = !current.url || (!current.signature);
+      if (candidateKind === "deb") {
+        const d = pick("deb") || pickUrl("deb");
+        if (d && (isWeak || current.url.endsWith(".rpm"))) {
+          updateData.platforms[platKey].url = d.url;
+          if (d.signature) updateData.platforms[platKey].signature = d.signature;
+        }
+      } else if (candidateKind === "rpm") {
+        if (!updateData.platforms[platKey].url || !updateData.platforms[platKey].signature) {
+          const r = pick("rpm") || pickUrl("rpm");
+          if (r) {
+            updateData.platforms[platKey].url = updateData.platforms[platKey].url || r.url;
+            if (!updateData.platforms[platKey].signature && r.signature) updateData.platforms[platKey].signature = r.signature;
+          }
+        }
+      }
+    };
+
+    // 应用优先级：先尝试用 deb 替换/补全，再尝试 rpm 补全
+    ["x86_64", "aarch64", "i686"].forEach((arch) => {
+      prefer(arch, "deb");
+    });
+    ["x86_64", "aarch64", "i686"].forEach((arch) => {
+      prefer(arch, "rpm");
+    });
+
+    // 在应用优先级之后再生成代理数据，确保两者一致
     const updateDataProxy = makeProxyData(updateData);
 
     // 选择目标 release（稳定：当前版本；预发布：updater-alpha 固定通道）
     const jsonFile = isAlpha ? ALPHA_UPDATE_JSON_FILE : UPDATE_JSON_FILE;
     const proxyFile = isAlpha ? ALPHA_UPDATE_JSON_PROXY : UPDATE_JSON_PROXY;
 
-    let targetRelease;
-    if (isAlpha) {
-      targetRelease = await getOrCreateRelease(octokit, options, ALPHA_TAG_NAME, true);
+    const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
+    if (DRY_RUN) {
+      console.log(`\n===== ${isAlpha ? "[DRY] alpha" : "[DRY] stable"} ${jsonFile} (${tag.name}) =====`);
+      console.log(JSON.stringify(updateData, null, 2));
+      console.log(`\n===== ${isAlpha ? "[DRY] alpha" : "[DRY] stable"} ${proxyFile} (${tag.name}) =====`);
+      console.log(JSON.stringify(updateDataProxy, null, 2));
     } else {
-      targetRelease = release; // 将 update.json 直接上传到当前稳定版的 Release
-    }
+      let targetRelease;
+      if (isAlpha) {
+        targetRelease = await getOrCreateRelease(octokit, options, ALPHA_TAG_NAME, true);
+      } else {
+        targetRelease = release; // 将 update.json 直接上传到当前稳定版的 Release
+      }
 
-    // 删除同名旧资产
-    for (const asset of targetRelease.assets) {
-      if (asset.name === jsonFile || asset.name === proxyFile) {
-        try {
-          await octokit.repos.deleteReleaseAsset({ ...options, asset_id: asset.id });
-        } catch (e) {
-          console.warn(`Delete asset failed (${asset.name}):`, e.message);
+      // 删除同名旧资产
+      for (const asset of targetRelease.assets) {
+        if (asset.name === jsonFile || asset.name === proxyFile) {
+          try {
+            await octokit.repos.deleteReleaseAsset({ ...options, asset_id: asset.id });
+          } catch (e) {
+            console.warn(`Delete asset failed (${asset.name}):`, e.message);
+          }
         }
       }
+
+      // 上传新的 JSON 资产
+      await uploadJsonAsset(octokit, options, targetRelease.id, jsonFile, updateData);
+      await uploadJsonAsset(octokit, options, targetRelease.id, proxyFile, updateDataProxy);
+
+      console.log(
+        `Uploaded ${isAlpha ? "alpha" : "stable"} update files to ${isAlpha ? ALPHA_TAG_NAME : tag.name}`
+      );
     }
-
-    // 上传新的 JSON 资产
-    await uploadJsonAsset(octokit, options, targetRelease.id, jsonFile, updateData);
-    await uploadJsonAsset(octokit, options, targetRelease.id, proxyFile, updateDataProxy);
-
-    console.log(
-      `Uploaded ${isAlpha ? "alpha" : "stable"} update files to ${isAlpha ? ALPHA_TAG_NAME : tag.name}`
-    );
   } catch (error) {
     if (error.status === 404) {
       console.log(`Release not found for tag: ${tag.name}, skipping...`);
