@@ -18,10 +18,10 @@ const THREE_DAYS = 3 * ONE_DAY;
 
 // 生产环境兜底的 update.json 检查端点（与 tauri.conf.json 保持一致）
 const UPDATE_ENDPOINTS: string[] = [
-  "https://github.com/kamjin3086/chatless/releases/latest/download/update.json",
   "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/latest/download/update-proxy.json",
-  "https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update.json",
+  "https://github.com/kamjin3086/chatless/releases/latest/download/update.json",
   "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update-proxy.json",
+  "https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update.json"
 ];
 
 export interface UpdateAvailability {
