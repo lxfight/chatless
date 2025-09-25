@@ -49,8 +49,17 @@ export function AboutSupportSettings() {
     const refreshAvailability = async () => {
       const info = await getUpdateAvailability();
       if (!mounted) return;
-      if (info.available && info.version) setNotLatest({ version: info.version });
-      else setNotLatest(null);
+      try {
+        const { isVersionIgnored } = await import('@/lib/update/update-notifier');
+        if (info.available && info.version && !(await isVersionIgnored(info.version))) {
+          setNotLatest({ version: info.version });
+        } else {
+          setNotLatest(null);
+        }
+      } catch {
+        if (info.available && info.version) setNotLatest({ version: info.version });
+        else setNotLatest(null);
+      }
     };
     refreshAvailability();
 

@@ -63,6 +63,11 @@ export async function recordAboutViewed(): Promise<void> {
 export async function shouldShowAboutBlueDot(): Promise<boolean> {
   const availability = await getUpdateAvailability();
   if (!availability.available) return false;
+  // 若用户忽略了该版本，则不显示蓝点
+  try {
+    const ignored = await isVersionIgnored(availability.version);
+    if (ignored) return false;
+  } catch { /* noop */ }
   const lastSeen = await StorageUtil.getItem<number>(KEY_LAST_ABOUT_SEEN_AT, 0, STORE);
   if (!lastSeen) return true; // 从未看过关于页
   // 若在“关于”页上次查看时间早于本次更新出现时间，则立即显示蓝点
@@ -84,7 +89,7 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
             const current = '0.0.0'; // 纯 Web 环境无法读取应用版本，默认 0.0.0 以便开发联调
             const newer = compareVersions(remote, current) > 0;
             if (newer) {
-              await setUpdateAvailable(remote);
+              // 开发预览环境：返回信息但不写入本地状态，避免误导实际用户
               return { available: true, version: remote };
             }
           }
@@ -105,14 +110,30 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
     await StorageUtil.setItem(KEY_LAST_CHECKED_AT, Date.now(), STORE);
 
     if (result && (result as any).available) {
-      const version = (result as any).version ?? "unknown";
-      await setUpdateAvailable(version);
-      return { available: true, version };
+      // 优先使用插件返回的版本，但为防止单一源缓存滞后，比较备用端点的更高版本
+      let version: string | null = (result as any).version ?? null;
+      try {
+        const fallback = await tryFetchUpdateFromEndpoints();
+        if (fallback?.version) {
+          if (!version || compareVersions(fallback.version, version) > 0) {
+            version = fallback.version;
+          }
+        }
+      } catch { /* noop */ }
+
+      if (version) {
+        await setUpdateAvailable(version);
+        return { available: true, version };
+      }
+
+      // 未能确定版本号则不污染本地状态
+      await clearUpdateAvailable();
+      return { available: false };
     } else {
       // 若插件未报告更新，增加生产环境兜底：直接访问 update.json 端点比较版本
       const fallback = await tryFetchUpdateFromEndpoints();
-      if (fallback?.available) {
-        await setUpdateAvailable(fallback.version!);
+      if (fallback?.available && fallback.version) {
+        await setUpdateAvailable(fallback.version);
         return fallback;
       }
 
@@ -144,8 +165,8 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
     // 插件检查失败：优先尝试生产环境端点兜底
     try {
       const fallback = await tryFetchUpdateFromEndpoints();
-      if (fallback?.available) {
-        await setUpdateAvailable(fallback.version!);
+      if (fallback?.available && fallback.version) {
+        await setUpdateAvailable(fallback.version);
         return fallback;
       }
     } catch { /* noop */ }
@@ -171,14 +192,23 @@ export async function checkForUpdatesSilently(force: boolean = false): Promise<U
       }
     } catch { /* noop */ }
 
+    // 失败路径也记录检查时间，避免短时间内重复检查
+    try { await StorageUtil.setItem(KEY_LAST_CHECKED_AT, Date.now(), STORE); } catch { /* noop */ }
     return getUpdateAvailability();
   }
 }
 
 export function scheduleBackgroundUpdateChecks(): void {
-  // 启动后立即检查一次（开发体验更好），并在 5s 后再补充一次
-  checkForUpdatesSilently(true).catch(() => {});
-  setTimeout(() => { checkForUpdatesSilently(false).catch(() => {}); }, 5_000);
+  // 启动后立即检查一次（开发体验更好）。若失败，再在 5s 后补一次；成功则不重复。
+  let firstAttemptSucceeded = false;
+  checkForUpdatesSilently(true)
+    .then(() => { firstAttemptSucceeded = true; })
+    .catch(() => {});
+  setTimeout(() => {
+    if (!firstAttemptSucceeded) {
+      checkForUpdatesSilently(false).catch(() => {});
+    }
+  }, 5_000);
 
   // 每 24 小时检查一次
   setInterval(() => {
@@ -213,13 +243,16 @@ async function tryFetchUpdateFromEndpoints(): Promise<UpdateAvailability | null>
       current = await getVersion();
     } catch { /* noop */ }
 
+    // 遍历所有端点，选择最高版本，避免被单一缓存源卡住
+    let bestRemote: string | null = null;
     // 优先使用 Tauri HTTP 插件以绕过 CORS；失败则回退到 fetch
     for (const url of UPDATE_ENDPOINTS) {
       let json: any | null = null;
       try {
         const { fetch: httpFetch } = await import('@tauri-apps/plugin-http');
         const resp: any = await httpFetch(url, { method: 'GET', timeout: 20_000 } as any);
-        if (resp && (resp.ok ?? true) && resp.data) {
+        const ok = resp && (resp.ok === true || (typeof resp.status === 'number' && resp.status >= 200 && resp.status < 300));
+        if (ok && resp.data) {
           json = typeof resp.data === 'string' ? JSON.parse(resp.data) : resp.data;
         }
       } catch {
@@ -232,12 +265,15 @@ async function tryFetchUpdateFromEndpoints(): Promise<UpdateAvailability | null>
 
       if (json) {
         const remote = String(json?.version || '');
-        if (remote) {
-          const newer = compareVersions(remote, current) > 0;
-          if (newer) return { available: true, version: remote };
+        if (remote && compareVersions(remote, current) > 0) {
+          if (!bestRemote || compareVersions(remote, bestRemote) > 0) {
+            bestRemote = remote;
+          }
         }
       }
     }
+
+    if (bestRemote) return { available: true, version: bestRemote };
     return { available: false };
   } catch {
     return null;
@@ -251,10 +287,16 @@ export async function getIgnoredVersion(): Promise<string | null> {
 
 export async function setIgnoredVersion(version: string): Promise<void> {
   await StorageUtil.setItem(KEY_IGNORED_VERSION, version, STORE);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(UPDATE_AVAILABILITY_EVENT));
+  }
 }
 
 export async function clearIgnoredVersion(): Promise<void> {
   await StorageUtil.removeItem(KEY_IGNORED_VERSION, STORE);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(UPDATE_AVAILABILITY_EVENT));
+  }
 }
 
 export async function isVersionIgnored(version: string | null | undefined): Promise<boolean> {

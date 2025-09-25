@@ -134,6 +134,10 @@ function DownloadButton({ onlyCheck, version: _version }: { onlyCheck: boolean; 
       }
       if ('downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
+        try {
+          const { clearUpdateAvailable } = await import('@/lib/update/update-notifier');
+          await clearUpdateAvailable();
+        } catch { /* noop */ }
         toast.success('更新已安装，即将重启应用');
         const { relaunch } = await import('@tauri-apps/plugin-process');
         relaunch();
