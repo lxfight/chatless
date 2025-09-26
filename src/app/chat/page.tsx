@@ -355,7 +355,7 @@ export default function ChatPage() {
             onMouseEnter={() => setIsInputAreaHovered(true)}
             onMouseLeave={() => setIsInputAreaHovered(false)}
           >
-            <div className="max-w-4xl mx-auto w-full">
+            <div className="mx-auto w-full">
             <ChatInput
               isLoading={isLoading}
               onSendMessage={handleSendMessage}

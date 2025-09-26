@@ -1,11 +1,16 @@
 // 仅保留必要调试输出，不禁用全局 no-console
 import { serverManager } from './ServerManager';
-import { buildSchemaHint } from './schemaHints';
+import { buildSchemaHint, buildDetailedToolGuide } from './schemaHints';
 import { useChatStore } from '@/store/chatStore';
 import { streamChat } from '@/lib/llm';
+import { persistentCache } from './persistentCache';
+import { mcpCallHistory } from './callHistory';
 import type { Message as LlmMessage, StreamCallbacks } from '@/lib/llm/types';
 import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
 import StorageUtil from '@/lib/storage';
+
+// 防止重复调用的缓存
+const runningCalls = new Map<string, Promise<void>>();
 
 export async function executeToolCall(params: {
   assistantMessageId: string;
@@ -21,23 +26,64 @@ export async function executeToolCall(params: {
   cardId?: string;
 }): Promise<void> {
   const { assistantMessageId, conversationId, server, tool, args, _runningMarker, provider, model, historyForLlm, originalUserContent, cardId } = params;
+  
+  // 防重复调用：使用消息ID+工具+参数作为键
+  const callKey = `${assistantMessageId}:${server}.${tool}:${JSON.stringify(args || {})}`;
+  const existingCall = runningCalls.get(callKey);
+  if (existingCall) {
+    console.log(`[MCP-DEBUG] 跳过重复调用: ${callKey}`);
+    return existingCall;
+  }
+
   const DEBUG_MCP = false;
   if (DEBUG_MCP) { try { console.log('[MCP-ORCH] start', assistantMessageId, server, tool); } catch { /* noop */ } }
 
   const effectiveTool = (server === 'filesystem' && tool === 'list') ? 'dir' : tool;
   const effectiveArgs = normalizeArgs(server, args || {});
 
+  // 检查是否是重复调用
+  if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
+    const recentResult = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
+    if (recentResult) {
+      console.log(`[MCP-DEBUG] 使用缓存结果避免重复调用: ${server}.${effectiveTool}`);
+      
+      const stx = useChatStore.getState();
+      stx.dispatchMessageAction(assistantMessageId, { 
+        type: 'TOOL_RESULT', 
+        server, 
+        tool: effectiveTool, 
+        ok: true, 
+        result: recentResult, 
+        cardId 
+      });
+      return;
+    }
+  }
+
   // 工具存在性校验（若可获取列表）
   try {
-    const { getToolsCached } = await import('./toolsCache');
-    const available = await getToolsCached(server);
+    // 优先使用持久化缓存获取工具列表
+    let available = await persistentCache.getToolsWithCache(server);
+    if (!Array.isArray(available) || available.length === 0) {
+      // 缓存失败，使用原有方法
+      const { getToolsCached } = await import('./toolsCache');
+      available = await getToolsCached(server);
+    }
     if (available && Array.isArray(available)) {
       const ok = available.some((t: any) => (t?.name || '').toLowerCase() === String(effectiveTool).toLowerCase());
       if (!ok) {
-        const hint = `当前服务器(${server})不包含工具: ${effectiveTool}。请改为以下之一: ${available.map((t:any)=>t?.name).filter(Boolean).join(', ')}`;
+        const toolList = (available || []).filter((t:any)=>t?.name).map((t:any)=>{
+          const nm = String(t.name);
+          const desc = t?.description ? String(t.description) : '';
+          return desc ? `${nm} - ${desc}` : nm;
+        });
+        const hint = `错误：服务器"${server}"中找不到工具"${effectiveTool}"。\n\n该服务器的可用工具如下：\n${toolList.map(tool => `• ${tool}`).join('\n')}`;
+        console.log(`[MCP-DEBUG] 工具不存在错误 - 服务器=${server}, 工具=${effectiveTool}`, { hint, toolList });
+        
         const stx = useChatStore.getState();
-        // 改为通过状态机更新已有“运行中”卡片，避免生成重复卡片
-        stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: hint, schemaHint: hint, cardId });
+        // 改为通过状态机更新已有"运行中"卡片，避免生成重复卡片
+        const fixHint = `解决方案：请从以下可用工具中选择一个：\n${toolList.map(tool => `• ${tool}`).join('\n')}\n\n然后重新调用：<use_mcp_tool><server_name>${server}</server_name><tool_name>正确的工具名</tool_name><arguments>{}</arguments></use_mcp_tool>`;
+        stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: hint, schemaHint: fixHint, cardId });
         // 关键修复：即使工具不存在，也把该错误作为“工具调用结果”继续进入追问流程，驱动模型自我纠正
         await continueWithToolResult({
           assistantMessageId,
@@ -51,7 +97,8 @@ export async function executeToolCall(params: {
           result: {
             error: 'TOOL_NOT_FOUND',
             message: hint,
-            availableTools: available?.map((t:any)=>t?.name).filter(Boolean) || [],
+            availableTools: (available?.map((t:any)=>t?.name).filter(Boolean) || []),
+            availableToolsWithDescriptions: toolList,
           }
         });
         return;
@@ -59,23 +106,96 @@ export async function executeToolCall(params: {
     }
   } catch { /* ignore */ }
 
-  try {
-    const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
+  // 将执行逻辑包装为Promise并缓存
+  const executePromise = (async () => {
+    try {
+      console.log(`[MCP-DEBUG] 准备调用工具: ${server}.${effectiveTool}`, {
+        server,
+        tool: effectiveTool,
+        args: effectiveArgs,
+        argsType: typeof effectiveArgs,
+        argsSize: effectiveArgs ? JSON.stringify(effectiveArgs).length : 0
+      });
+      
+      const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
+    
+    console.log(`[MCP-DEBUG] 工具调用成功: ${server}.${effectiveTool}`, {
+      resultType: typeof result,
+      resultSize: result ? (typeof result === 'string' ? result.length : JSON.stringify(result).length) : 0
+    });
+    
+    // 记录成功调用
+    mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
+    
     if (DEBUG_MCP) { try { console.log('[MCP-ORCH] ok', server, effectiveTool); } catch { /* noop */ } }
-    const resultPreview = typeof result === 'string' ? result : JSON.stringify(result).slice(0, 2000);
+    const resultPreview = typeof result === 'string' ? result.slice(0, 12000) : JSON.stringify(result).slice(0, 12000);
 
     const st = useChatStore.getState();
     st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
 
-    await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result });
-  } catch (e) {
+      await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result });
+    } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
+    
+    console.error(`[MCP-DEBUG] 工具调用失败: ${server}.${effectiveTool}`, {
+      server,
+      tool: effectiveTool,
+      args: effectiveArgs,
+      error: err,
+      errorType: typeof e,
+      errorStack: e instanceof Error ? e.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+    
+    // 记录失败调用
+    mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, false);
+    
     if (DEBUG_MCP) { try { console.warn('[MCP-ORCH] err', server, effectiveTool); } catch { /* noop */ } }
     let schemaHint = '';
     try { schemaHint = await buildSchemaHint(server, effectiveTool); } catch { /* ignore */ }
+    let detailedGuide: { text: string; spec: any } | null = null;
+    try { detailedGuide = await buildDetailedToolGuide(server, effectiveTool, effectiveArgs || {}); } catch { /* ignore */ }
 
     const st = useChatStore.getState();
-    st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint, cardId });
+    // —— 分阶段提示：按同一对话内相同 server.tool 的失败次数递进 ——
+    const failStage = incToolFailCount(conversationId, server, effectiveTool);
+    let combinedHint = '';
+    if (failStage <= 1) {
+      // 第1次：仅给出简短 schema 示例与必填项，提示精确重试
+      combinedHint = [
+        '参数提示（精简）：',
+        schemaHint || '',
+        '请按示例与必填项修正 arguments 后重试本工具。'
+      ].filter(Boolean).join('\n');
+    } else if (failStage === 2) {
+      // 第2次：给出聚焦纠错摘要 + 最小可行模板
+      const concise = buildConciseGuideText(detailedGuide?.spec);
+      combinedHint = [
+        '参数纠错建议（聚焦）：',
+        concise || schemaHint || '',
+        '请优先补齐缺失必填项，修正类型/枚举后再试。'
+      ].filter(Boolean).join('\n');
+    } else {
+      // 第3次及以上：提供完整详细引导 + 可替代工具建议
+      let toolsSuggest = '';
+      try {
+        const { getToolsCached } = await import('./toolsCache');
+        const available = await getToolsCached(server);
+        const toolList = (available || []).filter((t:any)=>t?.name).map((t:any)=>{
+          const nm = String(t.name);
+          const desc = t?.description ? String(t.description) : '';
+          return desc ? `${nm} - ${desc}` : nm;
+        }).slice(0, 20);
+        if (toolList.length) toolsSuggest = `若仍失败，可考虑改用：\n${toolList.join('\n')}`;
+      } catch { /* ignore */ }
+      combinedHint = [
+        '详细引导：',
+        detailedGuide?.text || schemaHint || '',
+        toolsSuggest
+      ].filter(Boolean).join('\n');
+    }
+    console.log(`[MCP-DEBUG] 工具调用错误`, { server, effectiveTool, err, combinedHint, failStage });
+    st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint: combinedHint, cardId });
     // 关键修复：当调用发生错误时，也继续走追问链路，把错误与 schema 提示一并提供给模型
     try {
       await continueWithToolResult({
@@ -87,14 +207,23 @@ export async function executeToolCall(params: {
         originalUserContent,
         server,
         tool: effectiveTool,
-        result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint }
+        result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint: combinedHint, toolSpec: detailedGuide?.spec, failStage }
       });
     } catch { /* ignore */ }
-  }
+    } finally {
+      // 清理缓存
+      runningCalls.delete(callKey);
+    }
+  })();
+
+  // 缓存Promise
+  runningCalls.set(callKey, executePromise);
+  return executePromise;
 }
 
 function normalizeArgs(srv: string, originalArgs: Record<string, unknown>) {
   const a: Record<string, unknown> & { path?: string } = { ...(originalArgs || {}) };
+  // Filesystem: 统一路径分隔符
   if (srv === 'filesystem' && typeof a.path === 'string') {
     a.path = a.path.replace(/\\/g, '/');
   }
@@ -128,34 +257,47 @@ async function continueWithToolResult(params: {
   (globalThis as any)[counterKey] = current + 1;
 
   const follow = typeof result === 'string' ? result : JSON.stringify(result);
-  const nextUser = `用户原始问题：${originalUserContent}
+  // 根据结果类型生成精准的追问提示
+  const isError = typeof result === 'object' && result && (result as any).error;
+  const isEmptyResult = !result || (typeof result === 'string' && result.trim().length === 0) || 
+                       (Array.isArray(result) && result.length === 0);
+  const isConnectionError = isError && String((result as any).message || '').includes('Transport send error');
+  
+  // 检测是否是有效的结果数据（通用判断）
+  const hasValidData = !isError && !isEmptyResult && (
+    (typeof result === 'string' && result.trim().length > 10) || // 有意义的字符串结果
+    (typeof result === 'object' && result && Object.keys(result).length > 0) // 有内容的对象结果
+  );
+  
+  let instruction = '';
+  if (isConnectionError) {
+    instruction = '上述调用因连接问题失败（服务器正在重连），请稍等片刻后重新调用相同工具。用户已授权，可直接重试。';
+  } else if (isError) {
+    instruction = '上述调用失败，请根据错误信息分析原因并重新调用或使用其他工具。';
+  } else if (isEmptyResult) {
+    instruction = '上述调用返回空结果，可能需要调整参数或使用其他工具获取信息。';
+  } else if (hasValidData) {
+    instruction = '上述调用已返回结果，请基于结果回答用户问题。';
+  } else {
+    instruction = '请基于上述结果回答用户问题，如信息不足可继续调用相关工具。';
+  }
 
-工具调用结果：${server}.${tool} -> ${follow.slice(0, 4000)}
+  const nextUser = `原始问题：${originalUserContent}
 
-请分析上述工具调用结果：
-1. 如果结果正常且足够回答用户问题，请直接给出完整的中文答案
-2. 如果结果异常（如错误、空结果、格式问题等），请尝试调用其他工具或重新调用该工具
-3. 如果还需要更多信息才能完整回答，请继续调用相关工具
-4. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+工具结果：${server}.${tool} -> ${follow.slice(0, 8000)}
 
-请基于实际情况灵活处理，确保最终能够完整回答用户的原始问题。`;
+${instruction}`;
 
   const _st = useChatStore.getState();
   // 继续在同一条 assistant 消息中流式续写，不新建消息
 
-  // 为工具调用结果处理添加系统提示词
-  const toolResultSystemPrompt = `你是一个智能助手，现在需要基于工具调用结果回答用户问题。
+  // 生成唯一的系统提示词，避免重复
+  const toolResultSystemPrompt = `基于工具调用结果回答用户问题。
+- 如结果充分，直接回答
+- 如有错误或不足，可调用其他工具
+- 使用工具格式：<use_mcp_tool><server_name>S</server_name><tool_name>T</tool_name><arguments>{JSON}</arguments></use_mcp_tool>
 
-重要指导原则：
-1. 仔细分析工具调用结果，确保理解所有信息
-2. 直接回答用户的原始问题，不要偏离主题
-3. 如果工具结果异常（错误、空结果、格式问题等），请尝试调用其他工具或重新调用
-4. 如果工具结果不足以完整回答问题，可以继续调用相关工具
-5. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
-6. 如果工具结果已经足够，请直接给出完整的中文答案
-7. 根据实际情况灵活处理，确保最终能够完整回答用户问题
-
-用户问题：${originalUserContent}`;
+原始问题：${originalUserContent}`;
 
   const followHistory: LlmMessage[] = [
     { role: 'system', content: toolResultSystemPrompt } as any,
@@ -259,16 +401,12 @@ async function continueWithToolResult(params: {
         if (!hadText) {
           (async () => {
             // 为追问阶段构建更好的系统提示词
-            const nudgeSystemPrompt = `你是一个智能助手，现在需要基于工具调用结果回答用户问题。
+            const nudgeSystemPrompt = `基于工具调用结果回答用户问题。
 
-重要指导原则：
-1. 仔细分析工具调用结果，确保理解所有信息
-2. 直接回答用户的原始问题，不要偏离主题
-3. 如果工具结果异常（错误、空结果、格式问题等），请尝试调用其他工具或重新调用
-4. 如果工具结果不足以完整回答问题，可以继续调用相关工具
-5. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
-6. 如果工具结果已经足够，请直接给出完整的中文答案
-7. 根据实际情况灵活处理，确保最终能够完整回答用户问题
+要求：
+1. 有结果时直接回答
+2. 结果不足时可调用其他工具
+3. 遇到错误时重试或换用其他工具
 
 用户问题：${originalUserContent}`;
 
@@ -391,5 +529,34 @@ async function continueWithToolResult(params: {
   } as any;
 
   await streamChat(provider, model, followHistory as any, callbacks as any, {});
+}
+
+// —— 失败次数统计（同会话 + 服务器 + 工具）——
+function getFailCounterKey(conversationId: string, server: string, tool: string): string {
+  return `mcp-fails-${conversationId}::${server}::${tool}`;
+}
+
+function incToolFailCount(conversationId: string, server: string, tool: string): number {
+  const k = getFailCounterKey(conversationId, server, tool);
+  const cur = (globalThis as any)[k] || 0;
+  const next = cur + 1;
+  (globalThis as any)[k] = next;
+  return next;
+}
+
+function buildConciseGuideText(spec: any): string {
+  if (!spec || !spec.issues) return '';
+  const lines: string[] = [];
+  const missing: string[] = spec.issues.missingRequired || [];
+  const unknown: string[] = spec.issues.unknownKeys || [];
+  const mismatches: Array<{ key: string; expected: string; actual: string }> = spec.issues.typeMismatches || [];
+  const enums: Array<{ key: string; expected: string[]; actual: any }> = spec.issues.enumViolations || [];
+  if (missing.length) lines.push(`缺失必填：${missing.join(', ')}`);
+  if (unknown.length) lines.push(`未知参数：${unknown.join(', ')}`);
+  if (mismatches.length) lines.push(`类型不匹配：${mismatches.map((i)=>`${i.key}(期望:${i.expected}, 实际:${i.actual})`).join('; ')}`);
+  if (enums.length) lines.push(`枚举不匹配：${enums.map((i)=>`${i.key}(允许:${(i.expected||[]).slice(0,20).join('|')}, 实际:${JSON.stringify(i.actual)})`).join('; ')}`);
+  const sug = spec.suggestedArguments ? JSON.stringify(spec.suggestedArguments, null, 2) : '';
+  if (sug) lines.push('建议的最小可行 arguments：\n' + sug);
+  return lines.join('\n');
 }
 

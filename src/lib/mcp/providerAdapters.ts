@@ -24,7 +24,7 @@ export function toolResultToNextMessage(provider: Provider, server: string, tool
   
   return {
     role: 'user',
-    content: `${userContext}工具调用结果：${server}.${tool} -> ${text.slice(0, 4000)}
+    content: `${userContext}工具调用结果：${server}.${tool} -> ${text.slice(0, 12000)}
 
 请分析上述工具调用结果：
 1. 如果结果正常且足够回答用户问题，请直接给出完整的中文答案

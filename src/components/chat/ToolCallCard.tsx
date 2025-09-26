@@ -36,16 +36,24 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
         <button onClick={()=>setOpen(o=>!o)} className="cursor-pointer font-medium truncate hover:underline/60">{server}</button>
         <span className="text-slate-400">·</span>
         <span className="font-mono text-[12px] truncate">{tool}</span>
-        {/* 状态圆点：颜色表达状态，移除文字 */}
-        <span
-          className={cn(
-            'ml-auto inline-flex items-center justify-center w-2 h-2 rounded-full',
-            status === 'error' ? 'bg-red-500 shadow-[0_0_0_3px_rgba(248,113,113,0.2)]' :
-            status === 'running' ? 'bg-emerald-500 animate-pulse shadow-[0_0_0_3px_rgba(16,185,129,0.15)]' :
-            'bg-slate-400 shadow-[0_0_0_3px_rgba(148,163,184,0.2)]'
+        {/* 状态指示器：增强视觉反馈 */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <span
+            className={cn(
+              'inline-flex items-center justify-center w-2 h-2 rounded-full',
+              status === 'error' ? 'bg-red-500 shadow-[0_0_0_3px_rgba(248,113,113,0.2)]' :
+              status === 'running' ? 'bg-emerald-500 animate-pulse shadow-[0_0_0_3px_rgba(16,185,129,0.15)]' :
+              'bg-emerald-600 shadow-[0_0_0_3px_rgba(16,185,129,0.1)]'
+            )}
+            title={status === 'error' ? '调用失败' : status === 'running' ? '调用中...' : '调用成功'}
+          />
+          {status === 'running' && (
+            <span className="text-[10px] text-emerald-600 font-medium animate-pulse">调用中</span>
           )}
-          title={status === 'error' ? '失败' : status === 'running' ? '进行中' : '成功'}
-        />
+          {status === 'error' && (
+            <span className="text-[10px] text-red-600 font-medium">失败</span>
+          )}
+        </div>
       </div>
       {open && args && Object.keys(args).length > 0 && (
         <div className="px-3 py-2 text-[12px] text-slate-600 dark:text-slate-300">
@@ -61,12 +69,19 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
       )}
       {open && status === 'error' && (
         <div className="px-3 py-2 text-[12px] text-red-700 dark:text-red-300">
-          <div className="mb-1 font-medium">错误</div>
-          <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all text-[12px]">{errorMessage || '未知错误'}</pre>
+          <div className="mb-1 font-medium flex items-center gap-2">
+            <span>错误信息</span>
+            <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded">自动重试中...</span>
+          </div>
+          <div className="max-h-32 overflow-auto whitespace-pre-wrap break-all text-[12px] bg-red-50/50 rounded p-2 border border-red-200">
+            {errorMessage || '未知错误'}
+          </div>
           {schemaHint && (
-            <div className="mt-2 text-[12px] text-slate-600 dark:text-slate-300">
-              <div className="mb-1 font-medium">纠错提示</div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-[12px]">{schemaHint}</pre>
+            <div className="mt-3 text-[12px] text-slate-600 dark:text-slate-300">
+              <div className="mb-1 font-medium">修复建议</div>
+              <div className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-[12px] bg-slate-50 rounded p-2 border border-slate-200">
+                {schemaHint}
+              </div>
             </div>
           )}
         </div>

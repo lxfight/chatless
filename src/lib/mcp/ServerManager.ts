@@ -51,7 +51,9 @@ class ServerManager {
       try {
         const { startupMonitor } = await import('@/lib/utils/startupPerformanceMonitor');
         startupMonitor.endPhase(`MCP连接-${name}`);
-      } catch {}
+      } catch {
+        // 忽略 endPhase 错误
+      }
       
       // 清理失败的客户端
       this.clients.delete(name);
@@ -64,6 +66,14 @@ class ServerManager {
       
       throw error;
     }
+  }
+
+  // 强制重连：用于刷新/会话漂移自愈
+  async reconnect(name: string, config: any): Promise<void> {
+    try {
+      await this.stopServer(name).catch(() => {});
+    } catch { /* noop */ }
+    await this.startServer(name, config);
   }
 
   private async validateConnectionAndWarmCache(client: McpClient, name: string): Promise<void> {
@@ -94,9 +104,27 @@ class ServerManager {
       try {
         const { startupMonitor } = await import('@/lib/utils/startupPerformanceMonitor');
         startupMonitor.endPhase(`MCP验证-${name}`);
-      } catch {}
+      } catch { /* noop during endPhase */ }
       
       console.error(`❌ [MCP] 验证服务器 ${name} 失败:`, error);
+      // 自愈策略：会话失效/400/解码错误时，尝试一次强制重连后重试 listTools
+      const msg = error instanceof Error ? error.message : String(error);
+      const shouldReconnect = /400|401|404|deserializ|decode|expected value|session/i.test(msg);
+      if (!shouldReconnect) throw error;
+      try {
+        const { Store } = await import('@tauri-apps/plugin-store');
+        const cfgStore = await Store.load('mcp_servers.json');
+        const srvList: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+        const found = srvList.find(s => s.name === name);
+        if (found) {
+          console.warn(`[MCP] ${name} 尝试强制重连以修复会话…`);
+          await this.reconnect(name, found.config);
+          // 重连成功后本方法会在 startServer 中再次调用，无需再抛错
+          return;
+        }
+      } catch (e) {
+        console.error(`[MCP] ${name} 强制重连失败`, e);
+      }
       throw error;
     }
   }
@@ -137,11 +165,69 @@ class ServerManager {
   }
 
   async callTool(serverName: string, toolName: string, args: any): Promise<any> {
+    console.log(`[MCP-DEBUG] ServerManager.callTool 开始`, {
+      serverName,
+      toolName,
+      args,
+      hasClient: this.clients.has(serverName),
+      clientsCount: this.clients.size,
+      connectedServers: Array.from(this.clients.keys())
+    });
+    
     const client = this.clients.get(serverName);
     if (!client) {
+      console.error(`[MCP-DEBUG] 客户端未找到: ${serverName}`, {
+        availableClients: Array.from(this.clients.keys()),
+        requestedServer: serverName
+      });
       throw new Error(`Server ${serverName} not found`);
     }
-    return client.callTool(toolName, args);
+    
+    try {
+      console.log(`[MCP-DEBUG] 调用客户端工具: ${serverName}.${toolName}`);
+      const result = await client.callTool(toolName, args);
+      console.log(`[MCP-DEBUG] 客户端工具调用成功: ${serverName}.${toolName}`, {
+        resultType: typeof result,
+        resultSize: result ? (typeof result === 'string' ? result.length : JSON.stringify(result).length) : 0
+      });
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[MCP-DEBUG] 客户端工具调用失败: ${serverName}.${toolName}`, {
+        error: errorMessage,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorType: typeof error
+      });
+      
+      // 自愈策略：检测SSE会话失效/400错误时，尝试重连
+      const shouldReconnect = /400|401|404|session|deserializ|decode|expected value/i.test(errorMessage);
+      if (shouldReconnect) {
+        console.warn(`[MCP-DEBUG] 检测到会话失效错误，尝试重连 ${serverName}...`);
+        try {
+          const { Store } = await import('@tauri-apps/plugin-store');
+          const cfgStore = await Store.load('mcp_servers.json');
+          const srvList: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+          const found = srvList.find(s => s.name === serverName);
+          if (found) {
+            console.log(`[MCP-DEBUG] 开始强制重连 ${serverName}...`);
+            await this.reconnect(serverName, found.config);
+            
+            // 重连成功后重新获取客户端并重试调用
+            const newClient = this.clients.get(serverName);
+            if (newClient) {
+              console.log(`[MCP-DEBUG] 重连成功，重试调用工具: ${serverName}.${toolName}`);
+              const retryResult = await newClient.callTool(toolName, args);
+              console.log(`[MCP-DEBUG] 重试调用成功: ${serverName}.${toolName}`);
+              return retryResult;
+            }
+          }
+        } catch (reconnectError) {
+          console.error(`[MCP-DEBUG] 自愈重连失败: ${serverName}`, reconnectError);
+        }
+      }
+      
+      throw error;
+    }
   }
 
   async listResources(serverName: string): Promise<any> {
@@ -211,14 +297,14 @@ class ServerManager {
 
       const storeFile = 'mcp_servers.json';
       const cfgStore = await Store.load(storeFile);
-      let servers: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+      const servers: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
       
       // 如果没有配置，记录日志但不自动创建
       if (servers.length === 0) {
         console.log('[MCP] 未找到MCP服务配置，请手动配置MCP服务');
       }
       
-      const enabled = servers.filter(s => s && s.enabled !== false);
+      const enabled = servers.filter((s: { name: string; config: any; enabled?: boolean }) => s && s.enabled !== false);
       await Promise.all(enabled.map(async (s) => {
         try {
           await this.startServer(s.name, s.config);

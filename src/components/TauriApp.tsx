@@ -150,7 +150,17 @@ export function TauriApp({ children }: TauriAppProps) {
               setTimeout(fn, 1200);
             }
           };
-          scheduleIdle(() => { serverManager.init(); });
+          scheduleIdle(() => { 
+            serverManager.init();
+            // 初始化MCP持久化缓存
+            import('@/lib/mcp/persistentCache').then(({ persistentCache }) => {
+              persistentCache.init().then(() => {
+                console.log('[TauriApp] MCP持久化缓存已初始化');
+              }).catch(error => {
+                console.warn('[TauriApp] MCP持久化缓存初始化失败:', error);
+              });
+            });
+          });
         } catch { /* noop */ }
 
         console.log('✅ [TauriApp] 应用初始化完成');

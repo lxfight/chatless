@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo } from "react";
-import { Send, Image, Code, Paperclip, Square, FileText, Loader2, Database, X, StopCircle, CornerDownLeft, Settings } from "lucide-react";
+import { Send, Image, Paperclip, Loader2, StopCircle, CornerDownLeft, Settings } from "lucide-react";
 import { DocumentParser } from '@/lib/documentParser';
-import { DocumentParseResult } from '@/types/document';
 import { KnowledgeService, KnowledgeBase } from '@/lib/knowledgeService';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,9 +10,7 @@ import { toast } from '@/components/ui/sonner';
 import { KnowledgeBaseSelector } from "./input/KnowledgeBaseSelector";
 import { AttachedDocumentView } from "./input/AttachedDocumentView";
 import { SelectedKnowledgeBaseView } from "./input/SelectedKnowledgeBaseView";
-import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { BrainCircuit } from 'lucide-react';
 import { SessionParametersDialog } from './SessionParametersDialog';
 import { McpQuickToggle } from './input/McpQuickToggle';
 import { McpMentionPanel } from './input/McpMentionPanel';
@@ -24,6 +21,7 @@ import { SlashPromptPanel } from './SlashPromptPanel';
 import { usePromptStore } from '@/store/promptStore';
 import { useChatStore } from '@/store/chatStore';
 import { renderPromptContent } from '@/lib/prompt/render';
+import { mcpPreheater } from '@/lib/mcp/mcpPreheater';
 
 interface EditingMessageData {
   content: string;
@@ -115,6 +113,11 @@ export function ChatInput({
   const [sessionParametersDialogOpen, setSessionParametersDialogOpen] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // —— 输入框高度控制：默认自适应，支持顶部拖拽，最大不超过视口 40% ——
+  const MIN_INPUT_HEIGHT = 66; // 与样式中的 min-h 保持一致
+  const [maxInputHeight, setMaxInputHeight] = useState<number>(Math.floor(window.innerHeight * 0.4));
+  const [manualHeight, setManualHeight] = useState<number | null>(null);
+  const [resizing, setResizing] = useState<{ startY: number; startH: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,15 +150,41 @@ export function ChatInput({
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    if (!textarea) return;
+    const limit = Math.max(MIN_INPUT_HEIGHT, maxInputHeight);
+    // 若用户未手动设置高度，则根据内容自适应增长，封顶 limit
+    if (manualHeight === null) {
+      textarea.style.height = 'auto';
+      const next = Math.min(Math.max(textarea.scrollHeight, MIN_INPUT_HEIGHT), limit);
+      textarea.style.height = `${next}px`;
+    } else {
+      // 采用手动高度，但仍然设置最大高度限制
+      const applied = Math.min(Math.max(manualHeight, MIN_INPUT_HEIGHT), limit);
+      textarea.style.height = `${applied}px`;
     }
+    textarea.style.maxHeight = `${limit}px`;
   };
 
   useEffect(() => {
     adjustTextareaHeight();
+  }, [inputValue, manualHeight, maxInputHeight]);
+
+  // MCP预热：当用户输入@mention时自动预热相关服务器
+  useEffect(() => {
+    if (inputValue && inputValue.includes('@')) {
+      // 异步预热，不阻塞用户输入
+      mcpPreheater.preheatFromInput(inputValue).catch(error => {
+        console.debug('[ChatInput] MCP预热失败:', error);
+      });
+    }
   }, [inputValue]);
+
+  // 动态更新 60% 视口高度限制
+  useEffect(() => {
+    const onResize = () => setMaxInputHeight(Math.floor(window.innerHeight * 0.6));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // 监听来自面板的内联变量赋值
   useEffect(() => {
@@ -169,17 +198,8 @@ export function ChatInput({
     return () => window.removeEventListener('prompt-inline-vars', handler as any);
   }, []);
 
-  const slashTokens = useMemo(() => {
-    const tokens: string[] = [];
-    // 指令 token 支持中文
-    const re = /(^|\s)\/([^\s]+)/gu;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(inputValue))) {
-      const token = m[2];
-      if (token && !tokens.includes(token)) tokens.push(token);
-    }
-    return tokens;
-  }, [inputValue]);
+  // 保留：如需联想 /token 列表可启用
+  // const slashTokens = useMemo(() => { return []; }, [inputValue]);
 
   const stripFirstSlashToken = (text: string): string => {
     // 去除首个 /token（支持中文）
@@ -225,6 +245,26 @@ export function ChatInput({
     setOverlayLineHeight(cs.lineHeight);
   }, [textareaRef.current]);
 
+  // 拖拽过程事件（全局监听，释放时清理）
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizing) return;
+      e.preventDefault();
+      const delta = resizing.startY - e.clientY; // 向上拖动增高
+      const next = Math.max(MIN_INPUT_HEIGHT, resizing.startH + delta);
+      setManualHeight(next);
+    };
+    const onUp = () => setResizing(null);
+    if (resizing) {
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [resizing]);
+
   // 是否需要覆盖层渲染（/ 指令或 @ 提示）
   const hasSlashOverlay = useMemo(() => !!parseLeadingSlash(inputValue), [inputValue]);
   const hasMentionOverlay = useMemo(() => /@([a-zA-Z0-9_-]{1,64})/g.test(inputValue), [inputValue]);
@@ -247,12 +287,12 @@ export function ChatInput({
   };
 
   // 从输入中移除 /指令与变量片段；若存在 “| ” 则保留其后的普通文本
-  const stripSlashTokenAndVars = (text: string): string => {
-    const parsed = parseLeadingSlash(text);
-    if (!parsed) return stripFirstSlashToken(text);
-    const { leadingSpace, postText, hasDelimiter } = parsed;
-    return hasDelimiter ? `${leadingSpace}${postText}` : leadingSpace;
-  };
+  // const stripSlashTokenAndVars = (text: string): string => {
+  //   const parsed = parseLeadingSlash(text);
+  //   if (!parsed) return stripFirstSlashToken(text);
+  //   const { leadingSpace, postText, hasDelimiter } = parsed;
+  //   return hasDelimiter ? `${leadingSpace}${postText}` : leadingSpace;
+  // };
 
   // 斜杠面板开关逻辑：当输入框以 / 开头或包含以空格分隔的 /token 时打开
   useEffect(() => {
@@ -342,7 +382,7 @@ export function ChatInput({
             try { usePromptStore.getState().touchUsage(matched.id as string); } catch {}
           }
         }
-      } catch {}
+      } catch { /* noop */ }
     }
     
     if (attachedImages.length > 0) {
@@ -372,7 +412,7 @@ export function ChatInput({
           const { preview } = createSafePreview(attachedDocument.content, cfg.documentProcessing.previewTokenLimit);
           contentToSend = `${userMessage}\n\n[Document Preview]\n${preview}`;
         }
-      } catch {}
+      } catch { /* noop */ }
 
       onSendMessage(contentToSend, {
         documentReference: {
@@ -405,7 +445,7 @@ export function ChatInput({
           useChatStore.getState().updateConversation(convId, { system_prompt_applied: null } as any);
         }
       }
-    } catch {}
+      } catch { /* noop */ }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -517,7 +557,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="input-area bg-white/40 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-2 overflow-x-hidden">
+    <div className="input-area w-full bg-white/40 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-2 overflow-x-hidden">
       {/* 编辑模式提示栏 */}
       {editingMessage && (
         <div className="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 text-xs text-yellow-800 dark:text-yellow-200 rounded-md px-3 py-1 mb-2">
@@ -560,6 +600,17 @@ export function ChatInput({
       )}
 
       <div className="relative flex w-full rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm shadow-sm">
+        {/* 顶部拖拽手柄：按住可向上/下调整高度，封顶 60vh */}
+        <div
+          className="absolute top-0 left-0 right-0 h-2 cursor-n-resize z-[3]"
+          onMouseDown={(e) => {
+            if (disabled) return;
+            const el = textareaRef.current; if (!el) return;
+            const cs = parseFloat(getComputedStyle(el).height || '0');
+            setResizing({ startY: e.clientY, startH: cs || MIN_INPUT_HEIGHT });
+          }}
+          onDoubleClick={() => { setManualHeight(null); setResizing(null); setTimeout(adjustTextareaHeight, 0); }}
+        />
         <SlashPromptPanel
           open={isPanelOpen}
           onOpenChange={setIsPanelOpen}
@@ -710,7 +761,7 @@ export function ChatInput({
             "relative z-[1] w-full pl-10 pr-14 py-[10px] pb-10 resize-none rounded-lg border border-slate-300/50 dark:border-slate-600/50 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
             (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
-          style={undefined}
+          style={{ maxHeight: `${Math.max(MIN_INPUT_HEIGHT, maxInputHeight)}px` }}
           rows={3}
           disabled={disabled || isParsingDocument}
         />
