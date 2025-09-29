@@ -171,7 +171,7 @@ export function AiModelSettings() {
     return (
       <div ref={setNodeRef} style={style} className={"group transition-shadow duration-200 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
         <div className="relative">
-          <div className="flex-1 p-1">
+          <div className="flex-1">
               {React.cloneElement(children as any, {
               open: providerOpenMap[provider.name] ?? false,
               onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open })),

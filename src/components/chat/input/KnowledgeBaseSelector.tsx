@@ -73,7 +73,7 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-0 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-gray-100">选择一个知识库</DialogTitle>
+            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">选择一个知识库</DialogTitle>
             <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
               AI将基于您选择的知识库内容进行回答，以提供更精准、个性化的信息。
             </DialogDescription>

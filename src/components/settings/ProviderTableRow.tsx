@@ -172,7 +172,7 @@ export function ProviderTableRow({
 
   return (
     <>
-      <div className={"px-4 py-3 rounded-lg transition-colors "+(isExpanded?"bg-blue-50/30 dark:bg-blue-900/18 ring-1 ring-blue-200 dark:ring-blue-700/50":"hover:bg-blue-50/20 dark:hover:bg-blue-900/12 hover:ring-1 hover:ring-blue-200 dark:hover:ring-blue-700/40")}>
+      <div className={"px-4 py-3 transition-colors "+(isExpanded?" dark:bg-blue-900/18 dark:ring-blue-700/50":"hover:bg-blue-100 dark:hover:bg-blue-900/12  dark:hover:ring-blue-700/40")}>
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
           <div className="col-span-1 flex items-center gap-2 select-none">

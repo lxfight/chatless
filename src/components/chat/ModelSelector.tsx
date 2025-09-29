@@ -263,7 +263,7 @@ export function ModelSelector({
         disabled={disabled}
         onOpenChange={handleOpenChange}
       >
-        <SelectTrigger className="h-8 px-2 bg-transparent border-0 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-0">
+        <SelectTrigger className="h-8 px-1.5 bg-transparent border-0 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-0">
           <span className="inline-flex items-center gap-2">
             {currentProvider && currentModelId ? (
               !useProviderIcon ? (
@@ -308,7 +308,7 @@ export function ModelSelector({
             <span>
               {currentModelId
                 ? currentProvider
-                  ? `${(currentProvider.models.find(m=>m.name===currentModelId)?.label) || currentModelId} (${((currentProvider as any).displayName || currentProvider.name)})`
+                  ? `${(currentProvider.models.find(m=>m.name===currentModelId)?.label) || currentModelId} [ ${((currentProvider as any).displayName || currentProvider.name)} ]`
                   : currentModelId
                 : allMetadata.length === 0
                   ? '加载模型中...'

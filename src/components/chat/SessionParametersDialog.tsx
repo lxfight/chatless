@@ -445,7 +445,7 @@ export function SessionParametersDialog({
 
         {/* Content */}
         <TooltipProvider>
-        <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="px-6 py-2.5 space-y-3 max-h-[60vh] overflow-y-auto">
             {/* Temperature */}
             <div className="flex items-center gap-3">
               <Checkbox 

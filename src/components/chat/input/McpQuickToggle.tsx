@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { getEnabledConfiguredServers, getConnectedServers, getGlobalEnabledServers, setGlobalEnabledServers } from '@/lib/mcp/chatIntegration';
 import Link from 'next/link';
+import { McpToolListTip } from '@/components/mcp/McpToolListTip';
 
 export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -16,6 +17,7 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
   const [enabled, setEnabled] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [toolsMap, setToolsMap] = useState<Record<string, any[]>>({});
 
   useEffect(() => {
     (async () => {
@@ -33,13 +35,33 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
     })();
   }, []);
 
+  // 打开时为已连接的服务器预取工具列表（带缓存，轻量）
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const { persistentCache } = await import('@/lib/mcp/persistentCache');
+        for (const name of connected) {
+          if (!toolsMap[name]) {
+            try {
+              const tools = await persistentCache.getToolsWithCache(name);
+              setToolsMap((prev) => ({ ...prev, [name]: Array.isArray(tools) ? tools : [] }));
+            } catch { /* ignore single server error */ }
+          }
+        }
+      } catch { /* noop */ }
+    })();
+    // 仅在 open/connected 变化时尝试拉取一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, connected.length]);
+
   const toggle = async (name: string) => {
     const next = enabled.includes(name) ? enabled.filter(n => n !== name) : [...enabled, name];
     setEnabled(next);
     await setGlobalEnabledServers(next);
   };
 
-  // 自动关闭：点击外部 / Esc / 滚动
+  // 自动关闭：点击外部 / Esc（不再因滚动而关闭，便于在面板内滚动查看工具列表）
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (!open) return;
@@ -47,14 +69,11 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
       if (el && !el.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (open && e.key === 'Escape') setOpen(false); };
-    const onScroll = () => { if (open) setOpen(false); };
     document.addEventListener('click', onClick);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('click', onClick);
       document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 
@@ -62,10 +81,10 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
   const hasDisconnected = unconnected.length > 0;
 
   const panel = (
-    <Popover.Content sideOffset={8} align="start" className="z-[10000] w-80 max-h-72 overflow-auto rounded-xl border bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 p-2">
+    <Popover.Content ref={rootRef} sideOffset={8} align="start" className="z-[9950] w-96 max-h-72 overflow-auto rounded-lg border bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-sm ring-1 ring-black/5 dark:ring-white/10 p-2">
       {/* 头部：说明 + 齿轮（仅有未连接时显示） */}
-      <div className="flex items-center justify-between px-1 pb-2">
-        <div className="text-[11px] text-slate-500">未选择时默认使用“所有已连接”的服务器</div>
+      <div className=" flex items-center justify-between px-1 pb-2">
+        <div className="text-[11px] text-slate-500">MCP服务器列表</div>
         <Link
             href="/settings?tab=mcpServers"
             onClick={() => setOpen(false)}
@@ -86,8 +105,23 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
           <label className="flex items-center gap-2 flex-1 cursor-pointer">
             <Checkbox checked={enabled.includes(name)} onCheckedChange={() => toggle(name)} className="h-4 w-4" />
             <span className="truncate">{name}</span>
+            {connected.includes(name) && Array.isArray(toolsMap[name]) && toolsMap[name].length > 0 && (
+              <McpToolListTip toolCount={toolsMap[name].length} tools={toolsMap[name]}>
+                <span
+                  className="ml-1 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md cursor-help text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  title="可用工具"
+                >
+                  <svg className="w-2.5 h-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {toolsMap[name].length} 工具
+                </span>
+              </McpToolListTip>
+            )}
             {!connected.includes(name) && <span className="ml-auto text-[10px] text-slate-400">未连接</span>}
           </label>
+
           {!connected.includes(name) && (
             <button
               className="ml-1 inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded px-2 py-0.5"
@@ -115,14 +149,17 @@ export function McpQuickToggle({ onInsertMention }: { onInsertMention?: (name: s
               }}
             >
               {busy===name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-              连接
             </button>
+            
           )}
-          <button
-            className="ml-2 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition"
-            title="在输入框插入 @ 引用"
-            onClick={() => { onInsertMention?.(name); setOpen(false); }}
-          >@ 引用</button>
+          
+          {
+            connected.includes(name) && (<button
+              className="ml-2 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition"
+              title="在输入框插入 @ 引用"
+              onClick={() => { onInsertMention?.(name); setOpen(false); }}
+            >@ 引用</button>)
+          }
         </div>
       ))}
     </Popover.Content>

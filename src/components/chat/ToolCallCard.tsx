@@ -20,9 +20,12 @@ interface ToolCallCardProps {
 export function ToolCallCard({ server, tool, status, args, resultPreview, errorMessage, schemaHint }: ToolCallCardProps) {
   // 固定展示状态，不再提供重试按钮（由上层流程自动处理重试/继续）
   const [open, setOpen] = React.useState(status === 'error');
-  React.useEffect(() => {
-    if (status === 'error') setOpen(true);
-  }, [status]);
+
+  //错误时不再自动展开
+  // React.useEffect(() => {
+  //   if (status === 'error') setOpen(true);
+  // }, [status]);
+  
   return (
     <div className={cn(
       // 固定卡片最大宽度，防止随思考栏文本宽度变化
