@@ -141,15 +141,21 @@ export function ChatInput({
   const currentConvId = conversationId || useChatStore((s)=>s.currentConversationId);
   const draftValue = useChatStore((s)=> (s.inputDrafts && currentConvId ? s.inputDrafts[currentConvId] : ''));
   const clearInputDraft = useChatStore((s)=>s.clearInputDraft);
+  const setInputDraft = useChatStore((s)=>s.setInputDraft);
 
   useEffect(()=>{
     if (!currentConvId) return;
-    if (draftValue && typeof draftValue === 'string' && draftValue.length > 0) {
+    if (typeof draftValue === 'string') {
       setInputValue(draftValue);
-      try { clearInputDraft(currentConvId); } catch { /* noop */ }
       const el = textareaRef.current; if (el) { setTimeout(()=>{ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; },0); }
     }
-  }, [currentConvId, draftValue, clearInputDraft]);
+  }, [currentConvId, draftValue]);
+
+  // 在输入时持久化草稿
+  useEffect(()=>{
+    if (!currentConvId) return;
+    try { setInputDraft(currentConvId, inputValue); } catch { /* noop */ }
+  }, [currentConvId, inputValue]);
 
   // 在“真正开始流”时再清空输入框，避免瞬间清空带来的不佳体验
   const streamStartCounter = useChatStore((s)=> s.streamStartCounter || 0);
@@ -160,6 +166,7 @@ export function ChatInput({
       setInputValue("");
       setAttachedDocument(null);
       setAttachedImages([]);
+      try { clearInputDraft(convId); } catch { /* noop */ }
       // 开始流时不强制重置为最小值，保持用户手动高度或自动自适应
       if (textareaRef.current) {
         // 若用户手动设置过高度，则保持；否则自适应到内容高度
@@ -171,7 +178,7 @@ export function ChatInput({
         }
       }
     }
-  }, [streamStartCounter, lastStreamConvId, conversationId, manualHeight, sessionManualHeight]);
+  }, [streamStartCounter, lastStreamConvId, conversationId, manualHeight, sessionManualHeight, clearInputDraft]);
 
   // 根据URL参数设置初始知识库
   useEffect(() => {
