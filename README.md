@@ -47,21 +47,22 @@
   <p><em>简洁现代的聊天界面</em></p>
 </div>
 
+
 ### 智能对话
 
 <div align="center">
-  <img src="docs/assets/vision-model-chat.png" alt="视觉模型对话" width="600" />
-  <p><em>Vision模型图片分析功能</em></p>
+  <img src="docs/assets/vision-model-call.png" alt="视觉模型调用" width="600" />
+  <p><em>视觉模型对话</em></p>
 </div>
 
 <div align="center">
-  <img src="docs/assets/doc-chat1.png" alt="文档对话" width="600" />
-  <p><em>支持文档上传和智能问答</em></p>
+  <img src="docs/assets/doc-parse.png" alt="文档解析" width="600" />
+  <p><em>多格式文档解析对话</em></p>
 </div>
 
 <div align="center">
   <img src="docs/assets/ok-math-render.png" alt="数学公式渲染" width="600" />
-  <p><em>完美的数学公式和代码渲染</em></p>
+  <p><em>数学公式和代码渲染</em></p>
 </div>
 
 ### 知识库管理
@@ -84,6 +85,11 @@
 <div align="center">
   <img src="docs/assets/prompt-panel-chat.png" alt="Prompt面板" width="600" />
   <p><em>聊天中快速调用提示词</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/prompt-panel.png" alt="Prompt面板-列表" width="600" />
+  <p><em>独立提示词面板（列表视图）</em></p>
 </div>
 
 ### MCP 服务
