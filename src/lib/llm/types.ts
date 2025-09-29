@@ -9,6 +9,7 @@ export interface Message {
 export interface StreamCallbacks {
   onStart?: () => void;
   onToken?: (token: string) => void;
+  onImage?: (image: { mimeType: string; data: string }) => void;
   onComplete?: () => void;
   onError?: (error: Error) => void;
 }

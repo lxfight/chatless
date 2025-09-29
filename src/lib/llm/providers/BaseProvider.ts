@@ -19,6 +19,11 @@ export interface CheckResult {
 export interface StreamCallbacks {
   onStart?: () => void;
   onToken?: (token: string) => void;
+  /**
+   * 可选：当提供商返回内联图片数据（如 Google inlineData）时回调
+   * data 为 base64 字符串（不带前缀），mimeType 如 image/png
+   */
+  onImage?: (image: { mimeType: string; data: string }) => void;
   onComplete?: () => void;
   onError?: (err: Error) => void;
 }

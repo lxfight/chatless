@@ -509,6 +509,18 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
         // 已由统一 tokenizer 负责 tool_call 事件，无需额外探测器
       },
+      onImage: (img: { mimeType: string; data: string }) => {
+        // 将图片作为新段追加到消息 segments
+        try {
+          const st = useChatStore.getState();
+          st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: '' } as any);
+          const conv = st.conversations.find(c=>c.id===finalConversationId);
+          const msg: any = conv?.messages.find(m=>m.id===assistantMessageId);
+          const segs: any[] = Array.isArray(msg?.segments) ? [...msg.segments] : [];
+          segs.push({ kind: 'image', mimeType: img.mimeType, data: img.data });
+          st.setMessageSegmentsInMemory(assistantMessageId, segs);
+        } catch { /* noop */ }
+      },
       onComplete: () => {
         try { console.log('[CHAT] done'); } catch { /* noop */ }
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;

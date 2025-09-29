@@ -2,6 +2,7 @@ export type ToolCallStatus = 'running' | 'success' | 'error';
 
 export interface TextSegment { kind: 'text'; text: string }
 export interface ThinkSegment { kind: 'think'; text: string }
+export interface ImageSegment { kind: 'image'; mimeType: string; data: string }
 export interface ToolCardSegment {
   kind: 'toolCard';
   id: string;
@@ -15,7 +16,7 @@ export interface ToolCardSegment {
   messageId: string;
 }
 
-export type MessageSegment = TextSegment | ThinkSegment | ToolCardSegment;
+export type MessageSegment = TextSegment | ThinkSegment | ImageSegment | ToolCardSegment;
 
 export function ensureTextTail(segments: MessageSegment[], initialText: string): MessageSegment[] {
   const out = [...segments];

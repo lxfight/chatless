@@ -35,6 +35,7 @@ export interface Message {
   segments?: Array<
     | { kind: 'text'; text: string }
     | { kind: 'think'; text: string }
+    | { kind: 'image'; mimeType: string; data: string }
     | {
         kind: 'toolCard';
         id: string;

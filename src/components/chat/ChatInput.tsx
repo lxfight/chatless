@@ -123,6 +123,19 @@ export function ChatInput({
   const [resizing, setResizing] = useState<{ startY: number; startH: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const imagePasteGuardRef = useRef<boolean>(false);
+
+  // 统一追加图片到附加区
+  const appendImageFromBlob = async (blob: Blob, nameHint: string) => {
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+    const base64Data = dataUrl.split(',')[1];
+    setAttachedImages(prev => [...prev, { name: nameHint, dataUrl, base64Data, fileSize: blob.size }]);
+  };
 
   // === 回填输入：从全局 store 读取 inputDrafts 并消费 ===
   const currentConvId = conversationId || useChatStore((s)=>s.currentConversationId);
@@ -606,6 +619,47 @@ export function ChatInput({
     setAttachedDocument(null);
   };
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const onPaste = async (e: ClipboardEvent) => {
+      try {
+        if (!e.clipboardData) return;
+        const items = Array.from(e.clipboardData.items || []);
+        const imageItem = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+        if (!imageItem) return;
+        e.preventDefault();
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        imagePasteGuardRef.current = true;
+        await appendImageFromBlob(file, file.name || 'pasted.png');
+      } catch { /* noop */ } finally {
+        setTimeout(()=>{ imagePasteGuardRef.current = false; }, 0);
+      }
+    };
+    const onDragOver = (e: DragEvent) => {
+      const dt = e.dataTransfer; if (!dt) return;
+      const hasFile = Array.from(dt.items || []).some((it)=> it.kind==='file');
+      if (hasFile || dt.getData('text/uri-list')) { e.preventDefault(); dt.dropEffect = 'copy'; }
+    };
+    const onDrop = async (e: DragEvent) => {
+      const dt = e.dataTransfer; if (!dt) return;
+      const files = Array.from(dt.files || []);
+      const images = files.filter(f=> f.type.startsWith('image/'));
+      if (images.length>0) { e.preventDefault(); for (const f of images) await appendImageFromBlob(f, f.name||'dropped.png'); return; }
+      const url = dt.getData('text/uri-list') || dt.getData('text/plain');
+      if (url && /^(https?:|data:)/i.test(url)) { e.preventDefault(); try { const resp = await fetch(url); const blob = await resp.blob(); if (blob.type.startsWith('image/')) await appendImageFromBlob(blob, `dropped-${Date.now()}.${(blob.type.split('/')[1]||'png')}`); } catch { /* noop */ } }
+    };
+    el.addEventListener('paste', onPaste as any);
+    el.addEventListener('dragover', onDragOver as any);
+    el.addEventListener('drop', onDrop as any);
+    return () => {
+      el.removeEventListener('paste', onPaste as any);
+      el.removeEventListener('dragover', onDragOver as any);
+      el.removeEventListener('drop', onDrop as any);
+    };
+  }, [textareaRef.current]);
+
   return (
     <div className="input-area w-full bg-white/40 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-2 overflow-x-hidden">
       {/* 编辑模式提示栏 */}
@@ -649,7 +703,7 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="relative flex w-full rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm shadow-sm">
+      <div className="relative flex w-full rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm shadow-sm" onDragOver={(e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const hasFile = Array.from(dt.items||[]).some((it)=> it.kind==='file'); if (hasFile || dt.getData('text/uri-list')) { e.preventDefault(); dt.dropEffect='copy'; } }} onDrop={async (e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const files=Array.from(dt.files||[]); const imgs=files.filter(f=>f.type.startsWith('image/')); if (imgs.length>0){ e.preventDefault(); for (const f of imgs) await appendImageFromBlob(f, f.name||'dropped.png'); return; } const url = dt.getData('text/uri-list')||dt.getData('text/plain'); if (url && /^(https?:|data:)/i.test(url)){ e.preventDefault(); try{ const resp=await fetch(url); const blob=await resp.blob(); if (blob.type.startsWith('image/')) await appendImageFromBlob(blob, `dropped-${Date.now()}.${(blob.type.split('/')[1]||'png')}`);}catch{ /* noop */ }} } }>
         {/* 顶部拖拽手柄：按住可向上/下调整高度，封顶 60vh */}
         <div
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize z-[3]"

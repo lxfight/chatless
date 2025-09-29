@@ -71,6 +71,11 @@ export class GoogleAIProvider extends BaseProvider {
     cb: StreamCallbacks,
     opts: Record<string, any> = {}
   ): Promise<void> {
+    // 先通过参数策略引擎注入按 provider/model 的必要参数（如 image_generation、thinkingBudget 等）
+    try {
+      const { ParameterPolicyEngine } = await import('../ParameterPolicy');
+      opts = ParameterPolicyEngine.apply('Google AI', model, opts || {});
+    } catch { /* ignore policy injection failure */ }
     const apiKey = await this.getApiKey(model);
     if (!apiKey) {
       console.error('[GoogleAIProvider] No API key provided');
@@ -121,6 +126,13 @@ export class GoogleAIProvider extends BaseProvider {
       })),
       generationConfig,
     };
+
+    // 移除顶层 responseModalities，统一走 generationConfig.responseModalities
+
+    // 透传策略附加/调用方指定的工具（如 image_generation），避免把未知扩展透传
+    if (Array.isArray((opts as any).tools) && (opts as any).tools.length > 0) {
+      body.tools = (opts as any).tools;
+    }
     
     // 避免把未知字段（如 mcpServers/extensions）透传给 Gemini，统一丢弃未知扩展
     // 如需支持额外字段，请在此按白名单加入
@@ -185,6 +197,12 @@ export class GoogleAIProvider extends BaseProvider {
                   for (const part of candidate.content.parts) {
                     const piece = typeof part.text === 'string' ? part.text : undefined;
                     if (piece && piece.length > 0) cb.onToken?.(piece);
+                    // 提取内联图片（image generation 返回 inlineData）
+                    const p: any = part;
+                    const inline = p?.inlineData;
+                    if (inline && typeof inline.data === 'string' && typeof inline.mimeType === 'string') {
+                      cb.onImage?.({ mimeType: inline.mimeType, data: inline.data });
+                    }
                   }
                 }
                 

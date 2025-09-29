@@ -65,6 +65,25 @@ const builtinRules: ParameterRule[] = [
       return mergeDeep(base, patch);
     },
   },
+  {
+    id: 'google-gemini-image-generation-modalities',
+    priority: 90,
+    description:
+      '为 Gemini 图像生成模型设置默认响应模态为 [IMAGE, TEXT]，避免仅 TEXT 模式导致的 400 错误',
+    provider: /^(google\s*ai)$/i,
+    // 典型：gemini-2.0-*-image-generation（含 preview/flash 变体等）
+    model: /gemini-[\d.]+-[\w-]*image-generation/i,
+    apply: (base) => {
+      const patch: ParameterPatch = {
+        generationConfig: {
+          responseModalities: Array.isArray((base as any)?.generationConfig?.responseModalities) && (base as any).generationConfig.responseModalities.length > 0
+            ? (base as any).generationConfig.responseModalities
+            : ['IMAGE', 'TEXT'],
+        },
+      };
+      return mergeDeep(base, patch);
+    },
+  },
 ];
 
 export class ParameterPolicyEngine {

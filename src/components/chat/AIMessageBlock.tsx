@@ -6,6 +6,15 @@ import { ThinkingBar } from '@/components/chat/ThinkingBar';
 // MessageStreamParser 已移除
 import FoldingLoader from '../ui/FoldingLoader';
 import { ToolCallCard } from '@/components/chat/ToolCallCard';
+// 采用成熟图片查看组件：yet-another-react-lightbox（需安装依赖）
+// pnpm add yet-another-react-lightbox yet-another-react-lightbox/plugins/zoom yet-another-react-lightbox/plugins/fullscreen yet-another-react-lightbox/plugins/rotate yet-another-react-lightbox/plugins/download
+import Lightbox from 'yet-another-react-lightbox';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
+import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
+// 顶部下载改用自定义按钮 + downloadService
+import 'yet-another-react-lightbox/styles.css';
+import { downloadService } from '@/lib/utils/downloadService';
+import { Download as DownloadIcon, Maximize2, Copy as CopyIcon } from 'lucide-react';
 
 interface AIMessageBlockProps {
   content: string;
@@ -18,6 +27,7 @@ interface AIMessageBlockProps {
   segments?: Array<
     | { kind: 'text'; text: string }
     | { kind: 'think'; text: string }
+    | { kind: 'image'; mimeType: string; data: string }
     | { kind: 'toolCard'; id: string; server: string; tool: string; args?: Record<string, unknown>; status: 'running' | 'success' | 'error'; resultPreview?: string; errorMessage?: string; schemaHint?: string; messageId: string }
   >;
   // 只读视图模型（优先级最高）
@@ -216,11 +226,12 @@ export function AIMessageBlock({
   const mixedSegments = useMemo(() => {
     const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
     if (Array.isArray(src) && src.length > 0) {
-      const list: Array<{ type: 'card'|'think'|'text'; text?: string; data?: any }> = [];
+      const list: Array<{ type: 'card'|'think'|'text'|'image'; text?: string; data?: any }> = [];
       for (const s of src) {
         if (s && s.kind === 'toolCard') list.push({ type: 'card', data: s });
         else if (s && s.kind === 'think') list.push({ type: 'think', text: s.text || '' });
         else if (s && s.kind === 'text') list.push({ type: 'text', text: s.text || '' });
+        else if (s && s.kind === 'image') list.push({ type: 'image', data: s });
       }
       // 调试开关，默认关闭
       const DEBUG_MIXED = false;
@@ -231,6 +242,22 @@ export function AIMessageBlock({
     }
     return [];
   }, [content, segments, state?.regularContent, viewModel?.items]);
+
+  // 将所有图片段聚合，避免把长段文本割裂
+  const images = useMemo(() => {
+    const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
+    const out: Array<{ src: string; filename: string }> = [];
+    src.forEach((s: any, idx: number) => {
+      if (s && s.kind === 'image') {
+        const url = `data:${s.mimeType};base64,${s.data}`;
+        out.push({ src: url, filename: `image-${(id||'msg')}-${idx}.png` });
+      }
+    });
+    return out;
+  }, [segments, viewModel?.items, id]);
+
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   return (
     <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-2 shadow-sm">
@@ -281,6 +308,65 @@ export function AIMessageBlock({
                 }
                 // 不在正文中渲染 think 段，思考内容统一由上方思考栏呈现
                 if (seg.type === 'think') return null;
+                if (seg.type === 'image') {
+                  const img = seg.data as { mimeType: string; data: string };
+                  const src = `data:${img.mimeType};base64,${img.data}`;
+                  const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
+                  const needSoftDivider = prevType === 'card';
+                  const i = Math.max(0, images.findIndex((x)=>x.src===src));
+                  return (
+                    <div key={`img-inline-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                      <div className="relative inline-block group">
+                        <img
+                          src={src}
+                          alt="generated"
+                          className="max-w-[50vw] max-h-[50vh] w-auto h-auto object-contain rounded-md border border-slate-200/60 dark:border-slate-700/60"
+                          onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                          onDoubleClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                        />
+                        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-1.5 py-1 rounded-full shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60">
+                          <button
+                            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                            title="查看"
+                            aria-label="查看"
+                          >
+                            <Maximize2 size={16} className="text-slate-800 dark:text-slate-200" />
+                          </button>
+                          <button
+                            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(src);
+                                const blob = await res.blob();
+                                await downloadService.downloadFile(`image-${(id||'msg')}-${idx}.png`, blob, blob.type);
+                              } catch { /* noop */ }
+                            }}
+                            title="下载"
+                            aria-label="下载"
+                          >
+                            <DownloadIcon size={16} className="text-slate-800 dark:text-slate-200" />
+                          </button>
+                          <button
+                            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(src);
+                                const blob = await res.blob();
+                                const item = new (window as any).ClipboardItem({ [blob.type]: blob });
+                                await (navigator as any).clipboard.write([item]);
+                              } catch { /* noop */ }
+                            }}
+                            title="复制到剪贴板"
+                            aria-label="复制到剪贴板"
+                          >
+                            <CopyIcon size={16} className="text-slate-800 dark:text-slate-200" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
                 const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
                 const needSoftDivider = prevType === 'card';
                 return (
@@ -329,6 +415,43 @@ export function AIMessageBlock({
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
         <div className="relative min-w-0 max-w-full w-full">
           <MemoizedMarkdown content={(state?.regularContent || content)} />
+        </div>
+      )}
+
+      {/* 取消集中渲染：图片已内联呈现 */}
+
+      {/* 成熟 Lightbox 预览，含缩放/旋转/全屏/下载 */}
+      {lightboxOpen && (
+        <Lightbox
+          open
+          close={() => setLightboxOpen(false)}
+          index={lightboxIndex}
+          controller={{ closeOnBackdropClick: true, closeOnPullDown: true }}
+          animation={{ swipe: 0 }}
+          carousel={{ finite: false }}
+          slides={images.map((im) => ({ src: im.src } as any))}
+          plugins={[Zoom as any, Fullscreen as any]}
+        />
+      )}
+
+      {/* 顶部悬浮下载按钮（使用 downloadService） */}
+      {lightboxOpen && images[lightboxIndex] && (
+        <div className="fixed top-3 right-3 z-[1001] bg-white/80 dark:bg-slate-900/70 backdrop-blur-md ring-1 ring-slate-200/60 dark:ring-slate-700/60 rounded-full shadow-sm p-1">
+          <button
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+            onClick={async () => {
+              try {
+                const im = images[lightboxIndex];
+                const res = await fetch(im.src);
+                const blob = await res.blob();
+                await downloadService.downloadFile(im.filename, blob, blob.type);
+              } catch { /* noop */ }
+            }}
+            title="下载"
+            aria-label="下载"
+          >
+            <DownloadIcon size={18} className="text-slate-800 dark:text-slate-200" />
+          </button>
         </div>
       )}
     </div>
