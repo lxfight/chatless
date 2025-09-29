@@ -7,10 +7,8 @@ import {
   RAGQueryResult,
   RAGConfig,
   RAGError,
-  RAGQueryProgress,
   RAGStreamResponse,
-  RetrievedChunk,
-  ContextConfig
+  RetrievedChunk
 } from './types';
 import { streamChat, chat, type Message as LLMMessage, type StreamCallbacks } from '../llm';
 
@@ -38,6 +36,20 @@ export class RAGService {
     this.retrievalService = new RetrievalService();
     this.contextBuilder = new ContextBuilder(config.context);
     this.promptTemplate = new PromptTemplate();
+  }
+
+  /**
+   * 更新LLM配置
+   */
+  updateLLMConfig(llmConfig: { provider: string; model: string; apiKey?: string; temperature?: number; maxTokens?: number }) {
+    this.config.llm = {
+      provider: llmConfig.provider,
+      model: llmConfig.model,
+      apiKey: llmConfig.apiKey,
+      temperature: llmConfig.temperature || 0.7,
+      maxTokens: llmConfig.maxTokens || 4000
+    };
+    console.log('[RAG] 更新LLM配置:', this.config.llm);
   }
 
   /**
@@ -90,16 +102,43 @@ export class RAGService {
         includeEmbeddings: false,
         filter: params.knowledgeBaseIds && params.knowledgeBaseIds.length > 0 ? { knowledgeBaseId: params.knowledgeBaseIds.length === 1 ? params.knowledgeBaseIds[0] : params.knowledgeBaseIds } : undefined
       });
+      console.log('[RAG] 原始检索结果数量:', searchResults.length);
+      if (searchResults.length > 0) {
+        console.log('[RAG] 第一个原始结果样例:', searchResults[0]);
+      }
 
       // 转换搜索结果为检索片段格式
       const retrievalResults = this.convertToRetrievedChunks(searchResults);
+      console.log('[RAG] 转换后的检索结果数量:', retrievalResults.length);
+      if (retrievalResults.length > 0) {
+        console.log('[RAG] 第一个结果样例:', {
+          id: retrievalResults[0].id,
+          contentLength: retrievalResults[0].content?.length || 0,
+          content: retrievalResults[0].content?.substring(0, 100) + '...',
+          score: retrievalResults[0].score,
+          knowledgeBaseName: retrievalResults[0].knowledgeBaseName
+        });
+      }
 
       // 3. 构建上下文
       console.log('构建上下文...');
+      // 补充知识库名称（若缺失）
+      try {
+        await this.ensureKnowledgeBaseNames(retrievalResults);
+      } catch (e) {
+        console.warn('[RAG] 知识库名称补充失败（不影响检索）:', e);
+      }
+
       const { context, usedChunks, truncated } = this.contextBuilder.buildContext(
         retrievalResults,
         params.query
       );
+      console.log('[RAG] 构建上下文完成:', {
+        contextLength: context.length,
+        usedChunksCount: usedChunks.length,
+        truncated,
+        contextPreview: context.substring(0, 200) + '...'
+      });
 
       // 4. 生成回答
       console.log('生成回答...');
@@ -132,6 +171,33 @@ export class RAGService {
         'QUERY_FAILED',
         error instanceof Error ? error : undefined
       );
+    }
+  }
+
+  /**
+   * 为检索结果补充知识库名称（当metadata中缺失时）
+   */
+  private async ensureKnowledgeBaseNames(chunks: RetrievedChunk[]): Promise<void> {
+    const missing = chunks.filter(c => !c.knowledgeBaseName || c.knowledgeBaseName === '未知知识库');
+    if (!missing.length) return;
+
+    try {
+      const ids = Array.from(new Set(missing.map(c => c.knowledgeBaseId).filter(Boolean)));
+      if (!ids.length) return;
+      const { KnowledgeService } = await import('../knowledgeService');
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const kb = await KnowledgeService.getKnowledgeBase(id);
+          if (kb && kb.name) {
+            for (const c of chunks) {
+              if (c.knowledgeBaseId === id) c.knowledgeBaseName = kb.name;
+            }
+          }
+        } catch {/* ignore one */}
+      }));
+    } catch (e) {
+      // 不阻断主流程
+      console.warn('[RAG] ensureKnowledgeBaseNames 失败:', e);
     }
   }
 
@@ -231,10 +297,15 @@ export class RAGService {
         let streamError: Error | null = null;
         let fullAnswer = '';
 
+        // 检查LLM配置
+        if (!this.config.llm?.provider || !this.config.llm?.model) {
+          throw new Error('RAG服务LLM配置缺失：请先调用updateLLMConfig设置provider和model');
+        }
+
         // 启动流式聊天
         streamChat(
-          this.config.llm?.provider || '',
-          this.config.llm?.model || '',
+          this.config.llm.provider,
+          this.config.llm.model,
           messages,
           {
             onStart: () => {
@@ -375,7 +446,10 @@ export class RAGService {
 
     try {
       // 构建提示词
-      const { fullPrompt, template } = this.promptTemplate.buildPrompt(query, context);
+          const { fullPrompt } = this.promptTemplate.buildPrompt(query, context);
+      console.log('[RAG] 构建的完整提示词长度:', fullPrompt.length);
+      console.log('[RAG] 上下文长度:', context.length);
+      console.log('[RAG] 提示词预览:', fullPrompt.substring(0, 500) + '...');
       
       // 构建消息格式
       const messages: LLMMessage[] = [
@@ -433,7 +507,7 @@ export class RAGService {
 
     try {
       // 构建提示词
-      const { fullPrompt, template } = this.promptTemplate.buildPrompt(query, context);
+          const { fullPrompt } = this.promptTemplate.buildPrompt(query, context);
       
       // 构建消息格式
       const messages: LLMMessage[] = [

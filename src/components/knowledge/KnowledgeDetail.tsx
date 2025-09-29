@@ -113,6 +113,7 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
 
     try {
       setIsLoading(true);
+      console.log('[KnowledgeDetail] 开始加载知识库:', kbId);
       const kb = await KnowledgeService.getKnowledgeBase(kbId);
       if (!kb) {
         console.error('知识库不存在:', kbId);
@@ -121,6 +122,7 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
         return;
       }
 
+      console.log('[KnowledgeDetail] 知识库加载成功:', kb.name);
       setKnowledgeBase(kb);
       setEditForm({
         name: kb.name,
@@ -135,7 +137,7 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
     } finally {
       setIsLoading(false);
     }
-  }, [propKnowledgeBase, searchParams, router]);
+  }, [propKnowledgeBase, searchParams]); // 移除router依赖
 
   // 加载文档列表
   const loadDocuments = useCallback(async () => {
@@ -171,9 +173,10 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
 
   useEffect(() => {
     if (knowledgeBase) {
+      console.log('[KnowledgeDetail] 知识库已加载，开始加载文档列表');
       loadDocuments();
     }
-  }, [loadDocuments]);
+  }, [knowledgeBase, loadDocuments]); // 保持对loadDocuments的依赖，但依赖数组更稳定了
 
   // 处理文档查看
   const handleViewDocument = async (documentId: string) => {
@@ -368,10 +371,35 @@ export function KnowledgeDetail({ knowledgeBase: propKnowledgeBase, onBack, onRe
     toast.success('已切换到聊天，可开始使用该知识库');
   };
 
-  if (isLoading || !knowledgeBase) {
+  // 添加调试信息
+  console.log('[KnowledgeDetail] 组件状态:', { 
+    isLoading, 
+    hasKnowledgeBase: !!knowledgeBase, 
+    knowledgeBaseName: knowledgeBase?.name,
+    propKnowledgeBase: !!propKnowledgeBase,
+    searchParamsId: searchParams.get('id')
+  });
+
+  if (isLoading) {
+    console.log('[KnowledgeDetail] 显示加载状态');
     return (
       <div className="flex items-center justify-center w-full h-full p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+          <p className="text-sm text-gray-500">正在加载知识库...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!knowledgeBase) {
+    console.log('[KnowledgeDetail] 知识库数据为空，显示错误状态');
+    return (
+      <div className="flex items-center justify-center w-full h-full p-12">
+        <div className="text-center">
+          <p className="text-lg text-gray-500 mb-2">无法加载知识库</p>
+          <Button onClick={handleBack} variant="outline">返回</Button>
+        </div>
       </div>
     );
   }

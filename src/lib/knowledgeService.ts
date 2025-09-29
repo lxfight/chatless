@@ -390,6 +390,46 @@ export const KnowledgeService = {
   },
 
   /**
+   * 清理孤立的向量数据
+   */
+  async cleanupOrphanedVectors(): Promise<number> {
+    try {
+      const dbService = getDatabaseService();
+      const knowledgeBaseRepo = dbService.getKnowledgeBaseRepository();
+      
+      return await knowledgeBaseRepo.cleanupOrphanedVectors();
+    } catch (error) {
+      console.error('清理孤立向量数据失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 获取向量数据统计信息
+   */
+  async getVectorStats(): Promise<{
+    totalVectors: number;
+    activeVectors: number;
+    deletedVectors: number;
+    orphanedVectors: number;
+  }> {
+    try {
+      const dbService = getDatabaseService();
+      const knowledgeBaseRepo = dbService.getKnowledgeBaseRepository();
+      
+      return await knowledgeBaseRepo.getVectorStats();
+    } catch (error) {
+      console.error('获取向量统计信息失败:', error);
+      return {
+        totalVectors: 0,
+        activeVectors: 0,
+        deletedVectors: 0,
+        orphanedVectors: 0
+      };
+    }
+  },
+
+  /**
    * 获取知识库统计信息
    */
   

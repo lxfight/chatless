@@ -7,6 +7,7 @@ import {
 } from './types';
 import { OllamaStrategy } from './strategies/OllamaStrategy';
 import { TauriOrtStrategy } from './strategies/TauriOrtStrategy';
+import { modelConfigService } from './ModelConfigService';
 
 /**
  * 嵌入服务主类
@@ -55,12 +56,13 @@ export class EmbeddingService {
 
   /**
    * 创建嵌入策略实例
+   * 使用ModelConfigService统一管理模型配置
    */
   private async createStrategy(config: EmbeddingConfig): Promise<EmbeddingStrategy> {
     switch (config.strategy) {
       case 'local-onnx':
-        // 使用基于 Rust ORT 后端的本地ONNX策略
-        return new TauriOrtStrategy();
+        // 使用基于 Rust ORT 后端的本地ONNX策略，传入模型名称
+        return new TauriOrtStrategy(config.modelName);
       
       case 'ollama':
         // 动态获取配置的 Ollama URL
@@ -71,10 +73,14 @@ export class EmbeddingService {
           console.log(`[EmbeddingService] 使用配置的 Ollama URL: ${apiUrl}`);
         }
         
+        // 从ModelConfigService获取正确的维度信息
+        const modelName = config.modelName || 'nomic-embed-text';
+        const dimension = await modelConfigService.getModelDimensions(modelName);
+        
         return new OllamaStrategy({
           apiUrl,
-          modelName: config.modelName || 'nomic-embed-text',
-          dimension: 384, // 默认维度，可以根据模型调整
+          modelName,
+          dimension,
           timeout: config.timeout || 30000,
           maxBatchSize: config.maxBatchSize || 10
         });

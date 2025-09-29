@@ -84,8 +84,8 @@ export const DEFAULT_KNOWLEDGE_BASE_CONFIG: KnowledgeBaseConfig = {
   },
   embedding: {
     strategy: 'local-onnx',
-    modelPath: 'models/all-MiniLM-L6-v2',
-    modelName: 'all-MiniLM-L6-v2',
+    modelPath: 'models/all-minilm-l6-v2', // 修正为正确的模型ID
+    modelName: 'all-minilm-l6-v2', // 修正为正确的模型ID
     tokenizerPath: undefined,
     apiUrl: '',
     dimensions: 384,
@@ -237,6 +237,7 @@ export class KnowledgeBaseConfigManager {
     });
   }
 
+
   /**
    * 验证并合并配置
    */
@@ -324,7 +325,7 @@ export class KnowledgeBaseConfigManager {
     try {
       const importedConfig = JSON.parse(configJson) as Partial<KnowledgeBaseConfig>;
       await this.saveConfig(this.validateAndMergeConfig(importedConfig));
-    } catch (error) {
+    } catch {
       throw new Error('无效的配置文件格式');
     }
   }

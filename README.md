@@ -41,7 +41,82 @@
 
 ## 📸 界面预览
 
-![chatless截图](/docs/assets/screenshot-main1.png)
+### 主界面
+<div align="center">
+  <img src="docs/assets/screenshot-main1.png" alt="主界面" width="600" />
+  <p><em>简洁现代的聊天界面</em></p>
+</div>
+
+### 智能对话
+
+<div align="center">
+  <img src="docs/assets/vision-model-chat.png" alt="视觉模型对话" width="600" />
+  <p><em>Vision模型图片分析功能</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/doc-chat1.png" alt="文档对话" width="600" />
+  <p><em>支持文档上传和智能问答</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/ok-math-render.png" alt="数学公式渲染" width="600" />
+  <p><em>完美的数学公式和代码渲染</em></p>
+</div>
+
+### 知识库管理
+<div align="center">
+  <img src="docs/assets/knowledge-detail.png" alt="知识库详情" width="600" />
+  <p><em>本地RAG知识库管理</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/knowledge-chat.png" alt="知识库对话" width="600" />
+  <p><em>基于知识库的智能问答</em></p>
+</div>
+
+### Prompt 管理
+<div align="center">
+  <img src="docs/assets/prompt-manager.png" alt="Prompt管理器" width="600" />
+  <p><em>统一管理和复用提示词</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/prompt-panel-chat.png" alt="Prompt面板" width="600" />
+  <p><em>聊天中快速调用提示词</em></p>
+</div>
+
+### MCP 服务
+<div align="center">
+  <img src="docs/assets/mcp-manager.png" alt="MCP管理器" width="600" />
+  <p><em>Model Context Protocol 服务管理</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/mcp-panel.png" alt="MCP面板" width="600" />
+  <p><em>调用Model Context Protocol 服务</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/show_test_doc.png" alt="文档测试演示" width="600" />
+  <p><em>调用MCP时使用的文件</em></p>
+</div>
+
+### 设置界面
+<div align="center">
+  <img src="docs/assets/ai-setting.png" alt="AI设置" width="600" />
+  <p><em>多AI提供商配置</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/knowledge-setting.png" alt="知识库设置" width="600" />
+  <p><em>知识库参数配置</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/about.png" alt="关于页面" width="600" />
+  <p><em>应用信息和版本详情</em></p>
+</div>
 
 ---
 

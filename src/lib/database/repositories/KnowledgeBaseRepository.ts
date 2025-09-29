@@ -107,27 +107,133 @@ export class KnowledgeBaseRepository extends BaseRepository<KnowledgeBase> {
    * 删除知识库
    */
   async deleteKnowledgeBase(id: string): Promise<boolean> {
+    console.log(`[deleteKnowledgeBase] 开始删除知识库: ${id}`);
+    
     return await this.executeTransaction(async (transaction) => {
-      // 删除知识片段
-      await transaction.execute(
+      // 1. 删除向量嵌入数据（软删除）
+      const vectorsResult = await transaction.execute(
+        `UPDATE vector_embeddings SET is_deleted = 1 
+         WHERE json_extract(metadata, '$.knowledgeBaseId') = ?`,
+        [id]
+      );
+      console.log(`[deleteKnowledgeBase] 标记删除向量数据: ${vectorsResult.rowsAffected} 条`);
+
+      // 2. 删除知识片段
+      const chunksResult = await transaction.execute(
         'DELETE FROM knowledge_chunks WHERE knowledge_base_id = ?',
         [id]
       );
+      console.log(`[deleteKnowledgeBase] 删除知识片段: ${chunksResult.rowsAffected} 条`);
 
-      // 删除文档映射
-      await transaction.execute(
+      // 3. 删除文档映射
+      const mappingResult = await transaction.execute(
         'DELETE FROM doc_knowledge_mappings WHERE knowledge_base_id = ?',
         [id]
       );
+      console.log(`[deleteKnowledgeBase] 删除文档映射: ${mappingResult.rowsAffected} 条`);
 
-      // 删除知识库
+      // 4. 删除知识库
       const result = await transaction.execute(
         'DELETE FROM knowledge_bases WHERE id = ?',
         [id]
       );
+      console.log(`[deleteKnowledgeBase] 删除知识库记录: ${result.rowsAffected} 条`);
+
+      console.log(`[deleteKnowledgeBase] 删除完成: vectors=${vectorsResult.rowsAffected}, chunks=${chunksResult.rowsAffected}, mapping=${mappingResult.rowsAffected}, kb=${result.rowsAffected}`);
 
       return result.rowsAffected > 0;
     });
+  }
+
+  /**
+   * 清理孤立的向量数据
+   * 删除那些没有对应knowledge_chunks记录的向量数据
+   */
+  async cleanupOrphanedVectors(): Promise<number> {
+    try {
+      console.log('[cleanupOrphanedVectors] 开始清理孤立的向量数据...');
+      
+      // 找出孤立的向量数据（没有对应的knowledge_chunks记录）
+      const orphanedVectors = await this.dbManager.select(`
+        SELECT ve.id 
+        FROM vector_embeddings ve
+        LEFT JOIN knowledge_chunks kc ON 
+          json_extract(ve.metadata, '$.documentId') = kc.document_id AND
+          json_extract(ve.metadata, '$.knowledgeBaseId') = kc.knowledge_base_id
+        WHERE kc.id IS NULL AND ve.is_deleted = 0
+      `);
+
+      if (orphanedVectors.length === 0) {
+        console.log('[cleanupOrphanedVectors] 没有找到孤立的向量数据');
+        return 0;
+      }
+
+      console.log(`[cleanupOrphanedVectors] 发现 ${orphanedVectors.length} 个孤立的向量数据`);
+
+      // 软删除孤立的向量数据
+      const vectorIds = orphanedVectors.map(v => v.id);
+      const placeholders = vectorIds.map(() => '?').join(',');
+      
+      const result = await this.dbManager.execute(
+        `UPDATE vector_embeddings SET is_deleted = 1 WHERE id IN (${placeholders})`,
+        vectorIds
+      );
+
+      console.log(`[cleanupOrphanedVectors] 清理完成，标记删除 ${result.rowsAffected} 个孤立向量`);
+      return result.rowsAffected;
+    } catch (error) {
+      console.error('[cleanupOrphanedVectors] 清理失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取向量数据统计信息
+   */
+  async getVectorStats(): Promise<{
+    totalVectors: number;
+    activeVectors: number;
+    deletedVectors: number;
+    orphanedVectors: number;
+  }> {
+    try {
+      // 总向量数
+      const totalResult = await this.dbManager.select('SELECT COUNT(*) as count FROM vector_embeddings');
+      const totalVectors = totalResult[0]?.count || 0;
+
+      // 活跃向量数
+      const activeResult = await this.dbManager.select('SELECT COUNT(*) as count FROM vector_embeddings WHERE is_deleted = 0');
+      const activeVectors = activeResult[0]?.count || 0;
+
+      // 已删除向量数
+      const deletedVectors = totalVectors - activeVectors;
+
+      // 孤立向量数（活跃但没有对应knowledge_chunks的向量）
+      const orphanedResult = await this.dbManager.select(`
+        SELECT COUNT(*) as count
+        FROM vector_embeddings ve
+        LEFT JOIN knowledge_chunks kc ON 
+          json_extract(ve.metadata, '$.documentId') = kc.document_id AND
+          json_extract(ve.metadata, '$.knowledgeBaseId') = kc.knowledge_base_id
+        WHERE kc.id IS NULL AND ve.is_deleted = 0
+      `);
+      const orphanedVectors = orphanedResult[0]?.count || 0;
+
+      return {
+        totalVectors,
+        activeVectors,
+        deletedVectors,
+        orphanedVectors
+      };
+    } catch (error) {
+      console.error('[getVectorStats] 获取统计信息失败:', error);
+      return {
+        totalVectors: 0,
+        activeVectors: 0,
+        deletedVectors: 0,
+        orphanedVectors: 0
+      };
+    }
   }
 
   /**
@@ -178,7 +284,7 @@ export class KnowledgeBaseRepository extends BaseRepository<KnowledgeBase> {
         throw new Error(`文档不存在且无法同步: ${documentId}`);
       }
     } catch (importError) {
-      console.warn('无法导入DocumentSyncService，跳过自动同步');
+      console.warn('无法导入DocumentSyncService，跳过自动同步:', importError);
       
       // 验证文档是否存在
       const documentExists = await this.dbManager.select(
@@ -259,25 +365,38 @@ export class KnowledgeBaseRepository extends BaseRepository<KnowledgeBase> {
     knowledgeBaseId: string
   ): Promise<boolean> {
     try {
-      // 先删除知识片段
+      console.log(`[removeDocumentFromKnowledgeBase] 开始删除文档: ${documentId} from ${knowledgeBaseId}`);
+
+      // 1. 先删除向量嵌入数据
+      const vectorsResult = await this.dbManager.execute(
+        `UPDATE vector_embeddings SET is_deleted = 1 
+         WHERE json_extract(metadata, '$.documentId') = ? 
+         AND json_extract(metadata, '$.knowledgeBaseId') = ?`,
+        [documentId, knowledgeBaseId]
+      );
+      console.log(`[removeDocumentFromKnowledgeBase] 标记删除向量数据: ${vectorsResult.rowsAffected} 条`);
+
+      // 2. 删除知识片段
       const chunksResult = await this.dbManager.execute(
         'DELETE FROM knowledge_chunks WHERE document_id = ? AND knowledge_base_id = ?',
         [documentId, knowledgeBaseId]
       );
+      console.log(`[removeDocumentFromKnowledgeBase] 删除知识片段: ${chunksResult.rowsAffected} 条`);
 
-      // 删除映射关系
+      // 3. 删除映射关系
       const mappingResult = await this.dbManager.execute(
         'DELETE FROM doc_knowledge_mappings WHERE document_id = ? AND knowledge_base_id = ?',
         [documentId, knowledgeBaseId]
       );
+      console.log(`[removeDocumentFromKnowledgeBase] 删除映射关系: ${mappingResult.rowsAffected} 条`);
 
-      // 更新知识库的更新时间
+      // 4. 更新知识库的更新时间
       await this.dbManager.execute(
         'UPDATE knowledge_bases SET updated_at = ? WHERE id = ?',
         [Date.now(), knowledgeBaseId]
       );
 
-      console.log(`[removeDocumentFromKnowledgeBase] 删除结果: chunks=${chunksResult.rowsAffected}, mapping=${mappingResult.rowsAffected}`);
+      console.log(`[removeDocumentFromKnowledgeBase] 删除完成: vectors=${vectorsResult.rowsAffected}, chunks=${chunksResult.rowsAffected}, mapping=${mappingResult.rowsAffected}`);
       
       return mappingResult.rowsAffected > 0;
     } catch (error) {

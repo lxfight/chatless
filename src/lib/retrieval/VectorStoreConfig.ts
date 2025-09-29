@@ -208,8 +208,9 @@ export class VectorStoreConfigManager {
           },
         }, 'balanced');
         
-      case 'search':
-        return new VectorStoreConfigManager({
+      case 'search': {
+        // 为搜索用例：禁用查询缓存，避免历史错误结果被缓存导致检索返回0
+        const mgr = new VectorStoreConfigManager({
           similarityMetric: 'cosine',
           batchSize: 2000,
           queryOptimization: {
@@ -219,6 +220,9 @@ export class VectorStoreConfigManager {
             similarityThreshold: 0.1,
           },
         }, 'performance');
+        mgr.updatePerformanceConfig({ enableQueryCache: false, queryCacheSize: 0 });
+        return mgr;
+      }
         
       case 'analytics':
         return new VectorStoreConfigManager({

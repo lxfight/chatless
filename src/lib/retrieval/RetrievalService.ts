@@ -24,6 +24,10 @@ export class RetrievalService {
 
   private async ensureInitialized(): Promise<void> {
     if (!this.currentStrategy) {
+      // 确保使用最新配置（例如：关闭查询缓存等变更）
+      try {
+        VectorStoreFactory.clearCache();
+      } catch {}
       this.currentStrategy = await VectorStoreFactory.create(this.strategyConfig);
       console.log('检索服务已初始化，使用优化的向量存储策略');
     }
@@ -36,8 +40,25 @@ export class RetrievalService {
     queryEmbedding: number[],
     options: SearchOptions = {}
   ): Promise<VectorSearchResult[]> {
+    console.log('[RetrievalService] 开始向量搜索，查询向量维度:', queryEmbedding.length);
+    console.log('[RetrievalService] 搜索选项:', options);
+    
     await this.ensureInitialized();
-    return await this.currentStrategy!.search(queryEmbedding, options);
+    console.log('[RetrievalService] 初始化完成，当前策略:', this.currentStrategy?.constructor.name);
+    
+    if (!this.currentStrategy) {
+      console.error('[RetrievalService] 错误：当前策略为空');
+      return [];
+    }
+    
+    try {
+      const results = await this.currentStrategy.search(queryEmbedding, options);
+      console.log('[RetrievalService] 向量搜索完成，结果数量:', results.length);
+      return results;
+    } catch (error) {
+      console.error('[RetrievalService] 向量搜索失败:', error);
+      return [];
+    }
   }
 
   /**

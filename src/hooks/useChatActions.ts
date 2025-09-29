@@ -341,10 +341,12 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         assistantMessageId,
         thinkingStartTime: thinking_start_time,
         currentContentRef,
-        autoSaverRef,
         updateMessage,
         updateMessageContentInMemory,
         setTokenCount,
+        modelId: modelToUse,
+        provider: effectiveProvider,
+        apiKey: undefined, // API密钥会从设置中自动获取
       });
       if (handled) return;
     }
@@ -377,9 +379,14 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       const recentMessages = currentConversation.messages.slice(-10);
       hb.addMany(recentMessages
         .filter((msg:any)=> msg.role==='user'||msg.role==='assistant')
-        .map((msg:any)=> ({ role: msg.role, content: msg.content || '', images: msg.images })) as any);
+        .map((msg:any)=> ({ 
+          role: msg.role, 
+          content: msg.content || '', 
+          images: msg.images,
+          contextData: msg.context_data 
+        })) as any);
     }
-    hb.addUser(content, options?.images);
+    hb.addUser(content, options?.images, documentData?.contextData);
     const historyForLlm: LlmMessage[] = hb.take();
 
     // 调试信息已移除，避免控制台噪音

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import {
   getModelManager 
 } from '@/lib/embedding/ModelManager';
 import { OllamaConfigService } from '@/lib/config/OllamaConfigService';
+import { toast } from '@/components/ui/sonner';
 
 interface EmbeddingModelManagerProps {
   onModelChange?: (modelId: string | null) => void;
@@ -68,13 +69,26 @@ export function EmbeddingModelManager({ onModelChange }: EmbeddingModelManagerPr
       await modelManager.downloadModel(modelId, handleDownloadProgress);
       setModels(modelManager.getAllModels());
       
-      // 如果这是第一个下载的模型，自动激活
+      // 如果这是第一个下载的模型，自动激活并同步配置
       const activeModel = modelManager.getActiveModel();
       if (activeModel && activeModel.id === modelId) {
+        // 同步知识库配置
+        await synchronizeKnowledgeBaseConfig(modelId);
         onModelChange?.(modelId);
+        
+        // 获取模型名称用于提示
+        const model = models.find(m => m.id === modelId);
+        const modelName = model?.name || modelId;
+        
+        toast.success(`${modelName} 下载完成并已激活`, {
+          description: '知识库配置已自动同步'
+        });
       }
     } catch (error) {
       console.error('下载模型失败:', error);
+      toast.error('下载模型失败', {
+        description: error instanceof Error ? error.message : String(error)
+      });
     }
   };
 
@@ -92,27 +106,145 @@ export function EmbeddingModelManager({ onModelChange }: EmbeddingModelManagerPr
   // 删除模型
   const handleDeleteModel = async (modelId: string) => {
     try {
+      // 检查是否删除的是当前激活的模型
+      const activeModel = modelManager.getActiveModel();
+      const wasActive = activeModel?.id === modelId;
+      
       await modelManager.deleteModel(modelId);
       setModels(modelManager.getAllModels());
       
-      // 如果删除的是激活模型，清除选择
-      const activeModel = modelManager.getActiveModel();
-      if (!activeModel) {
+      // 如果删除的是激活模型，清除选择并重置配置
+      const newActiveModel = modelManager.getActiveModel();
+      if (!newActiveModel) {
         onModelChange?.(null);
+        
+        // 如果删除的是激活模型，重置知识库配置为默认值
+        if (wasActive) {
+          await resetKnowledgeBaseConfigToDefault();
+          
+          // 获取模型名称用于提示
+          const model = models.find(m => m.id === modelId);
+          const modelName = model?.name || modelId;
+          
+          toast.success(`${modelName} 已删除`, {
+            description: '知识库配置已重置为默认值'
+          });
+        }
       }
     } catch (error) {
       console.error('删除模型失败:', error);
+      toast.error('删除模型失败', {
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  // 重置知识库配置为默认值
+  const resetKnowledgeBaseConfigToDefault = async () => {
+    try {
+      console.log('[EmbeddingModelManager] 重置知识库配置为默认值');
+      
+      const { getKnowledgeBaseConfigManager, DEFAULT_KNOWLEDGE_BASE_CONFIG } = await import('@/lib/knowledgeBaseConfig');
+      const configManager = getKnowledgeBaseConfigManager();
+      
+      // 强制保存默认配置
+      await configManager.saveConfig(DEFAULT_KNOWLEDGE_BASE_CONFIG);
+      
+      console.log('[EmbeddingModelManager] 知识库配置已重置为默认值');
+    } catch (error) {
+      console.error('[EmbeddingModelManager] 重置知识库配置失败:', error);
+      throw error;
     }
   };
 
   // 激活模型
   const handleActivateModel = async (modelId: string) => {
     try {
+      console.log('[EmbeddingModelManager] 开始激活模型:', modelId);
+      
+      // 1. 激活模型
       await modelManager.setActiveModel(modelId);
       setModels(modelManager.getAllModels());
+      
+      // 2. 同步更新知识库配置 - 强制覆盖用户保存的配置
+      await synchronizeKnowledgeBaseConfig(modelId);
+      
       onModelChange?.(modelId);
+      
+      // 获取模型名称用于提示
+      const model = models.find(m => m.id === modelId);
+      const modelName = model?.name || modelId;
+      
+      console.log('[EmbeddingModelManager] 模型激活完成，配置已同步');
+      toast.success(`${modelName} 已激活`, {
+        description: '知识库配置已自动同步，可以开始使用RAG功能'
+      });
     } catch (error) {
       console.error('激活模型失败:', error);
+      toast.error('激活模型失败', {
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  // 同步知识库配置函数
+  const synchronizeKnowledgeBaseConfig = async (modelId: string) => {
+    try {
+      console.log('[EmbeddingModelManager] 开始同步知识库配置，模型ID:', modelId);
+      
+      // 获取模型信息
+      const model = models.find(m => m.id === modelId);
+      if (!model) {
+        console.error('[EmbeddingModelManager] 未找到模型信息:', modelId);
+        return;
+      }
+
+      // 导入配置管理器
+      const { getKnowledgeBaseConfigManager } = await import('@/lib/knowledgeBaseConfig');
+      const { modelConfigService } = await import('@/lib/embedding/ModelConfigService');
+      
+      const configManager = getKnowledgeBaseConfigManager();
+      const currentConfig = configManager.getConfig();
+      
+      // 获取模型的正确维度信息
+      const dimensions = await modelConfigService.getModelDimensions(modelId);
+      
+      // 创建新的配置
+      const newConfig = {
+        ...currentConfig,
+        embedding: {
+          ...currentConfig.embedding,
+          strategy: selectedStrategy,
+          modelPath: selectedStrategy === 'local-onnx' ? `models/${modelId}` : '',
+          modelName: modelId,
+          dimensions: dimensions,
+          // 如果是ollama策略，设置API URL
+          apiUrl: selectedStrategy === 'ollama' ? `http://${ollamaUrl}` : ''
+        }
+      };
+      
+      console.log('[EmbeddingModelManager] 更新前配置:', {
+        strategy: currentConfig.embedding.strategy,
+        modelPath: currentConfig.embedding.modelPath,
+        modelName: currentConfig.embedding.modelName,
+        dimensions: currentConfig.embedding.dimensions
+      });
+      
+      console.log('[EmbeddingModelManager] 更新后配置:', {
+        strategy: newConfig.embedding.strategy,
+        modelPath: newConfig.embedding.modelPath,
+        modelName: newConfig.embedding.modelName,
+        dimensions: newConfig.embedding.dimensions
+      });
+      
+      // 强制保存新配置 - 这会覆盖用户之前保存的任何配置
+      await configManager.saveConfig(newConfig);
+      
+      console.log('[EmbeddingModelManager] 知识库配置已强制更新');
+      
+    } catch (error) {
+      console.error('[EmbeddingModelManager] 同步知识库配置失败:', error);
+      throw error;
     }
   };
 

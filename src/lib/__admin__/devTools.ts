@@ -172,6 +172,63 @@ export async function devClearData(verbose: boolean = true): Promise<boolean> {
 }
 
 /**
+ * 🧹 清理孤立的向量数据
+ */
+export async function devCleanupVectors(): Promise<boolean> {
+  try {
+    console.log("🧹 开始清理孤立的向量数据...");
+    
+    const { KnowledgeService } = await import('@/lib/knowledgeService');
+    
+    // 获取清理前的统计信息
+    const statsBefore = await KnowledgeService.getVectorStats();
+    console.log("清理前统计:", statsBefore);
+    
+    // 执行清理
+    const cleanedCount = await KnowledgeService.cleanupOrphanedVectors();
+    
+    // 获取清理后的统计信息
+    const statsAfter = await KnowledgeService.getVectorStats();
+    console.log("清理后统计:", statsAfter);
+    
+    console.log(`✅ 清理完成，处理了 ${cleanedCount} 个孤立向量`);
+    return true;
+    
+  } catch (error) {
+    console.error("❌ 清理向量数据失败:", error);
+    return false;
+  }
+}
+
+/**
+ * 📊 获取向量数据统计
+ */
+export async function devGetVectorStats(): Promise<void> {
+  try {
+    console.log("📊 获取向量数据统计...");
+    
+    const { KnowledgeService } = await import('@/lib/knowledgeService');
+    const stats = await KnowledgeService.getVectorStats();
+    
+    console.log("向量数据统计:", {
+      总向量数: stats.totalVectors,
+      活跃向量: stats.activeVectors,
+      已删除向量: stats.deletedVectors,
+      孤立向量: stats.orphanedVectors
+    });
+    
+    if (stats.orphanedVectors > 0) {
+      console.warn(`⚠️ 发现 ${stats.orphanedVectors} 个孤立向量，建议运行清理操作`);
+    } else {
+      console.log("✅ 没有发现孤立向量");
+    }
+    
+  } catch (error) {
+    console.error("❌ 获取统计信息失败:", error);
+  }
+}
+
+/**
  * 📊 检查数据库状态
  */
 export async function devCheckDatabase(): Promise<void> {
@@ -572,5 +629,89 @@ export async function resetDevelopmentDatabase(): Promise<void> {
     }
   } catch (error) {
     console.error('在 resetDevelopmentDatabase 中发生未捕获的错误:', error);
+  }
+}
+
+/**
+ * 重置知识库配置为默认值
+ * 用于解决用户保存配置覆盖默认值导致的问题
+ */
+export async function devResetKnowledgeBaseConfig(): Promise<boolean> {
+  try {
+    console.log("🔧 开始重置知识库配置为默认值...");
+    
+    const { getKnowledgeBaseConfigManager, DEFAULT_KNOWLEDGE_BASE_CONFIG } = await import('../knowledgeBaseConfig');
+    
+    // 获取配置管理器
+    const configManager = getKnowledgeBaseConfigManager();
+    
+    // 显示当前配置
+    const currentConfig = configManager.getConfig();
+    console.log("当前配置:", {
+      embedding: {
+        strategy: currentConfig.embedding.strategy,
+        modelPath: currentConfig.embedding.modelPath,
+        modelName: currentConfig.embedding.modelName,
+        dimensions: currentConfig.embedding.dimensions
+      }
+    });
+    
+    // 重置为默认配置
+    await configManager.saveConfig(DEFAULT_KNOWLEDGE_BASE_CONFIG);
+    console.log("✅ 配置已重置为默认值:", {
+      embedding: {
+        strategy: DEFAULT_KNOWLEDGE_BASE_CONFIG.embedding.strategy,
+        modelPath: DEFAULT_KNOWLEDGE_BASE_CONFIG.embedding.modelPath,
+        modelName: DEFAULT_KNOWLEDGE_BASE_CONFIG.embedding.modelName,
+        dimensions: DEFAULT_KNOWLEDGE_BASE_CONFIG.embedding.dimensions
+      }
+    });
+    
+    // 验证配置已更新
+    const newConfig = configManager.getConfig();
+    console.log("更新后的配置:", {
+      embedding: {
+        strategy: newConfig.embedding.strategy,
+        modelPath: newConfig.embedding.modelPath,
+        modelName: newConfig.embedding.modelName,
+        dimensions: newConfig.embedding.dimensions
+      }
+    });
+    
+    console.log("🔧 知识库配置重置完成");
+    console.log("⚠️  请重新生成所有向量数据以确保维度一致性");
+    
+    return true;
+    
+  } catch (error) {
+    console.error("❌ 重置知识库配置失败:", error);
+    return false;
+  }
+}
+
+/**
+ * 显示当前知识库配置信息
+ */
+export async function devShowKnowledgeBaseConfig(): Promise<void> {
+  try {
+    console.log("📋 获取当前知识库配置...");
+    
+    const { getKnowledgeBaseConfigManager } = await import('../knowledgeBaseConfig');
+    const configManager = getKnowledgeBaseConfigManager();
+    const config = configManager.getConfig();
+    
+    console.log("📋 当前知识库配置:", {
+      vectorStore: config.vectorStore,
+      embedding: config.embedding,
+      retrieval: config.retrieval,
+      documentProcessing: {
+        maxFileSize: config.documentProcessing.maxFileSize,
+        chunkSize: config.documentProcessing.chunkSize,
+        chunkOverlap: config.documentProcessing.chunkOverlap
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ 获取配置信息失败:", error);
   }
 } 

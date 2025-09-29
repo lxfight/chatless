@@ -27,8 +27,19 @@ export class ContextBuilder {
       };
     }
 
+    // 去重：按 chunk id 或 content_hash（在metadata中）去重
+    const seen = new Set<string>();
+    const deduped: RetrievedChunk[] = [];
+    for (const c of chunks) {
+      const key = (c.id || '') + '|' + (c.metadata?.content_hash || c.metadata?.contentHash || '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(c);
+      }
+    }
+
     // 按照配置排序
-    const sortedChunks = this.sortChunks(chunks);
+    const sortedChunks = this.sortChunks(deduped);
     
     // 构建上下文字符串
     const { context, usedChunks, truncated } = this.assembleContext(sortedChunks, query);

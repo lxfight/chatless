@@ -46,6 +46,24 @@ export default function DevToolsPage() {
   const [appDataPath, setAppDataPath] = useState<string>('');
   const [jumpPath, setJumpPath] = useState<string>('');
   const [recents, setRecents] = useState<{ path: string; title?: string; ts: number }[]>([]);
+  const [vectorStats, setVectorStats] = useState<{
+    totalVectors: number;
+    activeVectors: number;
+    deletedVectors: number;
+    orphanedVectors: number;
+  } | null>(null);
+  const [isLoadingVectorStats, setIsLoadingVectorStats] = useState(false);
+  const [isCleaningVectors, setIsCleaningVectors] = useState(false);
+  const [vectorMessage, setVectorMessage] = useState('');
+
+  // 知识库配置管理状态
+  const [configInfo, setConfigInfo] = useState<{
+    current: any;
+    default: any;
+  } | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [isResettingConfig, setIsResettingConfig] = useState(false);
+  const [configMessage, setConfigMessage] = useState('');
 
   const handleNavigate = () => {
     const p = (jumpPath || '').trim();
@@ -139,6 +157,119 @@ export default function DevToolsPage() {
     } catch (error) {
       console.error('清除锁失败:', error);
       setMessage(`❌ 清除锁失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleGetVectorStats = async () => {
+    setIsLoadingVectorStats(true);
+    setVectorMessage('');
+    
+    try {
+      const { KnowledgeService } = await import('@/lib/knowledgeService');
+      const stats = await KnowledgeService.getVectorStats();
+      setVectorStats(stats);
+      
+      if (stats.orphanedVectors > 0) {
+        setVectorMessage(`⚠️ 发现 ${stats.orphanedVectors} 个孤立向量，建议清理`);
+      } else {
+        setVectorMessage('✅ 没有发现孤立向量');
+      }
+    } catch (error) {
+      console.error('获取向量统计失败:', error);
+      setVectorMessage(`❌ 获取统计失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoadingVectorStats(false);
+    }
+  };
+
+  const handleCleanupVectors = async () => {
+    if (!vectorStats?.orphanedVectors) {
+      setVectorMessage('没有需要清理的孤立向量');
+      return;
+    }
+
+    if (!confirm(`确定要清理 ${vectorStats.orphanedVectors} 个孤立向量吗？`)) {
+      return;
+    }
+
+    setIsCleaningVectors(true);
+    setVectorMessage('');
+
+    try {
+      const { KnowledgeService } = await import('@/lib/knowledgeService');
+      const cleanedCount = await KnowledgeService.cleanupOrphanedVectors();
+      
+      setVectorMessage(`✅ 清理完成，处理了 ${cleanedCount} 个孤立向量`);
+      
+      // 重新获取统计信息
+      setTimeout(() => {
+        handleGetVectorStats();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('清理向量失败:', error);
+      setVectorMessage(`❌ 清理失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsCleaningVectors(false);
+    }
+  };
+
+  // 知识库配置管理函数
+  const handleShowKnowledgeBaseConfig = async () => {
+    setIsLoadingConfig(true);
+    setConfigMessage('');
+    
+    try {
+      const { devShowKnowledgeBaseConfig } = await import('@/lib/__admin__/devTools');
+      await devShowKnowledgeBaseConfig();
+      
+      // 获取配置信息用于显示
+      const { getKnowledgeBaseConfigManager, DEFAULT_KNOWLEDGE_BASE_CONFIG } = await import('@/lib/knowledgeBaseConfig');
+      const configManager = getKnowledgeBaseConfigManager();
+      const currentConfig = configManager.getConfig();
+      
+      setConfigInfo({
+        current: currentConfig,
+        default: DEFAULT_KNOWLEDGE_BASE_CONFIG
+      });
+      
+      setConfigMessage('✅ 配置信息已加载');
+    } catch (error) {
+      console.error('获取配置信息失败:', error);
+      setConfigMessage(`❌ 获取配置失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  };
+
+  const handleResetKnowledgeBaseConfig = async () => {
+    if (!confirm('⚠️ 这将重置知识库配置为默认值，确定要继续吗？')) {
+      return;
+    }
+
+    setIsResettingConfig(true);
+    setConfigMessage('');
+
+    try {
+      const { devResetKnowledgeBaseConfig } = await import('@/lib/__admin__/devTools');
+      const success = await devResetKnowledgeBaseConfig();
+      
+      if (success) {
+        setConfigMessage('✅ 知识库配置已重置为默认值');
+        setConfigMessage(prevMessage => prevMessage + '\n⚠️ 建议重新生成所有向量数据以确保维度一致性');
+        
+        // 重新加载配置信息
+        setTimeout(() => {
+          handleShowKnowledgeBaseConfig();
+        }, 1000);
+      } else {
+        setConfigMessage('❌ 配置重置失败');
+      }
+    } catch (error) {
+      console.error('重置配置失败:', error);
+      setConfigMessage(`❌ 重置失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsResettingConfig(false);
     }
   };
 
@@ -535,6 +666,160 @@ export default function DevToolsPage() {
                 </CardHeader>
                 <CardContent>
                   <PerformanceMonitor />
+                </CardContent>
+              </Card>
+
+              {/* 向量数据管理 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Database className="h-5 w-5" />
+                    <span>向量数据管理</span>
+                  </CardTitle>
+                  <CardDescription>
+                    管理和清理知识库向量嵌入数据
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">向量数据统计</h4>
+                    <p className="text-sm text-muted-foreground">
+                      查看向量数据使用情况，清理孤立的向量数据
+                    </p>
+                    
+                    {vectorStats && (
+                      <div className="bg-muted p-3 rounded text-sm space-y-1">
+                        <div><strong>总向量数:</strong> {vectorStats.totalVectors}</div>
+                        <div><strong>活跃向量:</strong> {vectorStats.activeVectors}</div>
+                        <div><strong>已删除:</strong> {vectorStats.deletedVectors}</div>
+                        <div className={vectorStats.orphanedVectors > 0 ? "text-orange-600 font-semibold" : ""}>
+                          <strong>孤立向量:</strong> {vectorStats.orphanedVectors}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {vectorMessage && (
+                      <div className="bg-muted p-2 rounded text-sm">
+                        {vectorMessage}
+                      </div>
+                    )}
+                    
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={handleGetVectorStats} 
+                        variant="outline"
+                        disabled={isLoadingVectorStats || isCleaningVectors}
+                        size="sm"
+                      >
+                        {isLoadingVectorStats ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        获取统计
+                      </Button>
+                      <Button 
+                        onClick={handleCleanupVectors} 
+                        variant="outline"
+                        disabled={isLoadingVectorStats || isCleaningVectors || !vectorStats?.orphanedVectors}
+                        size="sm"
+                      >
+                        {isCleaningVectors ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        清理孤立向量
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 知识库配置管理 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Settings className="h-5 w-5" />
+                    <span>知识库配置管理</span>
+                  </CardTitle>
+                  <CardDescription>
+                    查看和重置知识库配置，解决模型配置覆盖问题
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">配置信息</h4>
+                    <p className="text-sm text-muted-foreground">
+                      查看当前配置状态，重置为正确的默认配置
+                    </p>
+                    
+                    {configInfo && (
+                      <div className="bg-muted p-3 rounded text-sm space-y-2">
+                        <div>
+                          <strong>当前嵌入配置:</strong>
+                          <div className="ml-4 mt-1 space-y-1">
+                            <div>策略: {configInfo.current.embedding.strategy}</div>
+                            <div>模型路径: {configInfo.current.embedding.modelPath}</div>
+                            <div>模型名称: {configInfo.current.embedding.modelName}</div>
+                            <div>维度: {configInfo.current.embedding.dimensions}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <strong>默认嵌入配置:</strong>
+                          <div className="ml-4 mt-1 space-y-1 text-green-600">
+                            <div>策略: {configInfo.default.embedding.strategy}</div>
+                            <div>模型路径: {configInfo.default.embedding.modelPath}</div>
+                            <div>模型名称: {configInfo.default.embedding.modelName}</div>
+                            <div>维度: {configInfo.default.embedding.dimensions}</div>
+                          </div>
+                        </div>
+                        {/* 配置差异提示 */}
+                        {(configInfo.current.embedding.modelPath !== configInfo.default.embedding.modelPath ||
+                          configInfo.current.embedding.modelName !== configInfo.default.embedding.modelName ||
+                          configInfo.current.embedding.dimensions !== configInfo.default.embedding.dimensions) && (
+                          <div className="text-red-600 font-semibold">
+                            ⚠️ 当前配置与默认配置不一致，可能导致维度不匹配问题
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {configMessage && (
+                      <div className="bg-muted p-2 rounded text-sm whitespace-pre-line">
+                        {configMessage}
+                      </div>
+                    )}
+                    
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={handleShowKnowledgeBaseConfig} 
+                        variant="outline"
+                        disabled={isLoadingConfig || isResettingConfig}
+                        size="sm"
+                      >
+                        {isLoadingConfig ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        查看配置
+                      </Button>
+                      <Button 
+                        onClick={handleResetKnowledgeBaseConfig} 
+                        variant="outline"
+                        disabled={isLoadingConfig || isResettingConfig}
+                        size="sm"
+                      >
+                        {isResettingConfig ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                        )}
+                        重置为默认值
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
