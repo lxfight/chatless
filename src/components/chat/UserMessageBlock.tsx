@@ -107,7 +107,7 @@ export const UserMessageBlock = ({
             <div className="flex items-center gap-2 text-sm min-w-0">
               <div className="w-4 h-4 text-blue-500/80 dark:text-blue-400/80 shrink-0">🧠</div>
               <span className="text-blue-600/90 dark:text-blue-300/90 font-medium whitespace-nowrap shrink-0">引用知识库:</span>
-              <span className="text-blue-700 dark:text-blue-200 font-semibold truncate">{knowledgeBaseReference.name}</span>
+              <span className="text-blue-600 dark:text-blue-200 font-semibold truncate">{knowledgeBaseReference.name}</span>
             </div>
           </div>
         )}
