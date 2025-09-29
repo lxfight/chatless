@@ -39,11 +39,11 @@ export function PersonalizationSettings() {
            onChange={ui.setShowSettingIcons}
          />
 
-         <SelectField
+        <SelectField
           label="应用窗口尺寸"
           options={[
-            { value: '900x700', label: '900 × 700（默认）' },
-            { value: '1024x768', label: '1024 × 768' },
+            { value: '900x700', label: '900 × 700' },
+            { value: '1024x768', label: '1024 × 768（默认）' },
             { value: '1280x800', label: '1280 × 800' },
             { value: '1366x768', label: '1366 × 768' },
             { value: '1440x900', label: '1440 × 900' },

@@ -85,7 +85,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
 
   showCloseConfirmation: true,
   charFadeIntensity: 'normal',
-  windowSizePreset: '900x700',
+  windowSizePreset: '1024x768',
 
   setShowSettingIcons: (show) => {
     set({ showSettingIcons: show });
@@ -166,7 +166,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<CharFadeIntensity>('ui_char_fade_intensity', 'normal', 'user-preferences.json'),
     StorageUtil.getItem<SectionIconPreset>('ui_settings_icon_preset', 'brand', 'user-preferences.json'),
-    StorageUtil.getItem<WindowSizePreset>('ui_window_size_preset', '900x700', 'user-preferences.json'),
+    StorageUtil.getItem<WindowSizePreset>('ui_window_size_preset', '1024x768', 'user-preferences.json'),
   ]);
 
   useUiPreferences.setState({
@@ -182,7 +182,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     showCloseConfirmation: showCloseConfirm ?? true,
     charFadeIntensity: (charFadeIntensity as CharFadeIntensity) ?? 'normal',
     settingsIconPreset: (iconPreset as SectionIconPreset) ?? 'brand',
-    windowSizePreset: (windowSizePreset as WindowSizePreset) ?? '900x700',
+    windowSizePreset: (windowSizePreset as WindowSizePreset) ?? '1024x768',
     initialized: true,
   });
 })(); 
