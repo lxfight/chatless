@@ -77,11 +77,30 @@ export class ModelConfigService {
    * 加载模型配置
    */
   private loadModelConfigs(): void {
-    for (const config of modelsConfig) {
+    for (const config of modelsConfig as any[]) {
+      // 兼容不同数据源：将 strategy 规范化为受控联合类型
+      const strategy: 'ollama' | 'local-onnx' = ((): any => {
+        const s = String(config.strategy || '').toLowerCase();
+        if (s === 'ollama') return 'ollama';
+        if (s === 'local-onnx' || s === 'onnx' || s === 'local') return 'local-onnx';
+        return 'ollama';
+      })();
+
       const modelConfig: ModelConfig = {
-        ...config,
+        id: String(config.id),
+        name: String(config.name || config.id),
+        description: String(config.description || ''),
+        size: config.size,
+        strategy,
         // 优先使用配置文件中的dimensions，否则使用已知映射
         dimensions: config.dimensions || KNOWN_DIMENSIONS[config.id],
+        contextLength: config.contextLength,
+        downloadUrl: config.downloadUrl,
+        fileName: config.fileName,
+        tokenizerUrl: config.tokenizerUrl,
+        tokenizerFileName: config.tokenizerFileName,
+        isRecommended: !!config.isRecommended,
+        category: config.category,
       };
       
       this.modelConfigs.set(config.id, modelConfig);

@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useUiPreferences } from '@/store/uiPreferences';
 
 // 放宽“接近底部”的阈值，减少来回切换造成的跳屏
 // 提高阈值，确保滚动到底部后不会被底部信息条遮挡
@@ -31,7 +30,6 @@ export const useScrollManagement = (
     minMove: number; // 最小位移阈值（px）
     maxVel: number;  // 速度上限（px/s）
   }>({ raf: null, animating: false, start: 0, from: 0, to: 0, duration: 450, last: 0, minMove: 1.5, maxVel: 1200 });
-  const scrollSpeed = useUiPreferences((s)=> s.chatScrollSpeed);
 
   const isNearBottom = useCallback((container: HTMLElement) => {
     const { scrollTop, scrollHeight, clientHeight } = container;
