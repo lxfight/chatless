@@ -30,26 +30,26 @@ export function ChatEmptyState({ onPromptClick }: ChatEmptyStateProps) {
   return (
     <div className="pt-24 max-w-md mx-auto text-center space-y-6">
       <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
+        initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
         className=""
       >
         <Bot className="w-12 h-12 text-primary mx-auto" strokeWidth={1.5} />
       </motion.div>
       <motion.h2
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.24, delay: 0.08 }}
         className="text-lg font-medium tracking-tight text-gray-800 dark:text-gray-200"
       >
         今天有什么可以帮您？
       </motion.h2>
       
       <motion.p
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
+        transition={{ duration: 0.24, delay: 0.12 }}
         className="text-xs text-gray-500 dark:text-gray-400"
       >
         这是一个AI助手，您可以提出任何问题，我会尽力回答。
@@ -59,9 +59,9 @@ export function ChatEmptyState({ onPromptClick }: ChatEmptyStateProps) {
         {examplePrompts.map((prompt, index) => (
           <motion.button
             key={index}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
+            transition={{ duration: 0.22, delay: 0.16 + index * 0.05 }}
             onClick={() => onPromptClick(prompt.text)}
             className="h-10 flex cursor-pointer items-center gap-3 justify-center rounded-md border border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-800/30 hover:bg-primary/5 dark:hover:bg-primary/10 hover:border-primary/50 transition-colors group"
           >
