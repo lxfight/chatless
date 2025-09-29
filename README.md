@@ -47,6 +47,7 @@
   <p><em>简洁现代的聊天界面</em></p>
 </div>
 
+---
 
 ### 智能对话
 
@@ -65,6 +66,8 @@
   <p><em>数学公式和代码渲染</em></p>
 </div>
 
+---
+
 ### 知识库管理
 <div align="center">
   <img src="docs/assets/knowledge-detail.png" alt="知识库详情" width="960" />
@@ -75,6 +78,8 @@
   <img src="docs/assets/knowledge-chat.png" alt="知识库对话" width="960" />
   <p><em>基于知识库的智能问答</em></p>
 </div>
+
+---
 
 ### Prompt 管理
 <div align="center">
@@ -87,10 +92,7 @@
   <p><em>聊天中快速调用提示词</em></p>
 </div>
 
-<div align="center">
-  <img src="docs/assets/prompt-panel.png" alt="Prompt面板-列表" width="960" />
-  <p><em>独立提示词面板（列表视图）</em></p>
-</div>
+---
 
 ### MCP 服务
 <div align="center">
