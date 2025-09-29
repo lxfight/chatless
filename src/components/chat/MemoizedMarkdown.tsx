@@ -269,6 +269,7 @@ export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: Memo
 
   const effectiveSize = sizeOverride ?? size;
 
+  // 固定字号类，避免切换会话时因为状态初始化导致的“先大后小”跳动
   const sizeClass = effectiveSize === 'small' ? 'text-sm' : effectiveSize === 'large' ? 'text-lg' : 'text-base';
 
   const renderers = createRenderers(effectiveSize);

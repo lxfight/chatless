@@ -116,7 +116,10 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
 
   return (
     <div className={cn(
-      "relative w-full max-w-full overflow-hidden mb-2 p-2.5 rounded-xl border border-indigo-200/70 dark:border-indigo-700/60 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 dark:from-indigo-900/25 dark:to-purple-900/25 backdrop-blur-[2px] shadow-sm hover:shadow-md transition-all duration-200",
+      // 与 AttachedDocumentView 统一的卡片基线：尺寸、圆角、边框、阴影、模糊；仅配色不同
+      "w-full max-w-full overflow-hidden rounded-xl border backdrop-blur-[2px] shadow-sm p-4 \
+       border-indigo-200/70 dark:border-indigo-700/40 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 \
+       dark:from-indigo-900/25 dark:to-purple-900/25",
       className
     )}>
       {/* X按钮 - 右上角 */}
@@ -130,51 +133,43 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
         <X className="w-3 h-3" />
       </Button>
 
-      <div className="flex items-center gap-2.5 pr-1 min-w-0">
+      <div className="flex items-start gap-3 pr-1 min-w-0">
         {/* 知识库图标 */}
         <div className="flex-shrink-0 w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-800/50 flex items-center justify-center">
-          <IconComponent className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          <IconComponent className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-300" />
         </div>
         
         {/* 知识库信息 */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-800/30 px-1.5 py-0.5 rounded-full">
-              🧠 当前知识库
-            </span>
-            {/* 可点击的文档数量 */}
+          {/* 与文档卡片统一：左侧标签 + 次要信息 */}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-800/40 dark:text-indigo-300">🧠 已附加</span>
+            {/* 文档数量：可点击展开 */}
             <button
               onClick={handleToggleDocuments}
               className="text-xs text-gray-500 dark:text-gray-400 font-mono hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1"
               title="点击查看文档列表"
             >
-              {documentCount}个文档
-              {isExpanded ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
+              {documentCount}个文档 {isExpanded ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
             </button>
           </div>
-          
-          <div className="flex items-center justify-between min-w-0 gap-2">
-            <h4 className="font-medium text-gray-800 dark:text-gray-200 text-sm leading-tight truncate" title={knowledgeBase.name}>
-              {knowledgeBase.name}
-            </h4>
-            
-            {/* 管理按钮 */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleGoToKnowledgeBase}
-              className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30 transition-colors"
-              title="打开知识库详情页面"
-            >
-              <Settings className="w-3 h-3 mr-1" />
-              管理
-            </Button>
-          </div>
+
+          <h4 className="font-medium text-gray-800 dark:text-gray-200 text-[13px] leading-tight truncate mb-0.5 max-w-full" title={knowledgeBase.name}>
+            <span className="block truncate">{knowledgeBase.name}</span>
+          </h4>
         </div>
+
+        {/* 管理按钮：与文档卡片的删除按钮尺寸一致的紧凑风格 */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleGoToKnowledgeBase}
+          className="mt-0.5 h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30"
+          title="打开知识库详情页面"
+        >
+          <Settings className="w-3 h-3 mr-1" />
+          管理
+        </Button>
       </div>
 
       {/* 展开的文档列表 */}
@@ -186,7 +181,7 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
               variant="ghost"
               size="sm"
               onClick={handleGoToKnowledgeBase}
-              className="h-5 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30 transition-colors"
+              className="h-5 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30"
             >
               <ExternalLink className="w-2.5 h-2.5 mr-1" />
               详情页

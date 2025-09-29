@@ -340,6 +340,7 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         knowledgeBaseId: knowledgeBase.id,
         assistantMessageId,
         thinkingStartTime: thinking_start_time,
+        conversationId: finalConversationId,
         currentContentRef,
         updateMessage,
         updateMessageContentInMemory,

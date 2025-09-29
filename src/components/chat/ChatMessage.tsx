@@ -52,22 +52,17 @@ interface ChatMessageProps {
 const formatTimestamp = (timestamp: string | undefined): string => {
   if (!timestamp) return '';
   try {
-    const date = new Date(timestamp);
+    const d = new Date(timestamp);
+    if (Number.isNaN(d.getTime())) return '';
     const now = new Date();
-    const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
-    const diffMinutes = Math.round(diffSeconds / 60);
-    const diffHours = Math.round(diffMinutes / 60);
-    const diffDays = Math.round(diffHours / 24);
-
-    if (diffSeconds < 60) return `${diffSeconds}秒前`;
-    if (diffMinutes < 60) return `${diffMinutes}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays === 1) return `昨天 ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString();
+    const two = (n: number) => (n < 10 ? `0${n}` : String(n));
+    const md = `${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+    const hm = `${two(d.getHours())}:${two(d.getMinutes())}`;
+    const sameYear = d.getFullYear() === now.getFullYear();
+    return sameYear ? `${md} ${hm}` : `${d.getFullYear()}-${md} ${hm}`;
   } catch (e) {
     void e;
-    return timestamp || '';
+    return '';
   }
 };
 

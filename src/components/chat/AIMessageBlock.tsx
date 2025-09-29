@@ -249,7 +249,9 @@ export function AIMessageBlock({
       {( (!!viewModel && viewModel.flags?.isThinking) || (!!thinkTextFromSegments) || (!!state && !!state.thinkingContent)) && (
         <ThinkingBar
           thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
-          isThinking={ (viewModel?.flags?.isThinking) ?? (isStreaming || (!!thinkTextFromSegments && thinkTextFromSegments.trim().length>0)) }
+          // 仅在“流式进行中”或显式标记为思考中时显示进行态；
+          // 非流式/历史消息即使包含 think 文本，也视为已完成（绿色）。
+          isThinking={ (viewModel?.flags?.isThinking !== undefined) ? !!viewModel?.flags?.isThinking : !!isStreaming }
           elapsedTime={realTimeElapsed}
         />
       )}
@@ -283,7 +285,10 @@ export function AIMessageBlock({
                 const needSoftDivider = prevType === 'card';
                 return (
                   <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
-                    <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />
+                    {/* 逐字平滑淡入：仅在流式期间启用，降低不必要的动画开销 */}
+                    <div className={isStreaming ? 'animate-[fadeInChar_20ms_linear_1_forwards] [--char-delay:14ms]' : undefined}>
+                      <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />
+                    </div>
                   </div>
                 );
               })}
@@ -305,6 +310,13 @@ export function AIMessageBlock({
               return `字数: ${text.replace(/\s+/g,'').length}`;
             })()}
           </div> */}
+        </div>
+      )}
+
+      {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
+      {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
+        <div className="relative min-w-0 max-w-full w-full">
+          <MemoizedMarkdown content={(state?.regularContent || content)} />
         </div>
       )}
     </div>

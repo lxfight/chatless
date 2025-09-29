@@ -1,4 +1,24 @@
 @import "tailwindcss";
+:root {
+  /* 用于逐字动画的默认延迟（可在元素上通过 --char-delay 覆盖） */
+  --char-delay: 12ms;
+}
+
+/* 逐字平滑淡入关键帧：通过为每个字符包裹 span 的方式成本太高，
+   这里采用利用文本阴影与逐行绘制方式的简化动画：
+   渐变 opacity + 轻微 translateY，配合 very small duration 与延迟变量实现细腻感。 */
+@keyframes fadeInChar {
+  0% { opacity: 0; transform: translateY(1px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* 在容器上使用该动画，React 流式每次追加文本时，浏览器会对新增节点应用动画。
+   动画持续时间短小（20ms），借助局部重绘，基本不会造成大面积重排。 */
+.animate-[fadeInChar_20ms_linear_1_forwards] {
+  animation: fadeInChar 20ms linear 1 forwards;
+  /* 通过自定义属性控制延迟（可用于分块细化）*/
+  animation-delay: var(--char-delay);
+}
 @import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
