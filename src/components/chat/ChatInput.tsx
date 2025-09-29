@@ -22,6 +22,7 @@ import { usePromptStore } from '@/store/promptStore';
 import { useChatStore } from '@/store/chatStore';
 import { renderPromptContent } from '@/lib/prompt/render';
 import { mcpPreheater } from '@/lib/mcp/mcpPreheater';
+import { useUiSession } from '@/store/uiSession';
 
 interface EditingMessageData {
   content: string;
@@ -116,10 +117,48 @@ export function ChatInput({
   // —— 输入框高度控制：默认自适应，支持顶部拖拽，最大不超过视口 40% ——
   const MIN_INPUT_HEIGHT = 66; // 与样式中的 min-h 保持一致
   const [maxInputHeight, setMaxInputHeight] = useState<number>(Math.floor(window.innerHeight * 0.4));
-  const [manualHeight, setManualHeight] = useState<number | null>(null);
+  const sessionManualHeight = useUiSession((s)=> s.chatInputHeight);
+  const setSessionManualHeight = useUiSession((s)=> s.setChatInputHeight);
+  const [manualHeight, setManualHeight] = useState<number | null>(sessionManualHeight);
   const [resizing, setResizing] = useState<{ startY: number; startH: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // === 回填输入：从全局 store 读取 inputDrafts 并消费 ===
+  const currentConvId = conversationId || useChatStore((s)=>s.currentConversationId);
+  const draftValue = useChatStore((s)=> (s.inputDrafts && currentConvId ? s.inputDrafts[currentConvId] : ''));
+  const clearInputDraft = useChatStore((s)=>s.clearInputDraft);
+
+  useEffect(()=>{
+    if (!currentConvId) return;
+    if (draftValue && typeof draftValue === 'string' && draftValue.length > 0) {
+      setInputValue(draftValue);
+      try { clearInputDraft(currentConvId); } catch { /* noop */ }
+      const el = textareaRef.current; if (el) { setTimeout(()=>{ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; },0); }
+    }
+  }, [currentConvId, draftValue, clearInputDraft]);
+
+  // 在“真正开始流”时再清空输入框，避免瞬间清空带来的不佳体验
+  const streamStartCounter = useChatStore((s)=> s.streamStartCounter || 0);
+  const lastStreamConvId = useChatStore((s)=> s.lastStreamConvId);
+  useEffect(()=>{
+    const convId = conversationId || useChatStore.getState().currentConversationId;
+    if (lastStreamConvId && convId && lastStreamConvId === convId) {
+      setInputValue("");
+      setAttachedDocument(null);
+      setAttachedImages([]);
+      // 开始流时不强制重置为最小值，保持用户手动高度或自动自适应
+      if (textareaRef.current) {
+        // 若用户手动设置过高度，则保持；否则自适应到内容高度
+        const mh = (sessionManualHeight ?? manualHeight);
+        if (mh !== null) {
+          textareaRef.current.style.height = `${Math.max(MIN_INPUT_HEIGHT, mh)}px`;
+        } else {
+          textareaRef.current.style.height = 'auto';
+        }
+      }
+    }
+  }, [streamStartCounter, lastStreamConvId, conversationId, manualHeight, sessionManualHeight]);
 
   // 根据URL参数设置初始知识库
   useEffect(() => {
@@ -253,6 +292,7 @@ export function ChatInput({
       const delta = resizing.startY - e.clientY; // 向上拖动增高
       const next = Math.max(MIN_INPUT_HEIGHT, resizing.startH + delta);
       setManualHeight(next);
+      try { setSessionManualHeight(next); } catch { /* noop */ }
     };
     const onUp = () => setResizing(null);
     if (resizing) {
@@ -313,6 +353,21 @@ export function ChatInput({
       }
     }
   }, [editingMessage]);
+
+  // 监听全局回填事件：当发送失败且AI无任何输出时，把用户文本回填输入框
+  useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent<string>).detail;
+        if (typeof detail === 'string') {
+          setInputValue(detail);
+          const el = textareaRef.current; if (el) { setTimeout(()=>{ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; },0); }
+        }
+      } catch { /* noop */ }
+    };
+    window.addEventListener('chat-input-fill', handler as EventListener);
+    return () => window.removeEventListener('chat-input-fill', handler as EventListener);
+  }, []);
 
   const handleSend = async () => {
     if (!inputValue.trim() && !attachedDocument) return;
@@ -428,12 +483,7 @@ export function ChatInput({
       onSendMessage(userMessage, undefined, selectedKnowledgeBase ? { id: selectedKnowledgeBase.id, name: selectedKnowledgeBase.name } : undefined);
     }
 
-    setInputValue("");
-    setAttachedDocument(null);
-    setAttachedImages([]);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    // 不立即把高度重置为 auto，保持用户手动高度（或让 onStart 信号处理）
 
     // 如果会话提示词为 oneOff，则清除
     try {
@@ -609,7 +659,7 @@ export function ChatInput({
             const cs = parseFloat(getComputedStyle(el).height || '0');
             setResizing({ startY: e.clientY, startH: cs || MIN_INPUT_HEIGHT });
           }}
-          onDoubleClick={() => { setManualHeight(null); setResizing(null); setTimeout(adjustTextareaHeight, 0); }}
+          onDoubleClick={() => { setManualHeight(null); setSessionManualHeight(null); setResizing(null); setTimeout(adjustTextareaHeight, 0); }}
         />
         <SlashPromptPanel
           open={isPanelOpen}

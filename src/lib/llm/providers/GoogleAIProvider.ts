@@ -122,13 +122,9 @@ export class GoogleAIProvider extends BaseProvider {
       generationConfig,
     };
     
-    // 透传所有自定义参数，除了已处理的标准参数
-    const standardParams = new Set(['temperature', 'topP', 'topK', 'minP', 'maxTokens', 'maxOutputTokens', 'stop', 'frequencyPenalty', 'presencePenalty']);
-    for (const [key, value] of Object.entries(opts as any)) {
-      if (!standardParams.has(key) && value !== undefined) {
-        body[key] = value;
-      }
-    }
+    // 避免把未知字段（如 mcpServers/extensions）透传给 Gemini，统一丢弃未知扩展
+    // 如需支持额外字段，请在此按白名单加入
+    // 目前仅保留下方的 safetySettings / tools 专项处理
     
     // 特定透传（保持向后兼容）
     if ((opts as any).safetySettings) body.safetySettings = (opts as any).safetySettings;

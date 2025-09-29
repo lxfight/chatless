@@ -25,6 +25,11 @@ interface ChatState {
   sessionLastSelectedModel: string | null;
   /** 已加载消息的会话标记，避免重复加载 */
   _messagesLoaded: Record<string, boolean>;
+  /** 按会话缓存的输入草稿，用于失败后回填 */
+  inputDrafts?: Record<string, string>;
+  /** 流开始信号（计数器+会话ID），用于触发输入清空 */
+  streamStartCounter?: number;
+  lastStreamConvId?: string | null;
 }
 
 interface ChatActions {
@@ -59,6 +64,11 @@ interface ChatActions {
   setMessageSegmentsInMemory: (messageId: string, segments: any[]) => void;
   // 统一派发：使用 reducer 更新消息（带批处理）
   dispatchMessageAction: (messageId: string, action: any) => void;
+  // 失败回填相关
+  setInputDraft: (conversationId: string, value: string) => void;
+  clearInputDraft: (conversationId: string) => void;
+  // 通知前端：流已开始（用于在 UI 清空输入框等）
+  notifyStreamStart: (conversationId: string) => void;
 }
 
 // 添加安全的images字段解析函数
@@ -103,6 +113,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
       lastUsedModelPerChat: {},
       sessionLastSelectedModel: null,
       _messagesLoaded: {},
+      inputDrafts: {},
+      streamStartCounter: 0,
+      lastStreamConvId: null,
 
       loadConversations: async () => {
         console.log(`🔄 [LOAD-CONVERSATIONS] 开始加载对话列表`);
@@ -452,6 +465,30 @@ export const useChatStore = create<ChatState & ChatActions>()(
           const messageRepo = dbService.getMessageRepository();
           await messageRepo.delete(messageId);
         } catch { /* ignore */ }
+      },
+
+      setInputDraft: (conversationId, value) => {
+        if (!conversationId) return;
+        set(state => {
+          if (!state.inputDrafts) state.inputDrafts = {};
+          state.inputDrafts[conversationId] = value;
+        });
+      },
+
+      clearInputDraft: (conversationId) => {
+        if (!conversationId) return;
+        set(state => {
+          if (!state.inputDrafts) return;
+          delete state.inputDrafts[conversationId];
+        });
+      },
+
+      notifyStreamStart: (conversationId) => {
+        if (!conversationId) return;
+        set(state => {
+          state.streamStartCounter = (state.streamStartCounter || 0) + 1;
+          state.lastStreamConvId = conversationId;
+        });
       },
 
       // 仅内存：向消息的最后一个 text 段追加文本（若不存在则创建）

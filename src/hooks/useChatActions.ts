@@ -34,6 +34,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const updateMessageContentInMemory = useChatStore((state) => state.updateMessageContentInMemory);
   const updateConversation = useChatStore((state) => state.updateConversation);
+  const setInputDraft = useChatStore((s)=>s.setInputDraft);
+  const notifyStreamStart = useChatStore((s)=>s.notifyStreamStart);
   const renameConversation = useChatStore((state) => state.renameConversation);
   const deleteConversation = useChatStore((state) => state.deleteConversation);
   const createConversation = useChatStore((state) => state.createConversation);
@@ -333,6 +335,19 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     };
     await addMessage(assistantMessage);
 
+    // 尝试在 Provider 串起流之前，做一次“必需条件”的同步校验，例如 API Key
+    try {
+      const ok = await checkApiKeyValidity(effectiveProvider, modelToUse);
+      if (!ok) {
+        // 模拟 onError 早失败：删除AI占位与用户消息并回填
+        void deleteMessage(assistantMessageId);
+        void deleteMessage(userMessageId);
+        try { if (finalConversationId) setInputDraft(finalConversationId, content); } catch { /* noop */ }
+        toast.error('未配置 API 密钥', { description: '请在设置中配置有效的密钥后重试。' });
+        return;
+      }
+    } catch { /* 若校验不可用则继续，让 Provider 触发 onError */ }
+
     // 如果选择了知识库，则优先走 RAG 流程
     if (knowledgeBase) {
       const handled = await runRagFlow({
@@ -403,6 +418,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
+        // 通知 UI：AI 流真正开始，此时再清空输入框更自然
+        try { notifyStreamStart(finalConversationId); } catch { /* noop */ }
 
         autoSaverRef.current = new MessageAutoSaver(async (latest) => {
           await updateMessage(assistantMessageId, {
@@ -701,6 +718,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
           if (!hasContent) {
             // 没有任何内容产生：删除先前添加的占位AI消息，避免“空气泡”
             void deleteMessage(assistantMessageId);
+            // 同时删除刚发送的用户消息，并回填输入框，便于重试
+            try { void deleteMessage(userMessageId); } catch { /* noop */ }
+            try { if (finalConversationId) setInputDraft(finalConversationId, content); } catch { /* noop */ }
           } else {
             void updateMessage(assistantMessageId, {
               status: 'error',

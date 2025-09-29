@@ -66,13 +66,16 @@ export class AnthropicProvider extends BaseProvider {
 
     // Claude expects messages as array of {role, content}
     const endpoint = `${this.baseUrl.replace(/\/$/, '')}/messages`;
-    const mapped: any = { ...options };
-    if (options.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxTokens;
-    if (options.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = options.maxOutputTokens;
-    if (options.stop !== undefined && mapped.stop_sequences === undefined) mapped.stop_sequences = options.stop;
-    if (options.topP !== undefined && mapped.top_p === undefined) mapped.top_p = options.topP;
-    if (options.topK !== undefined && mapped.top_k === undefined) mapped.top_k = options.topK;
-    if (options.minP !== undefined && mapped.min_p === undefined) mapped.min_p = options.minP;
+    // 过滤扩展字段，避免把 mcpServers/extensions 传入
+    const o: any = options || {};
+    const { extensions: _extensions, mcpServers: _mcpServers, ...restOpts } = o;
+    const mapped: any = { ...restOpts };
+    if (o.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxTokens;
+    if (o.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxOutputTokens;
+    if (o.stop !== undefined && mapped.stop_sequences === undefined) mapped.stop_sequences = o.stop;
+    if (o.topP !== undefined && mapped.top_p === undefined) mapped.top_p = o.topP;
+    if (o.topK !== undefined && mapped.top_k === undefined) mapped.top_k = o.topK;
+    if (o.minP !== undefined && mapped.min_p === undefined) mapped.min_p = o.minP;
 
     const body = {
       model,

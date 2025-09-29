@@ -96,7 +96,9 @@ export class OpenAICompatibleProvider extends BaseProvider {
     }
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
-    const mapped: any = { ...opts };
+    // 过滤扩展字段（例如 mcpServers/extensions），只保留通用参数
+    const { extensions: _extensions, mcpServers: _mcpServers, ...restOpts } = (opts as any) || {};
+    const mapped: any = { ...restOpts };
     const o: any = opts as any;
     if (o.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxTokens;
     if (o.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxOutputTokens;

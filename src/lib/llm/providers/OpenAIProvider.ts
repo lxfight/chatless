@@ -70,7 +70,9 @@ export class OpenAIProvider extends BaseProvider {
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
     // 将通用选项映射为 OpenAI 字段（snake_case）
-    const mapped: any = { ...opts };
+    // 过滤掉扩展字段，避免把 mcpServers/extensions 传到不支持的后端
+    const { extensions: _extensions, mcpServers: _mcpServers, ...restOpts } = (opts as any) || {};
+    const mapped: any = { ...restOpts };
     const o: any = opts as any;
     if (o.maxTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxTokens;
     if (o.maxOutputTokens !== undefined && mapped.max_tokens === undefined) mapped.max_tokens = o.maxOutputTokens;

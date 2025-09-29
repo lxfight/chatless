@@ -134,13 +134,22 @@ export class OllamaProvider extends BaseProvider {
       Object.assign(ollamaOptions, opts.options);
     }
     
-    // 2. 添加opts顶层的所有自定义参数
-    for (const [key, value] of Object.entries(opts as any)) {
+    // 2. 添加opts顶层的所有自定义参数（但过滤掉扩展字段，如 mcpServers/extensions）
+    const o: any = opts || {};
+    const { extensions, mcpServers: _mcpServers, ...restOpts } = o;
+    for (const [key, value] of Object.entries(restOpts)) {
       // 跳过已处理的标准参数和内部字段
       if (!['options', 'temperature', 'topP', 'topK', 'minP', 'stop', 'maxTokens', 'maxOutputTokens', 
            'numPredict', 'numCtx', 'repeatLastN', 'repeatPenalty', 'seed', 'frequencyPenalty', 'presencePenalty'].includes(key)) {
         ollamaOptions[key] = value;
       }
+    }
+
+    // 3.1 若有 MCP 配置（extensions.mcpServers 或顶层 mcpServers），允许以 Ollama 自定义选项透传（留口子，不强制字段定义）
+    const mcpList: any = (extensions && extensions.mcpServers) || _mcpServers;
+    if (Array.isArray(mcpList) && mcpList.length > 0) {
+      // 放入 options.mcpServers，供上游自定义中间件/代理读取（Ollama自身忽略无妨）
+      ollamaOptions.mcpServers = mcpList;
     }
     
     // 3. 最后添加标准参数映射（确保正确的格式）
