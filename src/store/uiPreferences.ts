@@ -15,7 +15,7 @@ const SHOW_CLOSE_CONFIRMATION_KEY = "ui_show_close_confirmation";
 type SidebarWidth = 'narrow' | 'medium' | 'wide' | 'xwide';
 type IconSize = 'small' | 'medium' | 'large';
 
-type ScrollSpeed = 'calm' | 'normal' | 'fast';
+type CharFadeIntensity = 'off' | 'light' | 'normal' | 'strong';
 type WindowSizePreset = '900x700' | '1024x768' | '1280x800' | '1366x768' | '1440x900' | '1600x900';
 
 interface UiPreferencesState {
@@ -44,8 +44,8 @@ interface UiPreferencesState {
   // 应用行为
   showCloseConfirmation: boolean;
 
-  // 滚屏速度（个性化）
-  chatScrollSpeed: ScrollSpeed;
+  // 逐字淡入强度
+  charFadeIntensity: CharFadeIntensity;
   // 窗口尺寸预设
   windowSizePreset: WindowSizePreset;
 
@@ -61,7 +61,7 @@ interface UiPreferencesState {
   setCmdPaletteEnabled: (flag: boolean) => void;
   setCmdPaletteShortcut: (sc: string) => void;
   setShowCloseConfirmation: (flag: boolean) => void;
-  setChatScrollSpeed: (v: ScrollSpeed) => void;
+  setCharFadeIntensity: (v: CharFadeIntensity) => void;
   setWindowSizePreset: (v: WindowSizePreset) => void;
 }
 
@@ -84,7 +84,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
   cmdPaletteShortcut: 'ctrl+p',
 
   showCloseConfirmation: true,
-  chatScrollSpeed: 'normal',
+  charFadeIntensity: 'normal',
   windowSizePreset: '900x700',
 
   setShowSettingIcons: (show) => {
@@ -141,9 +141,9 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     set({ showCloseConfirmation: flag });
     StorageUtil.setItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, flag, 'user-preferences.json');
   },
-  setChatScrollSpeed: (v) => {
-    set({ chatScrollSpeed: v });
-    StorageUtil.setItem<ScrollSpeed>('ui_chat_scroll_speed', v, 'user-preferences.json');
+  setCharFadeIntensity: (v) => {
+    set({ charFadeIntensity: v });
+    StorageUtil.setItem<CharFadeIntensity>('ui_char_fade_intensity', v, 'user-preferences.json');
   },
   setWindowSizePreset: (v) => {
     set({ windowSizePreset: v });
@@ -153,7 +153,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
 
 // 异步初始化首选项
 (async () => {
-  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, scrollSpeed, iconPreset, windowSizePreset] = await Promise.all([
+  const [showIcon, simple, lowAnim, width, collapse, tz, iconSize, cpEnabled, cpShortcut, showCloseConfirm, charFadeIntensity, iconPreset, windowSizePreset] = await Promise.all([
     StorageUtil.getItem<boolean>(SHOW_SETTING_ICONS_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SIMPLE_MODE_KEY, true, 'user-preferences.json'),
     StorageUtil.getItem<boolean>(LOW_ANIMATION_KEY, false, 'user-preferences.json'),
@@ -164,7 +164,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     StorageUtil.getItem<boolean>('ui_cmd_palette_enabled', true, 'user-preferences.json'),
     StorageUtil.getItem<string>('ui_cmd_palette_shortcut', 'ctrl+p', 'user-preferences.json'),
     StorageUtil.getItem<boolean>(SHOW_CLOSE_CONFIRMATION_KEY, true, 'user-preferences.json'),
-    StorageUtil.getItem<ScrollSpeed>('ui_chat_scroll_speed', 'normal', 'user-preferences.json'),
+    StorageUtil.getItem<CharFadeIntensity>('ui_char_fade_intensity', 'normal', 'user-preferences.json'),
     StorageUtil.getItem<SectionIconPreset>('ui_settings_icon_preset', 'brand', 'user-preferences.json'),
     StorageUtil.getItem<WindowSizePreset>('ui_window_size_preset', '900x700', 'user-preferences.json'),
   ]);
@@ -180,7 +180,7 @@ export const useUiPreferences = create<UiPreferencesState>((set) => ({
     cmdPaletteEnabled: cpEnabled ?? true,
     cmdPaletteShortcut: cpShortcut || 'ctrl+p',
     showCloseConfirmation: showCloseConfirm ?? true,
-    chatScrollSpeed: (scrollSpeed as ScrollSpeed) ?? 'normal',
+    charFadeIntensity: (charFadeIntensity as CharFadeIntensity) ?? 'normal',
     settingsIconPreset: (iconPreset as SectionIconPreset) ?? 'brand',
     windowSizePreset: (windowSizePreset as WindowSizePreset) ?? '900x700',
     initialized: true,

@@ -285,10 +285,22 @@ export function AIMessageBlock({
                 const needSoftDivider = prevType === 'card';
                 return (
                   <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
-                    {/* 逐字平滑淡入：仅在流式期间启用，降低不必要的动画开销 */}
-                    <div className={isStreaming ? 'animate-[fadeInChar_20ms_linear_1_forwards] [--char-delay:14ms]' : undefined}>
+                    {isStreaming ? (
+                      // 流式：使用高性能逐字淡入（与 Markdown 并存安全：seg.text 已是纯文本片段）
+                      <div className="prose prose-slate dark:prose-invert">
+                        <div className="text-[15px] leading-7">
+                          <div className="whitespace-pre-wrap break-words">
+                            {/* 逐字动画容器：AnimatedCharFade 仅追加新增字符 */}
+                            {(() => {
+                              const AnimatedCharFade = require('./AnimatedCharFade').AnimatedCharFade;
+                              return <AnimatedCharFade text={seg.text || ''} />;
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                       <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />
-                    </div>
+                    )}
                   </div>
                 );
               })}

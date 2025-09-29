@@ -19,6 +19,12 @@
   /* 通过自定义属性控制延迟（可用于分块细化）*/
   animation-delay: var(--char-delay);
 }
+
+/* 新的字符级动画样式（配合 AnimatedCharFade 组件使用） */
+.cl-char { opacity: 0; display: inline-block; }
+.cl-run { animation: fadeInChar 0.8s ease-in-out forwards; }
+.cl-light { animation-duration: 0.5s; }
+.cl-strong { animation-duration: 1.1s; }
 @import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));

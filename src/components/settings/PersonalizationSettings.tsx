@@ -110,16 +110,17 @@ export function PersonalizationSettings() {
            onChange={ui.setTimezone}
          />
 
-         <SelectField
-           label="聊天滚屏速度"
-           options={[
-             { value: 'calm', label: '平缓' },
-             { value: 'normal', label: '适中' },
-             { value: 'fast', label: '快速' },
-           ]}
-           value={ui.chatScrollSpeed as any}
-           onChange={(v) => ui.setChatScrollSpeed(v as any)}
-         />
+        <SelectField
+          label="逐字淡入强度"
+          options={[
+            { value: 'off', label: '关闭' },
+            { value: 'light', label: '轻' },
+            { value: 'normal', label: '中（默认）' },
+            { value: 'strong', label: '重' },
+          ]}
+          value={ui.charFadeIntensity as any}
+          onChange={(v) => ui.setCharFadeIntensity(v as any)}
+        />
 
         {/* <SelectField
           label="设置页图标样式"

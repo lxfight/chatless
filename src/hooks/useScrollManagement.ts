@@ -51,53 +51,11 @@ export const useScrollManagement = (
       setIsUserScrolling(false);
       // 初次进入会话：不自动滚动，由上层决定定位（如最后一条用户消息）
     } else if (shouldAutoScroll && !isUserScrolling && isLoading) {
-      // 正在流式生成时，始终使用自定义“跟随到底部”动画（短距离也动画），避免瞬时跳变
+      // 轻量策略：仅当用户已在底部附近时，才把视图对齐到底部；不做持续动画跟随
       const container = messagesContainerRef.current;
-      if (container) {
-        // 根据个性化设置映射速度
-        const base = scrollSpeed === 'calm' ? 650 : scrollSpeed === 'fast' ? 260 : 420;
-        followStateRef.current.duration = base;
-        // 个性化映射：越平缓速度上限越低、最小步长越小
-        if (scrollSpeed === 'calm') { followStateRef.current.maxVel = 900; followStateRef.current.minMove = 0.8; }
-        else if (scrollSpeed === 'fast') { followStateRef.current.maxVel = 1800; followStateRef.current.minMove = 1.2; }
-        else { followStateRef.current.maxVel = 1300; followStateRef.current.minMove = 1; }
-        const st = followStateRef.current;
+      if (container && isNearBottom(container)) {
         const target = container.scrollHeight - container.clientHeight;
-        // 小距离直接对齐，避免轻微闪动
-        if (Math.abs(target - container.scrollTop) <= st.minMove) {
-          container.scrollTop = target;
-          return;
-        }
-        if (!st.animating) {
-          st.animating = true;
-          st.from = container.scrollTop;
-          st.start = performance.now();
-          st.last = st.start;
-          st.to = target;
-          const ease = (t:number) => 1 - Math.pow(1 - t, 3); // easeOutCubic
-          const step = (now:number) => {
-            const p = Math.min(1, (now - st.start) / st.duration);
-            const yWanted = st.from + (st.to - st.from) * ease(p);
-            const current = container.scrollTop;
-            const dt = Math.max(1, now - st.last); // ms
-            const maxDelta = (st.maxVel * dt) / 1000; // px
-            const rawDelta = yWanted - current;
-            const delta = Math.abs(rawDelta) > maxDelta ? Math.sign(rawDelta) * maxDelta : rawDelta;
-            container.scrollTop = current + delta;
-            st.last = now;
-            if (p < 1 && Math.abs(container.scrollTop - st.to) > 1) {
-              st.raf = requestAnimationFrame(step);
-            } else {
-              container.scrollTop = st.to;
-              st.animating = false;
-              st.raf = null;
-            }
-          };
-          st.raf = requestAnimationFrame(step);
-        } else {
-          // 动画进行中，刷新目标，让跟随更顺滑
-          st.to = target;
-        }
+        container.scrollTop = target; // 直接对齐，不使用平滑动画，减少视觉干扰
       }
     }
     previousConversationIdRef.current = currentConversationId;
@@ -165,19 +123,29 @@ export const useScrollManagement = (
     if (messagesContainerRef.current) {
       const container = messagesContainerRef.current;
       const target = Math.max(0, container.scrollHeight - container.clientHeight - SAFE_OFFSET);
-      container.scrollTo({ top: target, behavior: 'smooth' });
+      container.scrollTo({ top: target, behavior: 'auto' });
       return;
     }
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
   }, [messagesContainerRef]);
+
+  const ensureBottomIfNear = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (isNearBottom(container)) {
+      const target = container.scrollHeight - container.clientHeight;
+      container.scrollTop = target;
+    }
+  }, [messagesContainerRef, isNearBottom]);
 
   return {
     messageRefs,
     messagesEndRef,
     handleNavigateToMessage,
     handleScrollToTop,
-    handleScrollToBottom
+    handleScrollToBottom,
+    ensureBottomIfNear
   };
 }; 

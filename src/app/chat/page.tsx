@@ -112,7 +112,8 @@ export default function ChatPage() {
     messageRefs,
     messagesEndRef: managedEndRef,
     handleScrollToTop,
-    handleScrollToBottom
+    handleScrollToBottom,
+    ensureBottomIfNear
   } = useScrollManagement(
       scrollContainerRef,
       currentConversation?.messages as Message[] | undefined,
@@ -171,17 +172,13 @@ export default function ChatPage() {
     return () => cancelAnimationFrame(raf);
   }, [currentConversationId, currentConversation?.messages?.length]);
 
-  // 新消息追加后（长度变化）自动滚动到底部（更激进，确保到真正底部）
+  // 新消息追加后：仅当用户已接近底部时，才对齐到底部（轻量滚动）
   useEffect(() => {
     const len = (currentConversation?.messages as Message[] | undefined)?.length || 0;
     if (len === 0) return;
     // 初次进入会话定位尚未完成时，避免把视图拉到底部
     if (!initialAnchoredRef.current) return;
-    // 先同步一次，随后在下一帧和100ms后再各补一次，避免渲染/布局时序导致未到达真正底部
-    handleScrollToBottom();
-    const raf = requestAnimationFrame(() => handleScrollToBottom());
-    const t = setTimeout(() => handleScrollToBottom(), 100);
-    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
+    ensureBottomIfNear();
   }, [currentConversation?.messages?.length]);
 
   // 从后台切回到该标签页时，若尚未完成初次定位则先锚定到最后一条用户消息，否则确保到底部
