@@ -41,7 +41,7 @@
 
 ## 📸 界面预览
 
-### 主界面
+### 主界面（主要展示）
 <div align="center">
   <img src="docs/assets/screenshot-main1.png" alt="主界面" width="960" />
   <p><em>简洁现代的聊天界面</em></p>
@@ -49,82 +49,103 @@
 
 ---
 
-### 智能对话
+<details>
+  <summary><b>智能对话（视觉模型 / 文档解析 / 数学渲染）</b></summary>
 
-<div align="center">
-  <img src="docs/assets/vision-model-call.png" alt="视觉模型调用" width="960" />
-  <p><em>视觉模型对话</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/vision-model-call.png" alt="视觉模型调用" width="960" />
+    <p><em>视觉模型对话</em></p>
+  </div>
 
-<div align="center">
-  <img src="docs/assets/doc-parse.png" alt="文档解析" width="960" />
-  <p><em>多格式文档解析对话</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/doc-parse.png" alt="文档解析" width="960" />
+    <p><em>多格式文档解析对话</em></p>
+  </div>
 
-<div align="center">
-  <img src="docs/assets/ok-math-render.png" alt="数学公式渲染" width="960" />
-  <p><em>数学公式和代码渲染</em></p>
-</div>
-
----
-
-### 知识库管理
-<div align="center">
-  <img src="docs/assets/knowledge-detail.png" alt="知识库详情" width="960" />
-  <p><em>本地RAG知识库管理</em></p>
-</div>
-
-<div align="center">
-  <img src="docs/assets/knowledge-chat.png" alt="知识库对话" width="960" />
-  <p><em>基于知识库的智能问答</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/ok-math-render.png" alt="数学公式渲染" width="960" />
+    <p><em>数学公式和代码渲染</em></p>
+  </div>
+</details>
 
 ---
 
-### Prompt 管理
-<div align="center">
-  <img src="docs/assets/prompt-manager.png" alt="Prompt管理器" width="960" />
-  <p><em>统一管理和复用提示词</em></p>
-</div>
+<details>
+  <summary><b>知识库（RAG）</b></summary>
 
-<div align="center">
-  <img src="docs/assets/prompt-panel-chat.png" alt="Prompt面板" width="960" />
-  <p><em>聊天中快速调用提示词</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/knowledge-detail.png" alt="知识库详情" width="960" />
+    <p><em>本地RAG知识库管理</em></p>
+  </div>
+
+  <div align="center">
+    <img src="docs/assets/knowledge-chat.png" alt="知识库对话" width="960" />
+    <p><em>基于知识库的智能问答</em></p>
+  </div>
+</details>
 
 ---
 
-### MCP 服务
-<div align="center">
-  <img src="docs/assets/mcp-manager.png" alt="MCP管理器" width="960" />
-  <p><em>Model Context Protocol 服务管理</em></p>
-</div>
+<details>
+  <summary><b>Prompt 管理</b></summary>
 
-<div align="center">
-  <img src="docs/assets/mcp-panel.png" alt="MCP面板" width="960" />
-  <p><em>调用Model Context Protocol 服务</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/prompt-manager.png" alt="Prompt管理器" width="960" />
+    <p><em>统一管理和复用提示词</em></p>
+  </div>
 
-<div align="center">
-  <img src="docs/assets/show_test_doc.png" alt="文档测试演示" width="960" />
-  <p><em>调用MCP时使用的文件</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/prompt-panel-chat.png" alt="Prompt面板" width="960" />
+    <p><em>聊天中快速调用提示词</em></p>
+  </div>
+</details>
 
-### 设置界面
-<div align="center">
-  <img src="docs/assets/ai-setting.png" alt="AI设置" width="960" />
-  <p><em>多AI提供商配置</em></p>
-</div>
+---
 
-<div align="center">
-  <img src="docs/assets/knowledge-setting.png" alt="知识库设置" width="960" />
-  <p><em>知识库参数配置</em></p>
-</div>
+<details>
+  <summary><b>MCP 服务</b></summary>
 
-<div align="center">
-  <img src="docs/assets/about.png" alt="关于页面" width="960" />
-  <p><em>应用信息和版本详情</em></p>
-</div>
+  <div align="center">
+    <img src="docs/assets/mcp-manager.png" alt="MCP管理器" width="960" />
+    <p><em>Model Context Protocol 服务管理</em></p>
+  </div>
+
+  <div align="center">
+    <img src="docs/assets/mcp-panel.png" alt="MCP面板" width="960" />
+    <p><em>调用Model Context Protocol 服务</em></p>
+  </div>
+
+  <div align="center">
+    <img src="docs/assets/show_test_doc.png" alt="文档测试演示" width="960" />
+    <p><em>调用MCP时使用的文件</em></p>
+  </div>
+</details>
+
+---
+
+<details>
+  <summary><b>设置界面</b></summary>
+
+  <div align="center">
+    <img src="docs/assets/ai-setting.png" alt="AI设置" width="960" />
+    <p><em>多AI提供商配置</em></p>
+  </div>
+
+  <div align="center">
+    <img src="docs/assets/knowledge-setting.png" alt="知识库设置" width="960" />
+    <p><em>知识库参数配置</em></p>
+  </div>
+
+  <div align="center">
+    <img src="docs/assets/about.png" alt="关于页面" width="960" />
+    <p><em>应用信息和版本详情</em></p>
+  </div>
+</details>
+
+---
+
+## 📖 详细文档
+- 查看使用与开发文档：[`Chatless 文档`](https://kamjin3086.github.io/chatless/docs)
 
 ---
 
