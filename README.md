@@ -41,7 +41,7 @@
 
 ## 📸 界面预览
 
-### 主界面
+### 主界面（聊天界面）
 <div align="center">
   <img src="docs/assets/screenshot-main1.png" alt="主界面" width="960" />
   <p><em>简洁现代的聊天界面</em></p>
