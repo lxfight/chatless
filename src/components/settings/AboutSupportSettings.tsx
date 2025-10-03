@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { APP_INFO, getVersionInfo } from "@/config/app-info";
-import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, checkForUpdatesSilently, clearUpdateAvailable } from "@/lib/update/update-notifier";
+import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, checkForUpdatesSilently } from "@/lib/update/update-notifier";
 import {  } from "@/lib/utils/environment";
 import StorageUtil from "@/lib/storage";
 import { linkOpener } from "@/lib/utils/linkOpener";
@@ -106,8 +106,6 @@ export function AboutSupportSettings() {
 
       if (!update || !('available' in update) || !update.available) {
         toast.success('已是最新版本');
-        // 同步清除可能残留的可用版本提示
-        try { await clearUpdateAvailable(); } catch {}
         setNotLatest(null);
         return;
       }
@@ -124,11 +122,7 @@ export function AboutSupportSettings() {
       // 若可用，一步到位：下载并安装
       if (!onlyCheck && 'downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
-        try {
-          const { clearUpdateAvailable } = await import('@/lib/update/update-notifier');
-          await clearUpdateAvailable();
-          setNotLatest(null);
-        } catch { /* noop */ }
+        setNotLatest(null);
         // Windows 会在安装前自动退出应用（由系统安装器决定）
         toast.success('更新已安装，将重启应用');
         const { relaunch } = await import('@tauri-apps/plugin-process');

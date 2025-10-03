@@ -1,200 +1,103 @@
 import StorageUtil from "@/lib/storage";
 
-// 轻量级更新提示逻辑（无弹窗）
-// 数据持久化在 updates.json 中
-
+// 简化：仅持久化“最后检查时间”和“忽略版本”。不持久化可用版本或出现时间
 const STORE = "updates.json";
 export const UPDATE_AVAILABILITY_EVENT = 'chatless-update-availability-changed';
 
-const KEY_AVAILABLE_VERSION = "available_version"; // string
-const KEY_AVAILABLE_SINCE = "available_since"; // number (ms)
 const KEY_LAST_CHECKED_AT = "last_checked_at"; // number (ms)
-const KEY_LAST_ABOUT_SEEN_AT = "last_about_seen_at"; // number (ms)
 const KEY_IGNORED_VERSION = "ignored_version"; // string
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
-const THREE_DAYS = 3 * ONE_DAY;
 
-// 生产环境兜底的 update.json 检查端点（与 tauri.conf.json 保持一致）
-const UPDATE_ENDPOINTS: string[] = [
-  "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/latest/download/update-proxy.json",
-  "https://github.com/kamjin3086/chatless/releases/latest/download/update.json",
-  "https://gh-proxy.com/https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update-proxy.json",
-  "https://github.com/kamjin3086/chatless/releases/download/updater-alpha/update.json"
-];
+// 仅依赖 Tauri Updater 插件进行检查；不再进行任何自定义网络请求兜底
 
 export interface UpdateAvailability {
   available: boolean;
   version?: string | null;
-  availableSince?: number | null;
 }
+
+// 单航班锁：避免在启动阶段或设置页并发触发多次插件检查
+let inFlightCheck: Promise<UpdateAvailability> | null = null;
 
 export async function getUpdateAvailability(): Promise<UpdateAvailability> {
-  const version = await StorageUtil.getItem<string>(KEY_AVAILABLE_VERSION, null, STORE);
-  const since = await StorageUtil.getItem<number>(KEY_AVAILABLE_SINCE, null, STORE);
-  return { available: !!version, version, availableSince: since };
-}
-
-export async function setUpdateAvailable(version: string): Promise<void> {
-  const existed = await StorageUtil.getItem<string>(KEY_AVAILABLE_VERSION, null, STORE);
-  await StorageUtil.setItem(KEY_AVAILABLE_VERSION, version, STORE);
-  // 当首次检测到更新，或检测到不同于之前的版本时，刷新可用时间戳
-  if (!existed || existed !== version) {
-    await StorageUtil.setItem(KEY_AVAILABLE_SINCE, Date.now(), STORE);
-  }
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(UPDATE_AVAILABILITY_EVENT));
-  }
-}
-
-export async function clearUpdateAvailable(): Promise<void> {
-  await StorageUtil.removeItem(KEY_AVAILABLE_VERSION, STORE);
-  await StorageUtil.removeItem(KEY_AVAILABLE_SINCE, STORE);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(UPDATE_AVAILABILITY_EVENT));
+  try {
+    if (typeof window === "undefined") {
+      return { available: false };
+    }
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const result = await check({ timeout: 20_000 });
+    console.log('[update-notifier] getUpdateAvailability: plugin result', result);
+    if (result && (result as any).available) {
+      const versionRaw: any = (result as any).version;
+      const version: string | null = typeof versionRaw === 'string' && versionRaw.length > 0 ? versionRaw : '新版本';
+      return { available: true, version };
+    }
+    return { available: false };
+  } catch {
+    return { available: false };
   }
 }
 
-export async function recordAboutViewed(): Promise<void> {
-  await StorageUtil.setItem(KEY_LAST_ABOUT_SEEN_AT, Date.now(), STORE);
-}
+// 已移除：setUpdateAvailable/clearUpdateAvailable（不再持久化可用版本）
 
+// 关于页蓝点：简化为“有更新 且 未被忽略”
 export async function shouldShowAboutBlueDot(): Promise<boolean> {
   const availability = await getUpdateAvailability();
   if (!availability.available) return false;
-  // 若用户忽略了该版本，则不显示蓝点
   try {
     const ignored = await isVersionIgnored(availability.version);
     if (ignored) return false;
   } catch { /* noop */ }
-  const lastSeen = await StorageUtil.getItem<number>(KEY_LAST_ABOUT_SEEN_AT, 0, STORE);
-  if (!lastSeen) return true; // 从未看过关于页
-  // 若在“关于”页上次查看时间早于本次更新出现时间，则立即显示蓝点
-  if (availability.availableSince && lastSeen < availability.availableSince) return true;
-  // 否则按照冷却时间（三天）显示
-  return (Date.now() - lastSeen) >= THREE_DAYS;
+  return true;
 }
 
 export async function checkForUpdatesSilently(force: boolean = false): Promise<UpdateAvailability> {
-  try {
-    // 在非 Tauri 环境（纯 Web 预览）下，也尝试使用 /update.json 进行开发兜底
-    if (typeof window === "undefined" || !(window as any).__TAURI__) {
-      try {
-        if (typeof window !== 'undefined' && location && /^http:\/\/localhost:\d+/.test(location.origin)) {
-          const resp = await fetch('/update.json', { cache: 'no-store' });
-          if (resp.ok) {
-            const json: any = await resp.json();
-            const remote = String(json?.version || '');
-            const current = '0.0.0'; // 纯 Web 环境无法读取应用版本，默认 0.0.0 以便开发联调
-            const newer = compareVersions(remote, current) > 0;
-            if (newer) {
-              // 开发预览环境：返回信息但不写入本地状态，避免误导实际用户
-              return { available: true, version: remote };
-            }
-          }
-        }
-      } catch {
-        // noop
-      }
+  // 并发合并：若已有检查在进行，复用同一 Promise
+  if (inFlightCheck) return inFlightCheck;
+
+  const doCheck = async (): Promise<UpdateAvailability> => {
+    try {
+    // 非浏览器环境直接返回无更新
+    if (typeof window === "undefined") {
       return { available: false };
     }
 
     const lastChecked = await StorageUtil.getItem<number>(KEY_LAST_CHECKED_AT, 0, STORE);
     if (!force && lastChecked && Date.now() - lastChecked < ONE_DAY) {
+      console.log('[update-notifier] skip check due to throttle. force?', force, 'lastChecked', new Date(lastChecked).toISOString());
       return getUpdateAvailability();
     }
 
     const { check } = await import("@tauri-apps/plugin-updater");
     const result = await check({ timeout: 20_000 });
+    console.log('[update-notifier] silent check: plugin result', result);
     await StorageUtil.setItem(KEY_LAST_CHECKED_AT, Date.now(), STORE);
 
     if (result && (result as any).available) {
-      // 优先使用插件返回的版本，但为防止单一源缓存滞后，比较备用端点的更高版本
-      let version: string | null = (result as any).version ?? null;
+      const versionRaw: any = (result as any).version;
+      const version: string = typeof versionRaw === 'string' && versionRaw.length > 0 ? versionRaw : '新版本';
+      // 通知前端监听者（携带版本号）
       try {
-        const fallback = await tryFetchUpdateFromEndpoints();
-        if (fallback?.version) {
-          if (!version || compareVersions(fallback.version, version) > 0) {
-            version = fallback.version;
-          }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(UPDATE_AVAILABILITY_EVENT, { detail: { available: true, version } as any }));
         }
       } catch { /* noop */ }
-
-      if (version) {
-        await setUpdateAvailable(version);
-        return { available: true, version };
-      }
-
-      // 未能确定版本号则不污染本地状态
-      await clearUpdateAvailable();
-      return { available: false };
-    } else {
-      // 若插件未报告更新，增加生产环境兜底：直接访问 update.json 端点比较版本
-      const fallback = await tryFetchUpdateFromEndpoints();
-      if (fallback?.available && fallback.version) {
-        await setUpdateAvailable(fallback.version);
-        return fallback;
-      }
-
-      // 开发场景兜底：尝试读取同源 /update.json（public/update.json）
-      try {
-        if (location && /^http:\/\/localhost:\d+/.test(location.origin)) {
-          const resp = await fetch('/update.json', { cache: 'no-store' });
-          if (resp.ok) {
-            const json: any = await resp.json();
-            const remote = String(json?.version || '');
-            let current = '0.0.0';
-            try {
-              const { getVersion } = await import('@tauri-apps/api/app');
-              current = await getVersion();
-            } catch { /* noop */ }
-            const newer = compareVersions(remote, current) > 0;
-            if (newer) {
-              await setUpdateAvailable(remote);
-              return { available: true, version: remote };
-            }
-          }
-        }
-      } catch { /* noop */ }
-
-      await clearUpdateAvailable();
+      return { available: true, version };
+    }
+    return { available: false };
+    } catch {
+      // 失败路径也记录检查时间，避免短时间内重复检查
+      try { await StorageUtil.setItem(KEY_LAST_CHECKED_AT, Date.now(), STORE); } catch { /* noop */ }
       return { available: false };
     }
-  } catch {
-    // 插件检查失败：优先尝试生产环境端点兜底
-    try {
-      const fallback = await tryFetchUpdateFromEndpoints();
-      if (fallback?.available && fallback.version) {
-        await setUpdateAvailable(fallback.version);
-        return fallback;
-      }
-    } catch { /* noop */ }
+  };
 
-    // 开发场景兜底：尝试 /update.json
-    try {
-      if (typeof window !== 'undefined' && location && /^http:\/\/localhost:\d+/.test(location.origin)) {
-        const resp = await fetch('/update.json', { cache: 'no-store' });
-        if (resp.ok) {
-          const json: any = await resp.json();
-          const remote = String(json?.version || '');
-          let current = '0.0.0';
-          try {
-            const { getVersion } = await import('@tauri-apps/api/app');
-            current = await getVersion();
-          } catch { /* noop */ }
-          const newer = compareVersions(remote, current) > 0;
-          if (newer) {
-            await setUpdateAvailable(remote);
-            return { available: true, version: remote };
-          }
-        }
-      }
-    } catch { /* noop */ }
-
-    // 失败路径也记录检查时间，避免短时间内重复检查
-    try { await StorageUtil.setItem(KEY_LAST_CHECKED_AT, Date.now(), STORE); } catch { /* noop */ }
-    return getUpdateAvailability();
+  inFlightCheck = doCheck();
+  try {
+    return await inFlightCheck;
+  } finally {
+    inFlightCheck = null;
   }
 }
 
@@ -216,69 +119,7 @@ export function scheduleBackgroundUpdateChecks(): void {
   }, ONE_DAY);
 }
 
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map((x) => parseInt(x, 10) || 0);
-  const pb = b.split('.').map((x) => parseInt(x, 10) || 0);
-  const len = Math.max(pa.length, pb.length);
-  for (let i = 0; i < len; i++) {
-    const na = pa[i] ?? 0;
-    const nb = pb[i] ?? 0;
-    if (na > nb) return 1;
-    if (na < nb) return -1;
-  }
-  return 0;
-}
-
-// ===== 生产环境端点兜底实现 =====
-async function tryFetchUpdateFromEndpoints(): Promise<UpdateAvailability | null> {
-  try {
-    // 仅在 Tauri 环境下执行（避免 Web 预览跨域问题）
-    const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
-    if (!isTauri) return null;
-
-    // 获取当前应用版本
-    let current = '0.0.0';
-    try {
-      const { getVersion } = await import('@tauri-apps/api/app');
-      current = await getVersion();
-    } catch { /* noop */ }
-
-    // 遍历所有端点，选择最高版本，避免被单一缓存源卡住
-    let bestRemote: string | null = null;
-    // 优先使用 Tauri HTTP 插件以绕过 CORS；失败则回退到 fetch
-    for (const url of UPDATE_ENDPOINTS) {
-      let json: any | null = null;
-      try {
-        const { fetch: httpFetch } = await import('@tauri-apps/plugin-http');
-        const resp: any = await httpFetch(url, { method: 'GET', timeout: 20_000 } as any);
-        const ok = resp && (resp.ok === true || (typeof resp.status === 'number' && resp.status >= 200 && resp.status < 300));
-        if (ok && resp.data) {
-          json = typeof resp.data === 'string' ? JSON.parse(resp.data) : resp.data;
-        }
-      } catch {
-        // 回退到浏览器 fetch（某些环境也可用）
-        try {
-          const resp2 = await fetch(url, { cache: 'no-store' } as RequestInit);
-          if (resp2.ok) json = await resp2.json();
-        } catch { /* noop */ }
-      }
-
-      if (json) {
-        const remote = String(json?.version || '');
-        if (remote && compareVersions(remote, current) > 0) {
-          if (!bestRemote || compareVersions(remote, bestRemote) > 0) {
-            bestRemote = remote;
-          }
-        }
-      }
-    }
-
-    if (bestRemote) return { available: true, version: bestRemote };
-    return { available: false };
-  } catch {
-    return null;
-  }
-}
+// 已移除版本比较与自定义端点兜底逻辑，完全依赖 Tauri 插件
 
 // ===== 忽略版本（用户选择不再提示当前版本） =====
 export async function getIgnoredVersion(): Promise<string | null> {

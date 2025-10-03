@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, info, warn, trace};
 use serde::Serialize;
 use std::env;
 use std::ffi::OsStr;
@@ -60,7 +60,8 @@ impl EnvironmentSetup {
     for path in new_paths {
       if Path::new(&path).exists() && !self.updated_path.contains(&path) {
         self.updated_path = format!("{}{}{}", path, PATH_SEPARATOR, self.updated_path);
-        debug!("[ENV] Added to PATH: {}", path);
+        // 降低噪音：PATH 变更细节仅在 trace 级别输出
+        trace!("[ENV] Added to PATH: {}", path);
       }
     }
     Ok(())
@@ -151,10 +152,11 @@ impl EnvironmentSetup {
 
     let base = Path::new(dir_clean);
     if !base.exists() {
-      debug!("[ENV] Skipping non-existent PATH entry: {}", dir_clean);
+      // 降低噪音：路径扫描的逐项日志仅在 trace 输出
+      trace!("[ENV] Skipping non-existent PATH entry: {}", dir_clean);
       return false;
     }
-    debug!("[ENV] Scanning {} for {}", dir_clean, tool_name);
+    trace!("[ENV] Scanning {} for {}", dir_clean, tool_name);
 
     #[cfg(windows)]
     {
@@ -169,7 +171,7 @@ impl EnvironmentSetup {
         let file_name = format!("{}.{}", tool_name, ext.to_lowercase());
         let candidate = base.join(&file_name);
         if candidate.exists() {
-          debug!("[ENV] Found {} at: {}", tool_name, candidate.display());
+          trace!("[ENV] Found {} at: {}", tool_name, candidate.display());
           return true;
         }
       }
@@ -183,7 +185,7 @@ impl EnvironmentSetup {
     {
       let candidate = base.join(tool_name);
       if candidate.exists() {
-        debug!("[ENV] Found {} at: {}", tool_name, candidate.display());
+        trace!("[ENV] Found {} at: {}", tool_name, candidate.display());
         return true;
       }
     }

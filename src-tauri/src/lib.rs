@@ -157,8 +157,8 @@ pub fn run() {
     .plugin(
       tauri_plugin_log::Builder::new()
         .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-        // 设置日志等级：开发环境 Debug，生产环境 Info（屏蔽 trace/debug 噪音）
-        .level(if cfg!(debug_assertions) { LevelFilter::Debug } else { LevelFilter::Info })
+        // 设置日志等级：开发环境 Info，生产环境 Info（如需更详细再用 set_log_level 动态提升）
+        .level(LevelFilter::Info)
         .format(|out, message, record| {
           // 生成本地时间戳，失败时退回到 UTC
           let ts = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());

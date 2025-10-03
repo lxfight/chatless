@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, isVersionIgnored, setIgnoredVersion } from "@/lib/update/update-notifier";
+import { getUpdateAvailability, UPDATE_AVAILABILITY_EVENT, isVersionIgnored, setIgnoredVersion, checkForUpdatesSilently } from "@/lib/update/update-notifier";
 import { linkOpener } from "@/lib/utils/linkOpener";
 
 /**
@@ -16,6 +16,13 @@ import { linkOpener } from "@/lib/utils/linkOpener";
 export function StartupUpdateToast() {
   const showingForVersionRef = useRef<string | null>(null);
   const [onlyCheck, setOnlyCheck] = useState<boolean>(false);
+  const timersRef = useRef<number[]>([]);
+
+  // 优化体验：更合理的时间点
+  // - 首次延迟检查：12s（避开首屏初始化高峰）
+  // - 兜底二次检查：60s（若首次未检出或注入稍晚）
+  const FIRST_DELAY_MS = 12_000;
+  const SECOND_DELAY_MS = 60_000;
 
   // 初始化“仅检查更新”偏好
   useEffect(() => {
@@ -41,6 +48,7 @@ export function StartupUpdateToast() {
 
   const showToastFor = useCallback(async (version: string) => {
     try {
+      console.log('[StartupUpdateToast] showToastFor called with version:', version);
       if (await isVersionIgnored(version)) return; // 已被忽略则不提示
 
       // 避免重复为相同版本弹多次
@@ -74,36 +82,106 @@ export function StartupUpdateToast() {
         </div>,
         { duration: 60000 }
       );
-    } catch {
-      // noop
+    } catch (e) {
+      console.warn('[StartupUpdateToast] showToastFor failed:', e);
     }
   }, [onlyCheck]);
 
-  // 首次挂载时尝试展示（依赖 TauriApp 内部的静默检查也会很快更新状态）
+  // 挂载后在更合理的时间点进行检查，并在必要时做一次兜底重试。
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const info = await getUpdateAvailability();
-        if (!mounted) return;
-        if (info.available && info.version) {
-          await showToastFor(info.version);
-        }
-      } catch {
-        // noop
-      }
-    })();
-    return () => { mounted = false; };
+    const waitUntilVisible = async (maxWaitMs: number) => {
+      if (typeof document === 'undefined') return true;
+      if (!document.hidden) return true;
+      return await new Promise<boolean>((resolve) => {
+        let resolved = false;
+        const onChange = () => {
+          if (!resolved && !document.hidden) {
+            resolved = true;
+            document.removeEventListener('visibilitychange', onChange);
+            resolve(true);
+          }
+        };
+        document.addEventListener('visibilitychange', onChange);
+        const t = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            document.removeEventListener('visibilitychange', onChange);
+            resolve(false);
+          }
+        }, maxWaitMs);
+        timersRef.current.push(t as unknown as number);
+      });
+    };
+
+    const scheduleCheck = (delayMs: number) => {
+      const t = setTimeout(() => {
+      (async () => {
+        try {
+          // 以动态导入判断插件是否可用，避免依赖 __TAURI__ 标志
+          const waitUpdaterUsable = async () => {
+            for (let i = 0; i < 15; i++) { // 最长 ~3s
+              try {
+                const { check } = await import('@tauri-apps/plugin-updater');
+                if (typeof check === 'function') return true;
+                 } catch { /* noop */ }
+              await new Promise((r) => setTimeout(r, 200));
+              if (!mounted) return false;
+            }
+            return false;
+          };
+
+          const ready = await waitUpdaterUsable();
+          if (!mounted || !ready) return;
+
+            // 若页面不可见，等待最多 5s 变为可见再检查，避免在后台被系统拦截通知
+            await waitUntilVisible(5_000);
+
+          const info = await checkForUpdatesSilently(true);
+          if (!mounted) return;
+          if (info.available && info.version) {
+            await showToastFor(info.version);
+          }
+          } catch {
+            // 静默失败即可，兜底二次检查仍会执行
+          }
+      })();
+      }, delayMs);
+      timersRef.current.push(t as unknown as number);
+    };
+
+    // 首次检查
+    scheduleCheck(FIRST_DELAY_MS);
+    // 兜底二次检查：若此时仍未提示（例如插件注入极晚），再检查一次
+    scheduleCheck(SECOND_DELAY_MS);
+
+    return () => {
+      mounted = false;
+      for (const t of timersRef.current.splice(0)) clearTimeout(t);
+    };
   }, [showToastFor]);
 
-  // 订阅可用性事件：当后台检查发现新版本时弹出
+  // 去除基于存储状态的首次弹窗，统一以“插件检查 + 事件”驱动，避免重复触发
+
+  // 订阅可用性事件：当后台检查发现新版本时弹出。
+  // 优先使用事件 detail 中的版本，避免重复调用插件。
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handler = async () => {
-      const info = await getUpdateAvailability();
-      if (info.available && info.version) {
-        await showToastFor(info.version);
+    console.log('[StartupUpdateToast] attach UPDATE_AVAILABILITY_EVENT listener');
+    const handler = async (ev: Event) => {
+      const ce = ev as CustomEvent<any>;
+      const versionFromEvent = ce?.detail?.version as string | undefined;
+      if (versionFromEvent === '新版本') {
+        console.warn('[StartupUpdateToast] UPDATE_AVAILABILITY_EVENT without explicit version; will still show');
       }
+      if (versionFromEvent) {
+        await showToastFor(versionFromEvent);
+        return;
+      }
+      // 兼容无 detail 的情况，回退到查询一次
+      const info = await getUpdateAvailability();
+      console.log('[StartupUpdateToast] event fallback getUpdateAvailability:', info);
+      if (info.available && info.version) await showToastFor(info.version);
     };
     window.addEventListener(UPDATE_AVAILABILITY_EVENT, handler as EventListener);
     return () => window.removeEventListener(UPDATE_AVAILABILITY_EVENT, handler as EventListener);
@@ -134,10 +212,7 @@ function DownloadButton({ onlyCheck, version: _version }: { onlyCheck: boolean; 
       }
       if ('downloadAndInstall' in update && typeof (update as any).downloadAndInstall === 'function') {
         await (update as any).downloadAndInstall();
-        try {
-          const { clearUpdateAvailable } = await import('@/lib/update/update-notifier');
-          await clearUpdateAvailable();
-        } catch { /* noop */ }
+        // 不再清理持久化的“可用版本”（已移除该存储）
         toast.success('更新已安装，即将重启应用');
         const { relaunch } = await import('@tauri-apps/plugin-process');
         relaunch();
