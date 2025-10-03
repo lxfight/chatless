@@ -61,22 +61,22 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      <div className="mb-8">
-        <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">常规设置</h2>
-        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">常规设置</h2>
+        <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50/50 to-blue-50/30 dark:from-slate-800/30 dark:to-blue-900/10 p-4 dark:border-slate-700/60 shadow-sm">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             在此设置常规选项，包括界面语言、主题模式、字体大小等。
           </p>
         </div>
         </div>
 
              {/* 主要设置卡片 */}
-       <div className="border border-gray-100 dark:border-gray-800 rounded-2xl p-6 space-y-6 bg-white dark:bg-gray-900/50 shadow-sm">
+       <div className="border border-slate-200/70 dark:border-slate-700/60 rounded-xl p-6 space-y-6 bg-white/70 dark:bg-slate-900/40 shadow-sm backdrop-blur-sm">
          {/* 头部 */}
-         <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-gray-800">
+         <div className="flex items-center gap-3 pb-4 border-b border-slate-100/80 dark:border-slate-800/60">
            {/* 主图标使用品牌色以提升层级 */}
-           <SlidersHorizontal className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">常用选项</h3>
+           <SlidersHorizontal className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">常用选项</h3>
          </div>
 
                  {/* 设置内容 */}

@@ -142,12 +142,12 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
   const removeShortcut = (s: string) => setShortcuts(prev => prev.filter(x => x !== s));
 
   const Chip = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
-    <span className="relative group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-green-200 bg-green-50 text-green-700 dark:bg-emerald-500/15 dark:border-emerald-600/40 dark:text-emerald-200">
+    <span className="relative group inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs border border-emerald-200/70 bg-emerald-50/70 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-600/40 dark:text-emerald-200 hover:bg-emerald-100/70 dark:hover:bg-emerald-500/25 transition-colors">
       {label}
       <button
         type="button"
         onClick={onRemove}
-        className="absolute -top-1 -right-1 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-gray-400/70 text-white text-[10px] leading-none hover:bg-gray-500"
+        className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-slate-400/80 text-white text-[10px] leading-none hover:bg-slate-500 shadow-sm"
         title="移除"
       >
         ×
@@ -157,43 +157,43 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl h-[80vh] p-0 flex flex-col">
-        <DialogHeader className="px-6 pt-4 pb-2 border-b border-gray-100 dark:border-gray-800/80">
-          <DialogTitle>{(initial as any)?.id ? '编辑提示词' : '新建提示词'}</DialogTitle>
+      <DialogContent className="max-w-3xl h-[80vh] p-0 flex flex-col rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b border-slate-100/80 dark:border-slate-800/60 bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30">
+          <DialogTitle className="text-lg font-semibold">{(initial as any)?.id ? '编辑提示词' : '新建提示词'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 overflow-auto px-6 pb-4">
+        <div className="space-y-5 overflow-auto px-6 pb-4 pt-1">
           <div className="grid grid-cols-2 gap-6 items-end">
             <div>
-              <Label htmlFor="prompt-name">名称</Label>
-              <Input id="prompt-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：技术文档总结助手" className="h-9 rounded-lg" />
+              <Label htmlFor="prompt-name" className="text-sm font-medium mb-1.5">名称</Label>
+              <Input id="prompt-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：技术文档总结助手" className="h-10 rounded-lg border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-500 transition-colors" />
             </div>
             <div>
-              <Label>Token 估算</Label>
+              <Label className="text-sm font-medium mb-1.5">Token 估算</Label>
               <div className="h-10 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1">≈ {tokenEstimate} tokens</span>
+                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/70 text-slate-700 dark:text-slate-300 px-4 py-1.5 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">≈ {tokenEstimate} tokens</span>
               </div>
             </div>
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="prompt-desc">描述</Label>
-              <span className="text-xs text-gray-400">可选</span>
+            <div className="flex items-center justify-between mb-1.5">
+              <Label htmlFor="prompt-desc" className="text-sm font-medium">描述</Label>
+              <span className="text-xs text-slate-400">可选</span>
             </div>
-            <Input id="prompt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="简要说明用途（可选）" className="h-9 rounded-lg" />
+            <Input id="prompt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="简要说明用途（可选）" className="h-10 rounded-lg border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-500 transition-colors" />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="prompt-content">内容</Label>
-              <div className="text-xs text-gray-500">在文本中直接使用 {'{{变量}}'}，无需单独新增变量</div>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="prompt-content" className="text-sm font-medium">内容</Label>
+              <div className="text-xs text-slate-500 bg-slate-100/60 dark:bg-slate-800/60 px-2 py-1 rounded">在文本中直接使用 {'{{变量}}'}，无需单独新增变量</div>
             </div>
-            <div className="relative rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/70 bg-white/70 dark:bg-gray-800/40 min-h-[280px] max-h-[50vh] shadow-sm">
+            <div className="relative rounded-xl ring-1 ring-slate-200/70 dark:ring-slate-700/70 bg-white/80 dark:bg-slate-900/40 min-h-[280px] max-h-[50vh] shadow-sm hover:ring-slate-300/70 dark:hover:ring-slate-600/70 transition-all">
               <div
                 ref={previewRef}
-                className="absolute inset-0 overflow-auto p-4 text-sm leading-6 whitespace-pre-wrap pointer-events-none select-none text-gray-900 dark:text-gray-100 font-mono"
-                dangerouslySetInnerHTML={{ __html: highlighted || '<span class=\'text-gray-400\'>直接描述角色、目标、输出格式与边界，可用 {{变量}}</span>' }}
+                className="absolute inset-0 overflow-auto p-4 text-sm leading-6 whitespace-pre-wrap pointer-events-none select-none text-slate-900 dark:text-slate-100 font-mono"
+                dangerouslySetInnerHTML={{ __html: highlighted || '<span class=\'text-slate-400\'>直接描述角色、目标、输出格式与边界，可用 {{变量}}</span>' }}
               />
               <textarea
                 ref={contentRef as any}
@@ -201,7 +201,7 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 onScroll={syncScroll}
-                className="absolute inset-0 w-full h-full resize-none bg-transparent outline-none ring-0 focus:ring-0 p-4 text-sm leading-6 text-transparent selection:bg-indigo-500/20 dark:selection:bg-indigo-400/25 caret-indigo-600 dark:caret-indigo-300 font-mono"
+                className="absolute inset-0 w-full h-full resize-none bg-transparent outline-none ring-0 focus:ring-0 p-4 text-sm leading-6 text-transparent selection:bg-blue-500/20 dark:selection:bg-blue-400/25 caret-blue-600 dark:caret-blue-400 font-mono"
                 placeholder=""
               />
             </div>
@@ -209,8 +209,8 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
 
           <div className="grid grid-cols-3 gap-6">
             <div className="space-y-2">
-              <Label>标签（回车添加）</Label>
-              <Input onKeyDown={handleTagsInput} placeholder="写作、翻译… 回车添加" className="h-9 rounded-lg" />
+              <Label className="text-sm font-medium">标签（回车添加）</Label>
+              <Input onKeyDown={handleTagsInput} placeholder="写作、翻译… 回车添加" className="h-9 rounded-lg border-slate-200 dark:border-slate-700" />
               <div className="flex flex-wrap gap-2">
                 {tags.map((t) => (
                   <Chip key={t} label={t} onRemove={() => removeTag(t)} />
@@ -227,8 +227,8 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
               </div>
             </div>
             <div className="space-y-2">
-              <Label>语言（回车添加）</Label>
-              <Input onKeyDown={handleLanguagesInput} placeholder="zh-CN、en… 回车添加" className="h-9 rounded-lg" />
+              <Label className="text-sm font-medium">语言（回车添加）</Label>
+              <Input onKeyDown={handleLanguagesInput} placeholder="zh-CN、en… 回车添加" className="h-9 rounded-lg border-slate-200 dark:border-slate-700" />
               <div className="flex flex-wrap gap-2">
                 {languages.map((t) => (
                   <Chip key={t} label={t} onRemove={() => removeLang(t)} />
@@ -236,8 +236,8 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
               </div>
             </div>
             <div className="space-y-2">
-              <Label>模型提示（回车添加）</Label>
-              <Input onKeyDown={handleModelsInput} placeholder="gpt-4o、claude-3-5… 回车添加" className="h-9 rounded-lg" />
+              <Label className="text-sm font-medium">模型提示（回车添加）</Label>
+              <Input onKeyDown={handleModelsInput} placeholder="gpt-4o、claude-3-5… 回车添加" className="h-9 rounded-lg border-slate-200 dark:border-slate-700" />
               <div className="flex flex-wrap gap-2">
                 {modelHints.map((t) => (
                   <Chip key={t} label={t} onRemove={() => removeModel(t)} />
@@ -247,8 +247,8 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
           </div>
 
           <div>
-            <Label>快捷指令（回车添加）</Label>
-            <Input onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ const target=e.currentTarget; if(e.key==='Enter'&&target.value.trim()){ const val=target.value.trim().replace(/^\//,'').toLowerCase(); setShortcuts((prev: string[])=>Array.from(new Set([...prev,val]))); target.value=''; } }} placeholder="如 /write、/review，不加斜杠也可" />
+            <Label className="text-sm font-medium">快捷指令（回车添加）</Label>
+            <Input onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ const target=e.currentTarget; if(e.key==='Enter'&&target.value.trim()){ const val=target.value.trim().replace(/^\//,'').toLowerCase(); setShortcuts((prev: string[])=>Array.from(new Set([...prev,val]))); target.value=''; } }} placeholder="如 /write、/review，不加斜杠也可" className="h-9 rounded-lg border-slate-200 dark:border-slate-700 mt-1.5" />
             <div className="mt-2 flex flex-wrap gap-2">
               {shortcuts.map((s: string) => (
                 <Chip key={s} label={`/${s}`} onRemove={() => removeShortcut(s)} />
@@ -269,9 +269,9 @@ export function PromptEditorDialog({ open, onOpenChange, initial, onSubmit }: Pr
             {/* 去掉额外“添加变量”UI，变量从内容中自动识别 */}
         </div>
 
-        <DialogFooter className="mt-2 px-6 py-3 border-t border-gray-100 dark:border-gray-800/80">
-          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button variant="soft" onClick={handleSubmit} disabled={!name.trim() || !content.trim()}>保存</Button>
+        <DialogFooter className="mt-2 px-6 py-4 border-t border-slate-100/80 dark:border-slate-800/60 bg-gradient-to-t from-slate-50/30 to-transparent dark:from-slate-900/20">
+          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)} className="rounded-lg">取消</Button>
+          <Button variant="soft" onClick={handleSubmit} disabled={!name.trim() || !content.trim()} className="rounded-lg shadow-sm">保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

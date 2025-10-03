@@ -174,82 +174,101 @@ export function McpMentionPanel({ open, anchorRef, onSelect, onClose, filterQuer
         width: panelWidth, 
         zIndex: 2147483600 
       }} 
-      className="rounded-xl border border-slate-200/60 dark:border-slate-700/50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl overflow-hidden transition-all duration-200"
+      className="rounded-2xl border border-slate-300/60 dark:border-slate-600/50 bg-white/98 dark:bg-slate-900/98 backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-200"
     >
-      <div className="flex items-center justify-end px-3 py-1.5 border-b border-slate-200/50 dark:border-slate-700/40">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/60 dark:border-slate-700/50 bg-gradient-to-r from-slate-50/50 to-transparent dark:from-slate-800/30">
+        <div className="flex items-center gap-2">
+          <div className="px-2 py-1 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/20 border border-emerald-200/50 dark:border-emerald-700/40">
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">MCP 服务器</span>
+          </div>
+        </div>
         <button 
-          className="p-1.5 rounded-md hover:bg-slate-100/80 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-colors" 
+          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all hover:scale-105" 
           onMouseDown={(e)=>{ e.preventDefault(); window.location.assign('/settings?tab=mcpServers'); }} 
           title="MCP 设置"
         >
-          <Settings className="h-3.5 w-3.5" />
+          <Settings className="h-4 w-4" />
         </button>
       </div>
-      <ul className="max-h-72 overflow-auto py-1.5">
+      <ul className="max-h-80 overflow-auto py-2 px-1">
         {items.map((it, idx) => (
           <li 
             key={it.name} 
             onMouseDown={(e)=>{ e.preventDefault(); if (it.allowed) { preheatServer(it.name); onSelect(it.name); } }} 
             onMouseEnter={()=>{ if (it.allowed) { activeRef.current = idx; setItems((v)=>[...v]); } }} 
-            className={`mx-2 px-3 py-2.5 rounded-lg transition-all duration-150 ${
+            className={`mx-1.5 px-4 py-3 rounded-xl transition-all duration-150 ${
               it.allowed ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'
             } ${
               idx === activeRef.current 
-                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 ring-1 ring-emerald-200/50 dark:ring-emerald-700/50 shadow-sm' 
-                : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                ? 'bg-gradient-to-br from-emerald-50 via-teal-50/80 to-cyan-50/60 dark:from-emerald-900/25 dark:via-teal-900/20 dark:to-cyan-900/15 ring-2 ring-emerald-300/60 dark:ring-emerald-600/50 shadow-md border border-emerald-200/50 dark:border-emerald-700/40' 
+                : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-gray-50/50 dark:hover:from-slate-800/50 dark:hover:to-slate-800/30 border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700/40'
             } ${!it.connected ? 'opacity-75' : ''}`}
           >
-            <div className="flex items-center gap-2.5">
-              <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/20 text-emerald-700 dark:text-emerald-300 text-xs font-mono font-semibold">@</span>
-              <span className="flex-1 truncate font-semibold text-gray-900 dark:text-gray-50">{it.name}</span>
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 px-2 py-1 rounded-lg border border-emerald-300/60 dark:border-emerald-600/50 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-800/40 dark:to-teal-800/30 text-emerald-700 dark:text-emerald-300 text-sm font-mono font-bold shadow-sm">@</span>
+              <span className="flex-1 truncate font-semibold text-slate-900 dark:text-slate-50 text-base">{it.name}</span>
               
               {/* 预热状态指示器 */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 {preheatingStatus[it.name]?.status === 'preheating' && (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">预热中</span>
-                  </>
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-50/80 dark:bg-blue-900/30 border border-blue-200/50 dark:border-blue-700/40">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+                    <span className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">预热中</span>
+                  </div>
                 )}
                 {preheatingStatus[it.name]?.status === 'completed' && (
-                  <>
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已就绪</span>
-                  </>
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-green-50/80 dark:bg-green-900/30 border border-green-200/50 dark:border-green-700/40">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                    <span className="text-[11px] text-green-700 dark:text-green-300 font-medium">已就绪</span>
+                  </div>
                 )}
                 {preheatingStatus[it.name]?.status === 'failed' && (
-                  <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">预热失败</span>
+                  <div className="px-2 py-1 rounded-lg bg-red-50/80 dark:bg-red-900/30 border border-red-200/50 dark:border-red-700/40">
+                    <span className="text-[11px] text-red-700 dark:text-red-300 font-medium">预热失败</span>
+                  </div>
                 )}
-                {!it.allowed && <span className="text-[10px] text-gray-400">未启用</span>}
+                {!it.allowed && (
+                  <div className="px-2 py-1 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40">
+                    <span className="text-[11px] text-gray-600 dark:text-gray-400 font-medium">未启用</span>
+                  </div>
+                )}
                 {it.allowed && !it.connected && !preheatingStatus[it.name] && (
-                  <span className="text-[10px] text-gray-400">未连接</span>
+                  <div className="px-2 py-1 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40">
+                    <span className="text-[11px] text-gray-600 dark:text-gray-400 font-medium">未连接</span>
+                  </div>
                 )}
               </div>
             </div>
             
             {/* 工具列表：始终显示（如果有） */}
             {toolsPreview[it.name] && toolsPreview[it.name].length > 0 && (
-              <div className="mt-2 pl-7 flex flex-wrap gap-1.5">
+              <div className="mt-3 pl-11 flex flex-wrap gap-2">
                 {toolsPreview[it.name].slice(0, 5).map((tool: string, i: number) => (
                   <span 
                     key={i} 
-                    className="px-2 py-0.5 rounded-full bg-gradient-to-r from-slate-100 to-gray-50 dark:from-slate-800/60 dark:to-gray-800/40 text-[10px] text-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 font-mono"
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100/80 dark:from-slate-800/70 dark:via-gray-800/60 dark:to-slate-800/50 text-[11px] text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/50 font-mono shadow-sm hover:shadow-md hover:scale-105 transition-all"
                   >
                     {tool}
                   </span>
                 ))}
                 {toolsPreview[it.name].length > 5 && (
-                  <span className="text-[10px] text-slate-500">+{toolsPreview[it.name].length - 5}</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium self-center">+{toolsPreview[it.name].length - 5} 更多</span>
                 )}
               </div>
             )}
             {!toolsPreview[it.name] && it.allowed && it.connected && (
-              <div className="mt-2 pl-7 text-[10px] text-gray-400 italic">加载工具中...</div>
+              <div className="mt-3 pl-11 flex items-center gap-2">
+                <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">加载工具中...</span>
+              </div>
             )}
           </li>
         ))}
         {items.length===0 && (
-          <li className="px-3 py-3 text-xs text-center text-gray-500">暂无"已启用"的 MCP 服务</li>
+          <li className="px-4 py-6 text-center">
+            <div className="text-sm text-slate-500 dark:text-slate-400">暂无"已启用"的 MCP 服务</div>
+            <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">请前往设置页面配置</div>
+          </li>
         )}
       </ul>
     </div>

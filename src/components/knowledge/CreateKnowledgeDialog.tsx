@@ -40,28 +40,34 @@ export function CreateKnowledgeDialog({ open, onOpenChange, onCreate }: CreateKn
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-gray-900 dark:text-gray-100">新建知识库</DialogTitle>
+      <DialogContent className="max-w-md rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl">
+        <DialogHeader className="border-b border-slate-100/80 dark:border-slate-800/60 pb-3 bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30">
+          <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-slate-100">新建知识库</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <Input
-            className="dark:bg-slate-800 dark:border-slate-600 dark:text-gray-100"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="知识库名称 (必填)"
-          />
-          <Textarea
-            className="dark:bg-slate-800 dark:border-slate-600 dark:text-gray-100"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="知识库描述 (可选)"
-            rows={3}
-          />
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">知识库名称 <span className="text-red-500">*</span></label>
+            <Input
+              className="h-10 rounded-lg border-slate-200 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：技术文档、产品手册..."
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">知识库描述 <span className="text-xs text-slate-400">(可选)</span></label>
+            <Textarea
+              className="rounded-lg border-slate-200 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 focus:border-blue-400 dark:focus:border-blue-500 transition-colors resize-none"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="简要说明知识库的用途和内容..."
+              rows={3}
+            />
+          </div>
         </div>
-        <DialogFooter>
-          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)} disabled={loading}>取消</Button>
-          <Button variant="dialogPrimary" onClick={handleSubmit} disabled={loading}>创建</Button>
+        <DialogFooter className="border-t border-slate-100/80 dark:border-slate-800/60 pt-4 bg-gradient-to-t from-slate-50/30 to-transparent dark:from-slate-900/20">
+          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)} disabled={loading} className="rounded-lg">取消</Button>
+          <Button variant="dialogPrimary" onClick={handleSubmit} disabled={loading} className="rounded-lg shadow-sm">创建</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

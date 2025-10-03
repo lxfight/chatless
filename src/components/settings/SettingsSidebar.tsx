@@ -63,14 +63,14 @@ export function SettingsSidebar({ activeTab, onTabChange }: SettingsSidebarProps
     }
   }, [activeTab]);
   return (
-    <div className="w-56 border-r border-slate-200 dark:border-slate-700 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-900 flex flex-col h-full select-none">
+    <div className="w-60 border-r border-gray-200/60 dark:border-gray-800/50 overflow-y-auto custom-scrollbar bg-gradient-to-b from-white/95 to-gray-50/90 dark:from-gray-900/95 dark:to-gray-950/90 backdrop-blur-md flex flex-col h-full select-none shadow-sm">
       {/* Header */}
-      <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-        <h3 className="font-medium text-slate-700 dark:text-slate-300 text-sm">设置</h3>
+      <div className="p-4 flex items-center justify-between border-b border-gray-200/60 dark:border-gray-800/50 flex-shrink-0">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">设置</h3>
       </div>
       
       {/* Settings Tabs */}
-      <div className="flex-1 p-2 space-y-1">
+      <div className="flex-1 p-3 space-y-1.5">
         {settingsTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -81,21 +81,21 @@ export function SettingsSidebar({ activeTab, onTabChange }: SettingsSidebarProps
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-200 border border-transparent",
+                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 border",
                 isActive 
-                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/40 font-medium" 
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-gradient-to-r from-blue-50 to-indigo-50/80 dark:from-blue-900/30 dark:to-indigo-900/25 text-blue-700 dark:text-blue-300 border-blue-300/60 dark:border-blue-600/50 shadow-md font-semibold" 
+                  : "text-gray-700 dark:text-gray-400 hover:bg-gradient-to-r hover:from-gray-100/80 hover:to-slate-100/60 dark:hover:from-gray-800/60 dark:hover:to-slate-800/50 hover:text-gray-900 dark:hover:text-gray-200 border-transparent hover:shadow-sm"
               )}
             >
               <Icon className={cn(
-                "w-4 h-4 flex-shrink-0",
-                isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"
+                "w-4 h-4 flex-shrink-0 transition-transform",
+                isActive ? "text-blue-600 dark:text-blue-400 scale-110" : "text-gray-500 dark:text-gray-400"
               )} />
-              <span className="truncate flex items-center gap-2">
+              <span className="truncate flex items-center gap-2 flex-1">
                 {tab.name}
                 {isAbout && showAboutDot && !isActive && (
                   <span
-                    className="ml-1 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-1 py-[1px] text-[9px] leading-[12px] text-blue-600 dark:text-blue-400 align-middle"
+                    className="ml-auto inline-flex items-center rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 px-2 py-0.5 text-[9px] font-semibold leading-tight text-white shadow-md"
                   >
                     NEW
                   </span>

@@ -65,12 +65,12 @@ export function ModelSelectContent({
     <TooltipProvider delayDuration={150}>
       <SelectContent
         onFocusCapture={handleFocusCapture}
-        className="max-h-[560px] w-[500px] p-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+        className="max-h-[600px] w-[520px] p-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-300/60 dark:border-slate-600/50 rounded-2xl shadow-2xl"
       >
       {/* 搜索栏 */}
-      <div className="sticky top-0 z-10 p-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-10 p-3 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/80 border-b border-slate-200/60 dark:border-slate-700/50 backdrop-blur-sm">
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             ref={searchInputRef}
             type="text"
@@ -78,7 +78,7 @@ export function ModelSelectContent({
             autoCorrect="off"
             spellCheck={false}
             placeholder="搜索模型或提供商..."
-            className="w-full py-1.5 pl-9 pr-9 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-200 transition-colors"
+            className="w-full py-2.5 pl-10 pr-20 border border-slate-300/60 dark:border-slate-600/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400/60 bg-white dark:bg-slate-800/60 dark:text-slate-200 transition-all placeholder:text-slate-400/80 shadow-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDownCapture={(e) => {
@@ -92,39 +92,43 @@ export function ModelSelectContent({
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="absolute right-11 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition-all"
+              title="清除搜索"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
-            {/* 刷新按钮 */}
+            {/* 设置按钮 */}
            
            <button
              onClick={() => handleToAiSetting()}
              title="设置AI模型"
-             className="absolute right-9 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+             className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition-all"
            >
             <SettingsIcon className="w-4 h-4" />
-                       </button>
+           </button>
            
          </div>
        </div>
 
       {/* 标签页 */}
-      <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="p-2">
-        <TabsList className="w-full grid grid-cols-2 mb-2 bg-gray-200/60 dark:bg-gray-800/60 rounded-lg">
-          <TabsTrigger value="all" className="text-sm data-[state=active]:bg-blue-500/10 dark:data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400">
+      <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="p-3">
+        <TabsList className="w-full grid grid-cols-2 mb-3 bg-slate-100/80 dark:bg-slate-800/60 rounded-xl p-1 border border-slate-200/50 dark:border-slate-700/40">
+          <TabsTrigger value="all" className="text-sm font-medium rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700/80 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all">
             全部模型
           </TabsTrigger>
-          <TabsTrigger value="recent" className="text-sm data-[state=active]:bg-blue-500/10 dark:data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400" disabled={filteredModels.length === 0}>
-            <Clock className="w-4 h-4 mr-1" />
+          <TabsTrigger value="recent" className="text-sm font-medium rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700/80 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all" disabled={filteredModels.length === 0}>
+            <Clock className="w-3.5 h-3.5 mr-1.5" />
             最近使用
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all" className="mt-0 space-y-1.5">
+        <TabsContent value="all" className="mt-0 space-y-2 max-h-[440px] overflow-y-auto pr-1 custom-scrollbar">
           {filteredModels.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500 text-center">{searchQuery ? '无匹配结果' : '正在加载模型列表...'}</div>
+            <div className="p-6 text-center">
+              <div className="text-sm text-slate-500 dark:text-slate-400">{searchQuery ? '无匹配结果' : '正在加载模型列表...'}</div>
+              {searchQuery && <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">尝试使用其他关键词</div>}
+            </div>
           ) : (
             <ModelList
               models={filteredModels}
@@ -137,7 +141,7 @@ export function ModelSelectContent({
             />
           )}
         </TabsContent>
-        <TabsContent value="recent" className="mt-0 space-y-1.5">
+        <TabsContent value="recent" className="mt-0 space-y-2 max-h-[440px] overflow-y-auto pr-1 custom-scrollbar">
           <RecentModelsList
             recentModelDetails={recentModelDetails}
             globalDefaultModel={globalDefaultModel}

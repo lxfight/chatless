@@ -65,36 +65,36 @@ export function DocumentReference({
     switch (variant) {
       case 'user-message':
         return {
-          container: "border border-blue-500/10 dark:border-blue-400/10 rounded-xl bg-blue-500/5 dark:bg-blue-400/5 p-3 my-2",
-          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate block",
-          fileType: "text-xs text-blue-600 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-400/10 px-2 py-0.5 rounded-lg",
-          fileSize: "text-xs text-blue-600/70 dark:text-blue-300/70",
-          summary: "text-sm text-blue-800/90 dark:text-blue-200/90 truncate",
-          expandButton: "text-xs text-blue-600/80 dark:text-blue-300/80 hover:text-blue-700 dark:hover:text-blue-200",
-          expandedHeader: "text-xs text-blue-600/70 dark:text-blue-300/70 mb-2",
-          expandedContent: "text-sm text-blue-900 dark:text-blue-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-blue-100 dark:border-blue-800 max-h-60 overflow-y-auto"
+          container: "border border-emerald-200/50 dark:border-emerald-700/40 rounded-xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-emerald-50/80 dark:from-emerald-900/20 dark:to-teal-900/15 p-3 my-2 shadow-sm backdrop-blur-sm",
+          fileName: "font-semibold text-emerald-900 dark:text-emerald-100 text-sm truncate block",
+          fileType: "text-xs text-emerald-700 dark:text-emerald-300 bg-gradient-to-r from-emerald-100 to-teal-100 dark:from-emerald-800/50 dark:to-teal-800/40 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-700/50",
+          fileSize: "text-xs text-emerald-600/70 dark:text-emerald-400/70 font-mono",
+          summary: "text-sm text-emerald-800/90 dark:text-emerald-200/90 truncate",
+          expandButton: "text-xs text-emerald-600/80 dark:text-emerald-300/80 hover:text-emerald-700 dark:hover:text-emerald-200",
+          expandedHeader: "text-xs text-emerald-600/70 dark:text-emerald-400/70 mb-2 font-medium",
+          expandedContent: "text-sm text-emerald-900 dark:text-emerald-100 bg-white/90 dark:bg-gray-800/90 p-3 rounded-lg border border-emerald-200/60 dark:border-emerald-800/50 max-h-60 overflow-y-auto backdrop-blur-sm shadow-sm"
         };
       case 'ai-message':
         return {
-          container: "border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 my-2",
-          fileName: "font-medium text-slate-900 dark:text-slate-100 text-sm truncate block",
-          fileType: "text-xs text-slate-600 dark:text-slate-300 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-0.5 rounded-lg",
-          fileSize: "text-xs text-slate-500 dark:text-slate-400",
-          summary: "text-sm text-slate-700 dark:text-slate-300 truncate",
-          expandButton: "text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200",
-          expandedHeader: "text-xs text-slate-600 dark:text-slate-400 mb-2",
-          expandedContent: "text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto"
+          container: "border border-gray-200/60 dark:border-gray-700/50 rounded-xl bg-gradient-to-r from-gray-50/80 to-slate-50/60 dark:from-gray-800/40 dark:to-slate-800/30 p-3 my-2 shadow-sm backdrop-blur-sm",
+          fileName: "font-semibold text-gray-900 dark:text-gray-100 text-sm truncate block",
+          fileType: "text-xs text-gray-700 dark:text-gray-300 bg-gradient-to-r from-gray-100 to-slate-100 dark:from-gray-700/60 dark:to-slate-700/50 px-2 py-0.5 rounded-full border border-gray-200/50 dark:border-gray-600/50",
+          fileSize: "text-xs text-gray-600 dark:text-gray-400 font-mono",
+          summary: "text-sm text-gray-700 dark:text-gray-300 truncate",
+          expandButton: "text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200",
+          expandedHeader: "text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium",
+          expandedContent: "text-sm text-gray-900 dark:text-gray-100 bg-white/90 dark:bg-gray-800/90 p-3 rounded-lg border border-gray-200/60 dark:border-gray-700/50 max-h-60 overflow-y-auto backdrop-blur-sm shadow-sm"
         };
       default:
         return {
-          container: "border border-blue-200 dark:border-blue-800 rounded-xl bg-blue-50 dark:bg-blue-900/20 p-3 my-2",
-          fileName: "font-medium text-blue-900 dark:text-blue-100 text-sm truncate block",
-          fileType: "text-xs text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 px-2 py-0.5 rounded-lg",
-          fileSize: "text-xs text-slate-500 dark:text-slate-400",
+          container: "border border-blue-200/60 dark:border-blue-800/50 rounded-xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-900/30 dark:to-indigo-900/25 p-3 my-2 shadow-sm backdrop-blur-sm",
+          fileName: "font-semibold text-blue-900 dark:text-blue-100 text-sm truncate block",
+          fileType: "text-xs text-blue-700 dark:text-blue-300 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-800/60 dark:to-indigo-800/50 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-700/50",
+          fileSize: "text-xs text-blue-600 dark:text-blue-400 font-mono",
           summary: "text-sm text-blue-800 dark:text-blue-200 truncate",
           expandButton: "text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300",
-          expandedHeader: "text-xs text-slate-600 dark:text-slate-400 mb-2",
-          expandedContent: "text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 p-3 rounded-xl border border-blue-100 dark:border-blue-800 max-h-60 overflow-y-auto"
+          expandedHeader: "text-xs text-blue-600 dark:text-blue-400 mb-2 font-medium",
+          expandedContent: "text-sm text-blue-900 dark:text-blue-100 bg-white/90 dark:bg-gray-800/90 p-3 rounded-lg border border-blue-200/60 dark:border-blue-800/50 max-h-60 overflow-y-auto backdrop-blur-sm shadow-sm"
         };
     }
   };
@@ -109,12 +109,12 @@ export function DocumentReference({
     )}>
       {/* 文档引用头部 */}
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 mt-0.5">
+        <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-gray-100 to-slate-100 dark:from-gray-700/60 dark:to-slate-700/50 flex items-center justify-center shadow-sm">
           {getFileIcon(fileType, variant)}
         </div>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className={styles.fileName} title={fileName}>
               📎 {truncateText(fileName, 18)}
             </span>
@@ -135,18 +135,18 @@ export function DocumentReference({
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className={cn(
-                "flex items-center gap-1 mt-2.5 transition-colors duration-200",
+                "flex items-center gap-1.5 mt-2.5 transition-all duration-200 hover:gap-2",
                 styles.expandButton
               )}
             >
               {isExpanded ? (
                 <>
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className="w-3.5 h-3.5" />
                   收起完整内容
                 </>
               ) : (
                 <>
-                  <ChevronRight className="w-3 h-3" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                   查看完整内容
                 </>
               )}

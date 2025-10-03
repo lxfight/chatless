@@ -40,8 +40,8 @@ export function PromptsHeader() {
   const commonTags = ['写作', '编程', '翻译', '总结', '创意'];
 
   return (
-    <div className="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      <div className="max-w-6xl mx-auto space-y-2">
+    <div className="px-6 py-4">
+      <div className="max-w-6xl mx-auto space-y-3">
         {/* 主要操作区域 */}
         <div className="flex items-center justify-between gap-4">
           {/* 左侧：搜索和筛选 */}
@@ -54,14 +54,14 @@ export function PromptsHeader() {
                 placeholder="搜索提示词..." 
                 value={ui?.searchQuery || ''}
                 onChange={(e)=>setSearchQuery(e.target.value)}
-                className="pl-10 pr-3 py-1.5 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-full focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0 transition-all duration-200"
+                className="pl-10 pr-3 py-1.5 text-sm"
               />
             </div>
 
             {/* 标签筛选器 - 使用下拉菜单 */}
             <div className="relative">
               <Select value={ui?.tagFilter || '__all__'} onValueChange={(v)=>setTagFilter(v === '__all__' ? null : v)}>
-                <SelectTrigger className="h-8 px-3 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200 min-w-[9rem]">
+                <SelectTrigger className="h-9 px-3 text-sm min-w-[9rem]">
                   <Filter className="w-4 h-4 mr-2 text-gray-500" />
                   <SelectValue placeholder="选择标签" />
                 </SelectTrigger>
@@ -77,28 +77,32 @@ export function PromptsHeader() {
             </div>
 
             {/* 收藏筛选器 */}
-            <button
+            <Button
+              variant={ui?.favoriteOnly ? "default" : "outline"}
+              size="sm"
               onClick={()=>setFavoriteOnly(!ui?.favoriteOnly)}
               className={cn(
-                "h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-[13px] transition-colors",
+                "h-9 px-3 gap-1.5 text-sm transition-all duration-200",
                 ui?.favoriteOnly 
-                  ? "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
-                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700/80"
+                  ? "bg-gradient-to-r from-amber-400 to-yellow-400 text-white hover:from-amber-500 hover:to-yellow-500 shadow-md"
+                  : ""
               )}
             >
-              <Star className={cn("w-4 h-4", ui?.favoriteOnly && "fill-current text-yellow-600")}/>
-              <span className="">{ui?.favoriteOnly ? '收藏中' : '只看收藏'}</span>
-            </button>
+              <Star className={cn("w-4 h-4", ui?.favoriteOnly && "fill-current")}/>
+              <span>{ui?.favoriteOnly ? '收藏中' : '只看收藏'}</span>
+            </Button>
           </div>
 
           {/* 右侧：新建按钮 */}
-          <button
+          <Button
+            variant="soft"
+            size="default"
             onClick={() => setOpen(true)}
-            className="h-8 px-3 rounded-lg border bg-white border-gray-200 text-gray-700 flex items-center gap-2 text-[13px] hover:bg-gray-50 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700/80"
+            className="gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span className="">新建提示词</span>
-          </button>
+            <span>新建提示词</span>
+          </Button>
         </div>
 
         {/* 次要操作区域和常用标签 */}
@@ -109,17 +113,17 @@ export function PromptsHeader() {
           {/* 中间：常用标签 */}
           {topTags.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">常用标签：</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">常用标签：</span>
               <div className="flex gap-2">
                 {topTags.map(({ tag, count }) => (
                   <Badge
                     key={tag}
                     variant={ui?.tagFilter === tag ? "default" : "secondary"}
                     className={cn(
-                      "cursor-pointer transition-all duration-200",
+                      "cursor-pointer transition-all duration-200 rounded-full px-3 py-1",
                       ui?.tagFilter === tag 
-                        ? "bg-blue-500/20 text-blue-700" 
-                        : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md hover:shadow-lg" 
+                        : "bg-gradient-to-r from-gray-100 to-slate-100 text-gray-700 dark:from-gray-800 dark:to-slate-800 dark:text-gray-300 hover:from-gray-200 hover:to-slate-200 dark:hover:from-gray-700 dark:hover:to-slate-700 border border-gray-200/50 dark:border-gray-700/50"
                     )}
                     onClick={() => setTagFilter(ui?.tagFilter === tag ? null : tag)}
                   >
@@ -132,9 +136,9 @@ export function PromptsHeader() {
           
           {/* 右侧：排序 */}
           <div className="flex items-center gap-2">
-            <SortAsc className="w-4 h-4 text-gray-400" />
+            <SortAsc className="w-4 h-4 text-gray-500" />
             <Select value={ui?.sortBy || 'recent'} onValueChange={(v)=>setSortBy(v as any)}>
-              <SelectTrigger className="h-8 px-3 text-[13px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-0 transition-all duration-200">
+              <SelectTrigger className="h-8 px-3 text-sm">
                 <SelectValue placeholder="排序方式" />
               </SelectTrigger>
               <SelectContent>
@@ -150,35 +154,35 @@ export function PromptsHeader() {
         {/* 当前筛选状态显示 */}
         {(ui?.tagFilter || ui?.favoriteOnly || ui?.searchQuery) && (
           <div className="flex items-center gap-2 pt-1">
-            <span className="text-sm text-gray-500">当前筛选：</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">当前筛选：</span>
             {ui?.tagFilter && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 dark:from-blue-900/40 dark:to-indigo-900/30 dark:text-blue-300 border border-blue-200/50 dark:border-blue-700/50 rounded-full">
                 标签: {ui.tagFilter}
                 <button
                   onClick={() => setTagFilter(null)}
-                  className="ml-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5"
+                  className="ml-1.5 hover:bg-blue-200/50 dark:hover:bg-blue-800/50 rounded-full p-0.5 transition-colors duration-200"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </Badge>
             )}
             {ui?.favoriteOnly && (
-              <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+              <Badge variant="secondary" className="bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 dark:from-amber-900/40 dark:to-yellow-900/30 dark:text-amber-300 border border-amber-200/50 dark:border-amber-700/50 rounded-full">
                 只看收藏
                 <button
                   onClick={() => setFavoriteOnly(false)}
-                  className="ml-1 hover:bg-yellow-200 dark:hover:bg-yellow-800 rounded-full p-0.5"
+                  className="ml-1.5 hover:bg-amber-200/50 dark:hover:bg-amber-800/50 rounded-full p-0.5 transition-colors duration-200"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </Badge>
             )}
             {ui?.searchQuery && (
-              <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              <Badge variant="secondary" className="bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 dark:from-emerald-900/40 dark:to-teal-900/30 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-700/50 rounded-full">
                 搜索: {ui.searchQuery}
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="ml-1 hover:bg-green-200 dark:hover:bg-green-800 rounded-full p-0.5"
+                  className="ml-1.5 hover:bg-emerald-200/50 dark:hover:bg-emerald-800/50 rounded-full p-0.5 transition-colors duration-200"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -187,7 +191,7 @@ export function PromptsHeader() {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+              className="h-7 px-2 text-xs"
               onClick={() => {
                 setSearchQuery('');
                 setFavoriteOnly(false);

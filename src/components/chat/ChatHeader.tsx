@@ -84,10 +84,10 @@ export function ChatHeader({
 
   return (
     <>
-      <div className="px-1 py-1 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer" title="切换侧边栏">
-            <Menu className="w-5 h-5 text-gray-600" />
+      <div className="px-3 sm:px-4 md:px-6 py-3 border-b border-slate-200/50 dark:border-slate-700/40 flex items-center justify-between bg-gradient-to-r from-slate-50/60 via-white/40 to-slate-50/60 dark:from-slate-900/60 dark:via-slate-800/40 dark:to-slate-900/60 backdrop-blur-xl shadow-sm transition-all">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-700/60 transition-all duration-200 cursor-pointer" title="切换侧边栏">
+            <Menu className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
           
           {/* 会话栏折叠时显示新建按钮 */}
@@ -114,21 +114,21 @@ export function ChatHeader({
           <EditableTitle
             initialTitle={title}
             onTitleChange={onTitleChange}
-            className="font-medium text-base text-gray-800 dark:text-gray-200"
-            inputClassName="text-base font-medium"
+            className="font-medium text-sm sm:text-base text-gray-800 dark:text-gray-200 truncate"
+            inputClassName="text-sm sm:text-base font-medium"
           />
           
           {tags?.map((tag, index) => (
             <span
               key={index}
-              className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 text-xs px-2.5 py-1 rounded-full shadow-sm"
+              className="bg-gradient-to-r from-indigo-50 to-indigo-100/80 text-indigo-700 dark:from-indigo-900/40 dark:to-indigo-800/30 dark:text-indigo-300 text-xs px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-700/50"
             >
               {tag}
             </span>
           ))}
         </div>
         
-        <div className="flex items-center gap-3 bg-slate-50/60 dark:bg-slate-800/40 px-2 py-1 rounded-md">
+        <div className="flex items-center gap-2 sm:gap-3 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm flex-shrink-0">
           <ModelSelector 
             allMetadata={allMetadata}
             currentModelId={currentModelId}

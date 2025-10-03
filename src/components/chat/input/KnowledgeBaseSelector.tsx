@@ -59,11 +59,11 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
     <>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={() => setIsOpen(true)}
         className={cn(
-          "h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0",
-          selectedKnowledgeBase && "text-blue-600 bg-blue-50 dark:bg-blue-900/20"
+          "rounded-lg text-gray-600 hover:bg-gray-100/80 dark:text-gray-400 dark:hover:bg-gray-800/60 shrink-0 transition-all duration-200",
+          selectedKnowledgeBase && "text-blue-600 bg-gradient-to-br from-blue-50 to-indigo-50/80 dark:from-blue-900/30 dark:to-indigo-900/25 ring-1 ring-blue-400/30 dark:ring-blue-500/30 shadow-sm"
         )}
         title={selectedKnowledgeBase ? '更换知识库' : '选择知识库'}
       >
@@ -71,10 +71,10 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-0 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
+        <DialogContent className="max-w-2xl">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">选择一个知识库</DialogTitle>
-            <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            <DialogTitle className="text-lg font-semibold">选择一个知识库</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
               AI将基于您选择的知识库内容进行回答，以提供更精准、个性化的信息。
             </DialogDescription>
           </DialogHeader>
@@ -85,7 +85,7 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
                 placeholder="搜索知识库名称或描述..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-10 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500/20 transition-all duration-200 rounded-lg"
+                className="pl-9"
               />
             </div>
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
@@ -99,15 +99,15 @@ export function KnowledgeBaseSelector({ onSelect, selectedKnowledgeBase }: Knowl
                     <li key={kb.id}>
                       <button
                         onClick={() => handleSelect(kb)}
-                        className="w-full text-left p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 cursor-pointer group hover:shadow-md"
+                        className="w-full text-left p-3 rounded-xl border border-gray-200/60 dark:border-gray-700/50 hover:border-blue-300/60 dark:hover:border-blue-600/50 bg-white/60 dark:bg-gray-800/40 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50/80 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/15 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 cursor-pointer group hover:shadow-md backdrop-blur-sm"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center group-hover:from-blue-100 group-hover:to-indigo-100 dark:group-hover:from-blue-800/30 dark:group-hover:to-indigo-800/30 transition-all duration-200">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/25 flex items-center justify-center group-hover:from-blue-100 group-hover:to-indigo-100 dark:group-hover:from-blue-800/40 dark:group-hover:to-indigo-800/35 transition-all duration-200 shadow-sm">
                             {getKnowledgeBaseIcon(kb.icon)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">{kb.name}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                            <p className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">{kb.name}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
                               {(kb.description || '暂无描述')
                                 .replace(/\\n|\n|\r|\\r|\t|\\t/g, ' ')
                                 .replace(/\s{2,}/g, ' ')

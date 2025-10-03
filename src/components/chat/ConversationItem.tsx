@@ -73,48 +73,52 @@ function ConversationItemImpl({
     >
       <li
         className={cn(
-          "group relative flex flex-col gap-0.5 px-2 py-1.5 rounded-md transition-all duration-200 cursor-pointer border-b border-slate-100/70 dark:border-slate-800/40",
+          "group relative flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg transition-all duration-200 cursor-pointer border border-transparent",
           isCurrent
-            ? "text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-500/10"
-            : "text-slate-600 dark:text-slate-400 hover:bg-gray-50/80 dark:hover:bg-gray-800/30 hover:text-slate-900 dark:hover:text-slate-200"
+            ? "text-blue-600 dark:text-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-900/20 dark:to-indigo-900/10 border-blue-200/50 dark:border-blue-700/40 shadow-sm"
+            : "text-slate-600 dark:text-slate-400 hover:bg-gradient-to-r hover:from-slate-50 hover:to-gray-50/50 dark:hover:from-slate-800/40 dark:hover:to-slate-800/20 hover:text-slate-900 dark:hover:text-slate-200 hover:border-slate-200/50 dark:hover:border-slate-700/40"
         )}
         onClick={() => onSelect(conversation.id)}
       >
         {/* 活动强调条 - 精致轻盈设计 */}
         {isCurrent && (
-          <div className="absolute left-0 top-2 bottom-2 w-px bg-blue-400/60" />
+          <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gradient-to-b from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400 rounded-r-full" />
         )}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 ml-1.5">
           {isRenaming ? (
             <Input
               value={renameInputValue}
               onChange={(e) => onRenameChange(e.target.value)}
               onBlur={onRenameBlur}
               onKeyDown={onRenameKeyDown}
-              className="h-6 px-1 py-0 text-sm bg-transparent"
+              className="h-6 px-2 py-0 text-[13px] bg-white dark:bg-slate-800 rounded-lg border-blue-400/60"
               autoFocus
             />
           ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
-              {conversation.is_important && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Flag className="w-3.5 h-3.5 text-red-500/80 flex-shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>重要对话</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {(conversation as any).is_favorite && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Star className="w-3.5 h-3.5 text-yellow-500/80 flex-shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>已收藏</p>
-                  </TooltipContent>
-                </Tooltip>
+            <div className="flex items-center gap-1.5 min-w-0 w-full">
+              {(conversation.is_important || (conversation as any).is_favorite) && (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {conversation.is_important && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Flag className="w-3 h-3 text-red-500 dark:text-red-400 fill-current" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>重要对话</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {(conversation as any).is_favorite && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Star className="w-3 h-3 text-yellow-500 dark:text-yellow-400 fill-current" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>已收藏</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               )}
               <div
                 className="flex-1 text-[13px] font-medium truncate cursor-pointer leading-tight"
@@ -127,13 +131,12 @@ function ConversationItemImpl({
           )}
         </div>
 
-        <div className="flex items-center justify-between text-[11px] mt-0.5">
-          <div className="flex-1 min-w-0 flex items-center gap-2 pr-1 text-slate-500 dark:text-slate-400">
-            <span className="text-[11px] whitespace-nowrap">{compactTime}</span>
+        <div className="flex items-center justify-between text-xs mt-0.5 ml-1.5">
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 pr-1">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{compactTime}</span>
+            <span className="text-slate-300 dark:text-slate-600">·</span>
             <ModelLabelSpan conversation={conversation} />
           </div>
-
-          <div className="flex items-center gap-1.5" />
         </div>
       </li>
     </ContextMenu>
@@ -167,7 +170,7 @@ function ModelLabelSpan({ conversation }: { conversation: Conversation }) {
   const display = label || conversation.model_id;
   return (
     <span
-      className="text-[10px] opacity-60 whitespace-nowrap overflow-hidden text-ellipsis truncate max-w-[8.5rem] sm:max-w-[10.5rem]"
+      className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis truncate max-w-[10rem] sm:max-w-[12rem]"
       title={(conversation as any).model_full_id || conversation.model_id}
     >
       {display}

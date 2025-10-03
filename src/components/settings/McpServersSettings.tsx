@@ -796,10 +796,10 @@ export function McpServersSettings() {
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">MCP 服务器设置</h2>
-          <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">MCP 服务器设置</h2>
+          <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50/50 to-blue-50/30 dark:from-slate-800/30 dark:to-blue-900/10 p-4 dark:border-slate-700/60 shadow-sm">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             在此添加/编辑 MCP 服务器，并进行连接管理。聊天会话中可选择已连接 MCP 服务器，AI 将按需调用工具/资源/提示。
           </p>
         </div>
@@ -808,16 +808,16 @@ export function McpServersSettings() {
         {/* 环境状态检查 */}
         <McpEnvironmentStatus />
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 bg-gradient-to-r from-slate-50 to-blue-50/40 dark:from-slate-800/40 dark:to-blue-900/20 rounded-xl p-3 border border-slate-200/60 dark:border-slate-700/50">
           {/* 左侧主要操作按钮组 */}
-          <div className="flex gap-1">
+          <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button 
                   className={cn(
-                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-all"
+                    "w-9 h-9 rounded-lg border border-slate-200/70 dark:border-slate-600/70 flex items-center justify-center shadow-sm",
+                    "text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-white dark:hover:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 focus:outline-none transition-all hover:shadow-md backdrop-blur-sm bg-white/60 dark:bg-slate-800/60"
                   )} 
                   onClick={beginAdd}
                 >
@@ -832,9 +832,9 @@ export function McpServersSettings() {
               <TooltipTrigger asChild>
                 <button 
                   className={cn(
-                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
+                    "w-9 h-9 rounded-lg border border-slate-200/70 dark:border-slate-600/70 flex items-center justify-center shadow-sm",
+                    "text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-white dark:hover:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 focus:outline-none transition-all hover:shadow-md backdrop-blur-sm bg-white/60 dark:bg-slate-800/60"
                   )} 
                   onClick={()=>{ setImportOpen(true); setImportText(""); }}
                 >
@@ -849,9 +849,9 @@ export function McpServersSettings() {
               <TooltipTrigger asChild>
                 <button 
                   className={cn(
-                    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-                    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
+                    "w-9 h-9 rounded-lg border border-slate-200/70 dark:border-slate-600/70 flex items-center justify-center shadow-sm",
+                    "text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-white dark:hover:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 focus:outline-none transition-all hover:shadow-md backdrop-blur-sm bg-white/60 dark:bg-slate-800/60"
                   )} 
                   onClick={async()=>{
                     try {
@@ -895,9 +895,9 @@ export function McpServersSettings() {
             <TooltipTrigger asChild>
               <button
                 className={cn(
-                  "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-                  "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                  "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
+                  "w-9 h-9 rounded-lg border border-slate-200/70 dark:border-slate-600/70 flex items-center justify-center shadow-sm",
+                  "text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400",
+                  "hover:bg-white dark:hover:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 focus:outline-none transition-all hover:shadow-md backdrop-blur-sm bg-white/60 dark:bg-slate-800/60"
                 )}
                 onClick={() => setAdvDialogOpen(true)}
               >
@@ -1028,18 +1028,18 @@ export function McpServersSettings() {
           const tools = st === 'connected' ? (toolsCache?.tools || []) : [];
           
           return (
-            <div key={s.name} className="border border-gray-100 dark:border-slate-800 rounded-xl p-3 bg-white/80 dark:bg-slate-900/50 backdrop-blur-sm overflow-visible">
+            <div key={s.name} className="border border-slate-200/70 dark:border-slate-700/60 rounded-xl p-4 bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm overflow-visible hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm transition-all">
               <div className="flex items-center justify-between">
-                <div className="font-medium flex items-center gap-2">
+                <div className="font-semibold flex items-center gap-2.5 text-slate-800 dark:text-slate-100">
                   <span>{s.name}</span>
-                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-lg shadow-sm ${
                     st === 'connected' 
-                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800/40'
+                      ? 'bg-emerald-50/80 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700/50'
                       : st === 'connecting' 
-                        ? 'bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/40'
+                        ? 'bg-blue-50/80 text-blue-700 border border-blue-200/60 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50'
                         : st === 'error' 
-                          ? 'bg-red-50 text-red-600 border border-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/40'
-                          : 'bg-gray-50 text-gray-500 border border-gray-100 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700/50'
+                          ? 'bg-red-50/80 text-red-700 border border-red-200/60 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700/50'
+                          : 'bg-slate-50/80 text-slate-600 border border-slate-200/60 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700/60'
                   }`}>
                     {st === 'connected' ? (
                       <CheckCircle className="w-3 h-3" />
@@ -1056,12 +1056,12 @@ export function McpServersSettings() {
                   </span>
                   {toolCount > 0 && (
                     <McpToolListTip toolCount={toolCount} tools={tools as any}>
-                          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md cursor-help transition-colors ${
+                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-lg cursor-help transition-all shadow-sm ${
                             st === 'connected' 
-                              ? 'text-gray-600 hover:bg-gray-100' 
-                              : 'text-gray-500 hover:bg-gray-100'
+                              ? 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50' 
+                              : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50'
                           }`}>
-                            <svg className="w-2.5 h-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
@@ -1093,9 +1093,10 @@ export function McpServersSettings() {
                      <TooltipTrigger asChild>
                        <button 
                          className={cn(
-                           "w-8 h-8 rounded-lg  flex items-center justify-center",
-                           "text-blue-600 dark:text-blue-400 hover:bg-blue-50  disabled:opacity-60 transition-all duration-200",
-                           "disabled:opacity-60 transition-all duration-200 flex items-center justify-center"
+                           "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm border transition-all",
+                           "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30",
+                           "border-blue-200/60 dark:border-blue-800/60 hover:border-blue-300 dark:hover:border-blue-700",
+                           "disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md"
                          )} 
                         disabled={!!loadingMap[s.name]} 
                         onClick={()=>connect(s)}
@@ -1111,8 +1112,10 @@ export function McpServersSettings() {
                    <DropdownMenu.Root>
                      <DropdownMenu.Trigger asChild>
                        <button className={cn(
-                         "w-8 h-8 rounded-lg  text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md",
-                         "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                         "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm border transition-all",
+                         "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700",
+                         "border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600",
+                         "focus:outline-none focus:ring-2 focus:ring-blue-500/20 hover:shadow-md"
                        )}>
                          <MoreVertical className="w-4 h-4" />
                        </button>
@@ -1131,7 +1134,7 @@ export function McpServersSettings() {
                 </div>
               </div>
               {/* 次要信息行：命令/URL */}
-              <div className="mt-2 text-xs text-slate-500">
+              <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-400 font-mono bg-slate-50/50 dark:bg-slate-800/30 rounded-lg px-3 py-2">
                 {s.config.type === 'stdio' ? `${s.config.command} ${(s.config.args||[]).join(' ')}` : `${s.config.type} ${s.config.baseUrl}`}
               </div>
             </div>

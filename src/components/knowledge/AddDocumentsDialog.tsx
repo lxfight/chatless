@@ -202,54 +202,62 @@ export function AddDocumentsDialog({ open, onOpenChange, knowledgeBase, onSucces
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[80vh] overflow-hidden dark:bg-slate-900 dark:border-slate-600">
-        <DialogHeader>
-          <DialogTitle className="text-gray-900 dark:text-gray-100">添加文档到知识库</DialogTitle>
+      <DialogContent className="max-w-xl max-h-[80vh] overflow-hidden rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl dark:bg-slate-900">
+        <DialogHeader className="border-b border-slate-100/80 dark:border-slate-800/60 pb-3 bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30">
+          <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-slate-100">添加文档到知识库</DialogTitle>
         </DialogHeader>
 
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : error ? (
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </div>
-        ) : adding ? (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2 text-sm">
-              <Database className="h-4 w-4" />
-              {progressMessage || '正在添加文档...'}
+        <div className="py-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
             </div>
-            <Progress value={progress} />
-          </div>
-        ) : (
-          <div className="max-h-[300px] overflow-y-auto custom-scrollbar space-y-2">
-            {files.map(file => (
-              <label 
-                key={file.id} 
-                className="flex items-center gap-2 p-2 rounded border hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
-              >
-                <Checkbox 
-                  checked={selected.has(file.id)} 
-                  onCheckedChange={() => toggle(file.id)} 
-                />
-                {getFileIcon(file)}
-                {getFileLabel(file)}
-              </label>
-            ))}
-            {files.length === 0 && (
-              <p className="text-center text-sm text-slate-500 py-8">
-                暂无可添加的文档
-              </p>
-            )}
-          </div>
-        )}
+          ) : error ? (
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm">{error}</span>
+            </div>
+          ) : adding ? (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <Database className="h-4 w-4 text-blue-500" />
+                {progressMessage || '正在添加文档...'}
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto custom-scrollbar space-y-2">
+              {files.map(file => (
+                <label 
+                  key={file.id} 
+                  className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                >
+                  <Checkbox 
+                    checked={selected.has(file.id)} 
+                    onCheckedChange={() => toggle(file.id)}
+                    className="border-slate-300 dark:border-slate-600"
+                  />
+                  {getFileIcon(file)}
+                  {getFileLabel(file)}
+                </label>
+              ))}
+              {files.length === 0 && (
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    暂无可添加的文档
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-        <DialogFooter>
-          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)} disabled={loading}>取消</Button>
-          <Button variant="dialogPrimary" onClick={handleConfirm} disabled={adding || selected.size === 0}>确认添加</Button>
+        <DialogFooter className="border-t border-slate-100/80 dark:border-slate-800/60 pt-4 bg-gradient-to-t from-slate-50/30 to-transparent dark:from-slate-900/20">
+          <Button variant="dialogSecondary" onClick={() => onOpenChange(false)} disabled={loading} className="rounded-lg">取消</Button>
+          <Button variant="dialogPrimary" onClick={handleConfirm} disabled={adding || selected.size === 0} className="rounded-lg shadow-sm">
+            确认添加 {selected.size > 0 && `(${selected.size})`}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -32,10 +32,10 @@ export default function PromptsPage() {
 
   return (
     <div className="h-full w-full flex flex-col">
-      <div className="bg-white dark:bg-gray-900">
+      <div className="bg-gradient-to-r from-white/95 to-gray-50/90 dark:from-gray-900/95 dark:to-gray-950/90 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-800/60">
         <PromptsHeader />
       </div>
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-gray-950/40">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-gray-50/80 to-slate-50/60 dark:from-gray-950/80 dark:to-slate-950/60">
         <div className="max-w-6xl mx-auto">
           {mapped.length > 0 ? (
             <PromptList prompts={mapped} />

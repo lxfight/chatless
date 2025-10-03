@@ -479,56 +479,58 @@ export function ResourceManager({ onRefresh, totalFileCount = 0, isLoadingStats 
   }, [documents, showIndexedOnly, sortOption]);
   
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+    <div className="h-full flex flex-col bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-900/95">
       {/* 拖放上传卡片 */}
-      <div className="p-4">
+      <div className="p-5">
         <ResourceUploader onUploadSuccess={handleUploadSuccess} displayType="dropzone" />
       </div>
       
       {/* 工具栏：排序 & 过滤 */}
-      <div className="flex items-center gap-4 px-4 pt-2 pb-1.5">
+      <div className="flex items-center gap-4 px-5 pt-3 pb-3 bg-white/60 dark:bg-slate-800/40 backdrop-blur-sm border-y border-slate-200/60 dark:border-slate-700/60">
         {/* 文件统计显示 */}
-        <div className="flex items-center gap-1 text-sm">
-          <span className="text-slate-600 dark:text-slate-400">文件统计:</span>
-          <span className="font-medium text-slate-700 dark:text-slate-300">
+        <div className="flex items-center gap-2 text-sm px-3 py-1.5 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/40 rounded-lg">
+          <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          <span className="text-slate-600 dark:text-slate-300 font-medium">
             {isLoadingStats ? '加载中...' : `${totalFileCount} 个文件`}
           </span>
         </div>
         
         {/* 排序 */}
-        <div className="flex items-center gap-1 text-sm">
-          <span className="text-slate-600 dark:text-slate-300">排序:</span>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-600 dark:text-slate-400 font-medium">排序:</span>
           <Select value={sortOption} onValueChange={(value) => setSortOption(value as any)}>
-            <SelectTrigger className="h-8 w-24 text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:text-gray-100 focus:ring-primary/60 backdrop-blur-sm">
+            <SelectTrigger className="h-9 w-28 text-sm rounded-lg border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/80 dark:text-slate-200 focus:ring-blue-400/60 transition-colors shadow-sm">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date" className="text-xs">日期</SelectItem>
-              <SelectItem value="name" className="text-xs">名称</SelectItem>
-              <SelectItem value="size" className="text-xs">大小</SelectItem>
+            <SelectContent className="rounded-lg border-slate-200 dark:border-slate-700">
+              <SelectItem value="date" className="text-sm rounded-md">日期</SelectItem>
+              <SelectItem value="name" className="text-sm rounded-md">名称</SelectItem>
+              <SelectItem value="size" className="text-sm rounded-md">大小</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* 仅已入库 toggle */}
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
           <UICheckbox
-            className="border-slate-400 dark:border-slate-500 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+            className="border-slate-300 dark:border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
             checked={showIndexedOnly}
             onCheckedChange={(val: boolean) => setShowIndexedOnly(Boolean(val))}
           />
-          <span className="text-slate-600 dark:text-slate-300">仅已入库</span>
+          <span className="text-slate-600 dark:text-slate-300 font-medium">仅已入库</span>
         </label>
       </div>
       
       {/* 资源分类和列表 */}
-      <div className="flex-1 overflow-hidden flex flex-col px-4 pb-2">
+      <div className="flex-1 overflow-hidden flex flex-col px-5 pb-3 pt-4">
         <Tabs defaultValue="documents" className="w-full h-full flex flex-col" onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 mb-2 flex-shrink-0">
-            <TabsTrigger value="documents">文档</TabsTrigger>
-            <TabsTrigger value="files">文件</TabsTrigger>
-            <TabsTrigger value="chat">聊天文件</TabsTrigger>
-            <TabsTrigger value="knowledge">已入库</TabsTrigger>
+          <TabsList className="grid grid-cols-4 mb-3 flex-shrink-0 bg-slate-100/80 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+            <TabsTrigger value="documents" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">文档</TabsTrigger>
+            <TabsTrigger value="files" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">文件</TabsTrigger>
+            <TabsTrigger value="chat" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">聊天文件</TabsTrigger>
+            <TabsTrigger value="knowledge" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">已入库</TabsTrigger>
           </TabsList>
           
           <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
@@ -583,7 +585,7 @@ export function ResourceManager({ onRefresh, totalFileCount = 0, isLoadingStats 
       </div>
       
       {/* 最近引用区域 */}
-      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 flex-shrink-0">
+      <div className="border-t border-slate-200/70 dark:border-slate-700/70 bg-gradient-to-t from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-900/50 backdrop-blur-sm p-4 flex-shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <RecentlyReferenced references={recentReferences} onNavigate={(cid) => { setCurrentConversation(cid); router.push('/chat'); }} />
       </div>
       
@@ -600,22 +602,22 @@ export function ResourceManager({ onRefresh, totalFileCount = 0, isLoadingStats 
       
       {/* 备注对话框 */}
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加资源备注</DialogTitle>
+        <DialogContent className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl">
+          <DialogHeader className="border-b border-slate-100/80 dark:border-slate-800/60 pb-3 bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30">
+            <DialogTitle className="text-lg font-semibold">添加资源备注</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="mb-2 text-sm">为资源 <span className="font-medium">{resourceToNoteName}</span> 添加备注：</p>
+            <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">为资源 <span className="font-medium text-slate-900 dark:text-slate-100">{resourceToNoteName}</span> 添加备注：</p>
             <Textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="输入备注内容..."
-              className="min-h-[100px]"
+              className="min-h-[120px] rounded-lg border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeNoteDialog}>取消</Button>
-            <Button onClick={saveNote}>保存</Button>
+          <DialogFooter className="border-t border-slate-100/80 dark:border-slate-800/60 pt-4 bg-gradient-to-t from-slate-50/30 to-transparent dark:from-slate-900/20">
+            <Button variant="outline" onClick={closeNoteDialog} className="rounded-lg">取消</Button>
+            <Button onClick={saveNote} className="rounded-lg shadow-sm">保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -55,11 +55,11 @@ const getStatusText = (status: string) => {
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'indexed': return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-800/30';
-    case 'indexing': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-800/30';
-    case 'pending': return 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/30';
-    case 'failed': return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-800/30';
-    default: return 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/30';
+    case 'indexed': return 'text-emerald-700 dark:text-emerald-300 bg-gradient-to-r from-emerald-100 to-teal-100 dark:from-emerald-900/40 dark:to-teal-900/30 border border-emerald-200/50 dark:border-emerald-700/40';
+    case 'indexing': return 'text-amber-700 dark:text-amber-300 bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/40 dark:to-yellow-900/30 border border-amber-200/50 dark:border-amber-700/40';
+    case 'pending': return 'text-gray-700 dark:text-gray-300 bg-gradient-to-r from-gray-100 to-slate-100 dark:from-gray-800/40 dark:to-slate-800/30 border border-gray-200/50 dark:border-gray-700/40';
+    case 'failed': return 'text-red-700 dark:text-red-300 bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-900/40 dark:to-rose-900/30 border border-red-200/50 dark:border-red-700/40';
+    default: return 'text-gray-700 dark:text-gray-300 bg-gradient-to-r from-gray-100 to-slate-100 dark:from-gray-800/40 dark:to-slate-800/30 border border-gray-200/50 dark:border-gray-700/40';
   }
 };
 
@@ -116,109 +116,110 @@ export function SelectedKnowledgeBaseView({ knowledgeBase, onRemove, className }
 
   return (
     <div className={cn(
-      // 与 AttachedDocumentView 统一的卡片基线：尺寸、圆角、边框、阴影、模糊；仅配色不同
-      "w-full max-w-full overflow-hidden rounded-xl border backdrop-blur-[2px] shadow-sm p-4 \
-       border-indigo-200/70 dark:border-indigo-700/40 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 \
-       dark:from-indigo-900/25 dark:to-purple-900/25",
+      "relative w-full max-w-full overflow-hidden rounded-xl border border-indigo-200/60 dark:border-indigo-700/50 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-indigo-50/80 dark:from-indigo-900/30 dark:via-purple-900/25 dark:to-indigo-900/30 backdrop-blur-sm shadow-md",
       className
     )}>
-      {/* X按钮 - 右上角 */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-white/80 dark:bg-gray-800/70 shadow-sm border border-gray-200/70 dark:border-gray-600/60 text-gray-400 hover:text-red-500 hover:bg-red-50/80 dark:hover:bg-red-900/30 transition-all duration-200 z-10"
-        title="移除知识库"
-      >
-        <X className="w-3 h-3" />
-      </Button>
-
-      <div className="flex items-start gap-3 pr-1 min-w-0">
+      <div className="flex items-start gap-3 p-3">
         {/* 知识库图标 */}
-        <div className="flex-shrink-0 w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-800/50 flex items-center justify-center">
-          <IconComponent className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-300" />
+        <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-800/60 dark:to-purple-800/50 flex items-center justify-center shadow-sm">
+          <IconComponent className="w-4 h-4 text-indigo-700 dark:text-indigo-300" />
         </div>
         
         {/* 知识库信息 */}
         <div className="flex-1 min-w-0">
-          {/* 与文档卡片统一：左侧标签 + 次要信息 */}
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-800/40 dark:text-indigo-300">🧠 已附加</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 dark:from-indigo-800/60 dark:to-purple-800/50 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-700/50">🧠 已附加</span>
             {/* 文档数量：可点击展开 */}
             <button
               onClick={handleToggleDocuments}
-              className="text-xs text-gray-500 dark:text-gray-400 font-mono hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1"
+              className="text-xs text-gray-500 dark:text-gray-400 font-mono hover:text-indigo-600 dark:hover:text-indigo-400 transition-all duration-200 flex items-center gap-1 rounded-lg px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
               title="点击查看文档列表"
             >
               {documentCount}个文档 {isExpanded ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
             </button>
           </div>
 
-          <h4 className="font-medium text-gray-800 dark:text-gray-200 text-[13px] leading-tight truncate mb-0.5 max-w-full" title={knowledgeBase.name}>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mb-1 max-w-full" title={knowledgeBase.name}>
             <span className="block truncate">{knowledgeBase.name}</span>
           </h4>
         </div>
 
-        {/* 管理按钮：与文档卡片的删除按钮尺寸一致的紧凑风格 */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleGoToKnowledgeBase}
-          className="mt-0.5 h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30"
-          title="打开知识库详情页面"
-        >
-          <Settings className="w-3 h-3 mr-1" />
-          管理
-        </Button>
+        {/* 按钮组 */}
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGoToKnowledgeBase}
+            className="h-7 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/80 dark:hover:bg-indigo-800/40 rounded-lg transition-all duration-200"
+            title="打开知识库详情页面"
+          >
+            <Settings className="w-3 h-3 mr-1" />
+            管理
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRemove}
+            className="rounded-lg bg-white/90 dark:bg-gray-800/80 shadow-sm border border-gray-200/60 dark:border-gray-600/50 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 transition-all duration-200"
+            title="移除知识库"
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* 展开的文档列表 */}
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-indigo-200/50 dark:border-indigo-700/30">
-          <div className="flex items-center justify-between mb-2">
-            <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">文档列表</h5>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleGoToKnowledgeBase}
-              className="h-5 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/30"
-            >
-              <ExternalLink className="w-2.5 h-2.5 mr-1" />
-              详情页
-            </Button>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-3">
-              <div className="text-xs text-gray-500 dark:text-gray-400">加载中...</div>
+        <div className="mt-0 px-3 pb-3">
+          <div className="pt-3 border-t border-indigo-200/50 dark:border-indigo-700/30">
+            <div className="flex items-center justify-between mb-2">
+              <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">文档列表</h5>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleGoToKnowledgeBase}
+                className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/80 dark:hover:bg-indigo-800/40 rounded-lg"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                详情页
+              </Button>
             </div>
-          ) : documents.length > 0 ? (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {documents.map((doc) => (
-                <div key={doc.document_id} className="flex items-center gap-2 p-2 bg-white/50 dark:bg-gray-800/50 rounded-md">
-                  <FileText className="w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate" title={doc.name}>
-                      {doc.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={cn("text-xs px-1.5 py-0.5 rounded-full", getStatusColor(doc.status))}>
-                        {getStatusText(doc.status)}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5" />
-                        {formatTimeAgo(doc.created_at)}
-                      </span>
+            
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="text-xs text-gray-500 dark:text-gray-400">加载中...</div>
+              </div>
+            ) : documents.length > 0 ? (
+              <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                {documents.map((doc) => (
+                  <div key={doc.document_id} className="flex items-center gap-2.5 p-2.5 bg-white/80 dark:bg-gray-800/60 rounded-lg border border-indigo-100/50 dark:border-indigo-800/40 hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-200 backdrop-blur-sm">
+                    <div className="w-7 h-7 rounded-md bg-gradient-to-br from-gray-100 to-slate-100 dark:from-gray-700/50 dark:to-slate-700/40 flex items-center justify-center shrink-0">
+                      <FileText className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate" title={doc.name}>
+                        {doc.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", getStatusColor(doc.status))}>
+                          {getStatusText(doc.status)}
+                        </span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" />
+                          {formatTimeAgo(doc.created_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-3">
-              暂无文档
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
+                暂无文档
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

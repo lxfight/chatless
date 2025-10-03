@@ -687,7 +687,7 @@ export function ChatInput({
   }, [textareaRef.current]);
 
   return (
-    <div className="input-area w-full bg-white/40 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-xl mx-0 mb-4 p-2 overflow-x-hidden">
+    <div className="input-area w-full bg-gradient-to-br from-white/40 via-slate-50/30 to-white/40 dark:from-gray-800/80 dark:via-slate-900/70 dark:to-gray-800/80 backdrop-blur-xl shadow-lg rounded-2xl mx-0 mb-4 p-2 sm:p-3 overflow-x-hidden border border-slate-200/40 dark:border-slate-700/40 max-w-full transition-all">
       {/* 编辑模式提示栏 */}
       {editingMessage && (
         <div className="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 text-xs text-yellow-800 dark:text-yellow-200 rounded-md px-3 py-1 mb-2">
@@ -729,7 +729,7 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="relative flex w-full rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm shadow-sm" onDragOver={(e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const hasFile = Array.from(dt.items||[]).some((it)=> it.kind==='file'); if (hasFile || dt.getData('text/uri-list')) { e.preventDefault(); dt.dropEffect='copy'; } }} onDrop={async (e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const files=Array.from(dt.files||[]); const imgs=files.filter(f=>f.type.startsWith('image/')); if (imgs.length>0){ e.preventDefault(); for (const f of imgs) await appendImageFromBlob(f, f.name||'dropped.png'); return; } const url = dt.getData('text/uri-list')||dt.getData('text/plain'); if (url && /^(https?:|data:)/i.test(url)){ e.preventDefault(); try{ const resp=await fetch(url); const blob=await resp.blob(); if (blob.type.startsWith('image/')) await appendImageFromBlob(blob, `dropped-${Date.now()}.${(blob.type.split('/')[1]||'png')}`);}catch{ /* noop */ }} } }>
+      <div className="relative flex w-full rounded-xl border border-slate-300/50 dark:border-slate-600/50 bg-white dark:bg-slate-900/90 backdrop-blur-sm shadow-sm hover:border-slate-400/60 dark:hover:border-slate-500/60 focus-within:border-blue-400/60 dark:focus-within:border-blue-500/60 focus-within:ring-2 focus-within:ring-blue-100/50 dark:focus-within:ring-blue-900/30 transition-all duration-200" onDragOver={(e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const hasFile = Array.from(dt.items||[]).some((it)=> it.kind==='file'); if (hasFile || dt.getData('text/uri-list')) { e.preventDefault(); dt.dropEffect='copy'; } }} onDrop={async (e)=>{ const dt=(e as React.DragEvent).dataTransfer; if (!dt) return; const files=Array.from(dt.files||[]); const imgs=files.filter(f=>f.type.startsWith('image/')); if (imgs.length>0){ e.preventDefault(); for (const f of imgs) await appendImageFromBlob(f, f.name||'dropped.png'); return; } const url = dt.getData('text/uri-list')||dt.getData('text/plain'); if (url && /^(https?:|data:)/i.test(url)){ e.preventDefault(); try{ const resp=await fetch(url); const blob=await resp.blob(); if (blob.type.startsWith('image/')) await appendImageFromBlob(blob, `dropped-${Date.now()}.${(blob.type.split('/')[1]||'png')}`);}catch{ /* noop */ }} } }>
         {/* 顶部拖拽手柄：按住可向上/下调整高度，封顶 60vh */}
         <div
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize z-[3]"
@@ -846,10 +846,12 @@ export function ChatInput({
           const renderMentions = (text: string) => {
             const parts: React.ReactNode[] = [];
             let last = 0; let m: RegExpExecArray | null;
+            mentionRe.lastIndex = 0; // 重置正则表达式的lastIndex，避免错位
             while ((m = mentionRe.exec(text))) {
               const i = m.index;
               if (i > last) parts.push(text.slice(last, i));
-              parts.push(<span key={i} className="bg-emerald-50 text-emerald-700 rounded px-0.5">{m[0]}</span>);
+              // 优化：使用更精确的样式，避免padding导致的字符错位
+              parts.push(<span key={i} className="bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', display: 'inline', padding: '0.125rem 0.25rem' }}>{m[0]}</span>);
               last = i + m[0].length;
             }
             if (last < text.length) parts.push(text.slice(last));
@@ -859,7 +861,7 @@ export function ChatInput({
             // 无 / 指令时，仅做 @ 提示的淡绿色高亮（严格对齐：不添加任何额外字符/空格）
             return (
               <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-                <div className="pl-10 pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+                <div className="pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word' }}>
                   {renderMentions(inputValue)}
                 </div>
               </div>
@@ -870,11 +872,11 @@ export function ChatInput({
           const prefixText = `/${token}${prefixRaw}${hasDelimiter ? delimiterRaw : ''}`;
           return (
             <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-              <div className="pl-10 pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>
+              <div className="pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word' }}>
                 {/* 保留前导空格 */}
                 {leadingSpace}
-                {/* 高亮整段 /token + 变量 + 可选“ | ”，保持与原文本完全一致，避免光标错位 */}
-                <span className="rounded bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-100/90 shadow-sm" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined }}>{prefixText}</span>
+                {/* 高亮整段 /token + 变量 + 可选" | "，保持与原文本完全一致，避免光标错位 */}
+                <span className="rounded bg-amber-100/90 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, display: 'inline', padding: '0.125rem 0.25rem' }}>{prefixText}</span>
                 {/* 竖线后的普通文本按原样展示（不高亮）*/}
                 {hasDelimiter && postRaw ? <>{renderMentions(postRaw)}</> : null}
               </div>
@@ -888,7 +890,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder="开始对话吧… 输入 / 可快速调用提示词 输入 @ 可指定MCP服务"
           className={cn(
-            "relative z-[1] w-full pl-10 pr-14 py-[10px] pb-10 resize-none rounded-lg border border-slate-300/50 dark:border-slate-600/50 bg-transparent focus:outline-none focus:border-slate-400/60 dark:focus:border-slate-500/60 transition-all text-sm min-h-[66px] placeholder:text-[13px] placeholder:text-gray-400/90 dark:placeholder:text-gray-400",
+            "relative z-[1] w-full pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 resize-none rounded-lg border-0 bg-transparent focus:outline-none transition-all text-sm sm:text-base min-h-[66px] placeholder:text-[12px] sm:placeholder:text-[13px] placeholder:text-gray-400/80 dark:placeholder:text-gray-400/70",
             (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={{ maxHeight: `${Math.max(MIN_INPUT_HEIGHT, maxInputHeight)}px` }}
@@ -908,7 +910,7 @@ export function ChatInput({
           }}
           onClose={()=>setMentionOpen(false)}
         />
-        <div className="absolute left-2 bottom-4 z-[2] flex items-center gap-1">
+        <div className="absolute left-2 sm:left-3 bottom-4 z-[2] flex items-center gap-1.5 sm:gap-2">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -919,7 +921,7 @@ export function ChatInput({
                   disabled={disabled || isLoading}
                   className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
                 >
-                  <Image className="w-4 h-4" />
+                  <Image className="w-5 h-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>上传图片</TooltipContent>
@@ -931,12 +933,12 @@ export function ChatInput({
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={disabled || isLoading || !!attachedDocument}
-                  className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
+                  className="h-8 w-8 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0 rounded-lg transition-all"
                 >
                   {isParsingDocument ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Paperclip className="w-4 h-4" />
+                    <Paperclip className="w-5 h-5" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -968,11 +970,11 @@ export function ChatInput({
                     onClick={() => setSessionParametersDialogOpen(true)}
                     disabled={disabled || isLoading}
                     className={cn(
-                      "h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0",
+                      "h-8 w-8 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0 rounded-lg transition-all",
                       currentSessionParameters && "text-blue-500 hover:text-blue-600"
                     )}
                   >
-                    <Settings className="w-4 h-4" />
+                    <Settings className="w-5 h-5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -998,7 +1000,7 @@ export function ChatInput({
             disabled={disabled}
           />
         </div>
-        <div className="absolute right-3 bottom-3 z-[2] flex items-center gap-1.5">
+        <div className="absolute right-2 sm:right-3 bottom-3 z-[2] flex items-center gap-1.5 sm:gap-2">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

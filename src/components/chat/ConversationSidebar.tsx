@@ -144,7 +144,7 @@ export function ConversationSidebar({
 
   return (
     <TooltipProvider>
-      <div className="flex-1 px-1 pt-1 pb-2 h-full">
+      <div className="flex-1 px-2 pt-1.5 pb-2 h-full">
         <Virtuoso
           totalCount={conversationsToShow.length}
           data={conversationsToShow}
@@ -153,7 +153,7 @@ export function ConversationSidebar({
           computeItemKey={(index, item) => item.id}
           itemContent={(index, conv) => (
             <div
-              className="mb-1"
+              className="mb-1.5"
               onMouseEnter={() => {
                 try {
                   const id = conv.id;

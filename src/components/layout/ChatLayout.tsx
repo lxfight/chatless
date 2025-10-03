@@ -21,8 +21,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const collapseChatSidebar = useUiPreferences((s) => s.collapseChatSidebar);
   const setCollapseChatSidebar = useUiPreferences((s) => s.setCollapseChatSidebar);
   const [isSidebarOpen, setIsSidebarOpen] = useState(!collapseChatSidebar);
-  // 侧边栏默认宽度 224px（Tailwind w-56），更加节省空间
-  const DEFAULT_SIDEBAR_WIDTH = 224;
+  // 侧边栏默认宽度 280px，提供更好的内容显示空间
+  const DEFAULT_SIDEBAR_WIDTH = 280;
   // 首屏消除闪烁：优先使用 localStorage 中的同步宽度作为初始值
   const getInitialSidebarPx = () => {
     try {
@@ -38,15 +38,40 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const sidebarWidthRef = useRef(sidebarWidth);
   const resetBtnRef = useRef<HTMLButtonElement | null>(null);
   const SIDEBAR_PX_KEY = 'ui_chat_sidebar_px';
-  const MIN_SIDEBAR_WIDTH = 200; // 最小宽度
-  const MAX_SIDEBAR_WIDTH = 480; // 最大宽度，防止聊天区域过窄
+  const MIN_SIDEBAR_WIDTH = 240; // 最小宽度
+  // 动态最大宽度：根据窗口宽度自适应
+  const getMaxSidebarWidth = () => {
+    if (typeof window === 'undefined') return 600;
+    const windowWidth = window.innerWidth;
+    // 侧边栏最多占用窗口宽度的 35%，且不超过 600px，不少于 480px
+    return Math.min(600, Math.max(480, Math.floor(windowWidth * 0.35)));
+  };
   const [mounted, setMounted] = useState(false);
+
+  // 监听窗口大小变化，动态调整最大宽度
+  useEffect(() => {
+    const handleResize = () => {
+      const newMaxWidth = getMaxSidebarWidth();
+      // 如果当前宽度超过新的最大宽度，自动调整
+      if (sidebarWidthRef.current > newMaxWidth) {
+        const adjustedWidth = Math.min(newMaxWidth, sidebarWidthRef.current);
+        setSidebarWidth(adjustedWidth);
+        sidebarWidthRef.current = adjustedWidth;
+        StorageUtil.setItem<number>(SIDEBAR_PX_KEY, adjustedWidth, 'user-preferences.json');
+        try { window.localStorage.setItem(SIDEBAR_PX_KEY, String(adjustedWidth)); } catch { /* noop */ }
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // 组件挂载时读取（异步）Tauri Store，完成后标记 mounted 以启用过渡动画
   useEffect(() => {
     (async () => {
       const saved = await StorageUtil.getItem<number>(SIDEBAR_PX_KEY, getInitialSidebarPx(), 'user-preferences.json');
-      if (typeof saved === 'number' && saved >= MIN_SIDEBAR_WIDTH && saved <= window.innerWidth - 400) {
+      const currentMaxWidth = getMaxSidebarWidth();
+      if (typeof saved === 'number' && saved >= MIN_SIDEBAR_WIDTH && saved <= currentMaxWidth) {
         if (saved !== sidebarWidthRef.current) {
           setSidebarWidth(saved);
           sidebarWidthRef.current = saved;
@@ -89,7 +114,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       if (!dragInfo.current) return;
       const delta = ev.clientX - dragInfo.current.startX;
       let newWidth = dragInfo.current.startWidth + delta;
-      newWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(newWidth, MAX_SIDEBAR_WIDTH, window.innerWidth - 400));
+      const currentMaxWidth = getMaxSidebarWidth();
+      newWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(newWidth, currentMaxWidth, window.innerWidth - 400));
       setSidebarWidth(newWidth);
       sidebarWidthRef.current = newWidth;
     };
@@ -249,23 +275,23 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           {/* 侧边栏头部已隐藏 */}
 
           {/* 搜索框 + 新建按钮 */}
-          <div className="flex-shrink-0 p-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900">
-            {/* 搜索框（右侧内置“新建”按钮，保持与主头部对齐的高度和间距） */}
-            <div className="flex items-center">
+          <div className="flex-shrink-0 p-3 border-b border-slate-200/60 dark:border-slate-700/50 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/80">
+            {/* 搜索框（右侧内置"新建"按钮，保持与主头部对齐的高度和间距） */}
+            <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
-                <div className="relative bg-slate-50 dark:bg-slate-800 rounded-lg pl-2.5 pr-9 py-1 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/15 transition-all duration-200 shadow-sm/5 h-9">
+                <div className="relative bg-white dark:bg-slate-800/60 rounded-xl pl-3 pr-16 py-2 focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400/60 dark:focus-within:ring-blue-400/20 transition-all duration-200 shadow-sm border border-slate-200/60 dark:border-slate-600/50">
                   <SearchInput
                     placeholder="搜索对话..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-full bg-transparent border-none focus:ring-0 text-xs h-7"
+                    className="w-full bg-transparent border-none focus:ring-0 text-sm h-5 placeholder:text-slate-400/80"
                   />
                   {/* 右侧区域：清除 + 新建 */}
-                  <div className="absolute top-1/2 -translate-y-1/2 right-1.5 flex items-center gap-1.5">
+                  <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1">
                     {isSearching && (
                       <button
                         onClick={handleClearSearch}
-                        className="p-1 rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
+                        className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all"
                         aria-label="清除搜索"
                       >
                         <X className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
@@ -275,6 +301,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                       onClick={handleNewChat}
                       title="新建对话"
                       icon={ListPlus}
+                      className="h-7 w-7"
                     />
                   </div>
                 </div>
@@ -284,42 +311,44 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
           {/* 对话分类标签 - 统一概念和图标 */}
           {!isSearching && (
-            <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-              <div 
-                className={cn(
-                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
-                  activeFilter === 'recent' 
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/10" 
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                )} 
-                onClick={() => handleFilterChange('recent')}
-              >
-                <Clock className="w-3 h-3" />
-                <span>最近</span>
-              </div>
-              <div 
-                className={cn(
-                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
-                  activeFilter === 'favorite' 
-                    ? "text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-500 dark:border-yellow-400 bg-yellow-50 dark:bg-yellow-500/10" 
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                )} 
-                onClick={() => handleFilterChange('favorite')}
-              >
-                <Star className={cn("w-3 h-3", activeFilter === 'favorite' && "fill-current")} />
-                <span>收藏</span>
-              </div>
-              <div 
-                className={cn(
-                  "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2",
-                  activeFilter === 'important' 
-                    ? "text-red-600 border-b-2 border-red-500 bg-red-50" 
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                )} 
-                onClick={() => handleFilterChange('important')}
-              >
-                <Flag className="w-3 h-3" />
-                <span>重要</span>
+            <div className="flex-shrink-0 p-2 border-b border-slate-200/60 dark:border-slate-700/50 bg-white dark:bg-slate-900">
+              <div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/60 rounded-xl p-1 border border-slate-200/50 dark:border-slate-700/40">
+                <div 
+                  className={cn(
+                    "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-all duration-200 flex items-center justify-center gap-1.5 rounded-lg",
+                    activeFilter === 'recent' 
+                      ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700/80 shadow-sm" 
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+                  )} 
+                  onClick={() => handleFilterChange('recent')}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>最近</span>
+                </div>
+                <div 
+                  className={cn(
+                    "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-all duration-200 flex items-center justify-center gap-1.5 rounded-lg",
+                    activeFilter === 'favorite' 
+                      ? "text-yellow-600 dark:text-yellow-400 bg-white dark:bg-slate-700/80 shadow-sm" 
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+                  )} 
+                  onClick={() => handleFilterChange('favorite')}
+                >
+                  <Star className={cn("w-3.5 h-3.5", activeFilter === 'favorite' && "fill-current")} />
+                  <span>收藏</span>
+                </div>
+                <div 
+                  className={cn(
+                    "flex-1 text-center py-2 text-xs font-medium cursor-pointer transition-all duration-200 flex items-center justify-center gap-1.5 rounded-lg",
+                    activeFilter === 'important' 
+                      ? "text-red-600 dark:text-red-400 bg-white dark:bg-slate-700/80 shadow-sm" 
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+                  )} 
+                  onClick={() => handleFilterChange('important')}
+                >
+                  <Flag className="w-3.5 h-3.5" />
+                  <span>重要</span>
+                </div>
               </div>
             </div>
           )}

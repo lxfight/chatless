@@ -78,17 +78,17 @@ export function AttachedDocumentView({ document, onRemove, className, onIndexed 
   const titleText = truncateText(document.name, TITLE_MAX);
   const summary = truncateText(document.summary, SUMMARY_MAX);
   return (
-    <div className={cn("w-full max-w-full overflow-hidden rounded-xl border border-emerald-200/70 dark:border-emerald-700/60 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 dark:from-emerald-900/25 dark:to-teal-900/25 backdrop-blur-[2px] shadow-sm", className)}>
-      <div className="flex items-start gap-3 p-2.5">
-        <div className="flex-shrink-0 w-7 h-7 rounded-md bg-emerald-100 dark:bg-emerald-800/50 flex items-center justify-center">
-          <FileText className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
+    <div className={cn("w-full max-w-full overflow-hidden rounded-xl border border-emerald-200/60 dark:border-emerald-700/50 bg-gradient-to-br from-emerald-50/80 via-teal-50/60 to-emerald-50/80 dark:from-emerald-900/30 dark:via-teal-900/25 dark:to-emerald-900/30 backdrop-blur-sm shadow-md", className)}>
+      <div className="flex items-start gap-3 p-3">
+        <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-800/60 dark:to-teal-800/50 flex items-center justify-center shadow-sm">
+          <FileText className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-300">📎 已附加</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 dark:from-emerald-800/60 dark:to-teal-800/50 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-700/50">📎 已附加</span>
             <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{formatFileSize(document.fileSize)}</span>
           </div>
-          <h4 className="font-medium text-gray-800 dark:text-gray-200 text-[13px] leading-tight truncate mb-0.5 max-w-full" title={document.name}>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mb-1 max-w-full" title={document.name}>
             <span className="block truncate">{titleText}</span>
           </h4>
           {document.summary && (
@@ -97,21 +97,21 @@ export function AttachedDocumentView({ document, onRemove, className, onIndexed 
         </div>
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={onRemove}
-          className="mt-0.5 h-6 w-6 rounded-full bg-white/80 dark:bg-gray-800/70 shadow-sm border border-gray-200/70 dark:border-gray-600/60 text-gray-400 hover:text-red-500 hover:bg-red-50/80 dark:hover:bg-red-900/30"
+          className="mt-0.5 rounded-lg bg-white/90 dark:bg-gray-800/80 shadow-sm border border-gray-200/60 dark:border-gray-600/50 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700"
           title="移除文档"
         >
-          <X className="w-3 h-3" />
+          <X className="w-3.5 h-3.5" />
         </Button>
       </div>
 
       {(isBigFile || isBigToken) && (
-        <div className="mt-0 px-2.5 pb-2.5">
-          <div className="px-2 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2 min-w-0">
+        <div className="mt-0 px-3 pb-3">
+          <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50/80 dark:from-blue-900/30 dark:to-indigo-900/25 border border-blue-200/60 dark:border-blue-800/50 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2 min-w-0 shadow-sm backdrop-blur-sm">
             <div className="flex-1 min-w-0 truncate">检测到大文档，推荐转入知识库以获得更稳定的问答体验</div>
             <div className="flex-shrink-0 flex items-center gap-1">
-              <Button size="sm" variant="secondary" className="h-7 px-2" onClick={handleQuickIndex} disabled={indexing}>
+              <Button size="sm" variant="soft" className="h-7 px-3 text-xs" onClick={handleQuickIndex} disabled={indexing}>
                 {indexing ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Database className="w-3.5 h-3.5"/>}
                 <span className="ml-1">一键索引并引用</span>
               </Button>

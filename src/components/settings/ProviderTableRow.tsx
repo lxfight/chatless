@@ -55,7 +55,7 @@ function formatDateTime(ts?: number) {
 export function ProviderTableRow({
   provider,
   _index,
-  isConnecting,
+  isConnecting: _isConnecting,
   isInitialChecking,
   onUrlChange,
   onDefaultApiKeyChange,
@@ -172,19 +172,29 @@ export function ProviderTableRow({
 
   return (
     <>
-      <div className={"px-4 py-3 transition-colors "+(isExpanded?" dark:bg-blue-900/18 dark:ring-blue-700/50":"hover:bg-blue-100 dark:hover:bg-blue-900/12  dark:hover:ring-blue-700/40")}>
+      <div className={cn(
+        "px-5 py-3.5 mx-3 my-2 rounded-xl border transition-all duration-200",
+        isExpanded 
+          ? "bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-900/25 dark:to-indigo-900/20 border-blue-200/70 dark:border-blue-700/60 shadow-md ring-1 ring-blue-100/50 dark:ring-blue-800/40" 
+          : "bg-white/60 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/50 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 dark:hover:from-slate-800/60 dark:hover:to-blue-900/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm backdrop-blur-sm"
+      )}>
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
           <div className="col-span-1 flex items-center gap-2 select-none">
             <button
               type="button"
-              className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded"
+              className="cursor-grab active:cursor-grabbing text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50"
               {...(dragHandleProps || {})}
               onMouseDown={(e)=>{ e.preventDefault(); }}
             >
               <GripVertical className="w-4 h-4" />
             </button>
-            <div className="text-gray-400 dark:text-gray-500">
+            <div className={cn(
+              "transition-all",
+              isExpanded 
+                ? "text-blue-600 dark:text-blue-400" 
+                : "text-slate-400 dark:text-slate-500"
+            )}>
               {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </div>
           </div>
@@ -196,7 +206,12 @@ export function ProviderTableRow({
           >
             {/* 提供商 */}
             <div className="flex items-center gap-3 flex-1">
-              <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+              <div className={cn(
+                "w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 ring-2 transition-all",
+                isExpanded 
+                  ? "ring-blue-200/50 dark:ring-blue-700/50 shadow-sm" 
+                  : "ring-slate-200/50 dark:ring-slate-700/40"
+              )}>
                 <img
                   src={iconSrc}
                   alt={provider.name}
@@ -208,8 +223,18 @@ export function ProviderTableRow({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{provider.displayName || provider.name}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <div className={cn(
+                  "font-semibold truncate transition-colors",
+                  isExpanded 
+                    ? "text-slate-900 dark:text-slate-50" 
+                    : "text-slate-800 dark:text-slate-100"
+                )}>{provider.displayName || provider.name}</div>
+              <div className={cn(
+                "text-xs truncate transition-colors",
+                isExpanded 
+                  ? "text-slate-600 dark:text-slate-300" 
+                  : "text-slate-500 dark:text-slate-400"
+              )}>
                 {((localRepoModels ?? provider.models ?? []) as any[]).length} 个模型
               </div>
               </div>
@@ -221,7 +246,7 @@ export function ProviderTableRow({
                 <TooltipProvider delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge variant={badgeVariant} className={cn("text-xs font-medium px-2 py-1", badgeClasses)}>
+                      <Badge variant={badgeVariant} className={cn("text-xs font-medium px-2.5 py-1 rounded-lg shadow-sm", badgeClasses)}>
                         <StatusIcon className={cn("w-3 h-3 mr-1", provider.temporaryStatus === 'CONNECTING' && 'animate-spin')} />
                         {statusText}
                       </Badge>
@@ -276,9 +301,9 @@ export function ProviderTableRow({
                       onRefresh(provider);
                     }}
                     disabled={isConnectingLive || isInitialChecking}
-                    className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    className="h-8 w-8 p-0 rounded-lg text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm border border-transparent hover:border-blue-200 dark:hover:border-blue-800"
                   >
-                    {isConnectingLive ? <Loader2 className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
+                    {isConnectingLive ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="center">
@@ -308,7 +333,7 @@ export function ProviderTableRow({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-600">
                   <MoreVertical className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -357,8 +382,8 @@ export function ProviderTableRow({
 
         {/* 展开的详情内容 */}
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-          <CollapsibleContent className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-4">
+          <CollapsibleContent className="mt-5 pt-5 border-t border-blue-200/50 dark:border-blue-700/40">
+            <div className="space-y-5 bg-white/50 dark:bg-slate-900/30 rounded-xl p-4 border border-blue-100/50 dark:border-blue-800/30">
               <ProviderConnectionSection
                 provider={provider}
                 localUrl={localUrl}

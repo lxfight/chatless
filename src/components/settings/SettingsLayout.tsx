@@ -58,13 +58,13 @@ export function SettingsLayout({ children, activeTab, onTabChange }: SettingsLay
     return () => observer.disconnect();
   }, [activeTab]);
   return (
-    <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/50 overflow-hidden">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50/80 to-slate-50/60 dark:from-gray-950/80 dark:to-slate-950/60 overflow-hidden">
         {/* 头部暂时隐藏以保持简洁 */}
         <div className="flex flex-1 overflow-hidden">
              {/* 设置侧边栏 */}
              <SettingsSidebar activeTab={activeTab} onTabChange={onTabChange} />
              {/* 设置内容区域 */}
-             <main ref={mainRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-8 dark:bg-gray-900 custom-scrollbar text-sm">
+             <main ref={mainRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-white/60 to-gray-50/40 dark:from-gray-900/60 dark:to-gray-950/40 backdrop-blur-sm custom-scrollbar text-sm">
                {children}
              </main>
         </div>

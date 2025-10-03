@@ -103,11 +103,15 @@ export const UserMessageBlock = ({
       <div className="max-w-full text-blue-900 dark:text-blue-50 transition-all duration-200">
         {/* 知识库引用部分 - 使用 flex 和 truncate 优化布局 */}
         {knowledgeBaseReference && (
-          <div className="mb-3 p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-xl">
-            <div className="flex items-center gap-2 text-sm min-w-0">
-              <div className="w-4 h-4 text-blue-500/80 dark:text-blue-400/80 shrink-0">🧠</div>
-              <span className="text-blue-600/90 dark:text-blue-300/90 font-medium whitespace-nowrap shrink-0">引用知识库:</span>
-              <span className="text-blue-600 dark:text-blue-200 font-semibold truncate">{knowledgeBaseReference.name}</span>
+          <div className="mb-3 p-3 bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-900/20 dark:to-indigo-900/15 border border-blue-200/50 dark:border-blue-700/40 rounded-xl shadow-sm backdrop-blur-sm">
+            <div className="flex items-center gap-2.5 text-sm min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-800/50 dark:to-indigo-800/40 flex items-center justify-center shrink-0 shadow-sm">
+                <span className="text-base">🧠</span>
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs text-blue-600/70 dark:text-blue-400/70 font-medium whitespace-nowrap">引用知识库</span>
+                <span className="text-sm text-blue-700 dark:text-blue-300 font-semibold truncate">{knowledgeBaseReference.name}</span>
+              </div>
             </div>
           </div>
         )}
@@ -162,28 +166,28 @@ export const UserMessageBlock = ({
         {onEdit && id && (
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             onClick={() => onEdit(id)}
-            className="h-6 w-6 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
+            className="rounded-lg text-gray-600 hover:bg-gray-100/80 dark:text-gray-400 dark:hover:bg-gray-800/60 shrink-0 shadow-sm"
             title="编辑"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-3.5 h-3.5" />
           </Button>
         )}
         {onCopy && (
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             onClick={() => handleCopy(content)}
             className={cn(
-              "h-6 w-6 shrink-0 transition-all duration-200",
+              "shrink-0 transition-all duration-200 rounded-lg shadow-sm",
               isCopied
-                ? "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                : "text-gray-600 hover:bg-gray-100/80 dark:text-gray-400 dark:hover:bg-gray-800/60"
             )}
             title={isCopied ? "已复制" : "复制"}
           >
-            {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           </Button>
         )}
       </div>

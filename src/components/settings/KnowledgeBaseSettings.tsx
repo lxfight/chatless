@@ -94,11 +94,11 @@ export function KnowledgeBaseSettings() {
   return (
     <div className="space-y-4">
          {/* 页面标题 */}
-         <div className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">知识库管理</h2>
+         <div className="mb-5">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">知识库管理</h2>
 
-        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+        <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50/50 to-blue-50/30 dark:from-slate-800/30 dark:to-blue-900/10 p-4 dark:border-slate-700/60 shadow-sm">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             在此添加/编辑知识库配置，并进行连接管理。聊天会话中可选择已连接知识库，AI 将按需调用工具/资源/提示。
           </p>
         </div>

@@ -7,11 +7,11 @@ import { SettingsDivider } from "./SettingsDivider";
 export function PrivacySecuritySettings() {
   return (
     <div className="space-y-6">
-         <div className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 mb-2">隐私安全设置</h2>
-        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            在此添加/编辑隐私安全设置，并进行连接管理。聊天会话中可选择已连接知识库，AI 将按需调用工具/资源/提示。
+         <div className="mb-5">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">隐私安全设置</h2>
+        <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50/50 to-blue-50/30 dark:from-slate-800/30 dark:to-blue-900/10 p-4 dark:border-slate-700/60 shadow-sm">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            在此管理隐私和安全相关设置，包括数据保护、访问控制等选项。
           </p>
         </div>
      </div>  
