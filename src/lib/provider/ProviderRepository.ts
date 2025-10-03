@@ -25,6 +25,13 @@ export class ProviderRepository {
   /** 保存用户自定义排序（按 provider.name 数组） */
   async setUserOrder(order: string[]): Promise<void> {
     await StorageUtil.setItem("userProviderOrder", order, "providers-config.json");
+    // 主动广播一次 providers 列表变更，触发 useProviderStore 订阅逻辑以按新顺序重新排序并同步到 UI
+    try {
+      const current = await this.getAll();
+      await defaultCacheManager.set("providers", current);
+    } catch (e) {
+      console.warn('[ProviderRepository] broadcast providers after order change failed:', e);
+    }
   }
 
   /** 覆盖写入完整列表 */

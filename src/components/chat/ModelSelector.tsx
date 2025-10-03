@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from 'react';
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, Check } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Select, SelectTrigger } from "@/components/ui/select";
 import type { ProviderMetadata, ModelMetadata } from '@/lib/metadata/types';
 import { metadataService } from '@/lib/metadata/MetadataService';
 import { specializedStorage } from '@/lib/storage';
 import Image from "next/image";
 import { ModelBrandLogo } from './ModelBrandLogo';
-import { cn } from "@/lib/utils";
+// import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
 import { ModelSelectContent } from './ModelSelectContent';
 import { ModelParametersDialog } from './ModelParametersDialog';
-import { PROVIDER_ICON_EXTS, getResolvedUrlForBase, isUrlKnownMissing, getModelBrandLogoSrc, prewarmModelBrandLogos, markUrlMissing } from '@/lib/utils/logoService';
+import { PROVIDER_ICON_EXTS, getResolvedUrlForBase, isUrlKnownMissing, getModelBrandLogoSrc, prewarmModelBrandLogos } from '@/lib/utils/logoService';
 import { generateAvatarDataUrl } from '@/lib/avatar';
 
 interface ModelSelectorProps {
@@ -33,7 +32,9 @@ export function ModelSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const [recentModels, setRecentModels] = useState<Array<{provider: string; modelId: string}>>([]);
   const [globalDefaultModel, setGlobalDefaultModel] = useState<string | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  // const searchInputRef = useRef<HTMLInputElement>(null);
+  // 读取并应用用户在设置中保存的 Provider 排序
+  const [userOrder, setUserOrder] = useState<string[]>([]);
   
   // 模型参数设置弹窗状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -49,6 +50,19 @@ export function ModelSelector({
       setGlobalDefaultModel(pair ? `${pair.provider}/${pair.modelId}` : null);
     })();
   }, []);
+
+  // 每当元数据变化时，读取一次用户排序，确保聊天界面的下拉与设置页一致
+  useEffect(() => {
+    (async () => {
+      try {
+        const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+        const order = await providerRepository.getUserOrder();
+        setUserOrder(order || []);
+      } catch {
+        setUserOrder([]);
+      }
+    })();
+  }, [allMetadata]);
 
   useEffect(() => {
     const loadRecentModels = async () => {
@@ -97,7 +111,9 @@ export function ModelSelector({
         try {
           const { specializedStorage } = await import('@/lib/storage');
           await specializedStorage.models.setLastSelectedModelPair(providerName, modelId);
-        } catch (_) {}
+        } catch {
+          // ignore
+        }
       })();
       onModelChange(`${providerName}::${modelId}`);
     } else {
@@ -109,23 +125,49 @@ export function ModelSelector({
     return Boolean(icon && typeof icon === 'string' && (icon.startsWith('/') || icon.startsWith('data:image')));
   };
 
+  // 根据用户排序对元数据做稳定排序（不改变原数组引用）
+  const sortedMetadata = useMemo(() => {
+    const base = (allMetadata || []).slice();
+    if (!userOrder || userOrder.length === 0) return base;
+    return base.sort((a, b) => {
+      const ua = userOrder.indexOf(a.name);
+      const ub = userOrder.indexOf(b.name);
+      if (ua === -1 && ub === -1) return 0;
+      if (ua === -1) return 1;
+      if (ub === -1) return -1;
+      return ua - ub;
+    });
+  }, [allMetadata, userOrder]);
+
   const currentProvider = useMemo(() => {
-    if (!allMetadata || allMetadata.length === 0 || !currentModelId) return null;
+    if (!sortedMetadata || sortedMetadata.length === 0 || !currentModelId) return null;
     // 优先：使用外部传入的 providerName 进行精确匹配
     if (currentProviderName) {
-      const byName = allMetadata.find(p => p.name === currentProviderName);
+      const byName = sortedMetadata.find(p => p.name === currentProviderName);
       if (byName && byName.models.some(m => m.name === currentModelId)) return byName;
     }
     // 兜底：如果传入的 providerName 缺失或不匹配（例如应用重启后恢复阶段），
     // 则根据“最近选择的 pair”去定位，避免跨 provider 同名模型误配
     // 注意：此兜底只在渲染时做一次同步判断，不写入存储
-    const pair = metadataService ? null : null; // no-op 占位，避免 tree-shaking 误删导入
-    const byScan = allMetadata.find(p => p.models.some(m => m.name === currentModelId)) || null;
+    // no-op 占位，避免 tree-shaking 误删导入
+    const byScan = sortedMetadata.find(p => p.models.some(m => m.name === currentModelId)) || null;
     return byScan;
-  }, [allMetadata, currentModelId, currentProviderName]);
+  }, [sortedMetadata, currentModelId, currentProviderName]);
 
-  // 统一：只显示 isVisible !== false 的提供商，防御上游漏过滤
-  const visibleProviders = useMemo(() => allMetadata.filter((p: any)=>p?.isVisible !== false), [allMetadata]);
+  // 统一：仅显示可见且“已配置密钥或无需密钥”的提供商，提升选择效率
+  const visibleProviders = useMemo(() => {
+    return sortedMetadata.filter((p: any) => {
+      if (p?.isVisible === false) return false;
+      // requiresApiKey=false → 一律显示（如本地 Ollama）
+      if (p?.requiresApiKey === false) return true;
+      // 需要密钥时：只显示已配置默认密钥或模型级密钥的
+      const hasProviderKey = !!(p?.default_api_key && String(p.default_api_key).trim());
+      if (hasProviderKey) return true;
+      // 模型级密钥（任一模型有 api_key 即视为可用）
+      const hasModelKey = Array.isArray(p?.models) && p.models.some((m: any) => !!(m?.api_key && String(m.api_key).trim()));
+      return hasModelKey;
+    });
+  }, [sortedMetadata]);
 
   const filteredModels = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -153,20 +195,21 @@ export function ModelSelector({
 
   // —— 选择器触发器上的图标显示（模型优先 → provider → 头像） ——
   const iconExts = PROVIDER_ICON_EXTS;
-  const currentModel = useMemo(() => {
+  // 仅用于触发图标预热等依赖；不直接使用变量避免未用告警
+  useMemo(() => {
     if (!currentProvider || !currentModelId) return null;
     return currentProvider.models.find(m => m.name === currentModelId) || null;
   }, [currentProvider, currentModelId]);
 
-  const modelLogoBase = useMemo(() => {
+  useMemo(() => {
     if (!currentProvider || !currentModelId) return '';
     const src = getModelBrandLogoSrc(currentModelId, currentProvider.name);
     if (!src) return '';
     const m = src.match(/^(.*)\.(svg|png|webp|jpeg|jpg)$/i);
     return m ? m[1] : src;
   }, [currentProvider, currentModelId]);
-  const [modelExtIdx, setModelExtIdx] = useState(0);
-  const modelLogoSrc = modelLogoBase ? `${modelLogoBase}.${iconExts[Math.min(modelExtIdx, iconExts.length - 1)]}` : '';
+  // const [modelExtIdx] = useState(0);
+  // const modelLogoSrc = modelLogoBase ? `${modelLogoBase}.${iconExts[Math.min(0, iconExts.length - 1)]}` : '';
 
   const providerIsCatalog = typeof currentProvider?.icon === 'string' && currentProvider.icon.startsWith('/llm-provider-icon/');
   const providerBase = providerIsCatalog ? (currentProvider?.icon as string).replace(/\.(svg|png|webp|jpeg|jpg)$/i, '') : (currentProvider?.icon || '');
@@ -181,22 +224,23 @@ export function ModelSelector({
   const providerAvatarSrc = !providerIsCatalog && typeof currentProvider?.icon === 'string' && currentProvider.icon.startsWith('data:image')
     ? (currentProvider.icon)
     : generateAvatarDataUrl((currentProvider?.name || 'prov').toLowerCase(), currentProvider?.name || 'Provider', 20);
-  const [useProviderIcon, setUseProviderIcon] = useState(false);
+  const [useProviderIcon] = useState(false);
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
-      setTimeout(() => {
-        // We now need to focus the input inside the content component.
-        // This ref is just a placeholder now. The logic is passed down.
-      }, 100);
+      // 打开时由子组件内部聚焦输入框
       // 后台预热当前可见 provider 的品牌 logo（非阻塞）
       try {
         const modelsToWarm: Array<{ modelId: string; providerName?: string }> = [];
         filteredModels.forEach(p => p.models.forEach(m => modelsToWarm.push({ modelId: m.name, providerName: p.name })));
         // 仅预热前 50 个，避免大列表一次性预热过多
         prewarmModelBrandLogos(modelsToWarm, 8, { limit: 50 }).catch(()=>{});
-      } catch {}
+      } catch (e) {
+        // 忽略预热错误
+        console.debug('logo prewarm skipped', e);
+      }
     } else {
+      // 关闭时清空搜索
       setSearchQuery('');
     }
   };
@@ -235,15 +279,15 @@ export function ModelSelector({
     setParametersDialogOpen(true);
   };
 
-  const getCurrentModelDisplayText = () => {
-    if (!currentModelId || !currentProvider) return "选择模型";
-    const model = currentProvider.models.find(m => m.name === currentModelId);
-    const providerLabel = (currentProvider as any).displayName || currentProvider.name;
-    const text = model?.label || currentModelId;
-    const maxLength = 16;
-    const modelText = text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-    return `${modelText} (${providerLabel})`;
-  };
+  // const getCurrentModelDisplayText = () => {
+  //   if (!currentModelId || !currentProvider) return "选择模型";
+  //   const model = currentProvider.models.find(m => m.name === currentModelId);
+  //   const providerLabel = (currentProvider as any).displayName || currentProvider.name;
+  //   const text = model?.label || currentModelId;
+  //   const maxLength = 16;
+  //   const modelText = text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  //   return `${modelText} (${providerLabel})`;
+  // };
 
   const SENTINEL_VALUE = '__none__';
   const pairSelection = useMemo(() => {

@@ -137,25 +137,44 @@ export function ChatInput({
     setAttachedImages(prev => [...prev, { name: nameHint, dataUrl, base64Data, fileSize: blob.size }]);
   };
 
-  // === 回填输入：从全局 store 读取 inputDrafts 并消费 ===
+  // === 会话内草稿：仅在切换会话/失焦/卸载时提交，避免输入过程中重渲染导致光标跳动 ===
   const currentConvId = conversationId || useChatStore((s)=>s.currentConversationId);
-  const draftValue = useChatStore((s)=> (s.inputDrafts && currentConvId ? s.inputDrafts[currentConvId] : ''));
   const clearInputDraft = useChatStore((s)=>s.clearInputDraft);
   const setInputDraft = useChatStore((s)=>s.setInputDraft);
+  const prevConvRef = useRef<string | null>(null);
 
-  useEffect(()=>{
-    if (!currentConvId) return;
-    if (typeof draftValue === 'string') {
-      setInputValue(draftValue);
-      const el = textareaRef.current; if (el) { setTimeout(()=>{ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; },0); }
+  // 切换会话时：提交上一个会话草稿，并加载新会话草稿到本地状态（不强制移动光标）
+  useEffect(() => {
+    const prev = prevConvRef.current;
+    if (prev && prev !== currentConvId) {
+      try { setInputDraft(prev, inputValue); } catch {}
     }
-  }, [currentConvId, draftValue]);
+    if (currentConvId) {
+      const drafts = useChatStore.getState().inputDrafts || {};
+      const stored = drafts[currentConvId];
+      if (typeof stored === 'string') {
+        setInputValue(stored);
+      } else {
+        // 特殊优化：切到“新建且空白的会话”时，沿用上一个会话的输入内容
+        const conv = (useChatStore.getState().conversations || []).find(c => c.id === currentConvId);
+        const hasAnyMessage = !!(conv && Array.isArray(conv.messages) && conv.messages.length > 0);
+        if (!hasAnyMessage) setInputValue(inputValue); else setInputValue('');
+      }
+    } else {
+      setInputValue('');
+    }
+    prevConvRef.current = currentConvId || null;
+  }, [currentConvId]);
 
-  // 在输入时持久化草稿
-  useEffect(()=>{
-    if (!currentConvId) return;
-    try { setInputDraft(currentConvId, inputValue); } catch { /* noop */ }
-  }, [currentConvId, inputValue]);
+  // 组件卸载时：提交当前草稿
+  useEffect(() => {
+    return () => {
+      const conv = prevConvRef.current;
+      if (conv) {
+        try { setInputDraft(conv, inputValue); } catch {}
+      }
+    };
+  }, [inputValue, setInputDraft]);
 
   // 在“真正开始流”时再清空输入框，避免瞬间清空带来的不佳体验
   const streamStartCounter = useChatStore((s)=> s.streamStartCounter || 0);

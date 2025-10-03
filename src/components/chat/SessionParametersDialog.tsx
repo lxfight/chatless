@@ -8,11 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { RotateCcw, Settings, Check, HelpCircle, Plus, X } from "lucide-react";
+import { RotateCcw, Settings, Check, HelpCircle, Plus, X, Search, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelParametersService } from "@/lib/model-parameters";
 import type { ModelParameters } from "@/types/model-params";
 import { DEFAULT_MODEL_PARAMETERS, MODEL_PARAMETER_LIMITS } from "@/types/model-params";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { usePromptStore } from "@/store/promptStore";
+import { useChatStore } from "@/store/chatStore";
+import { toast } from "@/components/ui/sonner";
 
 interface SessionParametersDialogProps {
   open: boolean;
@@ -47,10 +51,125 @@ export function SessionParametersDialog({
   const [customParameters, setCustomParameters] = useState<CustomParameter[]>([]);
   const [modelInheritedParameters, setModelInheritedParameters] = useState<CustomParameter[]>([]); // 仅展示用途
   const [modelParamsState, setModelParamsState] = useState<ModelParameters | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [parameterSource, setParameterSource] = useState<'default' | 'model' | 'session'>('default');
   const [hasChanges, setHasChanges] = useState(false);
   const [previewJson, setPreviewJson] = useState<string>('{}');
+
+  // —— 提示词 Tab 相关 ——
+  const [activeTab, setActiveTab] = useState<'prompt' | 'params'>('prompt');
+  const NONE_VALUE = '__none__';
+  const CUSTOM_VALUE = '__custom__';
+  const prompts = usePromptStore((s)=>s.prompts);
+  const createPrompt = usePromptStore((s)=>s.createPrompt as any);
+  const updatePrompt = usePromptStore((s)=>s.updatePrompt as any);
+  const updateConversation = useChatStore((s)=>s.updateConversation);
+  const [systemPromptText, setSystemPromptText] = useState<string>('');
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(CUSTOM_VALUE);
+  const [promptName, setPromptName] = useState<string>('');
+  const [nameInvalid, setNameInvalid] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+
+  const sortedPrompts = (prompts || []).slice().sort((a: any, b: any) => (b?.stats?.uses || 0) - (a?.stats?.uses || 0));
+  
+  const filteredPrompts = sortedPrompts.filter((p: any) => {
+    const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.content || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFavorite = !showFavoritesOnly || p.isFavorite;
+    return matchesSearch && matchesFavorite;
+  });
+
+  // 打开时尝试回填当前会话已应用的系统提示词
+  useEffect(() => {
+    if (!open || !conversationId) return;
+    try {
+      const conv = useChatStore.getState().conversations.find(c=>c.id===conversationId);
+      const applied = conv?.system_prompt_applied;
+      if (applied?.promptId) {
+        const p = (usePromptStore.getState().prompts || []).find(pp=>pp.id===applied.promptId);
+        if (p) {
+          setSelectedPromptId(p.id);
+          setSystemPromptText(p.content || '');
+          setPromptName(p.name || '');
+        } else {
+          setSelectedPromptId(CUSTOM_VALUE);
+          setSystemPromptText('');
+          setPromptName('');
+        }
+      } else {
+        setSelectedPromptId(CUSTOM_VALUE);
+        setSystemPromptText('');
+        setPromptName('');
+      }
+    } catch { setSystemPromptText(''); }
+  }, [open, conversationId]);
+
+  // 备用：自动命名保存（当前未直接使用，保留供其他入口复用）
+  const _savePromptFromText = () => {
+    const text = (systemPromptText || '').trim();
+    if (!text) { toast.error('请输入要保存的系统提示词'); return; }
+    const firstLine = text.split('\n')[0] || '';
+    const name = (firstLine.slice(0, 24) || '系统提示词') + ' · ' + new Date().toLocaleTimeString();
+    try {
+      const id = createPrompt({ name, description: '会话参数设置中保存', content: text, tags: ['system'] });
+      toast.success('已保存到提示词列表');
+      return id as string;
+    } catch {
+      toast.error('保存提示词失败');
+      return undefined;
+    }
+  };
+
+  const savePromptFromTextWithName = (name: string) => {
+    const text = (systemPromptText || '').trim();
+    if (!text) { toast.error('请输入要保存的系统提示词'); return; }
+    try {
+      const id = createPrompt({ name, description: '会话参数设置中保存', content: text, tags: ['system'] });
+      toast.success('已保存到提示词列表');
+      return id as string;
+    } catch { toast.error('保存提示词失败'); return undefined; }
+  };
+
+  const applyPromptIdToConversation = (pid: string) => {
+    if (!conversationId || !pid) return;
+    try {
+      updateConversation(conversationId, { system_prompt_applied: { promptId: pid, mode: 'permanent' } as any });
+      toast.success('已应用到当前会话');
+    } catch { toast.error('应用提示词失败'); }
+  };
+
+  // 仅当点击按钮时才应用（不在列表点击时自动应用）
+  const handleSaveAndApply = () => {
+    if (selectedPromptId === NONE_VALUE) {
+      try { updateConversation(conversationId, { system_prompt_applied: null } as any); toast.success('已清除会话提示词'); } catch { /* noop */ }
+      return;
+    }
+
+    if (!promptName.trim()) { setNameInvalid(true); toast.error('请填写提示词名称'); return; }
+
+    const current = (prompts || []).find((p: any) => p.id === selectedPromptId || false);
+    if (current && (current.content !== systemPromptText || current.name !== promptName)) {
+      const overwrite = confirm('内容或名称有更改。确定覆盖原提示词，取消则新建提示词。');
+      if (overwrite) {
+        try { updatePrompt(current.id, { name: promptName.trim(), content: systemPromptText }); setSelectedPromptId(current.id); toast.success('已覆盖原提示词'); applyPromptIdToConversation(current.id); } catch { toast.error('覆盖失败'); }
+      } else {
+        const id = savePromptFromTextWithName(promptName.trim());
+        if (id) { setSelectedPromptId(id); applyPromptIdToConversation(id); }
+      }
+      return;
+    }
+
+    if (!current) {
+      const id = savePromptFromTextWithName(promptName.trim());
+      if (id) { setSelectedPromptId(id); applyPromptIdToConversation(id); }
+      return;
+    }
+
+    applyPromptIdToConversation(current.id);
+  };
+
+  // 保存按钮的“覆盖或新建”逻辑
+  // 旧的合并逻辑已被 handleSaveAndApply 收敛；保留空函数以兼容引用
+  const _saveWithMergeStrategy = () => { /* deprecated */ };
 
   // 检查参数是否有变更
   const checkForChanges = (currentParams: ModelParameters) => {
@@ -277,8 +396,8 @@ export function SessionParametersDialog({
     }
   };
 
-  const handleApply = async () => {
-    setIsLoading(true);
+  // 即时应用参数（不关闭对话框）
+  const handleApplyImmediate = async (params: ModelParameters) => {
     try {
       // 处理自定义参数
       const customOptions: Record<string, any> = {};
@@ -289,7 +408,7 @@ export function SessionParametersDialog({
       });
 
       const sessionParams = {
-        ...parameters,
+        ...params,
         stopSequences,
         advancedOptions: customOptions,
       };
@@ -299,13 +418,18 @@ export function SessionParametersDialog({
       
       // 通知父组件参数变更
       onParametersChange(sessionParams);
-      onOpenChange(false);
     } catch (error) {
       console.error('应用会话参数失败:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // 辅助函数：更新参数并即时应用
+  const updateParameter = (key: string, value: any) => {
+    const newParams = { ...parameters, [key]: value };
+    setParameters(newParams);
+    handleApplyImmediate(newParams);
+  };
+
 
   const handleResetToModelDefault = async () => {
     try {
@@ -409,7 +533,7 @@ export function SessionParametersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
+      <DialogContent className="max-w-5xl w-[90vw] p-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -443,14 +567,207 @@ export function SessionParametersDialog({
           </div>
         </DialogHeader>
 
-        {/* Content */}
+        {/* Content with Tabs */}
+        <Tabs value={activeTab} onValueChange={(v)=>setActiveTab(v as any)}>
+          <div className="px-6 pt-3">
+            <TabsList className="h-10">
+              <TabsTrigger value="prompt" className="px-6 py-2 text-base">提示词</TabsTrigger>
+              <TabsTrigger value="params" className="px-6 py-2 text-base">参数</TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* 固定高度容器，避免切换抖动 */}
+          {/* 提示词页：左侧侧边栏 + 右侧编辑区 */}
+          <TabsContent value="prompt" className="mt-0">
+            <div className="px-6 pb-4 h-[65vh] flex gap-5">
+              {/* Sidebar */}
+              <div className="w-72 shrink-0 h-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex flex-col bg-gray-50/50 dark:bg-gray-900/20">
+                {/* 搜索和筛选 */}
+                <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2 bg-white dark:bg-gray-900">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="搜索提示词..."
+                      className="pl-9 h-9 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:bg-white dark:focus:bg-gray-900"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md transition-colors",
+                      showFavoritesOnly
+                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                    )}
+                  >
+                    <Star className={cn("w-3.5 h-3.5", showFavoritesOnly && "fill-yellow-500")} />
+                    {showFavoritesOnly ? "仅显示收藏" : "显示全部"}
+                  </button>
+                </div>
+
+                {/* 提示词列表 */}
+                <div className="flex-1 overflow-y-auto">
+                  {filteredPrompts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-400">
+                      {searchQuery ? "未找到匹配的提示词" : "暂无提示词"}
+                    </div>
+                  ) : (
+                    filteredPrompts.map((p: any) => (
+                      <button
+                        key={p.id}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 text-sm transition-all border-l-2",
+                          selectedPromptId === p.id
+                            ? "bg-blue-50 dark:bg-blue-900/20 border-l-blue-500 font-medium"
+                            : "border-l-transparent hover:bg-gray-100 dark:hover:bg-gray-800"
+                        )}
+                        onClick={() => {
+                          setSelectedPromptId(p.id);
+                          setSystemPromptText(p.content || '');
+                          setPromptName(p.name || '');
+                          setNameInvalid(false);
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              {p.isFavorite && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 shrink-0" />}
+                              <span className="truncate">{p.name}</span>
+                            </div>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              使用 {p?.stats?.uses || 0} 次
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Editor */}
+              <div className="flex-1 h-full flex flex-col overflow-hidden">
+                {/* 操作按钮组 */}
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <Button
+                    variant={selectedPromptId === CUSTOM_VALUE ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPromptId(CUSTOM_VALUE);
+                      setSystemPromptText('');
+                      setPromptName('');
+                      setNameInvalid(false);
+                    }}
+                    className="gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    新建提示词
+                  </Button>
+                  <Button
+                    variant={selectedPromptId === NONE_VALUE ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPromptId(NONE_VALUE);
+                      setSystemPromptText('');
+                      setPromptName('');
+                      try {
+                        updateConversation(conversationId, { system_prompt_applied: null } as any);
+                      } catch { /* noop */ }
+                    }}
+                    className="gap-1.5"
+                  >
+                    <X className="w-4 h-4" />
+                    不使用提示词
+                  </Button>
+                  {selectedPromptId && selectedPromptId !== CUSTOM_VALUE && selectedPromptId !== NONE_VALUE && (
+                    <Badge variant="outline" className="ml-auto text-xs shrink-0">
+                      当前：{(prompts || []).find((p: any) => p.id === selectedPromptId)?.name || '未知'}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* 名称输入 */}
+                <div className="mb-3">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                    提示词名称
+                    {nameInvalid && <span className="text-red-500 ml-1">*必填</span>}
+                  </Label>
+                  <Input
+                    value={promptName}
+                    onChange={(e) => {
+                      setPromptName(e.target.value);
+                      if (nameInvalid && e.target.value.trim()) setNameInvalid(false);
+                    }}
+                    placeholder="请输入提示词名称"
+                    className={cn(
+                      "h-9 transition-all",
+                      nameInvalid
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : "border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500"
+                    )}
+                  />
+                </div>
+
+                {/* 内容输入 */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">系统提示词</Label>
+                  <textarea
+                    value={systemPromptText}
+                    onChange={(e) => setSystemPromptText(e.target.value)}
+                    className="w-full flex-1 resize-none rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="为本会话设置系统提示词，可保存到提示词列表"
+                  />
+                </div>
+
+                {/* 标签展示 */}
+                {(() => {
+                  const p = (prompts || []).find((x: any) => x.id === selectedPromptId);
+                  const tags = p?.tags || [];
+                  return tags.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {tags.map((t: string) => (
+                        <Badge key={t} variant="secondary" className="text-xs">
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* 底部按钮 */}
+                <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="sm" onClick={handleSaveAndApply} className="gap-1.5">
+                          <Check className="w-4 h-4" />
+                          保存并应用
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">保存到提示词库并应用到当前会话</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <span className="text-xs text-gray-500">
+                    提示词将应用于当前会话的所有消息
+                  </span>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* 参数页：原有内容 */}
+          <TabsContent value="params" className="mt-0">
         <TooltipProvider>
-        <div className="px-6 py-2.5 space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="px-6 py-2.5 space-y-3 h-[65vh] overflow-y-auto">
             {/* Temperature */}
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableTemperature !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTemperature: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableTemperature', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -482,7 +799,14 @@ export function SessionParametersDialog({
                 max={MODEL_PARAMETER_LIMITS.temperature.max}
                 step={MODEL_PARAMETER_LIMITS.temperature.step}
                 value={parameters.temperature || 0}
-                onChange={(e) => setParameters(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                onChange={(e) => {
+                  const newParams = { ...parameters, temperature: parseFloat(e.target.value) };
+                  setParameters(newParams);
+                }}
+                onMouseUp={(e) => {
+                  const newParams = { ...parameters, temperature: parseFloat((e.target as HTMLInputElement).value) };
+                  handleApplyImmediate(newParams);
+                }}
                 style={{ 
                   background: parameters.enableTemperature === false
                     ? '#d1d5db'
@@ -498,7 +822,14 @@ export function SessionParametersDialog({
                 max={MODEL_PARAMETER_LIMITS.temperature.inputMax}
                 step={MODEL_PARAMETER_LIMITS.temperature.step}
                 value={parameters.temperature || 0}
-                onChange={(e) => setParameters(prev => ({ ...prev, temperature: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const newParams = { ...parameters, temperature: parseFloat(e.target.value) || 0 };
+                  setParameters(newParams);
+                }}
+                onBlur={(e) => {
+                  const newParams = { ...parameters, temperature: parseFloat(e.target.value) || 0 };
+                  handleApplyImmediate(newParams);
+                }}
                 disabled={parameters.enableTemperature === false}
               />
             </div>
@@ -507,7 +838,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableMaxTokens !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableMaxTokens: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableMaxTokens', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -564,7 +895,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableTopP !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTopP: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableTopP', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -621,7 +952,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableFrequencyPenalty !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableFrequencyPenalty: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableFrequencyPenalty', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -678,7 +1009,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enablePresencePenalty !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enablePresencePenalty: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enablePresencePenalty', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -735,7 +1066,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableTopK !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableTopK: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableTopK', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -792,7 +1123,7 @@ export function SessionParametersDialog({
             <div className="flex items-center gap-3">
               <Checkbox 
                 checked={parameters.enableMinP !== false}
-                onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableMinP: Boolean(checked) }))}
+                onCheckedChange={(checked) => updateParameter('enableMinP', Boolean(checked))}
               />
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -922,55 +1253,68 @@ export function SessionParametersDialog({
 
           </div>
         </TooltipProvider>
+          </TabsContent>
+        </Tabs>
 
         {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/20">
+        <DialogFooter className="px-6 py-3 border-t border-gray-100/80 dark:border-gray-800/80 bg-gradient-to-b from-gray-50/30 to-gray-50/60 dark:from-gray-900/10 dark:to-gray-900/30">
           <div className="flex items-center gap-2 w-full">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleResetToModelDefault}
-              className="flex items-center gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              <RotateCcw className="w-4 h-4" />
-              重置为模型默认
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleResetToSystemDefault}
-              className="flex items-center gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              重置为系统默认
-            </Button>
-            {parameterSource === 'session' && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleClearSessionParameters}
-                className="flex items-center gap-2 ml-auto border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                清除会话参数
-              </Button>
+            {activeTab === 'params' ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleResetToModelDefault}
+                  className="gap-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重置为模型默认
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleResetToSystemDefault}
+                  className="gap-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  重置为系统默认
+                </Button>
+                {parameterSource === 'session' && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleClearSessionParameters}
+                    className="gap-1.5 ml-auto text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                  >
+                    清除会话参数
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={()=>setSystemPromptText('')}
+                  className="gap-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重置提示词
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={()=>{ window.open('/prompts','_blank'); }}
+                  className="gap-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  管理已保存提示词
+                </Button>
+              </>
             )}
-            <div className="ml-auto" />
-            <Button 
-              onClick={handleApply} 
-              disabled={isLoading}
-              className="ml-auto flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  应用中...
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  应用
-                </>
-              )}
-            </Button>
+            <div className="flex-1" />
+            <span className="text-xs text-gray-500">
+              {activeTab === 'params' ? '参数调整实时生效' : '提示词仅在保存时应用'}
+            </span>
           </div>
         </DialogFooter>
       </DialogContent>

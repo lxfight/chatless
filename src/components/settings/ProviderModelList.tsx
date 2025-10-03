@@ -542,7 +542,7 @@ export function ProviderModelList(props: ProviderModelListProps) {
             if (noModels && !connecting) {
               return (
                 <div className="text-xs text-gray-500 dark:text-gray-400 py-2 pl-2 flex items-center justify-between">
-                  <span>未找到可用模型。</span>
+                  <span>未找到可用模型。核对提供商是否需要v1路径或使用↗菜单‘调试网络请求’功能拉取模型。</span>
                   <button className="px-2 py-1 border rounded" onClick={refreshModels}>刷新模型</button>
                 </div>
               );

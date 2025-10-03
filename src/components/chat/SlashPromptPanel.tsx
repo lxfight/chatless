@@ -5,11 +5,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { usePromptStore } from '@/store/promptStore';
 import { generateShortcutCandidates } from '@/lib/prompt/shortcut';
-import { StorageUtil } from '@/lib/storage';
 import { createPortal } from 'react-dom';
-import { Button } from '@/components/ui/button';
 import { Settings } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 interface SlashPromptPanelProps {
   open: boolean;
@@ -26,8 +23,6 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
   const [activeIndex, setActiveIndex] = useState(0);
   const [anchorRect, setAnchorRect] = useState<{left:number; width:number; top:number; bottom:number} | null>(null);
   const [pendingVars, setPendingVars] = useState<Record<string, any>>({});
-  const router = useRouter();
-  const [altPreview, setAltPreview] = useState(false);
 
   // 使用 Ref 保存最新的 activeIndex / filtered / pendingVars，避免键盘事件闭包读取到旧值
   const activeIndexRef = useRef(0);
@@ -58,7 +53,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       setActiveIndex(0);
       activeIndexRef.current = 0;
       // 若还未加载提示词，尝试从数据库拉取
-      try { if (prompts.length === 0 && typeof loadFromDatabase === 'function') { loadFromDatabase(); } } catch {}
+      try { if (prompts.length === 0 && typeof loadFromDatabase === 'function') { loadFromDatabase(); } } catch { /* ignore */ }
       // 计算锚点位置
       const calc = () => {
         try {
@@ -66,20 +61,14 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
           if (!el) return;
           const rect = el.getBoundingClientRect();
           setAnchorRect({ left: rect.left, width: rect.width, top: rect.top, bottom: rect.bottom });
-        } catch {}
+        } catch { /* ignore */ }
       };
       calc();
       window.addEventListener('scroll', calc, true);
       window.addEventListener('resize', calc);
-      const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltPreview(true); };
-      const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltPreview(false); };
-      window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
       return () => {
         window.removeEventListener('scroll', calc, true);
         window.removeEventListener('resize', calc);
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
       };
     }
   }, [open]);
@@ -131,7 +120,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     }
     // 记忆选择（localStorage）
     let pref: Record<string,string> = {};
-    try { pref = (window as any).__prompt_pref_cache__ || {}; } catch {}
+    try { pref = (window as any).__prompt_pref_cache__ || {}; } catch { /* ignore */ }
     // 仅用于过滤/排序的 token
     let token = '';
     if (text.startsWith('/')) {
@@ -169,15 +158,15 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
 
   // 将最新的 filtered 列表写入 Ref，供键盘事件读取
   const filteredRef = useRef<any[]>([]);
-  useEffect(() => { filteredRef.current = filtered as any[]; }, [filtered]);
+  useEffect(() => { filteredRef.current = filtered; }, [filtered]);
 
   // 可导航列表：有匹配项时使用匹配集合，否则（例如仅输入'/'）使用全部提示词
   const navigableRef = useRef<any[]>([]);
   useEffect(() => {
     if ((filtered?.length || 0) > 0) {
-      navigableRef.current = (filtered as any[]).map((x:any)=> x.p);
+      navigableRef.current = filtered.map((x:any)=> x.p);
     } else {
-      navigableRef.current = prompts as any[];
+      navigableRef.current = prompts;
     }
   }, [filtered, prompts]);
 
@@ -223,15 +212,6 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     setActiveIndex((i) => Math.max(0, Math.min(i, filtered.length - 1)));
   }, [filtered.length]);
 
-  const isPositionalMode = useMemo(() => {
-    const raw = (queryText || '').trim();
-    if (!raw.startsWith('/')) return false;
-    const parts = raw.split(/\s+/);
-    if (parts.length < 2) return false;
-    const rest = raw.slice(parts[0].length).trim();
-    if (!rest) return false;
-    return !/([^\s=]+)\s*=/u.test(rest);
-  }, [queryText]);
 
   // 从元数据或模板内容推导变量定义顺序
   const getVariableKeys = (p: any): string[] => {
@@ -270,21 +250,6 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
     return base;
   };
 
-  // 返回变量与填充状态（input/default/missing）供 UI 展示
-  const getVariableStatuses = (p: any): Array<{ key: string; value: string; source: 'input' | 'default' | 'missing' }> => {
-    const keys = getVariableKeys(p);
-    if (keys.length === 0) return [];
-    const values = computeVariableValues(p);
-    const providedKV = pendingVars;
-    const pos = (providedKV as any).__positional as string[] | undefined;
-    return keys.map((k, idx) => {
-      const v = values[k] ?? '';
-      const hasMetaDefault = Array.isArray(p.variables) && !!(p.variables as any[]).find((d:any)=>d.key===k && d.defaultValue);
-      const fromInput = (pos ? idx < (pos?.length || 0) && pos[idx] !== undefined : Object.prototype.hasOwnProperty.call(providedKV, k));
-      const source: 'input' | 'default' | 'missing' = v ? (fromInput ? 'input' : (hasMetaDefault ? 'default' : 'input')) : (hasMetaDefault ? 'default' : 'missing');
-      return { key: k, value: v, source };
-    });
-  };
 
   // 将模板渲染为高亮 React 片段（高亮变量值）
   const renderHighlighted = (template: string, values: Record<string, string>) => {
@@ -316,15 +281,14 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
       if (e.key === 'Escape') { onOpenChange(false); return; }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const list = navigableRef.current || [];
+        const navList = navigableRef.current || [];
         const start = activeIndexRef.current < 0 ? 0 : activeIndexRef.current + 1;
-        const next = Math.min(start, list.length - 1);
+        const next = Math.min(start, navList.length - 1);
         activeIndexRef.current = next;
         setActiveIndex(next);
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const list = navigableRef.current || [];
         const base = activeIndexRef.current < 0 ? 0 : activeIndexRef.current - 1;
         const prev = Math.max(base, 0);
         activeIndexRef.current = prev;
@@ -342,7 +306,7 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
         if (idx < 0 || idx >= list.length) return;
         const id = (list[idx])?.p?.id || (list[idx])?.id;
         if (!id) return;
-        try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch {}
+        try { const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVarsRef.current }); window.dispatchEvent(ev); } catch { /* ignore */ }
         const useApply = (e as any).altKey || (e as any).metaKey;
         if (useApply) {
           const oneOff = (e as any).shiftKey;
@@ -360,14 +324,20 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
 
   const rect = anchorRect || { left: 0, width: 0, top: 0, bottom: 0 };
 
+  const panelWidth = Math.min(Math.max(rect.width || 600, 600), window.innerWidth * 0.9);
+  
   const panel = (
     <div
       ref={panelRef}
       className={cn(
-        "fixed z-[2147483600] w-[min(720px,92vw)] rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-white dark:bg-gray-900 shadow-lg overflow-hidden",
+        "fixed z-[2147483600] rounded-xl border border-slate-200/60 dark:border-slate-700/50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl overflow-hidden transition-all duration-200",
         open ? "opacity-100 scale-100" : "opacity-0 scale-95"
       )}
-      style={{ left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(720, window.innerWidth*0.92) - 8)), bottom: Math.max(8, window.innerHeight - rect.top + 8) }}
+      style={{ 
+        width: panelWidth,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - panelWidth - 8)), 
+        bottom: Math.max(8, window.innerHeight - rect.top + 8) 
+      }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* 顶部已去除，防止高度变化时挤压上方内容 */}
@@ -383,42 +353,50 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
             const expandedId = (hoverId ?? selectedId) || '';
             let source: any[];
             if (startWithSlash) {
-              source = (q === '/' || q === '') ? (prompts as any[]) : (filtered as any[]).map((x:any)=> x.p);
+              source = (q === '/' || q === '') ? prompts : filtered.map((x:any)=> x.p);
             } else {
-              source = (filtered as any[]).map((x:any)=> x.p);
+              source = filtered.map((x:any)=> x.p);
             }
             return source.map((p:any, idx:number) => (
               <li key={p.id}
-                  className={cn('px-3 py-2 cursor-pointer text-sm flex flex-col rounded-md transition-colors', (hoverId ? hoverId===p.id : selectedId===p.id) ? 'bg-slate-100 ring-1 ring-slate-300 dark:bg-slate-800/40 dark:ring-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30')}
+                  className={cn(
+                    'mx-2 px-3 py-2.5 cursor-pointer flex flex-col rounded-lg transition-all duration-150',
+                    (hoverId ? hoverId===p.id : selectedId===p.id) 
+                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 ring-1 ring-blue-200/50 dark:ring-blue-700/50 shadow-sm' 
+                      : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                  )}
                   onMouseEnter={() => { setHoverId(p.id); setActiveIndex(idx); activeIndexRef.current = idx; }}
                   onMouseDown={(e)=>{
                     e.preventDefault();
-                    // 确保点击也能代入：将该项设为选中后触发填充
                     setActiveIndex(idx); activeIndexRef.current = idx; setHoverId(p.id);
                     const ev = new CustomEvent('prompt-inline-vars', { detail: pendingVars });
-                    try { window.dispatchEvent(ev); } catch {}
-                    onSelect(p.id, { action: 'fill' } as any);
+                    try { window.dispatchEvent(ev); } catch { /* ignore */ }
+                    onSelect(p.id, { action: 'fill' });
                   }}
               >
-                {/* 折叠标题行：名称在左、命令/shortcut右对齐，无边框，更醒目 */}
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{p.name}</span>
-                  <span className="ml-2 text-xs text-amber-700 dark:text-amber-300 font-semibold tabular-nums">/{((p as any).shortcuts?.[0] || (p.name||'')[0]?.toLowerCase() || '')}</span>
+                {/* 折叠标题行 */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-gray-900 dark:text-gray-50 truncate">{p.name}</span>
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-mono border border-amber-200/50 dark:border-amber-700/50">
+                    /{(p.shortcuts?.[0] || (p.name||'')[0]?.toLowerCase() || '')}
+                  </span>
                 </div>
-                {/* 匹配项展开：显示标签和片段预览 */}
+                {/* 展开内容：标签和预览 */}
                 {(expandedId === p.id) && (
-                  <div className="mt-1">
+                  <div className="mt-2 space-y-2">
                     {p.tags && p.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-0.5">
+                      <div className="flex flex-wrap gap-1.5">
                         {p.tags.slice(0,6).map((t:string) => (
-                          <span key={t} className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">{t}</span>
+                          <span key={t} className="px-2 py-0.5 rounded-full bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800/60 dark:to-slate-800/40 text-[11px] text-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">
+                            {t}
+                          </span>
                         ))}
                         {p.tags.length > 6 && (
                           <span className="text-[11px] text-slate-500">+{p.tags.length - 6}</span>
                         )}
                       </div>
                     )}
-                    <div className="mt-1 rounded bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-2 py-1 text-[12px] leading-5 whitespace-normal break-words line-clamp-3">
+                    <div className="rounded-lg bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 px-3 py-2 text-[13px] leading-relaxed whitespace-normal break-words line-clamp-3">
                       {renderHighlighted(p.content || '', computeVariableValues(p))}
                     </div>
                   </div>
@@ -431,17 +409,21 @@ export function SlashPromptPanel({ open, onOpenChange, onSelect, anchorRef, quer
           )}
         </ul>
       </ScrollArea>
-      {/* 底部控制区：左 / 徽标；中间居中的轮播提示；右设置 */}
-      <div className="px-3 py-1.5 border-t border-slate-200 dark:border-slate-700 flex items-center text-[11px] text-slate-600 dark:text-slate-400 select-none gap-2">
-        <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[11px]">/</span>
-        <div className="flex-1 flex items-center justify-center">
-          <div key={hintIndex} className="flex items-center gap-2 transition-all duration-300 ease-out translate-y-0 opacity-100">
-            <span className="px-1.5 py-0.5 rounded border border-slate-300/70 bg-slate-50 dark:bg-slate-800 dark:border-slate-600 font-mono">{hintList[hintIndex][0]}</span>
-            <span>{hintList[hintIndex][1]}</span>
+      {/* 底部控制区 */}
+      <div className="px-4 py-2 border-t border-slate-200/60 dark:border-slate-700/50 bg-gradient-to-r from-slate-50/50 to-gray-50/50 dark:from-slate-900/30 dark:to-gray-900/30 flex items-center text-[11px] text-slate-600 dark:text-slate-400 select-none gap-3">
+        <span className="px-2 py-1 rounded-md border border-amber-200/60 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/20 text-amber-700 dark:text-amber-300 text-xs font-mono font-semibold">/</span>
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
+          <div key={hintIndex} className="flex items-center gap-2 transition-all duration-500 ease-out">
+            <span className="px-2 py-1 rounded-md border border-slate-300/60 bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 dark:border-slate-600/60 font-mono text-xs font-medium">{hintList[hintIndex][0]}</span>
+            <span className="text-xs">{hintList[hintIndex][1]}</span>
           </div>
         </div>
-        <button className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" onMouseDown={(e)=>{ e.preventDefault(); window.location.assign('/prompts'); }} title="管理提示词">
-          <Settings className="h-4 w-4" />
+        <button 
+          className="p-1.5 rounded-md hover:bg-slate-100/80 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-colors" 
+          onMouseDown={(e)=>{ e.preventDefault(); window.location.assign('/prompts'); }} 
+          title="管理提示词"
+        >
+          <Settings className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

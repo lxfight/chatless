@@ -11,6 +11,12 @@ export interface ParameterRule {
   description?: string;
   priority?: number; // 数值越大优先级越高
   provider?: RegExp; // 可选：按 Provider 名称匹配（不区分大小写时请在外部构造带 i 标志的正则）
+  /**
+   * Provider 匹配模式：
+   * - relaxed（默认）：忽略 provider 不匹配的情况，只要 model 匹配即应用规则
+   * - strict：只有当 provider 正则匹配时才应用规则
+   */
+  providerMode?: 'strict' | 'relaxed';
   model?: RegExp; // 可选：按模型 ID 匹配
   apply: (base: ParameterPatch) => ParameterPatch; // 返回新对象或在拷贝上修改
 }
@@ -38,6 +44,7 @@ const builtinRules: ParameterRule[] = [
     description:
       '为需要思考模式或仅支持思考模式的 Gemini 系列模型注入非零思考预算，避免 Budget 0 错误',
     provider: /^(google\s*ai)$/i,
+    providerMode: 'relaxed',
     // 兼容常见形态：gemini-2.5-pro、gemini-2.5-pro-latest、gemini-2.5-flash-thinking、gemini-1.5-pro-thinking 等
     model:
       /^(gemini-2\.5-(pro|flash-thinking)(?:-[a-z]+)?|gemini-1\.5-.*-thinking|gemini-2\.0-.*-thinking|.*-thinking)$/i,
@@ -71,6 +78,7 @@ const builtinRules: ParameterRule[] = [
     description:
       '为 Gemini 图像生成模型设置默认响应模态为 [IMAGE, TEXT]，避免仅 TEXT 模式导致的 400 错误',
     provider: /^(google\s*ai)$/i,
+    providerMode: 'relaxed',
     // 典型：gemini-2.0-*-image-generation（含 preview/flash 变体等）
     model: /gemini-[\d.]+-[\w-]*image-generation/i,
     apply: (base) => {
@@ -101,7 +109,12 @@ export class ParameterPolicyEngine {
     const allRules = [...ParameterPolicyEngine._builtin, ...ParameterPolicyEngine._userRules];
     let merged: ParameterPatch = { ...(baseOptions || {}) };
     for (const rule of allRules) {
-      const matchProvider = rule.provider ? rule.provider.test(providerName) : true;
+      const providerMode = rule.providerMode ?? 'relaxed';
+      const matchProvider = rule.provider
+        ? providerMode === 'strict'
+          ? rule.provider.test(providerName)
+          : true // relaxed：放宽到所有提供商
+        : true;
       const matchModel = rule.model ? rule.model.test(modelId) : true;
       if (matchProvider && matchModel) {
         merged = rule.apply(merged) || merged;

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useChatStore } from '@/store/chatStore';
-import { MoreVertical, Menu } from 'lucide-react';
+import { MoreVertical, Menu, Plus } from 'lucide-react';
 import { ModelSelector } from "./ModelSelector";
 import { ProviderMetadata } from "@/lib/metadata/types";
 import { DeleteConversationDialog } from './DeleteConversationDialog';
@@ -13,6 +13,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { PromptPill } from './PromptPill';
 import { useEffect } from 'react';
 import { getEnabledConfiguredServers, getConnectedServers, getEnabledServersForConversation, setEnabledServersForConversation } from '@/lib/mcp/chatIntegration';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ChatHeaderProps {
   title: string;
@@ -41,7 +42,7 @@ export function ChatHeader({
   currentProviderName,
   onModelChange: handleModelChange,
   isModelSelectorDisabled = false,
-  tokenCount = 0
+  tokenCount: _tokenCount = 0
 }: ChatHeaderProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [_mcpAll, setMcpAll] = useState<string[]>([]);
@@ -50,7 +51,7 @@ export function ChatHeader({
   const [enabledForConv, setEnabledForConv] = useState<string[]>([]);
 
   const createConversation = useChatStore((state) => state.createConversation);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, isSidebarOpen } = useSidebar();
 
   const handleNewChat = async () => {
     const defaultModelId = 'default-model';
@@ -88,6 +89,27 @@ export function ChatHeader({
           <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer" title="切换侧边栏">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
+          
+          {/* 会话栏折叠时显示新建按钮 */}
+          {!isSidebarOpen && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleNewChat}
+                    className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>新建对话</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           <EditableTitle
             initialTitle={title}
