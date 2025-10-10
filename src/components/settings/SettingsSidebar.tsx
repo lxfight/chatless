@@ -39,7 +39,7 @@ export function SettingsSidebar({ activeTab, onTabChange }: SettingsSidebarProps
         if (mounted) setShowAboutDot(show);
       } catch {}
       // 进入设置页时主动触发一次静默检查，避免首次加载竞态
-      try { await checkForUpdatesSilently(true); } catch {}
+      try { await checkForUpdatesSilently(); } catch {}
     })();
     const onChanged = async () => {
       const show = await shouldShowAboutBlueDot();

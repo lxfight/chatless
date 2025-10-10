@@ -14,7 +14,6 @@ import { linkOpener } from "@/lib/utils/linkOpener";
  * - 提供“忽略此版本”勾选
  */
 export function StartupUpdateToast() {
-  const showingForVersionRef = useRef<string | null>(null);
   const [onlyCheck, setOnlyCheck] = useState<boolean>(false);
   const timersRef = useRef<number[]>([]);
 
@@ -49,11 +48,21 @@ export function StartupUpdateToast() {
   const showToastFor = useCallback(async (version: string) => {
     try {
       console.log('[StartupUpdateToast] showToastFor called with version:', version);
-      if (await isVersionIgnored(version)) return; // 已被忽略则不提示
+      if (await isVersionIgnored(version)) {
+        console.log('[StartupUpdateToast] version ignored, skip showing toast');
+        return; // 已被忽略则不提示
+      }
 
-      // 避免重复为相同版本弹多次
-      if (showingForVersionRef.current === version) return;
-      showingForVersionRef.current = version;
+      // 避免在极短时间内（1分钟）重复为相同版本弹多次
+      // 但允许后续重新显示（比如用户只是关闭了弹窗）
+      const now = Date.now();
+      const lastShownKey = `last_shown_${version}`;
+      const lastShown = (window as any)[lastShownKey] as number | undefined;
+      if (lastShown && now - lastShown < 60_000) {
+        console.log('[StartupUpdateToast] recently shown, skip');
+        return;
+      }
+      (window as any)[lastShownKey] = now;
 
       const id = toast.raw(
         <div className="flex items-start gap-3">
@@ -137,7 +146,7 @@ export function StartupUpdateToast() {
             // 若页面不可见，等待最多 5s 变为可见再检查，避免在后台被系统拦截通知
             await waitUntilVisible(5_000);
 
-          const info = await checkForUpdatesSilently(true);
+          const info = await checkForUpdatesSilently();
           if (!mounted) return;
           if (info.available && info.version) {
             await showToastFor(info.version);

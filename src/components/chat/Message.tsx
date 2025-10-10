@@ -58,13 +58,13 @@ export function Message({ message, className }: MessageProps) {
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-                   {parsedMessage.hasThinking && (
-               <ThinkingBar 
-                 thinkingContent={parsedMessage.thinkingContent}
-                 isThinking={!parsedMessage.isThinkingComplete}
-                 elapsedTime={message.thinking_duration ? message.thinking_duration * 1000 : 0}
-               />
-             )}
+      {parsedMessage.hasThinking && (
+        <ThinkingBar 
+          thinkingContent={parsedMessage.thinkingContent}
+          isActive={!parsedMessage.isThinkingComplete}
+          durationSeconds={message.thinking_duration || 0}
+        />
+      )}
       {parsedMessage.responseContent && (
         <MemoizedMarkdown
           content={parsedMessage.responseContent}

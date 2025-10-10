@@ -64,7 +64,7 @@ export function AboutSupportSettings() {
     refreshAvailability();
 
     // 进入页面时触发一次静默检查，确保状态最新
-    checkForUpdatesSilently(true).finally(() => {});
+    checkForUpdatesSilently().finally(() => {});
 
     if (typeof window !== 'undefined') {
       const handler = () => { refreshAvailability().catch(() => {}); };
