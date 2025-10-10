@@ -8,9 +8,50 @@ import { mcpCallHistory } from './callHistory';
 import type { Message as LlmMessage, StreamCallbacks } from '@/lib/llm/types';
 import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
 import StorageUtil from '@/lib/storage';
+import { shouldAutoAuthorize } from './authorizationConfig';
+import { useAuthorizationStore } from '@/store/authorizationStore';
 
 // 防止重复调用的缓存
 const runningCalls = new Map<string, Promise<void>>();
+
+/**
+ * 确保MCP服务器已连接，如果未连接则尝试重连
+ */
+async function ensureServerConnected(serverName: string): Promise<void> {
+  try {
+    const { useMcpStore } = await import('@/store/mcpStore');
+    const store = useMcpStore.getState();
+    const status = store.serverStatuses[serverName];
+    
+    console.log(`[MCP-RECONNECT] 检查服务器 ${serverName} 连接状态: ${status}`);
+    
+    // 如果服务器未连接，尝试重连
+    if (status !== 'connected') {
+      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 未连接，尝试重连...`);
+      
+      // 获取服务器配置
+      const { Store } = await import('@tauri-apps/plugin-store');
+      const cfgStore = await Store.load('mcp_servers.json');
+      const srvList: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
+      const found = srvList.find(s => s.name === serverName);
+      
+      if (!found) {
+        console.error(`[MCP-RECONNECT] 未找到服务器 ${serverName} 的配置`);
+        throw new Error(`服务器 ${serverName} 配置未找到`);
+      }
+      
+      // 尝试重连
+      console.log(`[MCP-RECONNECT] 开始重连服务器 ${serverName}...`);
+      await serverManager.reconnect(serverName, found.config);
+      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 重连成功`);
+    } else {
+      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 已连接，无需重连`);
+    }
+  } catch (error) {
+    console.error(`[MCP-RECONNECT] 确保服务器连接失败:`, error);
+    throw error;
+  }
+}
 
 export async function executeToolCall(params: {
   assistantMessageId: string;
@@ -116,6 +157,85 @@ export async function executeToolCall(params: {
         argsType: typeof effectiveArgs,
         argsSize: effectiveArgs ? JSON.stringify(effectiveArgs).length : 0
       });
+      
+      // 授权检查
+      const autoAuth = await shouldAutoAuthorize(server);
+      console.log(`[MCP-AUTH] 授权检查: ${server}.${effectiveTool}, 自动授权=${autoAuth}`);
+      
+      if (!autoAuth) {
+        // 需要用户授权
+        const effectiveCardId = cardId || crypto.randomUUID();
+        console.log(`[MCP-AUTH] 等待用户授权: ${server}.${effectiveTool}, cardId=${effectiveCardId}`);
+        
+        const st = useChatStore.getState();
+        
+        // 注意：如果卡片已经在tool_call事件时设置为pending_auth，这里就不需要再次更新
+        // 只有在没有cardId时才需要设置（比如手动调用的情况）
+        if (!cardId) {
+          st.dispatchMessageAction(assistantMessageId, { 
+            type: 'TOOL_RESULT', 
+            server, 
+            tool: effectiveTool, 
+            ok: false, 
+            errorMessage: 'pending_auth',
+            cardId: effectiveCardId 
+          });
+        }
+        
+        // 等待用户授权
+        const authorized = await new Promise<boolean>((resolve) => {
+          const authStore = useAuthorizationStore.getState();
+          authStore.addPendingAuthorization({
+            id: effectiveCardId,
+            messageId: assistantMessageId,
+            server,
+            tool: effectiveTool,
+            args: effectiveArgs || {},
+            createdAt: Date.now(),
+            onApprove: () => resolve(true),
+            onReject: () => resolve(false)
+          });
+        });
+        
+        console.log(`[MCP-AUTH] 授权结果: ${server}.${effectiveTool}, authorized=${authorized}`);
+        
+        if (!authorized) {
+          // 用户拒绝授权
+          console.log(`[MCP-AUTH] 用户拒绝授权: ${server}.${effectiveTool}`);
+          st.dispatchMessageAction(assistantMessageId, { 
+            type: 'TOOL_RESULT', 
+            server, 
+            tool: effectiveTool, 
+            ok: false, 
+            errorMessage: '用户拒绝授权此工具调用',
+            cardId: effectiveCardId 
+          });
+          
+          // 继续追问流程，让AI知道用户拒绝了
+          await continueWithToolResult({
+            assistantMessageId,
+            provider,
+            model,
+            conversationId,
+            historyForLlm,
+            originalUserContent,
+            server,
+            tool: effectiveTool,
+            result: {
+              error: 'AUTHORIZATION_DENIED',
+              message: '用户拒绝了此工具调用。这可能是因为用户认为此调用不合理或参数有误。请考虑用户的反馈，调整你的方法或询问用户的具体需求。'
+            }
+          });
+          return;
+        }
+        
+        // 用户批准，卡片已经存在（pending_auth状态），不需要再创建
+        // 授权批准后，卡片会在工具执行完成时自动更新为 success
+        console.log(`[MCP-AUTH] 用户批准授权，继续执行: ${server}.${effectiveTool}`);
+      }
+      
+      // 检查服务器连接状态，如果未连接则尝试重连
+      await ensureServerConnected(server);
       
       const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
     
@@ -253,7 +373,20 @@ async function continueWithToolResult(params: {
     if (val === 'infinite') maxDepth = Number.POSITIVE_INFINITY;
     else if (typeof val === 'number' && val >= 2 && val <= 15) maxDepth = val;
   } catch { /* use default */ }
-  if (current >= maxDepth) { (globalThis as any)[counterKey] = 0; return; }
+  if (current >= maxDepth) {
+    (globalThis as any)[counterKey] = 0;
+    // 显示右下角通知
+    try {
+      const { toast } = await import('@/components/ui/sonner');
+      toast.warning('MCP递归调用已达上限', {
+        description: `已达到最大递归深度 ${maxDepth}，停止继续调用工具。您可以在MCP高级设置中调整此限制。`,
+        duration: 6000,
+      });
+    } catch (err) {
+      console.warn('[MCP] 显示递归限制通知失败:', err);
+    }
+    return;
+  }
   (globalThis as any)[counterKey] = current + 1;
 
   const follow = typeof result === 'string' ? result : JSON.stringify(result);
@@ -346,11 +479,70 @@ ${instruction}`;
             pendingHit = { server: ev.server, tool: ev.tool, args: ev.args, cardId };
             // 在内容末尾追加卡片标记以确保可见
             const prev = (msgf?.content || '') + '';
-            const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: assistantMessageId }});
-            const next = prev + (prev ? '\n' : '') + marker;
-            stf.updateMessageContentInMemory(assistantMessageId, next);
-            // 写入 segments
-            stf.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
+            
+            // 检查是否需要授权
+            void (async () => {
+              try {
+                const needAuth = !(await shouldAutoAuthorize(ev.server));
+                const marker = JSON.stringify({ 
+                  __tool_call_card__: { 
+                    id: cardId, 
+                    server: ev.server, 
+                    tool: ev.tool, 
+                    status: needAuth ? 'pending_auth' : 'running',
+                    args: ev.args || {}, 
+                    messageId: assistantMessageId 
+                  }
+                });
+                const next = prev + (prev ? '\n' : '') + marker;
+                stf.updateMessageContentInMemory(assistantMessageId, next);
+                
+                // 根据授权状态写入不同的segments
+                if (needAuth) {
+                  // 需要授权，创建pending_auth状态的卡片
+                  stf.dispatchMessageAction(assistantMessageId, { 
+                    type: 'TOOL_RESULT', 
+                    server: ev.server, 
+                    tool: ev.tool, 
+                    ok: false,
+                    errorMessage: 'pending_auth',
+                    cardId 
+                  });
+                } else {
+                  // 自动授权，创建running状态的卡片
+                  stf.dispatchMessageAction(assistantMessageId, { 
+                    type: 'TOOL_HIT', 
+                    server: ev.server, 
+                    tool: ev.tool, 
+                    args: ev.args, 
+                    cardId 
+                  });
+                }
+              } catch (error) {
+                console.error('[MCP-AUTH] 授权检查失败:', error);
+                // 出错时默认需要授权
+                const marker = JSON.stringify({ 
+                  __tool_call_card__: { 
+                    id: cardId, 
+                    server: ev.server, 
+                    tool: ev.tool, 
+                    status: 'pending_auth',
+                    args: ev.args || {}, 
+                    messageId: assistantMessageId 
+                  }
+                });
+                const next = prev + (prev ? '\n' : '') + marker;
+                stf.updateMessageContentInMemory(assistantMessageId, next);
+                stf.dispatchMessageAction(assistantMessageId, { 
+                  type: 'TOOL_RESULT', 
+                  server: ev.server, 
+                  tool: ev.tool, 
+                  ok: false,
+                  errorMessage: 'pending_auth',
+                  cardId 
+                });
+              }
+            })();
           }
         }
       } catch { /* ignore detector error */ }
@@ -378,21 +570,83 @@ ${instruction}`;
       } catch { /* noop */ }
       
       if (pendingHit) {
-          // 继续执行下一个工具调用（同条消息递归）
-          const next = pendingHit; pendingHit = null;
-        void executeToolCall({
-          assistantMessageId,
-          conversationId,
-          server: next.server,
-          tool: next.tool,
-          args: next.args,
-          _runningMarker: '',
-          provider,
-          model,
-          historyForLlm: followHistory,
-          originalUserContent: originalUserContent,
-          cardId: next.cardId,
-        });
+        // 检查是否需要授权 - 只有自动授权的才在这里执行
+        const next = pendingHit; pendingHit = null;
+        
+        // 异步检查授权状态，只有自动授权的才立即执行
+        void (async () => {
+          try {
+            const autoAuth = await shouldAutoAuthorize(next.server);
+            if (autoAuth) {
+              // 自动授权，立即执行
+              console.log(`[MCP-COMPLETE] 自动授权，立即执行: ${next.server}.${next.tool}`);
+              void executeToolCall({
+                assistantMessageId,
+                conversationId,
+                server: next.server,
+                tool: next.tool,
+                args: next.args,
+                _runningMarker: '',
+                provider,
+                model,
+                historyForLlm: followHistory,
+                originalUserContent: originalUserContent,
+                cardId: next.cardId,
+              });
+            } else {
+              // 需要用户授权，创建授权请求并等待用户确认
+              console.log(`[MCP-COMPLETE] 需要用户授权，创建授权请求: ${next.server}.${next.tool}`);
+              
+              // 创建授权请求，等待用户批准
+              const authStore = useAuthorizationStore.getState();
+              await new Promise<boolean>((resolve) => {
+                authStore.addPendingAuthorization({
+                  id: next.cardId,
+                  messageId: assistantMessageId,
+                  server: next.server,
+                  tool: next.tool,
+                  args: next.args || {},
+                  createdAt: Date.now(),
+                  onApprove: () => {
+                    console.log(`[MCP-AUTH] 用户批准授权: ${next.server}.${next.tool}`);
+                    resolve(true);
+                    // 用户批准后执行工具调用
+                    void executeToolCall({
+                      assistantMessageId,
+                      conversationId,
+                      server: next.server,
+                      tool: next.tool,
+                      args: next.args,
+                      _runningMarker: '',
+                      provider,
+                      model,
+                      historyForLlm: followHistory,
+                      originalUserContent: originalUserContent,
+                      cardId: next.cardId,
+                    });
+                  },
+                  onReject: () => {
+                    console.log(`[MCP-AUTH] 用户拒绝授权: ${next.server}.${next.tool}`);
+                    resolve(false);
+                    // 用户拒绝，更新卡片状态为error
+                    const st = useChatStore.getState();
+                    st.dispatchMessageAction(assistantMessageId, { 
+                      type: 'TOOL_RESULT', 
+                      server: next.server, 
+                      tool: next.tool, 
+                      ok: false, 
+                      errorMessage: '用户拒绝授权此工具调用',
+                      cardId: next.cardId 
+                    });
+                  }
+                });
+              });
+            }
+          } catch (error) {
+            console.error('[MCP-COMPLETE] 授权检查失败:', error);
+            // 出错时不执行，等待用户授权
+          }
+        })();
       } else {
         const convf2 = stf2.conversations.find(c=>c.id===conversationId);
         const msgf2 = convf2?.messages.find(m=>m.id===assistantMessageId);

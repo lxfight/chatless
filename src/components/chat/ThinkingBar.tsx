@@ -1,176 +1,140 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ChevronRight, Timer, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MemoizedMarkdown } from './MemoizedMarkdown';
 
 interface ThinkingBarProps {
   thinkingContent: string;
-  isThinking: boolean;
-  elapsedTime: number;
+  /** 思考时长（秒），由父组件计算并传入 */
+  durationSeconds: number;
+  /** 是否正在思考（用于显示动画效果） */
+  isActive?: boolean;
 }
 
-const formatDuration = (ms: number) => {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) {
-    return `${seconds}秒`;
-  } else if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+/**
+ * 格式化时长显示
+ * @param seconds 秒数
+ */
+const formatDuration = (seconds: number): string => {
+  const s = Math.floor(seconds);
+  if (s < 60) {
+    return `${s}秒`;
+  } else if (s < 3600) {
+    const minutes = Math.floor(s / 60);
+    const remainingSeconds = s % 60;
     return `${minutes}分${remainingSeconds}秒`;
   } else {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const remainingSeconds = s % 60;
     return `${hours}小时${minutes}分${remainingSeconds}秒`;
   }
 };
 
+/**
+ * 提取思考内容的最后一行
+ */
+const extractLatestThought = (content: string): string => {
+  if (!content) return '';
+  const lines = content.trim().split('\n');
+  return lines[lines.length - 1];
+};
+
+/**
+ * ThinkingBar - 纯展示组件
+ * 
+ * 设计原则：
+ * 1. 所有计时逻辑由父组件负责
+ * 2. 本组件只负责展示
+ * 3. 没有内部定时器，没有复杂状态管理
+ * 4. 单向数据流，简单可靠
+ */
 export const ThinkingBar = ({
   thinkingContent,
-  isThinking,
-  elapsedTime,
+  durationSeconds,
+  isActive = false,
 }: ThinkingBarProps) => {
-  const safeElapsedTime = Number.isFinite(elapsedTime) && elapsedTime >= 0 ? elapsedTime : 0;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [currentElapsedTime, setCurrentElapsedTime] = useState(safeElapsedTime);
-  const lastElapsedRef = useRef(safeElapsedTime);
-  const startTimeRef = useRef<number | null>(null);
 
-  // 同步外部 elapsedTime：仅在思考结束时同步最终值，避免与内部计时器相互触发
-  useEffect(() => {
-    if (isThinking) return;
-    const next = Number.isFinite(elapsedTime) && elapsedTime >= 0 ? elapsedTime : 0;
-    if (lastElapsedRef.current !== next) {
-      lastElapsedRef.current = next;
-      setCurrentElapsedTime(next);
-    }
-  }, [isThinking, elapsedTime]);
+  // 提取最后一行思考内容
+  const latestThought = extractLatestThought(thinkingContent);
+  
+  // 格式化时长
+  const formattedDuration = formatDuration(durationSeconds);
 
-  // 实时更新计时器 - 修复：基于实际时间差计算
-  useEffect(() => {
-    if (!isThinking) {
-      startTimeRef.current = null;
-      return; // 仅在思考中才启动定时器
-    }
-    
-    // 如果还没有开始时间，记录当前时间
-    if (startTimeRef.current === null) {
-      startTimeRef.current = Date.now() - safeElapsedTime;
-    }
-    
-    const interval = setInterval(() => {
-      if (startTimeRef.current !== null) {
-        const actualElapsed = Date.now() - startTimeRef.current;
-        setCurrentElapsedTime(actualElapsed);
-      }
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [isThinking, safeElapsedTime]);
-
-  const latestThought = useMemo(() => {
-    if (!thinkingContent) return '';
-    const lines = thinkingContent.trim().split('\n');
-    return lines[lines.length - 1];
-  }, [thinkingContent]);
-
-  const hasContent = thinkingContent && thinkingContent.trim().length > 0;
+  // 判断是否有内容
+  const hasContent = thinkingContent.trim().length > 0;
 
   return (
     <div className={cn(
-      "mb-3 w-full max-w-full min-w-0 transition-all duration-300 ease-out",
-      isExpanded 
-        ? "bg-gray-50 dark:bg-slate-800/40 rounded-xl shadow-sm" 
-        : isThinking
-          ? "bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl animate-pulse"
-        : "bg-transparent"
+      "group relative rounded-xl border backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/60 transition-all duration-300 overflow-hidden",
+      isActive 
+        ? "border-green-400/60 bg-gradient-to-r from-green-50/60 to-emerald-50/40 dark:border-green-800/50 dark:from-green-950/30 dark:to-emerald-950/20 shadow-md shadow-green-200/30 dark:shadow-green-900/30 ring-1 ring-green-300/20 dark:ring-green-700/20" 
+        : "border-slate-200/70 bg-gradient-to-r from-slate-50/50 to-slate-100/40 dark:border-slate-700/70 dark:from-slate-800/40 dark:to-slate-800/30 shadow-sm"
     )}>
+      {/* 单行展示：呼吸动效 + 大脑图标 + 思考内容 + 三点波浪 + 时长 + 展开按钮 */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          "w-full text-left transition-all duration-300 ease-out",
-          isExpanded ? "p-2.5" : "py-1.5 px-2",
-          isThinking 
-            ? "hover:bg-emerald-100/30 dark:hover:bg-emerald-800/20"
-            : "hover:bg-slate-100/50 dark:hover:bg-slate-700/30",
-          "rounded-xl"
-        )}
-        disabled={!hasContent}
+        className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-slate-100/40 dark:hover:bg-slate-800/60 transition-all duration-200 cursor-pointer"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
-          <div className="flex items-center shrink-0 text-slate-600 dark:text-slate-300">
-            <ChevronRight
-              className={cn(
-                'w-3.5 h-3.5 mr-1.5 transition-transform duration-200 ease-out',
-                isExpanded && 'rotate-90'
-              )}
-            />
-            <Brain className={cn(
-              "w-3.5 h-3.5 mr-1.5 transition-all duration-300",
-              isThinking && "text-emerald-600 dark:text-emerald-400 animate-pulse"
-            )} />
-            <span className={cn(
-              "text-xs font-medium transition-colors duration-300",
-              isThinking && "text-emerald-700 dark:text-emerald-300"
-            )}>
-              {isExpanded ? '隐藏思考过程' : '思考过程'}
-            </span>
+        {/* 绿色呼吸动效指示器 */}
+        {isActive && (
+          <div className="relative flex items-center justify-center w-2 h-2 flex-shrink-0">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
           </div>
-          
-          {!isExpanded && hasContent && (
-            <div className="flex items-center min-w-0 flex-1 transition-all duration-300 ease-out">
-              <span className={cn(
-                "text-xs break-all line-clamp-1 italic transition-all duration-300 ease-out",
-                isThinking 
-                  ? "text-emerald-600 dark:text-emerald-400" 
-                  : "text-slate-500 dark:text-slate-400"
-              )}>
-                {latestThought}
-              </span>
-            </div>
-          )}
+        )}
+        
+        {/* 大脑图标 */}
+        <Brain className={cn(
+          "w-4 h-4 flex-shrink-0 transition-all duration-200",
+          isActive ? "text-green-600 dark:text-green-400 drop-shadow-sm" : "text-slate-500 dark:text-slate-400"
+        )} /> 
+        
+        {/* 思考内容 - 单行显示，带呼吸闪动特效 */}
+        <span className={cn(
+          "flex-1 text-xs truncate text-left transition-all duration-300 font-medium",
+          isActive 
+            ? "text-slate-800 dark:text-slate-100 animate-pulse" 
+            : "text-slate-700 dark:text-slate-300"
+        )}>
+          {latestThought || '正在思考'}
+        </span>
+        
+        {/* 三点波浪动画 */}
+        {isActive && (
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <span className="w-1 h-1 bg-green-500 dark:bg-green-400 rounded-full animate-[bounce_1.4s_ease-in-out_infinite]" />
+            <span className="w-1 h-1 bg-green-500 dark:bg-green-400 rounded-full animate-[bounce_1.4s_ease-in-out_0.2s_infinite]" />
+            <span className="w-1 h-1 bg-green-500 dark:bg-green-400 rounded-full animate-[bounce_1.4s_ease-in-out_0.4s_infinite]" />
+          </div>
+        )}
 
-          <div className="flex items-center text-xs shrink-0 sm:ml-auto transition-all duration-300 ease-out">
-            <Timer className={cn(
-              "w-3 h-3 mr-1 transition-colors duration-300",
-              isThinking 
-                ? "text-emerald-500 dark:text-emerald-400" 
-                : "text-slate-500 dark:text-slate-400"
-            )} />
-            {currentElapsedTime > 0 && (
-              <span
-                className={cn(
-                  "transition-all duration-300 ease-out",
-                  isThinking
-                    ? "text-emerald-600 dark:text-emerald-300"
-                    : "text-slate-500 dark:text-slate-400"
-                )}
-              >
-                {formatDuration(currentElapsedTime)}
-              </span>
-            )}
-            
-            {isThinking && (
-              <div className="ml-1.5 flex items-center gap-1">
-                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce"></div>
-              </div>
-            )}
-          </div>
+        {/* 时长显示 */}
+        <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 flex-shrink-0 font-medium">
+          <Timer className="w-3.5 h-3.5" />
+          <span className="font-mono tabular-nums">{formattedDuration}</span>
         </div>
+        
+        {/* 展开/收起图标 */}
+        {hasContent && (
+          <ChevronRight className={cn(
+            "w-4 h-4 transition-transform text-slate-400 dark:text-slate-500 flex-shrink-0",
+            isExpanded && "rotate-90"
+          )} />
+        )}
       </button>
-      
+
+      {/* 完整思考内容（展开时） */}
       {isExpanded && hasContent && (
-        <div className="px-3 pb-3 transition-all duration-300 ease-out">
-          <div className="prose prose-sm dark:prose-invert max-w-full">
-            {/* 展开视图：字号比正文小一档 */}
-            <MemoizedMarkdown content={thinkingContent} sizeOverride="small" />
+        <div className="px-3.5 pb-3 border-t border-slate-200/70 dark:border-slate-700/70 pt-2.5 bg-slate-50/30 dark:bg-slate-900/30">
+          <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+            <MemoizedMarkdown content={thinkingContent} />
           </div>
         </div>
       )}
     </div>
   );
-}; 
+};

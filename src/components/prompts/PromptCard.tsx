@@ -104,7 +104,7 @@ export function PromptCard({
               <Badge
                 key={s}
                 variant="secondary"
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium cursor-default bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 dark:from-indigo-900/40 dark:to-purple-900/30 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-700/50"
+                className="shrink-0 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-mono border border-amber-200/50 dark:border-amber-700/50"
                 title={`/${s}`}
               >
                 /{s}

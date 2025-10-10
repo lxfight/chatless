@@ -40,22 +40,42 @@ export function SettingsLayout({ children, activeTab, onTabChange }: SettingsLay
   };
 
   // 监听内容结构变化，若出现滚动位置被重置为 0，则恢复到上次位置
+  // 优化：添加防抖和智能判断，避免与组件内部滚动控制冲突
   useEffect(() => {
     const el = mainRef.current;
     if (!el || typeof window === 'undefined') return;
     const key = `settings_scroll_${activeTab}`;
+    let debounceTimer: number | null = null;
+    let lastScrollTime = 0;
+    
     const observer = new MutationObserver(() => {
-      try {
-        const saved = window.sessionStorage.getItem(key);
-        const y = saved ? parseInt(saved, 10) : 0;
-        // 当存在历史位置且当前被重置到顶部时恢复（避免干扰用户主动回到顶部）
-        if (y > 0 && el.scrollTop <= 2) {
-          el.scrollTop = y;
-        }
-      } catch {}
+      // 防抖处理，避免频繁操作
+      if (debounceTimer) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        try {
+          const saved = window.sessionStorage.getItem(key);
+          const y = saved ? parseInt(saved, 10) : 0;
+          const now = Date.now();
+          // 只在滚动位置被重置到顶部 且 距离上次滚动超过300ms 时才恢复
+          // 这样可以避免与刷新时的滚动锁定机制冲突
+          if (y > 0 && el.scrollTop <= 2 && now - lastScrollTime > 300) {
+            el.scrollTop = y;
+          }
+        } catch {}
+      }, 100);
     });
+    
+    const trackScrollTime = () => {
+      lastScrollTime = Date.now();
+    };
+    
+    el.addEventListener('scroll', trackScrollTime, { passive: true });
     observer.observe(el, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer);
+      el.removeEventListener('scroll', trackScrollTime);
+      observer.disconnect();
+    };
   }, [activeTab]);
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50/80 to-slate-50/60 dark:from-gray-950/80 dark:to-slate-950/60 overflow-hidden">

@@ -44,6 +44,8 @@ import { McpToolListTip } from '@/components/mcp/McpToolListTip';
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { McpEnvironmentStatus } from "./McpEnvironmentStatus";
 import AdvancedMcpSettingsDialog from "./AdvancedMcpSettingsDialog";
+import ServerConfigDialog from "./ServerConfigDialog";
+import { getAuthorizationConfig } from "@/lib/mcp/authorizationConfig";
 
 
 type TransportType = "stdio" | "sse" | "http";
@@ -87,16 +89,25 @@ export function McpServersSettings() {
   // —— 高级设置弹窗 ——
   const [advDialogOpen, setAdvDialogOpen] = useState(false);
   const [maxDepthValue, setMaxDepthValue] = useState<number>(6);
+  const [defaultAutoAuth, setDefaultAutoAuth] = useState<boolean>(true);
 
   const loadAdvanced = useCallback(async () => {
     try {
       const val = await StorageUtil.getItem<number|"infinite">('max_tool_recursion_depth', 6, 'mcp-settings.json');
       setMaxDepthValue(val === 'infinite' ? 20 : (val ?? 6));
+      
+      const authConfig = await getAuthorizationConfig();
+      setDefaultAutoAuth(authConfig.defaultAutoAuthorize);
     } catch {
       setMaxDepthValue(6);
+      setDefaultAutoAuth(true);
     }
   }, []);
   useEffect(() => { void loadAdvanced(); }, [loadAdvanced]);
+
+  // —— 服务器配置对话框 ——
+  const [serverConfigDialogOpen, setServerConfigDialogOpen] = useState(false);
+  const [configServerName, setConfigServerName] = useState<string>('');
 
 
 
@@ -1121,10 +1132,14 @@ export function McpServersSettings() {
                        </button>
                      </DropdownMenu.Trigger>
                      <DropdownMenu.Portal>
-                       <DropdownMenu.Content className="z-50 w-44 rounded-xl border bg-white/90 dark:border-gray-700 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 text-sm" sideOffset={8} align="end">
+                       <DropdownMenu.Content className="z-50 w-48 rounded-xl border bg-white/90 dark:border-gray-700 dark:bg-gray-800/90 backdrop-blur-md shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 text-sm" sideOffset={8} align="end">
                          <DropdownMenu.Item onSelect={() => beginEdit(s)} className="w-full flex items-center gap-2 px-3 py-2 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                           <Edit className="w-4 h-4" /> 编辑
+                           <Edit className="w-4 h-4" /> 编辑连接
                          </DropdownMenu.Item>
+                         <DropdownMenu.Item onSelect={() => { setConfigServerName(s.name); setServerConfigDialogOpen(true); }} className="w-full flex items-center gap-2 px-3 py-2 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                           <Settings className="w-4 h-4" /> 服务器配置
+                         </DropdownMenu.Item>
+                         <DropdownMenu.Separator className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
                          <DropdownMenu.Item onSelect={() => remove(s.name)} className="w-full flex items-center gap-2 px-3 py-2 text-red-600 outline-none hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer">
                            <Trash2 className="w-4 h-4" /> 删除
                          </DropdownMenu.Item>
@@ -1187,15 +1202,26 @@ export function McpServersSettings() {
            </AlertDialogFooter>
          </AlertDialogContent>
        </AlertDialog>
-       {/* 高级设置弹窗组件 */}
-       <AdvancedMcpSettingsDialog
-           open={advDialogOpen}
-           onOpenChange={setAdvDialogOpen}
-           maxDepth={maxDepthValue}
-           onSave={saveAdvanced}
-       />
-       </div>
-     </TooltipProvider>
-   );
- }
+      {/* 高级设置弹窗组件 */}
+      <AdvancedMcpSettingsDialog
+          open={advDialogOpen}
+          onOpenChange={setAdvDialogOpen}
+          maxDepth={maxDepthValue}
+          onSave={saveAdvanced}
+      />
+      
+      {/* 服务器配置对话框 */}
+      <ServerConfigDialog
+          open={serverConfigDialogOpen}
+          onOpenChange={setServerConfigDialogOpen}
+          serverName={configServerName}
+          globalDefaults={{
+            autoAuthorize: defaultAutoAuth,
+            maxRecursionDepth: maxDepthValue,
+          }}
+      />
+      </div>
+    </TooltipProvider>
+  );
+}
 

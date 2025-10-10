@@ -82,7 +82,11 @@ export function AIMessageBlock({
   const hasThinkTags = useMemo(() => content.includes('<think>'), [content]);
 
       // 提前解析工具调用格式：<use_mcp_tool>（推荐）或 <tool_call>（兼容）或 JSON 格式的 {"type":"tool_call",...}
-  const hasToolCallEarly = useMemo(() => content.includes('<tool_call>') || /"type"\s*:\s*"tool_call"/i.test(content), [content]);
+  const hasToolCallEarly = useMemo(() => 
+    content.includes('<tool_call>') || 
+    content.includes('<use_mcp_tool>') || 
+    /"type"\s*:\s*"tool_call"/i.test(content), 
+  [content]);
   useMemo(() => {
     if (!hasToolCallEarly) return null;
     // 1) XML 包裹
@@ -191,17 +195,35 @@ export function AIMessageBlock({
     return result;
   }, [content, isStreaming, thinkingDuration, hasThinkTags]);
 
-  // 计算实时经过的时间
-  const realTimeElapsed = useMemo(() => {
-    // 如果正在流式处理且有thinking_start_time，基于实际时间计算
+  // 计算实时经过的时间 - 使用定时器避免每次渲染都调用Date.now()
+  const [realTimeElapsed, setRealTimeElapsed] = useState(() => {
     if (isStreaming && thinking_start_time) {
       return Date.now() - thinking_start_time;
     }
-    // 如果有thinkingDuration，使用已计算好的时间
     if (thinkingDuration && thinkingDuration > 0) {
-      return thinkingDuration * 1000; // 转换为毫秒
+      return thinkingDuration * 1000;
     }
     return 0;
+  });
+
+  useEffect(() => {
+    if (!isStreaming || !thinking_start_time) {
+      // 不在流式状态或没有开始时间，使用固定值
+      if (thinkingDuration && thinkingDuration > 0) {
+        setRealTimeElapsed(thinkingDuration * 1000);
+      }
+      return;
+    }
+
+    // 流式状态下，使用定时器更新
+    const updateElapsed = () => {
+      setRealTimeElapsed(Date.now() - thinking_start_time);
+    };
+    
+    updateElapsed(); // 立即更新一次
+    const interval = setInterval(updateElapsed, 1000);
+    
+    return () => clearInterval(interval);
   }, [isStreaming, thinking_start_time, thinkingDuration]);
 
   const state = streamedState ?? historicalState;
@@ -222,14 +244,26 @@ export function AIMessageBlock({
     return acc;
   }, [segments, viewModel?.items]);
 
-  // 将一条 AI 消息中的多种片段（普通文本、<think> 块、工具卡片）按出现顺序混合渲染，避免“消息粘连”
+  // 将一条 AI 消息中的多种片段（普通文本、<think> 块、工具卡片）按出现顺序混合渲染，避免"消息粘连"
   const mixedSegments = useMemo(() => {
     const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
     if (Array.isArray(src) && src.length > 0) {
-      const list: Array<{ type: 'card'|'think'|'text'|'image'; text?: string; data?: any }> = [];
+      const list: Array<{ 
+        type: 'card'|'think'|'text'|'image'; 
+        text?: string; 
+        data?: any; 
+        duration?: number; 
+        startTime?: number;
+      }> = [];
       for (const s of src) {
         if (s && s.kind === 'toolCard') list.push({ type: 'card', data: s });
-        else if (s && s.kind === 'think') list.push({ type: 'think', text: s.text || '' });
+        // 保留think段，让每个think都有独立的思考栏，传递duration和startTime
+        else if (s && s.kind === 'think') list.push({ 
+          type: 'think', 
+          text: s.text || '', 
+          duration: s.duration, 
+          startTime: s.startTime 
+        });
         else if (s && s.kind === 'text') list.push({ type: 'text', text: s.text || '' });
         else if (s && s.kind === 'image') list.push({ type: 'image', data: s });
       }
@@ -260,11 +294,11 @@ export function AIMessageBlock({
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
   return (
-    <div className="group prose prose-slate dark:prose-invert w-full max-w-full min-w-0 rounded-lg rounded-tl-sm bg-white dark:bg-slate-900/60 p-2 shadow-sm">
+    <div className="group w-full max-w-full min-w-0 px-2 py-1   backdrop-blur-sm">
    
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
-        <div className="flex items-center gap-3 py-2">
+        <div key="loader-waiting" className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
             <FoldingLoader size={22} />
           </div>
@@ -272,14 +306,14 @@ export function AIMessageBlock({
         </div>
       )}
 
-      {/* 思考进度条：始终独立显示，不与正文混排 */}
-      {( (!!viewModel && viewModel.flags?.isThinking) || (!!thinkTextFromSegments) || (!!state && !!state.thinkingContent)) && (
+      {/* 思考进度条：仅在没有结构化segments时显示全局思考栏（兼容旧消息） */}
+      {(mixedSegments.length === 0) && ( (!!viewModel && viewModel.flags?.isThinking) || (!!thinkTextFromSegments) || (!!state && !!state.thinkingContent)) && (
         <ThinkingBar
           thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
-          // 仅在“流式进行中”或显式标记为思考中时显示进行态；
-          // 非流式/历史消息即使包含 think 文本，也视为已完成（绿色）。
-          isThinking={ (viewModel?.flags?.isThinking !== undefined) ? !!viewModel?.flags?.isThinking : !!isStreaming }
-          elapsedTime={realTimeElapsed}
+          // 将毫秒转换为秒
+          durationSeconds={Math.floor(realTimeElapsed / 1000)}
+          // 仅在"流式进行中"或显式标记为思考中时显示活跃态
+          isActive={ (viewModel?.flags?.isThinking !== undefined) ? !!viewModel?.flags?.isThinking : !!isStreaming }
         />
       )}
 
@@ -287,7 +321,7 @@ export function AIMessageBlock({
       {(mixedSegments.length > 0) && (
         <div className="relative min-w-0 max-w-full w-full">
           {mixedSegments.length > 0 ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {mixedSegments.map((seg, idx) => {
                 // 关键调试：仅当准备渲染工具卡片时打印一次，帮助确认UI层已收到segments
                 // 默认关闭的日志
@@ -295,7 +329,7 @@ export function AIMessageBlock({
                   const d = seg.data;
                   return (
                     <ToolCallCard
-                      key={d.id || idx}
+                      key={`card-${d.id || idx}-${idx}`}
                       server={d.server}
                       tool={d.tool}
                       status={d.status}
@@ -303,11 +337,43 @@ export function AIMessageBlock({
                       resultPreview={d.resultPreview}
                       errorMessage={d.errorMessage}
                       schemaHint={d.schemaHint}
+                      messageId={d.messageId}
+                      cardId={d.id}
                     />
                   );
                 }
-                // 不在正文中渲染 think 段，思考内容统一由上方思考栏呈现
-                if (seg.type === 'think') return null;
+                // 独立渲染每个 think 段的思考栏
+                if (seg.type === 'think') {
+                  // 判断是否是当前正在活跃的think段：
+                  // 1. 必须是流式状态
+                  // 2. 是最后一个think段，或者是最后一个段（可能后面还有卡片等）
+                  const isLastThinkSegment = mixedSegments.slice(idx + 1).every(s => s.type !== 'think');
+                  const isCurrentThinking = isStreaming && isLastThinkSegment;
+                  
+                  // 流式输出时：对于当前正在进行的think段使用realTimeElapsed，否则使用已记录的duration
+                  // 历史消息时：使用已记录的duration
+                  let durationSeconds = 0;
+                  if (isCurrentThinking) {
+                    // 当前正在进行的think段，使用实时计时（毫秒转秒）
+                    durationSeconds = Math.floor(realTimeElapsed / 1000);
+                  } else if (seg.duration !== undefined) {
+                    // 已完成的think段，直接使用记录的duration（已经是秒）
+                    durationSeconds = seg.duration;
+                  } else if (seg.startTime) {
+                    // 如果有startTime但没有duration，计算已经过的时间（降级处理）
+                    durationSeconds = Math.floor((Date.now() - seg.startTime) / 1000);
+                  }
+                  
+                  return (
+                    <div key={`think-${idx}`}>
+                      <ThinkingBar
+                        thinkingContent={seg.text || ''}
+                        durationSeconds={durationSeconds}
+                        isActive={isCurrentThinking}
+                      />
+                    </div>
+                  );
+                }
                 if (seg.type === 'image') {
                   const img = seg.data as { mimeType: string; data: string };
                   const src = `data:${img.mimeType};base64,${img.data}`;
@@ -367,38 +433,43 @@ export function AIMessageBlock({
                     </div>
                   );
                 }
+                // 渲染文本段落 - 跳过空内容
+                const textContent = seg.text || '';
+                if (!textContent.trim()) {
+                  return null; // 不渲染空的文本段落
+                }
                 const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
                 const needSoftDivider = prevType === 'card';
                 return (
-                  <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
-                    {isStreaming ? (
-                      // 流式：使用高性能逐字淡入（与 Markdown 并存安全：seg.text 已是纯文本片段）
-                      <div className="prose prose-slate dark:prose-invert">
-                        <div className="text-[15px] leading-7">
-                          <div className="whitespace-pre-wrap break-words">
-                            {/* 逐字动画容器：AnimatedCharFade 仅追加新增字符 */}
-                            {(() => {
-                              const AnimatedCharFade = require('./AnimatedCharFade').AnimatedCharFade;
-                              return <AnimatedCharFade text={seg.text || ''} />;
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <MemoizedMarkdown key={`md-${idx}`} content={seg.text || ''} />
-                    )}
+                  <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                    <div className="prose prose-slate dark:prose-invert max-w-none">
+                      {(() => {
+                        // 使用统一的StreamingMarkdown组件，支持流式和非流式markdown渲染
+                        const { StreamingMarkdown } = require('./StreamingMarkdown');
+                        return <StreamingMarkdown content={textContent} isStreaming={isStreaming} />;
+                      })()}
+                    </div>
                   </div>
                 );
               })}
             </div>
           ) : null}
-          {/* 思考结束到卡片出现的过渡期占位：当仍在流式但暂无任何片段时显示 */}
-          {isStreaming && !hasNoContent && mixedSegments.length === 0 && (
-            <div className="flex items-center gap-3 py-2">
+          {/* MCP调用识别阶段：检测到工具调用标签但还未完成解析时显示加载动画 */}
+          {isStreaming && hasToolCallEarly && mixedSegments.filter(s => s.type === 'card').length === 0 && (
+            <div key="loader-tool-detecting" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
-                <FoldingLoader size={22} />
+                <FoldingLoader key="loader-tool" size={22} />
               </div>
-              <span className="text-xs italic text-slate-500 dark:text-slate-400">正在准备工具调用…</span>
+              <span className="text-xs italic text-slate-500 dark:text-slate-400">正在识别工具调用指令…</span>
+            </div>
+          )}
+          {/* 思考结束到卡片出现的过渡期占位：当仍在流式但暂无任何片段时显示 */}
+          {isStreaming && !hasNoContent && !hasToolCallEarly && mixedSegments.length === 0 && (
+            <div key="loader-preparing" className="flex items-center gap-3 py-2">
+              <div className="flex items-center gap-2">
+                <FoldingLoader key="loader-reply" size={22} />
+              </div>
+              <span className="text-xs italic text-slate-500 dark:text-slate-400">正在准备回复…</span>
             </div>
           )}
           {/* 悬浮显示字数 */}
@@ -413,7 +484,7 @@ export function AIMessageBlock({
 
       {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
-        <div className="relative min-w-0 max-w-full w-full">
+        <div className="relative min-w-0 max-w-full w-full prose prose-slate dark:prose-invert max-w-none">
           <MemoizedMarkdown content={(state?.regularContent || content)} />
         </div>
       )}

@@ -314,6 +314,9 @@ export function ChatInput({
   const [overlayFontSize, setOverlayFontSize] = useState<string>('');
   const [overlayLineHeight, setOverlayLineHeight] = useState<string>('');
   const [mentionOpen, setMentionOpen] = useState<boolean>(false);
+  const [textareaScroll, setTextareaScroll] = useState<number>(0);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -321,6 +324,14 @@ export function ChatInput({
     setOverlayFont(cs.fontFamily);
     setOverlayFontSize(cs.fontSize);
     setOverlayLineHeight(cs.lineHeight);
+    
+    // 监听textarea滚动，同步到覆盖层
+    const handleScroll = () => {
+      setTextareaScroll(el.scrollTop);
+    };
+    
+    el.addEventListener('scroll', handleScroll);
+    return () => el.removeEventListener('scroll', handleScroll);
   }, [textareaRef.current]);
 
   // 拖拽过程事件（全局监听，释放时清理）
@@ -837,7 +848,7 @@ export function ChatInput({
           anchorRef={textareaRef as any}
           queryText={inputValue}
         />
-        {/* 高亮覆盖层：与 textarea 完全重叠，渲染 “/指令 + 变量 + (可选) | + 后续文本”。
+        {/* 高亮覆盖层：与 textarea 完全重叠，渲染 "/指令 + 变量 + (可选) | + 后续文本"。
             为避免重影，textarea 在有 /指令 时使用 text-transparent，仅显示插入符。 */}
         {(() => {
           const parsed = parseLeadingSlash(inputValue);
@@ -850,8 +861,8 @@ export function ChatInput({
             while ((m = mentionRe.exec(text))) {
               const i = m.index;
               if (i > last) parts.push(text.slice(last, i));
-              // 优化：使用更精确的样式，避免padding导致的字符错位
-              parts.push(<span key={i} className="bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', display: 'inline', padding: '0.125rem 0.25rem' }}>{m[0]}</span>);
+              // 使用box-shadow实现高亮效果，不使用padding避免字符错位
+              parts.push(<span key={i} className="bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', display: 'inline', boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.15)', borderRadius: '2px' }}>{m[0]}</span>);
               last = i + m[0].length;
             }
             if (last < text.length) parts.push(text.slice(last));
@@ -860,8 +871,8 @@ export function ChatInput({
           if (!parsed && hasMentionOverlay) {
             // 无 / 指令时，仅做 @ 提示的淡绿色高亮（严格对齐：不添加任何额外字符/空格）
             return (
-              <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-                <div className="pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word' }}>
+              <div ref={overlayRef} className="absolute inset-px pointer-events-none select-none overflow-hidden">
+                <div className="pl-8 sm:pl-10 pr-32 sm:pr-36 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word', transform: `translateY(-${textareaScroll}px)` }}>
                   {renderMentions(inputValue)}
                 </div>
               </div>
@@ -871,12 +882,12 @@ export function ChatInput({
           const { leadingSpace, token, prefixRaw, hasDelimiter, postRaw, delimiterRaw } = parsed;
           const prefixText = `/${token}${prefixRaw}${hasDelimiter ? delimiterRaw : ''}`;
           return (
-            <div className="absolute inset-px pointer-events-none select-none overflow-hidden">
-              <div className="pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word' }}>
+            <div ref={overlayRef} className="absolute inset-px pointer-events-none select-none overflow-hidden">
+              <div className="pl-8 sm:pl-10 pr-32 sm:pr-36 py-[10px] pb-10 whitespace-pre-wrap text-sm sm:text-base tabular-nums" style={{ fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, letterSpacing: 'normal', wordBreak: 'break-word', transform: `translateY(-${textareaScroll}px)` }}>
                 {/* 保留前导空格 */}
                 {leadingSpace}
                 {/* 高亮整段 /token + 变量 + 可选" | "，保持与原文本完全一致，避免光标错位 */}
-                <span className="rounded bg-amber-100/90 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, display: 'inline', padding: '0.125rem 0.25rem' }}>{prefixText}</span>
+                <span className="bg-amber-100/90 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200" style={{ fontFeatureSettings: '"liga" 0, "clig" 0', fontFamily: overlayFont || undefined, fontSize: overlayFontSize || undefined, lineHeight: overlayLineHeight || undefined, display: 'inline', boxShadow: '0 0 0 3px rgba(251, 191, 36, 0.2)', borderRadius: '2px' }}>{prefixText}</span>
                 {/* 竖线后的普通文本按原样展示（不高亮）*/}
                 {hasDelimiter && postRaw ? <>{renderMentions(postRaw)}</> : null}
               </div>
@@ -890,8 +901,8 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder="开始对话吧… 输入 / 可快速调用提示词 输入 @ 可指定MCP服务"
           className={cn(
-            "relative z-[1] w-full pl-8 sm:pl-10 pr-12 sm:pr-14 py-[10px] pb-10 resize-none rounded-lg border-0 bg-transparent focus:outline-none transition-all text-sm sm:text-base min-h-[66px] placeholder:text-[12px] sm:placeholder:text-[13px] placeholder:text-gray-400/80 dark:placeholder:text-gray-400/70",
-            (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums" : "text-gray-900 dark:text-gray-100 tabular-nums"
+            "relative z-[1] w-full pl-8 sm:pl-10 pr-32 sm:pr-36 py-[10px] pb-10 resize-none rounded-lg border-0 bg-transparent focus:outline-none transition-all text-sm sm:text-base min-h-[66px] placeholder:text-[12px] sm:placeholder:text-[13px] placeholder:text-gray-400/80 dark:placeholder:text-gray-400/70",
+            (hasSlashOverlay || hasMentionOverlay) ? "text-transparent caret-gray-900 dark:caret-gray-100 tabular-nums [&::selection]:bg-blue-200/30 dark:[&::selection]:bg-blue-800/30 [&::selection]:text-transparent" : "text-gray-900 dark:text-gray-100 tabular-nums"
           )}
           style={{ maxHeight: `${Math.max(MIN_INPUT_HEIGHT, maxInputHeight)}px` }}
           rows={3}

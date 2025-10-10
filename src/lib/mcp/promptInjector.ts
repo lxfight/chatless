@@ -1,5 +1,6 @@
 import { getAllConfiguredServers, getConnectedServers, getGlobalEnabledServers } from './chatIntegration';
 import { persistentCache } from './persistentCache';
+import { MCPPrompts } from '@/lib/prompts/SystemPrompts';
 
 export type InjectionResult = {
   systemMessages: Array<{ role: 'system'; content: string }>
@@ -22,20 +23,10 @@ type ProviderStrategy = {
 
 const defaultStrategy: ProviderStrategy = {
   buildProtocolMessage() {
-    return [
-      '外部工具调用规则：',
-      '• 仅在必须时调用（无法凭知识回答、用户明确请求操作）',
-      '• 优先使用用户@提及的服务器工具',
-      '• 调用格式：<use_mcp_tool><server_name>S</server_name><tool_name>T</tool_name><arguments>{JSON}</arguments></use_mcp_tool>',
-      '• 输出标签外禁止任何文字',
-      '• 遇到"connecting"状态时可直接尝试调用，系统会自动重连',
-      '• 错误调用将被惩罚'
-    ].join(' ');
+    return MCPPrompts.protocolRules;
   },
   buildEnabledServersLine(enabled: string[]) {
-    if (!enabled.length) return null;
-    const list = enabled.length > 3 ? `${enabled.slice(0, 3).join(', ')} (+${enabled.length - 3} more)` : enabled.join(', ');
-    return `可用服务器: ${list}`;
+    return MCPPrompts.buildEnabledServersLine(enabled);
   },
   buildFocusedHint() { return null; }
 };
