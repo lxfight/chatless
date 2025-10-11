@@ -9,20 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/kamjin3086/chatless/releases/latest">
-    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/kamjin3086/chatless?style=flat&logo=github&color=brightgreen&labelColor=2d333b" />
-  </a>
-  <a href="https://github.com/kamjin3086/chatless/blob/main/LICENSE">
-    <img alt="License" src="https://img.shields.io/badge/license-MIT-orange.svg?style=flat&labelColor=2d333b" />
-  </a>
-  <a href="https://github.com/kamjin3086/chatless/releases">
-    <img alt="Downloads" src="https://img.shields.io/github/downloads/kamjin3086/chatless/total?style=flat&logo=download&color=blue&labelColor=2d333b" />
-  </a>
-  <a href="https://github.com/kamjin3086/chatless/stargazers">
-    <img alt="Stars" src="https://img.shields.io/github/stars/kamjin3086/chatless?style=flat&logo=github&color=yellow&labelColor=2d333b" />
-  </a>
+  <img alt="GitHub Release" src="https://img.shields.io/github/v/release/kamjin3086/chatless?style=flat&logo=github&color=brightgreen&labelColor=2d333b" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-orange.svg?style=flat&labelColor=2d333b" />
+  <img alt="Downloads" src="https://img.shields.io/github/downloads/kamjin3086/chatless/total?style=flat&logo=download&color=blue&labelColor=2d333b" />
+  <img alt="Stars" src="https://img.shields.io/github/stars/kamjin3086/chatless?style=flat&logo=github&color=yellow&labelColor=2d333b" />
+  <br/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-purple?style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJBMTAgMTAgMCAwIDAgMiAxMmMwIDQuNDIgMi44NyA4LjE3IDYuODQgOS41LjUuMDguNjYtLjIzLjY2LS41di0xLjY5Yy0yLjc3LjYtMy4zNi0xLjM0LTMuMzYtMS4zNEMxMC4xNSAxNyA5LjUgMTYuNzEgOS41IDE2LjcxYy0uOTEtLjYyLjA3LS42LjA3LS42IDEgLjA3IDEuNTMgMS4wMyAxLjUzIDEuMDMuODcgMS41MiAyLjM0IDEuMDcgMi45MS44My4wOS0uNjUuMzUtMS4wNy42NC0xLjMxLTIuMjItLjI1LTQuNTUtMS4xMS00LjU1LTQuOTIgMC0xLjExLjM4LTIgMS4wMy0yLjcxLS4xLS4yNS0uNDUtMS4yOS4xLTIuNjQgMCAwIC44NC0uMjcgMi43NSAxLjAyLjc5LS4yMiAxLjY1LS4zMyAyLjUtLjMzLjg1IDAgMS43MS4xMSAyLjUuMzMgMS45MS0xLjI5IDIuNzUtMS4wMiAyLjc1LTEuMDIuNTUgMS4zNS4yIDIuMzkuMSAyLjY0LjY1LjcxIDEuMDMgMS42IDEuMDMgMi43MSAwIDMuODItMi4zNCA0LjY2LTQuNTcgNC45MS4zNi4zMS42OSAxLjIuNjkgMi40NXYzLjU0YzAgLjI3LjE2LjU5LjY3LjVBMTAuMDAxIDEwLjAwMSAwIDAgMCAyMiAxMkExMCAxMCAwIDAgMCAxMiAyIi8+PC9zdmc+&labelColor=2d333b" />
 </p>
+
 
 
 <p align="center">
