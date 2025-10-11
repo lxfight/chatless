@@ -94,7 +94,7 @@ For more development information, see [Contributing Guide](CONTRIBUTING.md)
 | Documentation | Link |
 | --- | --- |
 | User Guide | [View Docs](https://kamjin3086.github.io/chatless/docs) |
-| Quick Start | [Quick Start](https://kamjin3086.github.io/chatless/docs/quick-start) |
+| Quick Start | [Quick Start](https://kamjin3086.github.io/chatless/docs/getting-started) |
 | Features | [Feature Details](https://kamjin3086.github.io/chatless/docs/features) |
 | FAQ | [FAQ](https://kamjin3086.github.io/chatless/docs/faq) |
 | Roadmap | [Roadmap](https://github.com/users/kamjin3086/projects/1) |

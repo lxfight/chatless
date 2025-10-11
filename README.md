@@ -93,7 +93,7 @@ pnpm tauri build
 | 文档 | 链接 |
 | --- | --- |
 | 使用文档 | [查看文档](https://kamjin3086.github.io/chatless/docs) |
-| 快速开始 | [快速开始](https://kamjin3086.github.io/chatless/docs/quick-start) |
+| 快速开始 | [快速开始](https://kamjin3086.github.io/chatless/docs/getting-started) |
 | 功能介绍 | [功能详情](https://kamjin3086.github.io/chatless/docs/features) |
 | 常见问题 | [FAQ](https://kamjin3086.github.io/chatless/docs/faq) |
 | 开发计划 | [Roadmap](https://github.com/users/kamjin3086/projects/1) |
