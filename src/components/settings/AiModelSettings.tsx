@@ -124,7 +124,8 @@ export function AiModelSettings() {
   }, [filteredProviders]);
 
   // dnd-kit 传感器
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // 调高触发距离，减少误触；限定触发元素为拖拽把手
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -166,16 +167,17 @@ export function AiModelSettings() {
       transform: CSS.Transform.toString(transform),
       transition,
       opacity: isDragging ? 0.6 : 1,
+      willChange: isDragging ? 'transform' : undefined,
     };
     // 由顶层 openMap 控制展开态，默认折叠
     return (
-      <div ref={setNodeRef} style={style} className={"group transition-shadow duration-200 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
+      <div ref={setNodeRef} style={style} className={"group transition-shadow duration-150 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
         <div className="relative">
           <div className="flex-1">
               {React.cloneElement(children as any, {
               open: providerOpenMap[provider.name] ?? false,
               onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open })),
-              dragHandleProps: { ...attributes, ...listeners }
+              dragHandleProps: { ...attributes, ...listeners, role: 'button', tabIndex: -1 }
             })}
           </div>
         </div>

@@ -68,11 +68,11 @@ export async function syncDynamicProviders(): Promise<void> {
       // 从目录中找到定义，策略/默认URL等
       const def = AVAILABLE_PROVIDERS_CATALOG.find(d => d.name === p.name);
       if (!def) {
-        // 未在目录中，按 openai-compatible 兜底
+        // 未在目录中：使用用户在 Provider 配置中保存的 strategy（若无则回退 openai-compatible）
         const inst = createProviderInstance({
           id: p.name.toLowerCase(),
           name: p.name,
-          strategy: 'openai-compatible',
+          strategy: (p as any).strategy || 'openai-compatible',
           requiresKey: p.requiresKey,
           defaultUrl: p.url,
         }, p.url, p.apiKey);

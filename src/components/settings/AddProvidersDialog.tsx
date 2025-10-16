@@ -112,13 +112,24 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
       setEditingName(editProvider.name); // 使用原始name作为唯一标识
       setCustomDisplayName(editProvider.displayName || editProvider.name); // 使用displayName或回退到name
       setCustomUrl(editProvider.api_base_url);
-      setCustomStrategy(editProvider.strategy as CatalogStrategy);
+      // 先用“传入策略 -> catalog 默认策略 -> openai-compatible”作为即时回显，随后从仓库再二次修正
+      const cat = AVAILABLE_PROVIDERS_CATALOG.find(d => d.name === editProvider.name);
+      setCustomStrategy(((editProvider.strategy as CatalogStrategy) || (cat?.strategy as CatalogStrategy) || 'openai-compatible'));
       // 读取已保存的密钥（用于 UI 显示，可为空）
       (async () => {
         try {
           const list = await providerRepository.getAll();
           const target = list.find(p => p.name === editProvider.name);
-          setCustomApiKey((target as any)?.apiKey || '');
+          if (target) {
+            // 全量以仓库为准，确保回显最新保存值
+            setCustomDisplayName((target as any).displayName || target.name);
+            setCustomUrl(target.url || '');
+            const catalogDef = AVAILABLE_PROVIDERS_CATALOG.find(d => d.name === editProvider.name);
+            setCustomStrategy((((target as any).strategy as CatalogStrategy) || (catalogDef?.strategy as CatalogStrategy) || (editProvider.strategy as CatalogStrategy) || 'openai-compatible'));
+            setCustomApiKey((target as any)?.apiKey || '');
+          } else {
+            setCustomApiKey('');
+          }
         } catch { /* noop */ }
       })();
       setCustomModalOpen(true);
@@ -403,6 +414,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
                   <SelectValue placeholder="选择策略" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="openai-responses">OpenAI Responses</SelectItem>
                   <SelectItem value="openai-compatible">OpenAI 兼容</SelectItem>
                   <SelectItem value="openai">OpenAI 官方</SelectItem>
                   <SelectItem value="anthropic">Anthropic（Claude）</SelectItem>
@@ -572,6 +584,7 @@ export function AddProvidersDialog({ trigger, editProvider, open: externalOpen, 
                       <SelectValue placeholder="选择策略" />
                     </SelectTrigger>
                     <SelectContent>
+                  <SelectItem value="openai-responses">OpenAI Responses</SelectItem>
                       <SelectItem value="openai-compatible">OpenAI 兼容</SelectItem>
                       <SelectItem value="openai">OpenAI 官方</SelectItem>
                   <SelectItem value="anthropic">Anthropic（Claude）</SelectItem>

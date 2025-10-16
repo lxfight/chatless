@@ -33,7 +33,7 @@ export function useStableProviderIcon(provider: ProviderWithStatus) {
   const candidateBases = [catalogIdBase, iconBaseFromProp, nameSlugBase].filter(Boolean) as string[];
 
   // 是否“有目录 logo 的高概率候选”：存在目录定义或传入即为目录路径
-  const likelyCatalog = !!catalogDef || iconIsCatalog;
+  const _likelyCatalog = !!catalogDef || iconIsCatalog;
 
   // 统一“头像优先”策略：初始使用头像（或 data:image 图标），后台预加载命中后替换一次
   const initialSrc = React.useMemo(() => {
@@ -42,7 +42,8 @@ export function useStableProviderIcon(provider: ProviderWithStatus) {
       const mapped = getResolvedUrlForBase(base);
       if (mapped) return mapped;
     }
-    return getAvatarSync(provider.name.toLowerCase(), provider.name, 20);
+    // 自定义 Provider：使用更大的圆角头像，观感更自然
+    return getAvatarSync(provider.name.toLowerCase(), provider.name, 24);
   }, [iconIsData, iconStr, candidateBases, provider.name]);
   const [displaySrc, setDisplaySrc] = React.useState<string>(initialSrc);
 

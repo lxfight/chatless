@@ -175,17 +175,17 @@ export function ProviderTableRow({
       <div className={cn(
         "px-5 py-3.5 mx-3 my-2 rounded-xl border transition-all duration-200",
         isExpanded 
-          ? "bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-900/25 dark:to-indigo-900/20 border-blue-200/70 dark:border-blue-700/60 shadow-md ring-1 ring-blue-100/50 dark:ring-blue-800/40" 
-          : "bg-white/60 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/50 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 dark:hover:from-slate-800/60 dark:hover:to-blue-900/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm backdrop-blur-sm"
+          ? "bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-900/25 dark:to-indigo-900/20 border-blue-200/70 dark:border-blue-700/60 shadow-md ring-1 ring-blue-200/60 dark:ring-blue-800/60" 
+          : "bg-white/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/50 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 dark:hover:from-slate-800/60 dark:hover:to-blue-900/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-md hover:ring-1 hover:ring-blue-200/70 dark:hover:ring-blue-800/60"
       )}>
         <div className="grid grid-cols-12 gap-4 items-center">
           {/* 拖拽手柄 */}
           <div className="col-span-1 flex items-center gap-2 select-none">
             <button
               type="button"
-              className="cursor-grab active:cursor-grabbing text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50"
+              title="拖动排序"
+              className="h-7 w-7 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-all rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50"
               {...(dragHandleProps || {})}
-              onMouseDown={(e)=>{ e.preventDefault(); }}
             >
               <GripVertical className="w-4 h-4" />
             </button>
@@ -215,7 +215,10 @@ export function ProviderTableRow({
                 <img
                   src={iconSrc}
                   alt={provider.name}
-                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                  className="w-full h-full object-contain p-0.5 bg-white/80 dark:bg-slate-900/60"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.src = fallbackAvatarSrc;
@@ -338,6 +341,7 @@ export function ProviderTableRow({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
+                
                 <DropdownMenuItem onClick={() => setEditDialogOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
                   <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                     <Pencil className="w-4 h-4 text-gray-700 dark:text-gray-300" />
@@ -365,8 +369,27 @@ export function ProviderTableRow({
                     <span className="text-sm font-medium">{isExpanded ? '收起详情' : '展开详情'}</span>
                   </div>
                 </DropdownMenuItem>
-                {isDevelopmentEnvironment() && (
-                  <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
+                {/* 快速隐藏 */}
+                <DropdownMenuItem
+                  onClick={async () => {
+                    try {
+                      const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+                      await providerRepository.setVisibility(provider.name, false);
+                      const { toast } = await import('@/components/ui/sonner');
+                      toast.success('已隐藏', { description: provider.displayName || provider.name });
+                    } catch (e) { console.error(e); }
+                  }}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
+                    <ChevronDown className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">隐藏提供商</span>
+                    <span className="text-xs text-gray-500">从列表中隐藏（可在管理里重新显示）</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFetchDebuggerOpen(true)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
                     <div className="flex items-center justify-center w-8 h-8 rounded-md ring-1 ring-gray-300 dark:ring-gray-600 bg-transparent">
                       <BugPlay className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                     </div>
@@ -374,7 +397,6 @@ export function ProviderTableRow({
                       <span className="text-sm font-medium">调试网络请求</span>
                     </div>
                   </DropdownMenuItem>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -382,8 +404,8 @@ export function ProviderTableRow({
 
         {/* 展开的详情内容 */}
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-          <CollapsibleContent className="mt-5 pt-5 border-t border-blue-200/50 dark:border-blue-700/40">
-            <div className="space-y-5 bg-white/50 dark:bg-slate-900/30 rounded-xl p-4 border border-blue-100/50 dark:border-blue-800/30">
+          <CollapsibleContent className="mt-5 pt-5 border-t border-blue-200/50 dark:border-blue-700/40 will-change-transform">
+            <div className="space-y-5 bg-white/70 dark:bg-slate-900/30 rounded-xl p-4 border border-blue-100/50 dark:border-blue-800/30">
               <ProviderConnectionSection
                 provider={provider}
                 localUrl={localUrl}
@@ -437,7 +459,16 @@ export function ProviderTableRow({
         editProvider={editDialogOpen ? {
           name: provider.name, // 使用原始name作为唯一标识
           api_base_url: provider.api_base_url,
-          strategy: 'openai-compatible', // 默认策略，可以根据需要调整
+          // 回显：用户保存的 -> catalog 默认 -> openai-compatible
+          strategy: ((): string => {
+            const saved = (provider as any).strategy as string | undefined;
+            if (saved && saved.trim()) return saved;
+            try {
+              const { AVAILABLE_PROVIDERS_CATALOG } = require('@/lib/provider/catalog');
+              const def = AVAILABLE_PROVIDERS_CATALOG.find((d: any)=> d.name === provider.name);
+              return (def?.strategy as string) || 'openai-compatible';
+            } catch { return 'openai-compatible'; }
+          })(),
           displayName: provider.displayName || provider.name // 使用displayName或回退到name
         } : null}
       />

@@ -71,8 +71,13 @@ function ProviderModelItemBase(props: ProviderModelItemProps) {
         <button
           type="button"
           className="text-left text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate hover:bg-gray-100/60 dark:hover:bg-gray-800/60 rounded px-0.5"
-          title={(model.label || model.name) + '（点击复制ID）'}
-          onClick={async()=>{ try { await navigator.clipboard.writeText(model.name);  } catch { toast.error('复制失败'); } }}
+          title={model.name}
+          onClick={async()=>{ 
+            try { 
+              await navigator.clipboard.writeText(model.name);  
+              toast.success('已复制模型ID', { description: model.name, duration: 2000 });
+            } catch { toast.error('复制失败'); } 
+          }}
         >
           {model.label || model.name}
         </button>
