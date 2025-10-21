@@ -134,8 +134,11 @@ function ConversationItemImpl({
         <div className="flex items-center justify-between text-xs mt-0.5 ml-1.5">
           <div className="flex-1 min-w-0 flex items-center gap-1.5 pr-1">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{compactTime}</span>
-            <span className="text-slate-300 dark:text-slate-600">·</span>
-            <ModelLabelSpan conversation={conversation} />
+            {/* 模型名：默认隐藏，仅悬浮时显示，减轻视觉负担 */}
+            <span className="group-hover:inline hidden text-slate-300 dark:text-slate-600">·</span>
+            <div className="group-hover:flex hidden items-center">
+              <ModelLabelSpan conversation={conversation} />
+            </div>
           </div>
         </div>
       </li>

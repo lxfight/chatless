@@ -31,6 +31,10 @@ export interface Message {
   /** 图片数组，base64 Data URLs */
   images?: string[];
 
+  /** 版本化：同一用户消息下的多次回答进行分组显示 */
+  version_group_id?: string;
+  version_index?: number; // 0,1,2...
+
   /** 可选的结构化消息段（段驱动富文本渲染） */
   segments?: Array<
     | { kind: 'text'; text: string }

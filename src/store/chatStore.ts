@@ -40,6 +40,8 @@ interface ChatActions {
   deleteConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversationId: string) => void;
   addMessage: (message: Message) => Promise<Message | null>;
+  /** 在指定消息之后插入一条新消息（用于重试版本插入） */
+  insertMessageAfter: (afterMessageId: string, message: Message) => Promise<Message | null>;
   updateMessage: (messageId: string, updates: Partial<Message>) => Promise<void>;
   /**
    * 仅更新内存中的消息内容，不触发 DB IO
@@ -446,6 +448,97 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }
 
         return newMessage;
+      },
+
+      // 在指定消息之后插入一条新消息（用于版本化重试，将新回答插入到对应用户消息的版本组末尾）
+      insertMessageAfter: async (afterMessageId, messageData) => {
+        let conversation_id = messageData.conversation_id;
+        if (!conversation_id) {
+          // 若未传入，尝试从 afterMessage 所在会话推断
+          const st = get();
+          for (const conv of st.conversations) {
+            const idx = conv.messages?.findIndex(m => m.id === afterMessageId) ?? -1;
+            if (idx !== -1) { conversation_id = conv.id; break; }
+          }
+        }
+        if (!conversation_id) {
+          console.error("❌ [STORE] insertMessageAfter 失败: 无法解析会话ID");
+          return null;
+        }
+
+        const now = Date.now();
+        const newMessage: Message = {
+          ...messageData,
+          conversation_id,
+          created_at: messageData.created_at || now,
+          updated_at: messageData.updated_at || now,
+        };
+
+        let inserted = false;
+        set((state) => {
+          const conv = state.conversations.find(c => c.id === conversation_id);
+          if (!conv) return;
+          if (!Array.isArray(conv.messages)) conv.messages = [] as any;
+          const pos = conv.messages.findIndex(m => m.id === afterMessageId);
+          if (pos === -1) return;
+
+          // 计算一个合理的 created_at，使其位于 after 与下一条消息之间
+          const after = conv.messages[pos];
+          const next = conv.messages[pos + 1];
+          const targetTs = (() => {
+            const minAfter = (after?.created_at || now) + 1;
+            const maxBefore = next && next.created_at ? (next.created_at - 1) : (now);
+            if (maxBefore > minAfter) return minAfter;
+            return (after?.created_at || now) + 1;
+          })();
+          (newMessage as any).created_at = targetTs;
+          (newMessage as any).updated_at = targetTs;
+
+          conv.messages.splice(pos + 1, 0, newMessage);
+          conv.updated_at = now;
+          inserted = true;
+        });
+
+        if (!inserted) return null;
+
+        try {
+          const dbService = getDatabaseService();
+          const conversationRepo = dbService.getConversationRepository();
+          const messageRepo = dbService.getMessageRepository();
+
+          await conversationRepo.update(conversation_id, {} as any);
+
+          const document_reference_json = newMessage.document_reference ? JSON.stringify(newMessage.document_reference) : null;
+          const knowledge_base_reference_json = newMessage.knowledge_base_reference ? JSON.stringify(newMessage.knowledge_base_reference) : null;
+          const images_json = newMessage.images ? JSON.stringify(newMessage.images) : null;
+
+          await messageRepo.create({
+            id: newMessage.id,
+            conversation_id: conversation_id,
+            role: newMessage.role,
+            content: newMessage.content,
+            created_at: newMessage.created_at,
+            status: newMessage.status,
+            model: newMessage.model || null,
+            document_reference: document_reference_json,
+            knowledge_base_reference: knowledge_base_reference_json,
+            context_data: newMessage.context_data || null,
+            images: images_json,
+            segments: Array.isArray((newMessage as any).segments) ? JSON.stringify((newMessage as any).segments) : null,
+          } as any);
+
+          return newMessage;
+        } catch (error) {
+          console.error("❌ [STORE] insertMessageAfter 持久化失败:", error);
+          // 回滚内存插入
+          set((state) => {
+            const conv = state.conversations.find(c => c.id === conversation_id);
+            if (!conv) return;
+            const idx = conv.messages?.findIndex(m => m.id === newMessage.id) ?? -1;
+            if (idx !== -1) conv.messages.splice(idx, 1);
+          });
+          return null;
+        }
       },
 
       // 删除单条消息（用于在错误情况下回滚占位）

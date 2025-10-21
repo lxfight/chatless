@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatToolbar } from '@/components/chat/ChatToolbar';
+import { ScrollToBottomButton } from '@/components/chat/ScrollToBottomButton';
+import { NewMessageIndicator } from '@/components/chat/NewMessageIndicator';
 import type { Message } from "@/types/chat";
 import { useChatStore } from "@/store/chatStore";
 import { useSearchParams } from 'next/navigation';
@@ -113,7 +115,10 @@ export default function ChatPage() {
     messagesEndRef: managedEndRef,
     handleScrollToTop,
     handleScrollToBottom,
-    ensureBottomIfNear
+    ensureBottomIfNear,
+    showScrollToBottom,
+    hasNewMessageWhileAway,
+    shouldFollowOutput
   } = useScrollManagement(
       scrollContainerRef,
       currentConversation?.messages as Message[] | undefined,
@@ -326,6 +331,7 @@ export default function ChatPage() {
               messagesEndRef={managedEndRef}
               scrollParentRef={scrollContainerRef}
               onRegisterScrollToMessage={registerScrollToMessage}
+              shouldFollowOutput={shouldFollowOutput}
             initialTopMostItemIndex={(() => {
               const msgs = liveMessages;
               const idx = [...msgs].map((m)=>m.role).lastIndexOf('user');
@@ -334,6 +340,18 @@ export default function ChatPage() {
             />
             {/* managedEndRef 已由组件内部渲染，无需此处额外 div */}
           </div>
+          {/* 新消息指示器 - 用户查看历史消息时有新消息到达 */}
+          <NewMessageIndicator
+            show={hasNewMessageWhileAway && !isInputAreaHovered}
+            onClick={handleScrollToBottom}
+          />
+          
+          {/* 回到底部按钮 - 用户向上滚动时显示 */}
+          <ScrollToBottomButton 
+            show={showScrollToBottom && !hasNewMessageWhileAway && !isInputAreaHovered}
+            onClick={handleScrollToBottom}
+          />
+          
           {/* 工具栏 - 超过3条消息时显示，且不在输入框区域时显示 */}
           <div 
             className={`fixed right-6 md:right-6 bottom-30 md:bottom-38 z-40 transition-opacity duration-300 ${

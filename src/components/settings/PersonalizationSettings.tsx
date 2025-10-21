@@ -4,7 +4,7 @@ import { Palette } from 'lucide-react';
 import { ToggleSwitch } from "./ToggleSwitch";
 import { SelectField } from "./SelectField";
 import { useUiPreferences } from "@/store/uiPreferences";
-import type { SectionIconPreset } from "./SectionIcon";
+// import type { SectionIconPreset } from "./SectionIcon";
 
 export function PersonalizationSettings() {
   const ui = useUiPreferences();
@@ -52,7 +52,7 @@ export function PersonalizationSettings() {
           value={ui.windowSizePreset as any}
           onChange={async (v) => {
             ui.setWindowSizePreset(v as any);
-            const [w,h] = (v as string).split('x').map((n)=>parseInt(n,10));
+            const [w,h] = String(v).split('x').map((n)=>parseInt(n,10));
             if (Number.isFinite(w) && Number.isFinite(h)) {
               try {
                 const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');

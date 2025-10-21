@@ -11,7 +11,7 @@ import { ChatGateway } from '@/lib/chat/ChatGateway';
 import { HistoryBuilder } from '@/lib/chat/HistoryBuilder';
 import type { Message, Conversation } from "@/types/chat";
 import { exportConversationMarkdown } from '@/lib/chat/actions/download';
-import { retryAssistantMessage } from '@/lib/chat/actions/retry';
+// import { retryAssistantMessage } from '@/lib/chat/actions/retry';
 import { runRagFlow } from '@/lib/chat/actions/ragFlow';
 import { MessageAutoSaver } from '@/lib/chat/MessageAutoSaver';
 import { ModelParametersService } from '@/lib/model-parameters';
@@ -196,6 +196,74 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     }
   }, []);
 
+  /**
+   * 构建发送给LLM的消息历史
+   * 
+   * @param conversationId 会话ID
+   * @param messages 消息列表
+   * @param userContent 用户当前输入的内容
+   * @param options 可选参数
+   * @returns 构建好的历史消息数组
+   */
+  const buildLlmHistory = useCallback(async (
+    conversationId: string,
+    messages: Message[],
+    userContent: string,
+    options?: {
+      images?: string[];
+      contextData?: string;
+      excludeMessagesAfterIndex?: number; // 用于重试时排除后续消息
+    }
+  ): Promise<LlmMessage[]> => {
+    const hb = new HistoryBuilder();
+    
+    // 1. 添加系统提示词
+    try {
+      const conv = useChatStore.getState().conversations.find((c: any) => c.id === conversationId);
+      const applied = conv?.system_prompt_applied;
+      if (applied?.promptId) {
+        const prompt = usePromptStore.getState().prompts.find((p: any) => p.id === applied.promptId);
+        if (prompt) {
+          const rendered = renderPromptContent(prompt.content, applied.variableValues);
+          if (rendered && rendered.trim()) hb.addSystem(rendered);
+        }
+      }
+      
+      // 2. 添加MCP系统注入
+      try {
+        const { buildMcpSystemInjections } = await import('@/lib/mcp/promptInjector');
+        const injection = await buildMcpSystemInjections(userContent, conversationId);
+        for (const m of injection.systemMessages) hb.addSystem((m as any).content);
+      } catch { /* 忽略MCP注入失败 */ }
+    } catch { /* 忽略系统提示构建失败 */ }
+    
+    // 3. 处理历史消息
+    if (messages && messages.length > 0) {
+      // 如果指定了excludeMessagesAfterIndex，只取该索引之前的消息
+      const messagesToUse = options?.excludeMessagesAfterIndex !== undefined
+        ? messages.slice(0, options.excludeMessagesAfterIndex)
+        : messages.slice(-10); // 默认只取最近10条
+      
+      // 对于有版本的消息，只使用每个版本组的最新版本
+      const { getLatestVersionMessages } = await import('@/lib/chat/MessageVersionHelper');
+      const latestVersionMessages = getLatestVersionMessages(messagesToUse);
+      
+      hb.addMany(latestVersionMessages
+        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg: any) => ({
+          role: msg.role,
+          content: msg.content || '',
+          images: msg.images,
+          contextData: msg.context_data
+        })) as any);
+    }
+    
+    // 4. 添加当前用户输入
+    hb.addUser(userContent, options?.images, options?.contextData);
+    
+    return hb.take();
+  }, []);
+
   const handleSendMessage = useCallback(async (
     content: string, 
     documentData?: { 
@@ -368,42 +436,15 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     }
 
     // 构建历史消息（含系统提示词 + MCP 上下文【混合模式】）
-    const hb = new HistoryBuilder();
-    try {
-      const conv = currentConversationId ? useChatStore.getState().conversations.find((c:any)=>c.id===currentConversationId) : null;
-      const applied = conv?.system_prompt_applied;
-      if (applied?.promptId) {
-        const prompt = usePromptStore.getState().prompts.find((p:any)=>p.id===applied.promptId);
-        if (prompt) {
-          const rendered = renderPromptContent(prompt.content, applied.variableValues);
-          if (rendered && rendered.trim()) hb.addSystem(rendered);
-        }
+    const historyForLlm = await buildLlmHistory(
+      finalConversationId,
+      currentConversation?.messages || [],
+      content,
+      {
+        images: options?.images,
+        contextData: documentData?.contextData,
       }
-      // 使用独立模块进行 MCP 系统注入（带缓存与限流）
-      try {
-        const { buildMcpSystemInjections } = await import('@/lib/mcp/promptInjector');
-        const injection = await buildMcpSystemInjections(content, currentConversationId || undefined);
-        for (const m of injection.systemMessages) hb.addSystem((m as any).content);
-      } catch {
-        // 忽略注入失败
-      }
-    } catch {
-      // 忽略系统提示构建失败
-    }
-    if (currentConversation?.messages) {
-      // 只取最近的几条消息，避免上下文过长
-      const recentMessages = currentConversation.messages.slice(-10);
-      hb.addMany(recentMessages
-        .filter((msg:any)=> msg.role==='user'||msg.role==='assistant')
-        .map((msg:any)=> ({ 
-          role: msg.role, 
-          content: msg.content || '', 
-          images: msg.images,
-          contextData: msg.context_data 
-        })) as any);
-    }
-    hb.addUser(content, options?.images, documentData?.contextData);
-    const historyForLlm: LlmMessage[] = hb.take();
+    );
 
     // 调试信息已移除，避免控制台噪音
 
@@ -924,8 +965,230 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   }, [currentConversationId, deleteConversation]);
 
   const handleRetryMessage = useCallback(async (messageIdToRetry: string) => {
-    await retryAssistantMessage(currentConversationId, messageIdToRetry, handleSendMessage);
-  }, [currentConversationId, handleSendMessage]);
+    const st = useChatStore.getState();
+    const conv = currentConversationId ? st.conversations.find(c => c.id === currentConversationId) : null;
+    if (!conv) return;
+    const idx = conv.messages.findIndex(m => m.id === messageIdToRetry);
+    if (idx < 0) return;
+    const target = conv.messages[idx];
+    if (target.role !== 'assistant') return;
+    // 找前一个 user
+    let userIdx = idx - 1;
+    while (userIdx >= 0 && conv.messages[userIdx].role !== 'user') userIdx--;
+    if (userIdx < 0) return;
+    const userMsg = conv.messages[userIdx];
+
+    // 版本组信息：如果是第一次重试，建立版本组；否则使用已有版本组
+    const groupId = target.version_group_id || userMsg.id;
+    
+    // 如果原消息还没有版本组ID，先给它设置上（作为版本0）
+    if (!target.version_group_id) {
+      await updateMessage(target.id, {
+        version_group_id: groupId,
+        version_index: 0,
+      });
+    }
+    
+    const siblings = conv.messages.filter(m => m.role==='assistant' && m.version_group_id === groupId);
+    const nextIndex = (siblings.length > 0 ? Math.max(...siblings.map(s => s.version_index || 0)) + 1 : 1);
+
+    // 创建新版本消息（不是插入到列表后面，而是与原消息关联为同一组）
+    const newAssistantId = uuidv4();
+    const newVersionMsg: Message = {
+      id: newAssistantId,
+      conversation_id: conv.id,
+      role: 'assistant',
+      content: '',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      status: 'loading',
+      model: conv.model_id,
+      version_group_id: groupId,
+      version_index: nextIndex,
+    } as any;
+    
+    // 直接添加到消息列表中（会被分组逻辑处理）
+    await st.addMessage(newVersionMsg);
+
+    // 构建历史（不包含当前被重试的 assistant 内容）
+    // 使用统一的 buildLlmHistory 函数，传入 userIdx 作为截止索引
+    const historyForLlm = await buildLlmHistory(
+      conv.id,
+      conv.messages,
+      userMsg.content,
+      {
+        images: userMsg.images,
+        contextData: userMsg.context_data,
+        excludeMessagesAfterIndex: userIdx, // 只取到 user 消息为止，不包含后续的 assistant 消息
+      }
+    );
+
+    // 选择 provider/model 与参数
+    const modelToUse = conv.model_id;
+    let effectiveProvider = currentProviderName;
+    try {
+      const { specializedStorage } = await import('@/lib/storage');
+      const lastPair = await specializedStorage.models.getLastSelectedModelPair();
+      if (lastPair && lastPair.modelId === modelToUse && lastPair.provider) {
+        effectiveProvider = lastPair.provider;
+      }
+    } catch { /* noop */ }
+
+    const apiKeyValid = await checkApiKeyValidity(effectiveProvider, modelToUse);
+    if (!apiKeyValid) {
+      toast.error('API密钥无效', { description: '请前往设置页面配置有效的API密钥' });
+      // 占位转错误
+      void updateMessage(newAssistantId, { status: 'error', content: '未配置 API 密钥' });
+      return;
+    }
+
+    const thinking_start_time = Date.now();
+    const streamInstanceId = uuidv4();
+
+    const { StructuredStreamTokenizer } = require('@/lib/chat/StructuredStreamTokenizer');
+    const tokenizer = new StructuredStreamTokenizer();
+
+    const streamCallbacks: StreamCallbacks = {
+      onStart: () => {
+        // 重置内容引用（重要！避免使用旧消息的内容）
+        currentContentRef.current = '';
+        pendingContentRef.current = '';
+        
+        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+          await updateMessage(newAssistantId, {
+            content: latest,
+            thinking_start_time,
+          });
+        }, 1000);
+        setTokenCount(0);
+        batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
+      },
+      onToken: (token) => {
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
+        currentContentRef.current += token;
+        lastActivityTimeRef.current = Date.now();
+        try {
+          const events = tokenizer.push(token);
+          const st = useChatStore.getState();
+          for (const ev of events) {
+            if (ev.type === 'think_start') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_START' } as any); }
+            else if (ev.type === 'think_chunk') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_APPEND', chunk: ev.chunk } as any); }
+            else if (ev.type === 'think_end') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any); }
+            else if (ev.type === 'text' && ev.chunk) st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
+            if (ev.type === 'tool_call') {
+              const cardId = crypto.randomUUID();
+              const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: newAssistantId }});
+              const prev = currentContentRef.current || '';
+              currentContentRef.current = prev + (prev ? '\n' : '') + marker;
+              try { updateMessageContentInMemory(newAssistantId, currentContentRef.current); } catch { /* noop */ }
+              useChatStore.getState().dispatchMessageAction(newAssistantId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
+            }
+          }
+          updateMessageContentInMemory(newAssistantId, currentContentRef.current);
+        } catch { updateMessageContentInMemory(newAssistantId, currentContentRef.current); }
+        setTokenCount(prev => prev + 1);
+        autoSaverRef.current?.update(currentContentRef.current);
+      },
+      onComplete: () => {
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) {
+          return;
+        }
+        
+        // 刷新 tokenizer 缓冲区的剩余内容
+        try {
+          const flushEvents = tokenizer.flush();
+          const st = useChatStore.getState();
+          for (const ev of flushEvents) {
+            if (ev.type === 'text' && ev.chunk) {
+              st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
+              currentContentRef.current += ev.chunk;
+            }
+          }
+        } catch { /* noop */ }
+        
+        autoSaverRef.current?.stop();
+        const finalContent = currentContentRef.current;
+        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
+        
+        // 先停止自动保存并flush
+        void autoSaverRef.current?.flush().finally(() => {
+          try {
+            const st = useChatStore.getState();
+            const conv = st.conversations.find(c => c.id === currentConversationId);
+            const msg = conv?.messages.find(m => m.id === newAssistantId) as any;
+            
+            // 确保segments正确生成
+            const segs = Array.isArray(msg?.segments) ? msg.segments : [];
+            
+            void updateMessage(newAssistantId, {
+              content: finalContent,
+              status: 'sent',
+              thinking_start_time,
+              thinking_duration,
+              model: modelToUse,
+              version_group_id: groupId,
+              version_index: nextIndex,
+            });
+            
+            // 最终保险：若仍处于 THINK 且未收到 THINK_END，则补打一条
+            try {
+              const stillThinking = segs.length && segs[segs.length-1]?.kind === 'think';
+              if (stillThinking) {
+                st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any);
+              }
+            } catch { void 0; }
+            
+            // 触发 STREAM_END
+            st.dispatchMessageAction(newAssistantId, { type: 'STREAM_END' });
+          } catch {
+            void updateMessage(newAssistantId, {
+              content: finalContent,
+              status: 'sent',
+              thinking_start_time,
+              thinking_duration,
+              model: modelToUse,
+              version_group_id: groupId,
+              version_index: nextIndex,
+            });
+          }
+        });
+        
+        currentContentRef.current = '';
+        setTokenCount(0);
+        autoSaverRef.current = null;
+      },
+      onError: (error) => {
+        autoSaverRef.current?.stop();
+        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
+        void updateMessage(newAssistantId, {
+          status: 'error',
+          content: (error as any)?.userMessage || (error instanceof Error ? error.message : '发生错误'),
+          thinking_start_time,
+          thinking_duration,
+        });
+        currentContentRef.current = '';
+        setTokenCount(0);
+        autoSaverRef.current = null;
+      }
+    };
+    (streamCallbacks as any).__instanceId = streamInstanceId;
+
+    try {
+      const modelParams = await ModelParametersService.getModelParameters(effectiveProvider, modelToUse);
+      const modelOpts = ModelParametersService.convertToChatOptions(modelParams);
+      const composed = await composeChatOptions(effectiveProvider, modelToUse, modelOpts, currentConversationId || null, userMsg.content);
+      const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+      await gateway.stream(historyForLlm as any, streamCallbacks);
+    } catch {
+      try {
+        const composed = await composeChatOptions(effectiveProvider, modelToUse, {}, currentConversationId || null, userMsg.content);
+        const gateway = new ChatGateway({ provider: effectiveProvider, model: modelToUse, options: composed });
+        await gateway.stream(historyForLlm as any, streamCallbacks);
+      } catch (err) {
+        void updateMessage(newAssistantId, { status: 'error', content: (err instanceof Error ? err.message : '重试失败') });
+      }
+    }
+  }, [currentConversationId, currentConversation, currentProviderName, checkApiKeyValidity, updateMessage, updateMessageContentInMemory]);
 
   useEffect(() => {
     if (isGenerating) {

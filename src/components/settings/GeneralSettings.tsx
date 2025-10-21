@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SettingsCard } from "./SettingsCard";
-import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { SelectField } from "./SelectField";
 import { SlidersHorizontal } from "lucide-react";
-import { toast } from "@/components/ui/sonner";
 import StorageUtil from "@/lib/storage";
 import { useMarkdownFontSize } from "@/hooks/useMarkdownFontSize";
 import { useGlobalFontSize } from "@/hooks/useGlobalFontSize";
+import { useMarkdownTheme, MARKDOWN_THEMES } from "@/hooks/useMarkdownTheme";
 import { PersonalizationSettings } from "./PersonalizationSettings";
 import { useUiPreferences } from '@/store/uiPreferences';
-import { InputField } from './InputField';
 import { ToggleSwitch } from './ToggleSwitch';
 import { ShortcutField } from './ShortcutField';
 import { ThemeInitializer } from "@/lib/utils/themeInitializer";
@@ -26,6 +23,8 @@ export function GeneralSettings() {
   const [initialized, setInitialized] = useState(false);
   const { size: chatFontSize, setSize: setChatFontSize } = useMarkdownFontSize();
   const { size: globalFontSize, setSize: setGlobalFontSize } = useGlobalFontSize();
+  const { theme: markdownTheme, setTheme: setMarkdownTheme } = useMarkdownTheme();
+  const ui = useUiPreferences();
 
   // 加载初始设置
   useEffect(() => {
@@ -102,27 +101,62 @@ export function GeneralSettings() {
            onChange={setTheme}
          />
 
-         <SelectField
-           label="聊天内容字体大小"
-           options={[
-             { value: "small", label: "小" },
-             { value: "medium", label: "中" },
-             { value: "large", label: "大" },
-           ]}
-           value={chatFontSize}
-           onChange={(v) => setChatFontSize(v as any)}
-         />
+        {/* 聊天显示 */}
+        <div className="pt-4 border-t border-slate-100/80 dark:border-slate-800/60">
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">聊天显示</div>
 
-         <SelectField
-           label="界面文本大小"
-           options={[
-             { value: "small", label: "小" },
-             { value: "medium", label: "中" },
-             { value: "large", label: "大" },
-           ]}
-           value={globalFontSize}
-           onChange={(v) => setGlobalFontSize(v as any)}
-         />
+          <SelectField
+            label="聊天内容字体大小"
+            options={[
+              { value: "small", label: "小" },
+              { value: "medium", label: "中" },
+              { value: "large", label: "大" },
+            ]}
+            value={chatFontSize}
+            onChange={(v) => setChatFontSize(v as any)}
+          />
+
+          <SelectField
+            label="Markdown渲染主题"
+            description="选择聊天消息的显示风格，不同主题提供不同的视觉体验"
+            options={[
+              { value: "swiss", label: `${MARKDOWN_THEMES.swiss.icon} ${MARKDOWN_THEMES.swiss.name}` },
+              { value: "minimal", label: `${MARKDOWN_THEMES.minimal.icon} ${MARKDOWN_THEMES.minimal.name}` },
+              { value: "modern", label: `${MARKDOWN_THEMES.modern.icon} ${MARKDOWN_THEMES.modern.name}` },
+              { value: "classic", label: `${MARKDOWN_THEMES.classic.icon} ${MARKDOWN_THEMES.classic.name}` },
+              { value: "github", label: `${MARKDOWN_THEMES.github.icon} ${MARKDOWN_THEMES.github.name}` },
+            ]}
+            value={markdownTheme}
+            onChange={(v) => setMarkdownTheme(v as any)}
+          />
+
+          <SelectField
+            label="逐字淡入强度"
+            options={[
+              { value: 'off', label: '关闭' },
+              { value: 'light', label: '轻' },
+              { value: 'normal', label: '中（默认）' },
+              { value: 'strong', label: '重' },
+            ]}
+            value={ui.charFadeIntensity as any}
+            onChange={(v) => ui.setCharFadeIntensity(v as any)}
+          />
+        </div>
+
+        {/* 界面显示 */}
+        <div className="pt-4 border-t border-slate-100/80 dark:border-slate-800/60">
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">界面显示</div>
+          <SelectField
+            label="界面文本大小"
+            options={[
+              { value: "small", label: "小" },
+              { value: "medium", label: "中" },
+              { value: "large", label: "大" },
+            ]}
+            value={globalFontSize}
+            onChange={(v) => setGlobalFontSize(v as any)}
+          />
+        </div>
 
                  {/* 应用行为设置 */}
          {(() => {

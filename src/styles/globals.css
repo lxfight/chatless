@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../node_modules/streamdown/dist/index.js";
 :root {
   /* 用于逐字动画的默认延迟（可在元素上通过 --char-delay 覆盖） */
   --char-delay: 12ms;

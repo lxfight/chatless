@@ -47,6 +47,10 @@ interface ChatMessageProps {
   images?: string[];
   segments?: Message['segments'];
   viewModel?: Message['segments_vm'];
+  version_group_id?: string;
+  version_index?: number;
+  /** 可选：外部注入的版本切换控制（用于版本组首条顶部展示） */
+  versionControls?: { current: number; total: number; onPrev: () => void; onNext: () => void } | null;
 }
 
 const formatTimestamp = (timestamp: string | undefined): string => {
@@ -55,13 +59,18 @@ const formatTimestamp = (timestamp: string | undefined): string => {
     const d = new Date(timestamp);
     if (Number.isNaN(d.getTime())) return '';
     const now = new Date();
+    const isSameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const isYesterday = d.getFullYear() === yest.getFullYear() && d.getMonth() === yest.getMonth() && d.getDate() === yest.getDate();
     const two = (n: number) => (n < 10 ? `0${n}` : String(n));
-    const md = `${two(d.getMonth() + 1)}-${two(d.getDate())}`;
     const hm = `${two(d.getHours())}:${two(d.getMinutes())}`;
-    const sameYear = d.getFullYear() === now.getFullYear();
-    return sameYear ? `${md} ${hm}` : `${d.getFullYear()}-${md} ${hm}`;
-  } catch (e) {
-    void e;
+    if (isSameDay) return hm; // 当天只显示时间
+    if (isYesterday) return `${hm} 昨日`;
+    const md = `${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+    const y = d.getFullYear();
+    const sameYear = y === now.getFullYear();
+    return sameYear ? `${hm} ${md}` : `${hm} ${y}-${md}`; // 日期显示在时间后面
+  } catch {
     return '';
   }
 };
@@ -90,6 +99,8 @@ function ChatMessageComponent({
   images,
   segments,
   viewModel,
+  version_index: _version_index,
+  versionControls = null,
 }: ChatMessageProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -281,6 +292,49 @@ function ChatMessageComponent({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 底部版本切换器（仅AI消息 + 有版本时显示） */}
+        {!isUser && versionControls && versionControls.total > 1 && (
+          <div className="flex items-center justify-center mt-3 mb-1">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-400 select-none">
+              <button
+                className={cn(
+                  "w-6 h-6 flex items-center justify-center rounded-full transition-all",
+                  versionControls.current <= 1
+                    ? "opacity-30 pointer-events-none"
+                    : "hover:bg-slate-200/60 dark:hover:bg-slate-700/60 active:scale-95"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  versionControls.onPrev();
+                }}
+                title="上一版本"
+                aria-label="上一版本"
+              >
+                ‹
+              </button>
+              <span className="font-medium tabular-nums">
+                {versionControls.current} / {versionControls.total}
+              </span>
+              <button
+                className={cn(
+                  "w-6 h-6 flex items-center justify-center rounded-full transition-all",
+                  versionControls.current >= versionControls.total
+                    ? "opacity-30 pointer-events-none"
+                    : "hover:bg-slate-200/60 dark:hover:bg-slate-700/60 active:scale-95"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  versionControls.onNext();
+                }}
+                title="下一版本"
+                aria-label="下一版本"
+              >
+                ›
+              </button>
+            </div>
           </div>
         )}
       </div>
