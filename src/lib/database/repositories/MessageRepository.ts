@@ -61,7 +61,8 @@ export class MessageRepository extends BaseRepository<Message> {
         status, model, document_reference, context_data, images,
         thinking_start_time, thinking_duration,
         knowledge_base_reference,
-        segments
+        segments,
+        version_group_id, version_index
       FROM messages 
       WHERE conversation_id = ?
       ORDER BY created_at ASC
@@ -335,7 +336,7 @@ export class MessageRepository extends BaseRepository<Message> {
    * 将数据库记录映射为Message对象
    */
   private mapToMessage(record: any): Message {
-    return {
+    const message: any = {
       id: record.id,
       conversation_id: record.conversation_id,
       role: record.role,
@@ -352,6 +353,16 @@ export class MessageRepository extends BaseRepository<Message> {
       images: this.parseImagesField(record.images),
       segments: this.parseJsonField(record.segments)
     };
+    
+    // 添加版本字段（如果存在）
+    if (record.version_group_id !== undefined && record.version_group_id !== null) {
+      message.version_group_id = record.version_group_id;
+    }
+    if (record.version_index !== undefined && record.version_index !== null) {
+      message.version_index = record.version_index;
+    }
+    
+    return message;
   }
 
   /**

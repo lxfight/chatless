@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @source "../../node_modules/streamdown/dist/index.js";
+@import "./markdown.css";
+
 :root {
   /* 用于逐字动画的默认延迟（可在元素上通过 --char-delay 覆盖） */
   --char-delay: 12ms;
@@ -180,37 +182,10 @@ body {
   max-width: 100%;
 }
 
-/* Markdown内容特殊样式 */
-.markdown-content {
-  width: 100%;
-  max-width: 100%;
-}
-
-.markdown-content pre,
-.markdown-content code,
-.markdown-content table {
-  max-width: 100%;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.markdown-content pre > code {
-  white-space: pre-wrap;
-}
-
-.markdown-content img {
-  max-width: 100%;
-  height: auto;
-}
-
-.markdown-content a {
-  word-break: break-all;
-}
-
-/* 确保ai-content中所有元素都不会溢出 */
-.ai-content * {
-  max-width: 100%;
-}
+/* 
+  Markdown内容样式已移除，恢复原生渲染
+  所有Markdown样式现在在 markdown.css 中统一管理（当前为最小化状态）
+*/
 
 .custom-scrollbar::-webkit-scrollbar-track {
   background-color: hsl(var(--muted)); /* Use HSL variable */
@@ -966,64 +941,52 @@ li+li { margin-top: 0.375rem; }
   border-top-color: rgba(71, 85, 105, 0.5) !important;
 }
 
-/* Compact markdown for chat bubbles (tighter) */
-.chat-prose{ line-height:1.45; }
-.chat-prose :where(p){
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-}
-.chat-prose :where(ul,ol){
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-  padding-left: 1rem;
-}
-.chat-prose :where(li){
-  margin-top: 0.1rem;
-  margin-bottom: 0.1rem;
-}
-.chat-prose :where(h1,h2,h3,h4){
-  margin-top: 0.5rem;
-  margin-bottom: 0.25rem;
-}
-.chat-prose :where(pre){
-  margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
-}
-.chat-prose :where(blockquote){
-  margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
-  padding-left: 0.6rem;
-  border-left: 3px solid rgba(148,163,184,0.4);
+/* 
+  注意：Markdown样式已移至 markdown.css 统一管理
+  以下样式已被注释，避免与主题系统冲突
+*/
+
+/* Compact markdown for chat bubbles (tighter) - 已废弃，使用主题系统 */
+/* .chat-prose{ line-height:1.45; } */
+/* .chat-prose :where(p){ margin-top: 0.25rem; margin-bottom: 0.25rem; } */
+/* .chat-prose :where(ul,ol){ margin-top: 0.25rem; margin-bottom: 0.25rem; padding-left: 1rem; } */
+/* .chat-prose :where(li){ margin-top: 0.1rem; margin-bottom: 0.1rem; } */
+/* .chat-prose :where(h1,h2,h3,h4){ margin-top: 0.5rem; margin-bottom: 0.25rem; } */
+/* .chat-prose :where(pre){ margin-top: 0.35rem; margin-bottom: 0.35rem; } */
+/* .chat-prose :where(blockquote){ margin-top: 0.35rem; margin-bottom: 0.35rem; padding-left: 0.6rem; border-left: 3px solid rgba(148,163,184,0.4); } */
+
+/* === Chat Markdown table enhancements - 已移至 markdown.css === */
+/* .prose table{ width: 100%; border-collapse: collapse; table-layout: auto; } */
+/* .prose thead th{ position: sticky; top: 0; z-index: 1; background-color: rgba(255,255,255,0.8); backdrop-filter: blur(2px); } */
+/* .dark .prose thead th{ background-color: rgba(15,23,42,0.75); } */
+/* .prose th, .prose td{ padding: 0.375rem 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.25); } */
+/* .dark .prose th, .dark .prose td{ border-bottom: 1px solid rgba(100,116,139,0.3); } */
+/* .prose tbody tr:nth-child(odd){ background-color: rgba(0,0,0,0.02); } */
+/* .dark .prose tbody tr:nth-child(odd){ background-color: rgba(255,255,255,0.03); } */
+
+/* === 思考气泡动画 === */
+
+/* 呼吸效果：用于思考内容的轻微透明度变化 */
+@keyframes breathe {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
-/* === Chat Markdown table enhancements (simple & safe) === */
-.prose table{
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: auto;
+/* 波浪弹跳效果：用于三个点的上下弹动 */
+@keyframes bounce-wave {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
 }
-.prose thead th{
-  position: sticky; /* stick while scrolling聊天区 */
-  top: 0;
-  z-index: 1;
-  background-color: rgba(255,255,255,0.8);
-  backdrop-filter: blur(2px);
-}
-.dark .prose thead th{
-  background-color: rgba(15,23,42,0.75); /* slate-900/75 */
-}
-.prose th,
-.prose td{
-  padding: 0.375rem 0.75rem; /* 紧凑行高 */
-  border-bottom: 1px solid rgba(148,163,184,0.25); /* slate-400/25 */
-}
-.dark .prose th,
-.dark .prose td{
-  border-bottom: 1px solid rgba(100,116,139,0.3); /* slate-500/30 */
-}
-.prose tbody tr:nth-child(odd){
-  background-color: rgba(0,0,0,0.02);
-}
-.dark .prose tbody tr:nth-child(odd){
-  background-color: rgba(255,255,255,0.03);
+
+/* Tailwind 动画类 */
+.animate-bounce-wave {
+  animation: bounce-wave 1.4s ease-in-out infinite;
 }

@@ -49,13 +49,18 @@ function ConversationItemImpl({
   onDuplicate,
   onExport,
 }: ConversationItemProps) {
+  // 使用固定的时间戳数字作为依赖，避免对象引用变化导致的重新计算
+  // 但在格式化时仍然使用Date对象
+  const updatedAtTimestamp = new Date(conversation.updated_at).getTime();
+  
   const compactTime = useMemo(() => {
-    const formattedTime = formatDistanceToNow(conversation.updated_at, {
+    // formatDistanceToNow需要Date对象，而不是时间戳数字
+    const formattedTime = formatDistanceToNow(new Date(updatedAtTimestamp), {
       addSuffix: true,
       locale: zhCN,
     });
     return formattedTime.replace(/^大约\s*/, '约 ');
-  }, [conversation.updated_at]);
+  }, [updatedAtTimestamp]);
 
   return (
     <ContextMenu
@@ -131,12 +136,12 @@ function ConversationItemImpl({
           )}
         </div>
 
-        <div className="flex items-center justify-between text-xs mt-0.5 ml-1.5">
+        <div className="flex items-center justify-between text-xs mt-0.5 ml-1.5 min-h-[14px]">
           <div className="flex-1 min-w-0 flex items-center gap-1.5 pr-1">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{compactTime}</span>
-            {/* 模型名：默认隐藏，仅悬浮时显示，减轻视觉负担 */}
-            <span className="group-hover:inline hidden text-slate-300 dark:text-slate-600">·</span>
-            <div className="group-hover:flex hidden items-center">
+            {/* 模型名：使用opacity控制显示，min-h保证高度不跳动 */}
+            <span className="text-slate-300 dark:text-slate-600 transition-opacity duration-200 group-hover:opacity-100 opacity-0 pointer-events-none">·</span>
+            <div className="flex items-center transition-opacity duration-200 group-hover:opacity-100 opacity-0 pointer-events-none">
               <ModelLabelSpan conversation={conversation} />
             </div>
           </div>

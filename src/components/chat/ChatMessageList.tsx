@@ -47,6 +47,7 @@ export function ChatMessageList({
   const renderItems = React.useMemo(() => {
     const items: Array<{ type: 'single' | 'group'; message: Message; versions?: Message[] }> = [];
     const processedIds = new Set<string>();
+    const processedGroups = new Set<string>();
 
     for (const msg of messages) {
       if (processedIds.has(msg.id)) continue;
@@ -55,21 +56,27 @@ export function ChatMessageList({
       const groupId = (msg as any).version_group_id as string | undefined;
 
       if (isAssistant && groupId) {
+        // 如果这个组已经处理过，跳过
+        if (processedGroups.has(groupId)) {
+          processedIds.add(msg.id);
+          continue;
+        }
+
         // 找出同组的所有版本
         const group = messages.filter((m: any) => 
           m.role === 'assistant' && 
           (m.version_group_id === groupId)
         );
         
-        // 按 version_index 排序，找到第一个版本
+        // 按 version_index 排序
         const sorted = [...group].sort((a: any, b: any) => (a.version_index ?? 0) - (b.version_index ?? 0));
         
-        // 只添加一次（用第一个版本代表整个组）
-        if (msg.id === sorted[0].id) {
-          items.push({ type: 'group', message: msg, versions: group });
-          // 标记所有版本为已处理
-          group.forEach(v => processedIds.add(v.id));
-        }
+        // 添加整个版本组（用第一个版本的位置）
+        items.push({ type: 'group', message: sorted[0], versions: sorted });
+        
+        // 标记整个组为已处理
+        processedGroups.add(groupId);
+        group.forEach(v => processedIds.add(v.id));
       } else {
         // 非版本化消息或用户消息
         items.push({ type: 'single', message: msg });

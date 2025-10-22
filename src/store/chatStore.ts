@@ -270,6 +270,14 @@ export const useChatStore = create<ChatState & ChatActions>()(
               thinking_duration: msg.thinking_duration,
               images: parseImagesField(msg.images),
             };
+            
+            // 添加版本字段（如果存在）
+            if (msg.version_group_id !== undefined && msg.version_group_id !== null) {
+              (base as any).version_group_id = msg.version_group_id;
+            }
+            if (msg.version_index !== undefined && msg.version_index !== null) {
+              (base as any).version_index = msg.version_index;
+            }
             try {
               const segsFromDb = Array.isArray(msg.segments) ? (msg.segments as any[]) : [];
               const segs = segsFromDb.length > 0 ? segsFromDb : parseToolCardsFromContent(base.content || '', base.id);
@@ -286,7 +294,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             if (target) {
               (target as any).messages = processed;
               state._messagesLoaded[conversationId] = true;
-              target.updated_at = Date.now();
+              // ❌ 不要更新 updated_at！这会导致悬浮时时间变化
+              // target.updated_at = Date.now();
             }
           });
         } catch (e) {
@@ -411,7 +420,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
           const knowledge_base_reference_json = newMessage.knowledge_base_reference ? JSON.stringify(newMessage.knowledge_base_reference) : null;
           const images_json = newMessage.images ? JSON.stringify(newMessage.images) : null;
 
-          await messageRepo.create({
+          // 构建数据库记录，包含版本字段
+          const dbRecord: any = {
             id: newMessage.id,
             conversation_id: conversation_id,
             role: newMessage.role,
@@ -424,7 +434,17 @@ export const useChatStore = create<ChatState & ChatActions>()(
             context_data: newMessage.context_data || null,
             images: images_json,
             segments: Array.isArray((newMessage as any).segments) ? JSON.stringify((newMessage as any).segments) : null,
-          } as any);
+          };
+
+          // 添加版本字段（如果存在）
+          if ((newMessage as any).version_group_id !== undefined) {
+            dbRecord.version_group_id = (newMessage as any).version_group_id;
+          }
+          if ((newMessage as any).version_index !== undefined) {
+            dbRecord.version_index = (newMessage as any).version_index;
+          }
+
+          await messageRepo.create(dbRecord);
 
           console.log(`[STORE] 消息保存成功: ${newMessage.id}`);
         } catch (error) {
@@ -512,7 +532,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
           const knowledge_base_reference_json = newMessage.knowledge_base_reference ? JSON.stringify(newMessage.knowledge_base_reference) : null;
           const images_json = newMessage.images ? JSON.stringify(newMessage.images) : null;
 
-          await messageRepo.create({
+          // 构建数据库记录，包含版本字段
+          const dbRecord: any = {
             id: newMessage.id,
             conversation_id: conversation_id,
             role: newMessage.role,
@@ -525,7 +546,17 @@ export const useChatStore = create<ChatState & ChatActions>()(
             context_data: newMessage.context_data || null,
             images: images_json,
             segments: Array.isArray((newMessage as any).segments) ? JSON.stringify((newMessage as any).segments) : null,
-          } as any);
+          };
+
+          // 添加版本字段（如果存在）
+          if ((newMessage as any).version_group_id !== undefined) {
+            dbRecord.version_group_id = (newMessage as any).version_group_id;
+          }
+          if ((newMessage as any).version_index !== undefined) {
+            dbRecord.version_index = (newMessage as any).version_index;
+          }
+
+          await messageRepo.create(dbRecord);
 
           return newMessage;
         } catch (error) {

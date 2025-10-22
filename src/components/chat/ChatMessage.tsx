@@ -204,10 +204,10 @@ function ChatMessageComponent({
           >
             <div className={cn(
               isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",
-              // 用户消息：暗色下改为更接近背景的轻微浮起效果，降低层次断差
+              // 用户消息：蓝色背景，清晰区分
               isUser
                 ? "px-2.5 py-2 text-[14px] leading-[1.3] rounded-2xl bg-blue-50/80 dark:bg-slate-800/50 border border-blue-200/40 dark:border-slate-700"
-                : "px-2.5 py-2 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50",
+                : "px-2.5 py-2 rounded-2xl bg-slate-100/90 dark:bg-slate-800/70 border border-slate-300/70 dark:border-slate-600/60",
               !isUser && "rounded-tl-2xl"
             )}>
               {messageContent}

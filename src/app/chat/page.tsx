@@ -347,10 +347,10 @@ export default function ChatPage() {
           />
           
           {/* 回到底部按钮 - 用户向上滚动时显示 */}
-          <ScrollToBottomButton 
+          {/* <ScrollToBottomButton 
             show={showScrollToBottom && !hasNewMessageWhileAway && !isInputAreaHovered}
             onClick={handleScrollToBottom}
-          />
+          /> */}
           
           {/* 工具栏 - 超过3条消息时显示，且不在输入框区域时显示 */}
           <div 

@@ -6,7 +6,8 @@ import { SlidersHorizontal } from "lucide-react";
 import StorageUtil from "@/lib/storage";
 import { useMarkdownFontSize } from "@/hooks/useMarkdownFontSize";
 import { useGlobalFontSize } from "@/hooks/useGlobalFontSize";
-import { useMarkdownTheme, MARKDOWN_THEMES } from "@/hooks/useMarkdownTheme";
+// Markdown主题系统已禁用
+// import { useMarkdownTheme, MARKDOWN_THEMES } from "@/hooks/useMarkdownTheme";
 import { PersonalizationSettings } from "./PersonalizationSettings";
 import { useUiPreferences } from '@/store/uiPreferences';
 import { ToggleSwitch } from './ToggleSwitch';
@@ -23,7 +24,8 @@ export function GeneralSettings() {
   const [initialized, setInitialized] = useState(false);
   const { size: chatFontSize, setSize: setChatFontSize } = useMarkdownFontSize();
   const { size: globalFontSize, setSize: setGlobalFontSize } = useGlobalFontSize();
-  const { theme: markdownTheme, setTheme: setMarkdownTheme } = useMarkdownTheme();
+  // Markdown主题系统已禁用
+  // const { theme: markdownTheme, setTheme: setMarkdownTheme } = useMarkdownTheme();
   const ui = useUiPreferences();
 
   // 加载初始设置
@@ -103,7 +105,14 @@ export function GeneralSettings() {
 
         {/* 聊天显示 */}
         <div className="pt-4 border-t border-slate-100/80 dark:border-slate-800/60">
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">聊天显示</div>
+          <div className=" text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">聊天显示</div>
+
+           <div className="space-y-6">
+           <ToggleSwitch
+           label="默认折叠聊天侧边栏"
+           checked={ui.collapseChatSidebar}
+           onChange={ui.setCollapseChatSidebar}
+         />
 
           <SelectField
             label="聊天内容字体大小"
@@ -116,19 +125,7 @@ export function GeneralSettings() {
             onChange={(v) => setChatFontSize(v as any)}
           />
 
-          <SelectField
-            label="Markdown渲染主题"
-            description="选择聊天消息的显示风格，不同主题提供不同的视觉体验"
-            options={[
-              { value: "swiss", label: `${MARKDOWN_THEMES.swiss.icon} ${MARKDOWN_THEMES.swiss.name}` },
-              { value: "minimal", label: `${MARKDOWN_THEMES.minimal.icon} ${MARKDOWN_THEMES.minimal.name}` },
-              { value: "modern", label: `${MARKDOWN_THEMES.modern.icon} ${MARKDOWN_THEMES.modern.name}` },
-              { value: "classic", label: `${MARKDOWN_THEMES.classic.icon} ${MARKDOWN_THEMES.classic.name}` },
-              { value: "github", label: `${MARKDOWN_THEMES.github.icon} ${MARKDOWN_THEMES.github.name}` },
-            ]}
-            value={markdownTheme}
-            onChange={(v) => setMarkdownTheme(v as any)}
-          />
+          {/* Markdown主题选择已移除 - 使用Streamdown原生渲染 */}
 
           <SelectField
             label="逐字淡入强度"
@@ -141,6 +138,8 @@ export function GeneralSettings() {
             value={ui.charFadeIntensity as any}
             onChange={(v) => ui.setCharFadeIntensity(v as any)}
           />
+           </div>
+         
         </div>
 
         {/* 界面显示 */}

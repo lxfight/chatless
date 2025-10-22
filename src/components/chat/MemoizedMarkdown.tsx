@@ -4,8 +4,9 @@ import { memo } from 'react';
 import { Streamdown } from 'streamdown';
 import { cn } from '@/lib/utils';
 import { useMarkdownFontSize } from '@/hooks/useMarkdownFontSize';
-import { useMarkdownTheme } from '@/hooks/useMarkdownTheme';
-import { getThemeStyles } from '@/lib/markdown/themes';
+// 主题系统已禁用 - 使用Streamdown原生渲染
+// import { useMarkdownTheme } from '@/hooks/useMarkdownTheme';
+// import { getThemeStyles } from '@/lib/markdown/themes';
 import { createMarkdownRenderers } from '@/lib/markdown/renderers';
 
 interface MemoizedMarkdownProps {
@@ -18,16 +19,18 @@ interface MemoizedMarkdownProps {
 
 export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: MemoizedMarkdownProps) => {
   const { size } = useMarkdownFontSize();
-  const { theme } = useMarkdownTheme();
+  // 主题系统已禁用
+  // const { theme } = useMarkdownTheme();
 
   const effectiveSize = sizeOverride ?? size;
   
-  // 获取主题样式
-  const themeStyles = getThemeStyles(theme);
+  // 主题系统已禁用 - createMarkdownRenderers 现在返回空对象
+  // const themeStyles = getThemeStyles(theme);
+  const themeStyles = { headings: { h1: '', h2: '', h3: '', h4: '', h5: '', h6: '' }, paragraph: '', list: { ul: '', ol: '', li: '' }, blockquote: '', code: { inline: '', block: '' }, link: '', hr: '', table: { table: '', th: '', td: '' }, strong: '' };
 
-  const renderers = createMarkdownRenderers(effectiveSize, themeStyles);
+  const { renderers, containerClass } = createMarkdownRenderers(effectiveSize, themeStyles);
 
-  // 处理“只有自定义HTML标签一行”的情况（如 </final_answer> 被当作 HTML 丢弃导致视觉缺行）
+  // 处理"只有自定义HTML标签一行"的情况（如 </final_answer> 被当作 HTML 丢弃导致视觉缺行）
   // 将整行仅包含的自定义标签转义成文本呈现
   const sanitizedContent = content.replace(/^(<\/?[\w:-]+>)\s*$/gm, (_m, tag) =>
     String(tag).replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -138,7 +141,7 @@ export const MemoizedMarkdown = memo(({ content, className, sizeOverride }: Memo
   const contentForRender = stabilizeStreamingMarkdown(convertHtmlBreaksToMd(sanitizedContent));
 
   return (
-    <div className={cn("whitespace-normal", className)}>
+    <div className={cn("whitespace-normal", containerClass, className)}>
       <Streamdown components={renderers}>
         {contentForRender}
       </Streamdown>

@@ -90,11 +90,7 @@ export function PersonalizationSettings() {
            onChange={(v) => ui.setSidebarIconSize(v as any)}
          />
 
-         <ToggleSwitch
-           label="默认折叠聊天侧边栏"
-           checked={ui.collapseChatSidebar}
-           onChange={ui.setCollapseChatSidebar}
-         />
+      
 
          <SelectField
            label="显示时间时区"
@@ -110,7 +106,7 @@ export function PersonalizationSettings() {
            onChange={ui.setTimezone}
          />
 
-        <SelectField
+        {/* <SelectField
           label="逐字淡入强度"
           options={[
             { value: 'off', label: '关闭' },
@@ -120,7 +116,7 @@ export function PersonalizationSettings() {
           ]}
           value={ui.charFadeIntensity as any}
           onChange={(v) => ui.setCharFadeIntensity(v as any)}
-        />
+        /> */}
 
         {/* <SelectField
           label="设置页图标样式"

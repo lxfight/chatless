@@ -206,6 +206,9 @@ export function AIMessageBlock({
     return 0;
   });
 
+  // 用于触发think段计时器的刷新（每秒更新一次）
+  const [thinkTimerTick, setThinkTimerTick] = useState(0);
+
   useEffect(() => {
     if (!isStreaming || !thinking_start_time) {
       // 不在流式状态或没有开始时间，使用固定值
@@ -225,6 +228,17 @@ export function AIMessageBlock({
     
     return () => clearInterval(interval);
   }, [isStreaming, thinking_start_time, thinkingDuration]);
+
+  // 每秒触发一次，用于更新正在进行中的think段的时间显示
+  useEffect(() => {
+    if (!isStreaming) return;
+    
+    const interval = setInterval(() => {
+      setThinkTimerTick(prev => prev + 1);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isStreaming]);
 
   const state = streamedState ?? historicalState;
   
@@ -294,7 +308,7 @@ export function AIMessageBlock({
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
   return (
-    <div className="group w-full max-w-full min-w-0 px-2 py-1   backdrop-blur-sm">
+    <div className="ai-markdown-container group w-full max-w-full min-w-0">
    
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
@@ -346,19 +360,25 @@ export function AIMessageBlock({
                 if (seg.type === 'think') {
                   // 判断是否是当前正在活跃的think段：
                   // 1. 必须是流式状态
-                  // 2. 是最后一个think段，或者是最后一个段（可能后面还有卡片等）
+                  // 2. 是最后一个think段
+                  // 3. 该think段还没有duration（duration存在说明已结束）
                   const isLastThinkSegment = mixedSegments.slice(idx + 1).every(s => s.type !== 'think');
-                  const isCurrentThinking = isStreaming && isLastThinkSegment;
+                  const hasNoDuration = seg.duration === undefined || seg.duration === null;
+                  const isCurrentThinking = isStreaming && isLastThinkSegment && hasNoDuration && viewModel?.flags?.isThinking;
                   
-                  // 流式输出时：对于当前正在进行的think段使用realTimeElapsed，否则使用已记录的duration
-                  // 历史消息时：使用已记录的duration
+                  // 计算时长：
+                  // 1. 如果已经有duration（已完成的think段），直接使用
+                  // 2. 如果正在进行中（isCurrentThinking），使用该段的startTime计算实时时长
+                  // 3. 否则使用startTime计算到当前的时长（降级处理）
                   let durationSeconds = 0;
-                  if (isCurrentThinking) {
-                    // 当前正在进行的think段，使用实时计时（毫秒转秒）
-                    durationSeconds = Math.floor(realTimeElapsed / 1000);
-                  } else if (seg.duration !== undefined) {
+                  if (seg.duration !== undefined && seg.duration !== null) {
                     // 已完成的think段，直接使用记录的duration（已经是秒）
                     durationSeconds = seg.duration;
+                  } else if (isCurrentThinking && seg.startTime) {
+                    // 当前正在进行的think段，使用该段自己的startTime计算实时时长
+                    // 依赖thinkTimerTick确保每秒更新
+                    const _ = thinkTimerTick; // 触发重新计算
+                    durationSeconds = Math.floor((Date.now() - seg.startTime) / 1000);
                   } else if (seg.startTime) {
                     // 如果有startTime但没有duration，计算已经过的时间（降级处理）
                     durationSeconds = Math.floor((Date.now() - seg.startTime) / 1000);
@@ -442,7 +462,7 @@ export function AIMessageBlock({
                 const needSoftDivider = prevType === 'card';
                 return (
                   <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
-                    <div className="prose prose-slate dark:prose-invert max-w-none">
+                    <div className="markdown-content-area">
                       {(() => {
                         // 使用统一的StreamingMarkdown组件，支持流式和非流式markdown渲染
                         const { StreamingMarkdown } = require('./StreamingMarkdown');
@@ -484,7 +504,7 @@ export function AIMessageBlock({
 
       {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
-        <div className="relative min-w-0 max-w-full w-full prose prose-slate dark:prose-invert max-w-none">
+        <div className="relative min-w-0 max-w-full w-full markdown-content-area">
           <MemoizedMarkdown content={(state?.regularContent || content)} />
         </div>
       )}

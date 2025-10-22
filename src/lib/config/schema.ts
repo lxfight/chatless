@@ -41,6 +41,8 @@ export const DATABASE_SCHEMA = {
       thinking_start_time INTEGER,
       thinking_duration INTEGER,
       segments TEXT,
+      version_group_id TEXT,
+      version_index INTEGER,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     )
   `,
@@ -120,6 +122,7 @@ export const DATABASE_INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)",
   "CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role)",
   "CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status)",
+  "CREATE INDEX IF NOT EXISTS idx_messages_version_group_id ON messages(version_group_id)",
 
   // documents表索引
   "CREATE INDEX IF NOT EXISTS idx_documents_file_type ON documents(file_type)",
