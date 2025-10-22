@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.svg" alt="chatless logo" width="120" />
+  <img src="public/logo.svg" alt="chatless logo" />
 </div>
 
 <h1 align="center">chatless</h1>
