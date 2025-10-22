@@ -139,20 +139,24 @@ export function TauriApp({ children }: TauriAppProps) {
         await loadConversations();
         startupMonitor.endPhase('会话加载');
 
-        // MCP 服务器初始化：空闲时段再启动，避免与首屏竞争
+        // MCP 服务器初始化：延迟更长时间，完全在后台启动
         try {
-          const scheduleIdle = (fn: () => void) => {
-            // 使用 requestIdleCallback，如不可用则退回 setTimeout
-            const anyWin: any = window as any;
-            if (typeof anyWin.requestIdleCallback === 'function') {
-              anyWin.requestIdleCallback(() => fn());
-            } else {
-              setTimeout(fn, 1200);
-            }
-          };
-          scheduleIdle(() => { 
-            serverManager.init();
-            // 初始化MCP持久化缓存
+          // 延迟5秒启动MCP服务，确保UI完全加载后再启动
+          // 这样可以避免MCP服务启动影响用户体验
+          setTimeout(() => {
+            console.log('[TauriApp] 开始后台启动MCP服务...');
+            
+            // 使用 Promise 包装，完全异步化，不阻塞任何操作
+            Promise.resolve().then(async () => {
+              try {
+                await serverManager.init();
+                console.log('[TauriApp] MCP服务启动完成');
+              } catch (error) {
+                console.warn('[TauriApp] MCP服务启动失败:', error);
+              }
+            });
+            
+            // 初始化MCP持久化缓存（独立的异步任务）
             import('@/lib/mcp/persistentCache').then(({ persistentCache }) => {
               persistentCache.init().then(() => {
                 console.log('[TauriApp] MCP持久化缓存已初始化');
@@ -160,7 +164,7 @@ export function TauriApp({ children }: TauriAppProps) {
                 console.warn('[TauriApp] MCP持久化缓存初始化失败:', error);
               });
             });
-          });
+          }, 5000); // 延迟5秒启动
         } catch { /* noop */ }
 
         console.log('✅ [TauriApp] 应用初始化完成');

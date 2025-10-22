@@ -288,7 +288,7 @@ class ServerManager {
     return Array.from(this.clients.keys());
   }
 
-  // 初始化：连接所有启用的服务器
+  // 初始化：连接所有启用的服务器（完全异步，不阻塞）
   async init(): Promise<void> {
     try {
       const { Store } = await import('@tauri-apps/plugin-store');
@@ -302,18 +302,32 @@ class ServerManager {
       // 如果没有配置，记录日志但不自动创建
       if (servers.length === 0) {
         console.log('[MCP] 未找到MCP服务配置，请手动配置MCP服务');
+        startupMonitor.endPhase('MCP服务器连接');
+        return;
       }
       
       const enabled = servers.filter((s: { name: string; config: any; enabled?: boolean }) => s && s.enabled !== false);
-      await Promise.all(enabled.map(async (s) => {
-        try {
-          await this.startServer(s.name, s.config);
-        } catch (e) {
-          console.error(`[MCP] 启动时连接 ${s.name} 失败:`, e);
-        }
-      }));
+      
+      console.log(`[MCP] 开始启动 ${enabled.length} 个MCP服务...`);
+      
+      // 不使用 Promise.all，让每个服务独立启动，互不阻塞
+      // 这样即使某个服务启动慢，也不会影响其他服务
+      enabled.forEach((s) => {
+        // 完全异步启动，不等待结果
+        Promise.resolve().then(async () => {
+          try {
+            console.log(`[MCP] 正在启动服务: ${s.name}`);
+            await this.startServer(s.name, s.config);
+            console.log(`[MCP] 服务 ${s.name} 启动成功`);
+          } catch (e) {
+            console.error(`[MCP] 启动服务 ${s.name} 失败:`, e);
+          }
+        });
+      });
 
+      // 立即结束此阶段，不等待所有服务启动完成
       startupMonitor.endPhase('MCP服务器连接');
+      console.log('[MCP] MCP服务正在后台启动中...');
     } catch (e) {
       console.error('[MCP] 初始化失败:', e);
     }
