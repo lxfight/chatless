@@ -854,7 +854,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
                   conversationId = conversation.id;
                   const message = conversation.messages[messageIndex];
                   Object.assign(message, { status: finalStatus as any });
-                  if (finalContent) Object.assign(message, { content: finalContent });
+                  // 修复：使用 !== undefined 检查，允许保存空字符串
+                  if (finalContent !== undefined) Object.assign(message, { content: finalContent });
                   if (model) Object.assign(message, { model });
                   conversation.updated_at = now;
 
@@ -878,7 +879,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             status: finalStatus,
           };
 
-          if (finalContent) {
+          // 修复：使用 !== undefined 检查，允许保存空字符串
+          if (finalContent !== undefined) {
             updateData.content = finalContent;
           }
           if (model) {

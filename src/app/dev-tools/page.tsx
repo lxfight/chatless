@@ -6,6 +6,7 @@ import { addRecentRoute, getRecentRoutes } from '@/lib/recentRoutes';
 import SampleDataManager from '@/components/dev/SampleDataManager';
 import { DatabaseRepairTool } from '@/components/dev/DatabaseRepairTool';
 import { PerformanceMonitor } from '@/components/dev/PerformanceMonitor';
+import { PerformanceReport } from '@/components/dev/PerformanceReport';
 import { getDevToolsStatus } from '../../lib/utils/environment';
 import { Button } from '@/components/ui/button';
 import { Loader2, RotateCcw, RefreshCw, AlertTriangle, Database, Trash2, ChevronDown, ChevronUp, Settings, FolderOpen } from 'lucide-react';
@@ -654,11 +655,27 @@ export default function DevToolsPage() {
               </Card>
 
               {/* 性能监控 */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Settings className="h-5 w-5" />
+                    <span>事件驱动性能监控</span>
+                  </CardTitle>
+                  <CardDescription>
+                    对比onEvent vs onToken的性能，验证架构优化效果
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PerformanceReport />
+                </CardContent>
+              </Card>
+              
+              {/* 旧性能监控 */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Settings className="h-5 w-5" />
-                    <span>性能监控</span>
+                    <span>消息解析缓存</span>
                   </CardTitle>
                   <CardDescription>
                     实时监控消息更新和解析缓存性能

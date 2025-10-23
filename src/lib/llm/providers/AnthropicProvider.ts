@@ -1,17 +1,24 @@
 import { BaseProvider, CheckResult, StreamCallbacks, LlmMessage } from './BaseProvider';
 import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
 /**
  * Anthropic Claude Provider (v1 REST API)
  * Docs: https://docs.anthropic.com/claude/reference/messages_post
+ * - ✅ 支持Claude模型
+ * - ✅ 支持结构化事件输出（onEvent优先）
  */
 export class AnthropicProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string) {
     super('Anthropic', baseUrl, apiKey);
     this.sseClient = new SSEClient('AnthropicProvider');
+    // Claude使用标准thinking策略（新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createStandardStrategy();
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
@@ -84,6 +91,9 @@ export class AnthropicProvider extends BaseProvider {
       ...mapped,
     };
 
+    // 重置策略状态
+    this.thinkingStrategy.reset();
+    
     try {
       await this.sseClient.startConnection(
         {
@@ -111,8 +121,34 @@ export class AnthropicProvider extends BaseProvider {
                   const json = JSON.parse(part);
                   if (json.type === 'content_block_delta') {
                     const token = json.delta?.text;
-                    if (token) callbacks.onToken?.(token);
+                    if (token) {
+                      const result = this.thinkingStrategy.processToken({
+                        content: token,
+                        done: false
+                      });
+                      
+                      // 优先使用onEvent（直接传递结构化事件）
+                      if (callbacks.onEvent && result.events && result.events.length > 0) {
+                        result.events.forEach(event => callbacks.onEvent!(event));
+                      }
+                      // 降级：使用onToken（转换为文本，兼容旧代码）
+                      else if (callbacks.onToken && result.events && result.events.length > 0) {
+                        const text = StreamEventAdapter.eventsToText(result.events);
+                        if (text.length > 0) {
+                          callbacks.onToken(text);
+                        }
+                      }
+                    }
                   } else if (json.type === 'message_stop') {
+                    const result = this.thinkingStrategy.processToken({ done: true });
+                    if (callbacks.onEvent && result.events && result.events.length > 0) {
+                      result.events.forEach(event => callbacks.onEvent!(event));
+                    } else if (callbacks.onToken && result.events && result.events.length > 0) {
+                      const text = StreamEventAdapter.eventsToText(result.events);
+                      if (text.length > 0) {
+                        callbacks.onToken(text);
+                      }
+                    }
                     callbacks.onComplete?.();
                     this.sseClient.stopConnection();
                   }

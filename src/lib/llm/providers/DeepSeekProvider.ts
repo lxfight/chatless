@@ -1,17 +1,23 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
 /**
  * DeepSeek（深度寻求）模型服务 Provider
- * 目前仅实现健康检查与占位 chatStream，后续可根据官方 API 填充。
+ * - ✅ 支持DeepSeek Reasoning模式
+ * - ✅ 支持结构化事件输出（onEvent优先）
  */
 export class DeepSeekProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string) {
     super('DeepSeek', baseUrl, apiKey);
     this.sseClient = new SSEClient('DeepSeekProvider');
+    // DeepSeek使用专门的Reasoning策略（新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createDeepSeekStrategy();
   }
 
   async checkConnection(): Promise<CheckResult> {
@@ -88,6 +94,9 @@ export class DeepSeekProvider extends BaseProvider {
     }
     headers['Authorization'] = `Bearer ${apiKey}`;
 
+    // 重置策略状态
+    this.thinkingStrategy.reset();
+    
     try {
       await this.sseClient.startConnection(
         {
@@ -106,6 +115,18 @@ export class DeepSeekProvider extends BaseProvider {
 
             // DeepSeek 与 OpenAI 一样, 以 "[DONE]" 结束
             if (rawData.trim() === '[DONE]') {
+              const result = this.thinkingStrategy.processToken({ done: true });
+              // 优先使用onEvent
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              // 降级到onToken
+              else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) {
+                  cb.onToken(text);
+                }
+              }
               cb.onComplete?.();
               this.sseClient.stopConnection();
               return;
@@ -114,11 +135,35 @@ export class DeepSeekProvider extends BaseProvider {
             try {
               const json = JSON.parse(rawData);
               const token = json?.choices?.[0]?.delta?.content;
-              if (token) cb.onToken?.(token);
+              const reasoningToken = json?.choices?.[0]?.delta?.reasoning_content;
+              
+              // 直接传递原始字段给Strategy，让Strategy自己处理
+              // 新架构的DeepSeekReasoningStrategy会正确识别reasoning_content字段
+              if (reasoningToken || token) {
+                const result = this.thinkingStrategy.processToken({
+                  reasoning_content: reasoningToken || undefined,
+                  content: token || undefined,
+                  done: false
+                });
+                
+                // 优先使用onEvent（直接传递结构化事件）
+                if (cb.onEvent && result.events && result.events.length > 0) {
+                  result.events.forEach(event => cb.onEvent!(event));
+                }
+                // 降级：使用onToken（转换为文本，兼容旧代码）
+                else if (cb.onToken && result.events && result.events.length > 0) {
+                  const text = StreamEventAdapter.eventsToText(result.events);
+                  if (text.length > 0) {
+                    cb.onToken(text);
+                  }
+                }
+              }
             } catch (err) {
               // 无法解析 JSON, 直接回传原始数据
               console.warn('[DeepSeekProvider] Failed to parse SSE chunk, fallback to raw:', err);
-              cb.onToken?.(rawData);
+              if (cb.onToken) {
+                cb.onToken(rawData);
+              }
             }
           }
         }

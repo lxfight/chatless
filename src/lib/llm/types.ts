@@ -6,8 +6,17 @@ export interface Message {
   error?: boolean; // Added for UI error display
 }
 
+import type { StreamEvent } from './types/stream-events';
+
 export interface StreamCallbacks {
+  /**
+   * 结构化事件回调（推荐）
+   */
+  onEvent?: (event: StreamEvent) => void;
   onStart?: () => void;
+  /**
+   * 文本token回调（向后兼容）
+   */
   onToken?: (token: string) => void;
   onImage?: (image: { mimeType: string; data: string }) => void;
   onComplete?: () => void;

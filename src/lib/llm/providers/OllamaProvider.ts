@@ -1,10 +1,13 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '@/lib/llm/adapters/StreamEventAdapter';
 
 export class OllamaProvider extends BaseProvider {
   private sseClient: SSEClient;
   private aborted: boolean = false;
   private currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private thinkingStrategy: ThinkingModeStrategy | null = null;
 
   constructor(baseUrl: string) {
     super('Ollama', baseUrl);
@@ -214,14 +217,14 @@ export class OllamaProvider extends BaseProvider {
 
       // 若 fetch 不可用或失败，退回到 SSEClient（某些代理会把 NDJSON 包装成 SSE）
       if (!resp || !resp.ok) {
-        await this.startSSEFallback(url, body, cb);
+        await this.startSSEFallback(url, body, cb, model);
         return;
       }
 
       const contentType = (resp.headers.get?.('Content-Type') || '').toLowerCase();
       if (contentType.includes('text/event-stream')) {
         // 服务端实际返回 SSE，切到 SSE 解析
-        await this.startSSEFallback(url, body, cb);
+        await this.startSSEFallback(url, body, cb, model);
         return;
       }
 
@@ -285,8 +288,11 @@ export class OllamaProvider extends BaseProvider {
     }
   }
 
-  private async startSSEFallback(url: string, body: unknown, cb: StreamCallbacks) {
+  private async startSSEFallback(url: string, body: unknown, cb: StreamCallbacks, _modelName?: string) {
     try {
+      // 创建Ollama专用thinking策略（新架构）
+      this.thinkingStrategy = ThinkingStrategyFactory.createOllamaStrategy();
+      
       await this.sseClient.startConnection(
         {
           url,
@@ -299,12 +305,69 @@ export class OllamaProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
+            console.log('[DEBUG:Ollama:onData]', { 
+              rawDataLength: rawData?.length, 
+              fullData: rawData 
+            });
+            
             const processJson = (json: any) => {
               if (!json) return;
-              if (json.done === true) { cb.onComplete?.(); this.sseClient.stopConnection(); return; }
-              const token = json?.message?.content;
-              if (typeof token === 'string' && token.length > 0) { cb.onToken?.(token); }
+              
+              const thinking = json?.message?.thinking || '';
+              const content = json?.message?.content || '';
+              
+              console.log('[DEBUG:Ollama:processJson]', { 
+                done: json.done, 
+                hasThinking: !!thinking,
+                thinkingLength: thinking?.length,
+                hasContent: !!content, 
+                contentLength: content?.length,
+                thinking: thinking.substring(0, 50),
+                content: content.substring(0, 50)
+              });
+              
+              // 使用策略处理token，得到结构化事件
+              const result = this.thinkingStrategy!.processToken({
+                thinking,
+                content,
+                done: json.done
+              });
+              
+              // 检查是否为内部调用（如生成标题），避免输出冗余日志
+              const isInternal = (cb as any).__internal === true;
+              
+              // 优先使用onEvent（直接传递结构化事件）
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                if (!isInternal) {
+                  console.log('[DEBUG:Ollama] 输出事件:', result.events.map(e => ({
+                    type: e.type,
+                    contentLength: 'content' in e ? e.content?.length : undefined
+                  })));
+                }
+                
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              // 降级：使用onToken（转换为文本，兼容旧代码）
+              else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) {
+                  if (!isInternal) {
+                    console.log('[DEBUG:Ollama] 调用onToken (兼容模式), token:', text.substring(0, 100));
+                  }
+                  cb.onToken(text);
+                }
+              }
+              
+              // 处理完成
+              if (result.isComplete) {
+                cb.onComplete?.();
+                this.sseClient.stopConnection();
+                // 重置策略
+                this.thinkingStrategy?.reset();
+                return;
+              }
             };
+            
             try {
               const text = String(rawData || '').trim();
               if (!text) return;

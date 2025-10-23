@@ -1,4 +1,5 @@
 import { tauriFetch } from '@/lib/request';
+import type { StreamEvent } from '@/lib/llm/types/stream-events';
 
 /**
  * 通用消息结构，后续可移到独立 types 文件
@@ -17,8 +18,20 @@ export interface CheckResult {
 }
 
 export interface StreamCallbacks {
+  /**
+   * 结构化事件回调（推荐使用）
+   * 接收Provider输出的结构化事件，无需再次解析
+   */
+  onEvent?: (event: StreamEvent) => void;
+  
   onStart?: () => void;
+  
+  /**
+   * 文本token回调（向后兼容）
+   * 如果提供了onEvent，onToken将被忽略
+   */
   onToken?: (token: string) => void;
+  
   /**
    * 可选：当提供商返回内联图片数据（如 Google inlineData）时回调
    * data 为 base64 字符串（不带前缀），mimeType 如 image/png

@@ -27,12 +27,19 @@ export class LLMInterpreter {
     options: ChatOptions = {}
   ): Promise<{ content: string; raw: any }> {
     let content = '';
-    // 确保等待到 onComplete 后再返回，避免 Provider 流实现“立即 resolve”导致返回空字符串
+    // 确保等待到 onComplete 后再返回，避免 Provider 流实现"立即 resolve"导致返回空字符串
     let resolveDone: (() => void) | null = null;
     let rejectDone: ((e: Error) => void) | null = null;
     const donePromise = new Promise<void>((resolve, reject) => {
       resolveDone = resolve; rejectDone = reject;
     });
+
+    // 标记为内部调用，避免干扰UI层的流式状态
+    const internalOptions = { 
+      ...options, 
+      __internal: true,  // 标记为内部调用
+      __silentMode: true // 静默模式，不触发UI更新
+    };
 
     await this.streamChat(
       provider,
@@ -42,8 +49,10 @@ export class LLMInterpreter {
         onToken: (t) => { content += t; },
         onComplete: () => { if (resolveDone) resolveDone(); },
         onError: (e) => { if (rejectDone) rejectDone(e); },
-      },
-      options
+        // 添加标记，表示这是内部调用
+        __internal: true,
+      } as any,
+      internalOptions
     ).catch(() => {});
 
     try { await donePromise; } catch { /* 忽略，交由上层回退 */ }

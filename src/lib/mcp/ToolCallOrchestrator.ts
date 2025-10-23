@@ -438,8 +438,8 @@ ${instruction}`;
     { role:'user', content: nextUser } as any
   ];
 
-  const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
-  const tokenizer = new StructuredStreamTokenizer();
+  const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
+  const tokenizer = new StreamTokenizer();
   // 递归阶段增加轻量自动保存：每累计一定字符就写库一次，避免断电/重启丢失
   let autosaveBuffer = '';
   let pendingHit: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
@@ -461,36 +461,40 @@ ${instruction}`;
       try {
         const events = tokenizer.push(tk);
         for (const ev of events) {
-          if (ev.type === 'think_start') {
+          if (ev.type === 'thinking_start') {
             stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-          } else if (ev.type === 'think_chunk') {
-            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any);
-          } else if (ev.type === 'think_end') {
+          } else if (ev.type === 'thinking_token') {
+            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
+          } else if (ev.type === 'thinking_end') {
             stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-          } else if (ev.type === 'text') {
+          } else if (ev.type === 'content_token') {
             // 关键：续流阶段也要把正文 token 追加到 segments
-            if ((ev as any).chunk) {
+            if (ev.content) {
               hadText = true;
-              stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+              stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
             }
           }
           if (ev.type === 'tool_call' && !pendingHit) {
             const cardId = crypto.randomUUID();
-            pendingHit = { server: ev.server, tool: ev.tool, args: ev.args, cardId };
+            const parsed = ev.parsed || {};
+            const server = parsed.serverName || '';
+            const tool = parsed.toolName || '';
+            const args = parsed.arguments || undefined;
+            pendingHit = { server, tool, args: args as any, cardId };
             // 在内容末尾追加卡片标记以确保可见
             const prev = (msgf?.content || '') + '';
             
             // 检查是否需要授权
             void (async () => {
               try {
-                const needAuth = !(await shouldAutoAuthorize(ev.server));
+                const needAuth = !(await shouldAutoAuthorize(server));
                 const marker = JSON.stringify({ 
                   __tool_call_card__: { 
                     id: cardId, 
-                    server: ev.server, 
-                    tool: ev.tool, 
+                    server, 
+                    tool, 
                     status: needAuth ? 'pending_auth' : 'running',
-                    args: ev.args || {}, 
+                    args: args || {}, 
                     messageId: assistantMessageId 
                   }
                 });
@@ -502,8 +506,8 @@ ${instruction}`;
                   // 需要授权，创建pending_auth状态的卡片
                   stf.dispatchMessageAction(assistantMessageId, { 
                     type: 'TOOL_RESULT', 
-                    server: ev.server, 
-                    tool: ev.tool, 
+                    server, 
+                    tool, 
                     ok: false,
                     errorMessage: 'pending_auth',
                     cardId 
@@ -512,9 +516,9 @@ ${instruction}`;
                   // 自动授权，创建running状态的卡片
                   stf.dispatchMessageAction(assistantMessageId, { 
                     type: 'TOOL_HIT', 
-                    server: ev.server, 
-                    tool: ev.tool, 
-                    args: ev.args, 
+                    server, 
+                    tool, 
+                    args, 
                     cardId 
                   });
                 }
@@ -524,10 +528,10 @@ ${instruction}`;
                 const marker = JSON.stringify({ 
                   __tool_call_card__: { 
                     id: cardId, 
-                    server: ev.server, 
-                    tool: ev.tool, 
+                    server, 
+                    tool, 
                     status: 'pending_auth',
-                    args: ev.args || {}, 
+                    args: args || {}, 
                     messageId: assistantMessageId 
                   }
                 });
@@ -535,8 +539,8 @@ ${instruction}`;
                 stf.updateMessageContentInMemory(assistantMessageId, next);
                 stf.dispatchMessageAction(assistantMessageId, { 
                   type: 'TOOL_RESULT', 
-                  server: ev.server, 
-                  tool: ev.tool, 
+                  server, 
+                  tool, 
                   ok: false,
                   errorMessage: 'pending_auth',
                   cardId 
@@ -554,8 +558,8 @@ ${instruction}`;
       try {
         const flushEvents = tokenizer.flush();
         for (const ev of flushEvents) {
-          if (ev.type === 'text' && (ev as any).chunk) {
-            stf2.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+          if (ev.type === 'content_token' && ev.content) {
+            stf2.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
           }
         }
       } catch { /* noop */ }
@@ -675,8 +679,8 @@ ${instruction}`;
 3. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
 4. 确保最终能够完整回答用户的原始问题` } as any
             ];
-            const { StructuredStreamTokenizer } = await import('@/lib/chat/StructuredStreamTokenizer');
-            const tk2 = new StructuredStreamTokenizer();
+            const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
+            const tk2 = new StreamTokenizer();
             let autosave2 = '';
             let pending2: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
             // 追问阶段仍按正常渲染与保存，但不再单独统计是否有文本
@@ -693,19 +697,23 @@ ${instruction}`;
                 try {
                   const events = tk2.push(tk);
                   for (const ev of events) {
-                    if (ev.type === 'think_start') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-                    else if (ev.type === 'think_chunk') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any);
-                    else if (ev.type === 'think_end') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-                    else if (ev.type === 'text' && (ev as any).chunk) { stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk }); }
+                    if (ev.type === 'thinking_start') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
+                    else if (ev.type === 'thinking_token') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
+                    else if (ev.type === 'thinking_end') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
+                    else if (ev.type === 'content_token' && ev.content) { stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content }); }
                     else if (ev.type === 'tool_call' && !pending2) {
                       // 即便模型再次提出工具调用，也按常规处理，保持一致体验
                       const cardId = crypto.randomUUID();
-                      pending2 = { server: ev.server, tool: ev.tool, args: ev.args, cardId };
+                      const parsed2 = ev.parsed || {};
+                      const server2 = parsed2.serverName || '';
+                      const tool2 = parsed2.toolName || '';
+                      const args2 = parsed2.arguments || undefined;
+                      pending2 = { server: server2, tool: tool2, args: args2 as any, cardId };
                       const prevx = (msgx?.content || '') + '';
-                      const markerx = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: assistantMessageId }});
+                      const markerx = JSON.stringify({ __tool_call_card__: { id: cardId, server: server2, tool: tool2, status: 'running', args: args2 || {}, messageId: assistantMessageId }});
                       const nextx = prevx + (prevx ? '\n' : '') + markerx;
                       stx.updateMessageContentInMemory(assistantMessageId, nextx);
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: server2, tool: tool2, args: args2, cardId });
                     }
                   }
                 } catch (e) { void e; }
@@ -717,8 +725,8 @@ ${instruction}`;
                 try {
                   const flushEvents = tk2.flush();
                   for (const ev of flushEvents) {
-                    if (ev.type === 'text' && (ev as any).chunk) {
-                      sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: (ev as any).chunk });
+                    if (ev.type === 'content_token' && ev.content) {
+                      sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
                     }
                   }
                 } catch { /* noop */ }

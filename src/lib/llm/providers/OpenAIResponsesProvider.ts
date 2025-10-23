@@ -1,5 +1,7 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
 /**
  * OpenAI Responses Provider
@@ -9,10 +11,13 @@ import { SSEClient } from '@/lib/sse-client';
  */
 export class OpenAIResponsesProvider extends BaseProvider {
   private sseClient: SSEClient;
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI (Responses)') {
     super(displayName, baseUrl, apiKey);
     this.sseClient = new SSEClient('OpenAIResponsesProvider');
+    // OpenAI Responses API 使用标准 <think> 标签（新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createStandardStrategy();
   }
 
   async checkConnection(): Promise<CheckResult> {
@@ -92,17 +97,11 @@ export class OpenAIResponsesProvider extends BaseProvider {
       ...mapped,
     };
 
+    // 重置thinking策略状态
+    this.thinkingStrategy.reset();
+
     // 解析 Responses 流事件所需的状态
     let lastEvent: string | null = null;
-    let thinkingStarted = false;
-    let thinkingEnded = false;
-
-    const flushThinkingIfNeeded = () => {
-      if (thinkingStarted && !thinkingEnded) {
-        cb.onToken?.('</think>');
-        thinkingEnded = true;
-      }
-    };
 
     try {
       // 优先：Tauri HTTP（跨域/自签证书友好）
@@ -163,32 +162,80 @@ export class OpenAIResponsesProvider extends BaseProvider {
       const processEvent = (eventName: string | null, data: any) => {
         const route = eventName || data?.event || data?.type || '';
         const pickPiece = (obj: any) => (typeof obj?.delta === 'string' ? obj.delta : (typeof obj?.text === 'string' ? obj.text : (typeof obj?.content === 'string' ? obj.content : undefined)));
+        
         switch (route) {
           case 'response.reasoning.delta': {
+            // OpenAI Responses API的reasoning应该被包装为<think>
             const piece = pickPiece(data);
             if (piece) {
-              if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; }
-              cb.onToken?.(piece);
+              const result = this.thinkingStrategy.processToken({
+                content: `<think>${piece}`,
+                done: false
+              });
+              
+              // 优先使用onEvent（直接传递结构化事件）
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              // 降级：使用onToken（转换为文本，兼容旧代码）
+              else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) cb.onToken(text);
+              }
             }
             break;
           }
           case 'response.output_text.delta': {
+            // 正常输出内容
             const piece = pickPiece(data);
-            if (piece) { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } cb.onToken?.(piece); }
+            if (piece) {
+              const result = this.thinkingStrategy.processToken({
+                content: piece,
+                done: false
+              });
+              
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              } else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) cb.onToken(text);
+              }
+            }
             break;
           }
-          case 'response.output_text.done': {
-            if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
-            break;
-          }
+          case 'response.output_text.done':
           case 'response.completed': {
-            if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
-            cb.onComplete?.();
+            // 流结束，发送完成事件
+            const result = this.thinkingStrategy.processToken({ done: true });
+            
+            if (cb.onEvent && result.events && result.events.length > 0) {
+              result.events.forEach(event => cb.onEvent!(event));
+            } else if (cb.onToken && result.events && result.events.length > 0) {
+              const text = StreamEventAdapter.eventsToText(result.events);
+              if (text.length > 0) cb.onToken(text);
+            }
+            
+            if (route === 'response.completed') {
+              cb.onComplete?.();
+            }
             break;
           }
           default: {
+            // 未知事件，作为普通内容处理
             const piece = pickPiece(data);
-            if (piece) { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } cb.onToken?.(piece); }
+            if (piece) {
+              const result = this.thinkingStrategy.processToken({
+                content: piece,
+                done: false
+              });
+              
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              } else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) cb.onToken(text);
+              }
+            }
             break;
           }
         }
@@ -200,10 +247,21 @@ export class OpenAIResponsesProvider extends BaseProvider {
           const last = buffer.trim();
           if (last) {
             const line = last.startsWith('data:') ? last.slice(5).trim() : last;
-            if (line === '[DONE]') { if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>'); cb.onComplete?.(); break; }
+            if (line === '[DONE]') {
+              const result = this.thinkingStrategy.processToken({ done: true });
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              cb.onComplete?.();
+              break;
+            }
             try { processEvent(null, JSON.parse(line)); } catch { /* ignore */ }
           }
-          if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>');
+          // 流结束但没有[DONE]标记
+          const result = this.thinkingStrategy.processToken({ done: true });
+          if (cb.onEvent && result.events && result.events.length > 0) {
+            result.events.forEach(event => cb.onEvent!(event));
+          }
           cb.onComplete?.();
           break;
         }
@@ -213,7 +271,14 @@ export class OpenAIResponsesProvider extends BaseProvider {
           const raw = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 1);
           if (!raw) continue;
-          if (raw === '[DONE]') { if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>'); cb.onComplete?.(); return; }
+          if (raw === '[DONE]') {
+            const result = this.thinkingStrategy.processToken({ done: true });
+            if (cb.onEvent && result.events && result.events.length > 0) {
+              result.events.forEach(event => cb.onEvent!(event));
+            }
+            cb.onComplete?.();
+            return;
+          }
           if (raw.startsWith('event:')) { lastEvent = raw.slice(6).trim(); continue; }
           const payload = raw.startsWith('data:') ? raw.slice(5).trim() : raw;
           try { processEvent(lastEvent, JSON.parse(payload)); } catch { /* ignore */ }
@@ -226,10 +291,10 @@ export class OpenAIResponsesProvider extends BaseProvider {
   }
 
   private async startSSEFallback(url: string, apiKey: string, body: unknown, cb: StreamCallbacks) {
+    // 重置thinking策略状态
+    this.thinkingStrategy.reset();
+    
     let lastEvent: string | null = null;
-    let thinkingStarted = false;
-    let thinkingEnded = false;
-    const flushThinkingIfNeeded = () => { if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; } };
     try {
       await this.sseClient.startConnection(
         {
@@ -243,26 +308,104 @@ export class OpenAIResponsesProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawLine: string) => {
-            const line = rawLine.trim(); if (!line) return;
-            if (line === '[DONE]') { flushThinkingIfNeeded(); cb.onComplete?.(); this.sseClient.stopConnection(); return; }
-            if (line.startsWith('event:')) { lastEvent = line.slice(6).trim(); return; }
-            let data: any = null; try { data = JSON.parse(line); } catch { return; }
+            const line = rawLine.trim();
+            if (!line) return;
+            
+            if (line === '[DONE]') {
+              const result = this.thinkingStrategy.processToken({ done: true });
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              cb.onComplete?.();
+              this.sseClient.stopConnection();
+              return;
+            }
+            
+            if (line.startsWith('event:')) {
+              lastEvent = line.slice(6).trim();
+              return;
+            }
+            
+            let data: any = null;
+            try {
+              data = JSON.parse(line);
+            } catch {
+              return;
+            }
+            
+            const pickPiece = (obj: any) => (
+              typeof obj?.delta === 'string' ? obj.delta :
+              (typeof obj?.text === 'string' ? obj.text :
+              (typeof obj?.content === 'string' ? obj.content : undefined))
+            );
+            
             switch (lastEvent) {
               case 'response.reasoning.delta': {
-                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
-                if (piece) { if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; } cb.onToken?.(piece); }
+                const piece = pickPiece(data);
+                if (piece) {
+                  const result = this.thinkingStrategy.processToken({
+                    content: `<think>${piece}`,
+                    done: false
+                  });
+                  
+                  if (cb.onEvent && result.events && result.events.length > 0) {
+                    result.events.forEach(event => cb.onEvent!(event));
+                  } else if (cb.onToken && result.events && result.events.length > 0) {
+                    const text = StreamEventAdapter.eventsToText(result.events);
+                    if (text.length > 0) cb.onToken(text);
+                  }
+                }
                 break;
               }
               case 'response.output_text.delta': {
-                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
-                if (piece) { flushThinkingIfNeeded(); cb.onToken?.(piece); }
+                const piece = pickPiece(data);
+                if (piece) {
+                  const result = this.thinkingStrategy.processToken({
+                    content: piece,
+                    done: false
+                  });
+                  
+                  if (cb.onEvent && result.events && result.events.length > 0) {
+                    result.events.forEach(event => cb.onEvent!(event));
+                  } else if (cb.onToken && result.events && result.events.length > 0) {
+                    const text = StreamEventAdapter.eventsToText(result.events);
+                    if (text.length > 0) cb.onToken(text);
+                  }
+                }
                 break;
               }
-              case 'response.output_text.done': { flushThinkingIfNeeded(); break; }
-              case 'response.completed': { flushThinkingIfNeeded(); cb.onComplete?.(); this.sseClient.stopConnection(); break; }
+              case 'response.output_text.done':
+              case 'response.completed': {
+                const result = this.thinkingStrategy.processToken({ done: true });
+                
+                if (cb.onEvent && result.events && result.events.length > 0) {
+                  result.events.forEach(event => cb.onEvent!(event));
+                } else if (cb.onToken && result.events && result.events.length > 0) {
+                  const text = StreamEventAdapter.eventsToText(result.events);
+                  if (text.length > 0) cb.onToken(text);
+                }
+                
+                if (lastEvent === 'response.completed') {
+                  cb.onComplete?.();
+                  this.sseClient.stopConnection();
+                }
+                break;
+              }
               default: {
-                const piece = typeof data?.delta === 'string' ? data.delta : (typeof data?.text === 'string' ? data.text : (typeof data?.content === 'string' ? data.content : undefined));
-                if (piece) { flushThinkingIfNeeded(); cb.onToken?.(piece); }
+                const piece = pickPiece(data);
+                if (piece) {
+                  const result = this.thinkingStrategy.processToken({
+                    content: piece,
+                    done: false
+                  });
+                  
+                  if (cb.onEvent && result.events && result.events.length > 0) {
+                    result.events.forEach(event => cb.onEvent!(event));
+                  } else if (cb.onToken && result.events && result.events.length > 0) {
+                    const text = StreamEventAdapter.eventsToText(result.events);
+                    if (text.length > 0) cb.onToken(text);
+                  }
+                }
                 break;
               }
             }

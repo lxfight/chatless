@@ -1,3 +1,22 @@
+/**
+ * @deprecated 此文件已废弃，请使用新的事件系统
+ * 
+ * ## 废弃原因
+ * 
+ * `<think>` 标签的解析现在完全由Provider层的ThinkingModeStrategy处理，
+ * 消除了"事件 → 文本+标签 → 重新解析"的重复循环。
+ * 
+ * ## 新架构
+ * 
+ * - **Provider层**: 使用 `ThinkingModeStrategy` 直接解析thinking内容并发送结构化事件
+ * - **消费层**: 通过 `onEvent` 回调直接接收 `thinking_start/thinking_token/thinking_end` 事件
+ * 
+ * @see src/lib/llm/types/stream-events.ts - 新的事件类型
+ * @see src/lib/llm/providers/thinking-strategies.ts - thinking解析策略
+ * @see src/hooks/useChatActions.ts - onEvent 回调实现
+ * 
+ * **不要在新代码中使用此tokenizer**
+ */
 export type ThinkEvent =
   | { type: 'text'; chunk: string }
   | { type: 'think_start' }
@@ -5,9 +24,12 @@ export type ThinkEvent =
   | { type: 'think_end' };
 
 /**
- * 流式 <think> 解析器：
+ * @deprecated
+ * 流式 <think> 解析器（已废弃）：
  * - 在 token 维度下支持跨 token 识别 <think> 与 </think>
  * - 输出事件用于驱动消息 FSM 的思考状态
+ * 
+ * 此功能已由Provider层的ThinkingModeStrategy完全替代
  */
 export class ThinkStreamTokenizer {
   private buffer = '';

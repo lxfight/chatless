@@ -192,7 +192,7 @@ export const ThinkingBar = ({
 
       {/* 完整思考内容（展开时） */}
       {isExpanded && hasContent && (
-        <div className="px-3.5 p-1.5 text-xs border-t border-slate-200/70 dark:border-slate-700/70 pt-2.5 bg-slate-50/30 dark:bg-slate-900/30">
+        <div className="px-3.5 p-1.5 text-sm border-t border-slate-200/70 dark:border-slate-700/70 pt-2.5 bg-slate-50/30 dark:bg-slate-900/30">
           <div className="markdown-content-area text-slate-700 dark:text-slate-300">
             <MemoizedMarkdown content={thinkingContent} sizeOverride='small' />
           </div>

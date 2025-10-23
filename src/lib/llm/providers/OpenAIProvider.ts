@@ -1,14 +1,19 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
 export class OpenAIProvider extends BaseProvider {
   private sseClient: SSEClient;
   private aborted: boolean = false;
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI') {
     super(displayName, baseUrl, apiKey);
     this.sseClient = new SSEClient('OpenAIProvider');
+    // OpenAI使用标准的<think>标签策略（新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createStandardStrategy();
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
@@ -92,6 +97,8 @@ export class OpenAIProvider extends BaseProvider {
 
     try {
       this.aborted = false;
+      this.thinkingStrategy.reset(); // 重置策略状态
+      
       await this.sseClient.startConnection(
         {
           url,
@@ -120,7 +127,25 @@ export class OpenAIProvider extends BaseProvider {
             try {
               const json = JSON.parse(jsonStr);
               const token = json?.choices?.[0]?.delta?.content;
-              if (token) cb.onToken?.(token);
+              if (!token) return;
+              
+              // 使用策略处理token，得到结构化事件
+              const result = this.thinkingStrategy.processToken({
+                content: token,
+                done: false
+              });
+              
+              // 优先使用onEvent（直接传递结构化事件）
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              // 降级：使用onToken（转换为文本，兼容旧代码）
+              else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) {
+                  cb.onToken(text);
+                }
+              }
             } catch (err) {
               console.warn('[OpenAIProvider] JSON parse error', err);
             }

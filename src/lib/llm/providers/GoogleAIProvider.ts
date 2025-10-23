@@ -1,14 +1,24 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
+/**
+ * Google AI Provider
+ * - ✅ 支持Gemini模型
+ * - ✅ 支持结构化事件输出（onEvent优先）
+ */
 export class GoogleAIProvider extends BaseProvider {
   private sseClient: SSEClient;
   private processedPayloads: Set<string> = new Set(); // 防止重复处理（按原始payload去重）
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string) {
     super('Google AI', baseUrl, apiKey);
     this.sseClient = new SSEClient('GoogleAIProvider');
+    // Google AI使用标准thinking策略（新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createStandardStrategy();
   }
 
   async fetchModels(): Promise<Array<{name: string, label?: string, aliases?: string[]}> | null> {
@@ -149,8 +159,9 @@ export class GoogleAIProvider extends BaseProvider {
       messageCount: messages.length
     });
 
-    // 重置已处理集合
+    // 重置已处理集合和策略状态
     this.processedPayloads.clear();
+    this.thinkingStrategy.reset();
 
     try {
       await this.sseClient.startConnection(
@@ -196,7 +207,24 @@ export class GoogleAIProvider extends BaseProvider {
                 if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
                   for (const part of candidate.content.parts) {
                     const piece = typeof part.text === 'string' ? part.text : undefined;
-                    if (piece && piece.length > 0) cb.onToken?.(piece);
+                    if (piece && piece.length > 0) {
+                      const result = this.thinkingStrategy.processToken({
+                        content: piece,
+                        done: false
+                      });
+                      
+                      // 优先使用onEvent（直接传递结构化事件）
+                      if (cb.onEvent && result.events && result.events.length > 0) {
+                        result.events.forEach(event => cb.onEvent!(event));
+                      }
+                      // 降级：使用onToken（转换为文本，兼容旧代码）
+                      else if (cb.onToken && result.events && result.events.length > 0) {
+                        const text = StreamEventAdapter.eventsToText(result.events);
+                        if (text.length > 0) {
+                          cb.onToken(text);
+                        }
+                      }
+                    }
                     // 提取内联图片（image generation 返回 inlineData）
                     const p: any = part;
                     const inline = p?.inlineData;
@@ -209,6 +237,15 @@ export class GoogleAIProvider extends BaseProvider {
                 // 检查是否完成
                 if (candidate.finishReason === 'STOP') {
                   console.log('[GoogleAIProvider] Stream completed (finishReason: STOP)');
+                  const result = this.thinkingStrategy.processToken({ done: true });
+                  if (cb.onEvent && result.events && result.events.length > 0) {
+                    result.events.forEach(event => cb.onEvent!(event));
+                  } else if (cb.onToken && result.events && result.events.length > 0) {
+                    const text = StreamEventAdapter.eventsToText(result.events);
+                    if (text.length > 0) {
+                      cb.onToken(text);
+                    }
+                  }
                   cb.onComplete?.();
                   // 确保及时关闭并移除监听，避免后续开启的新流将事件冒泡到旧回调
                   this.sseClient.stopConnection();

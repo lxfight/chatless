@@ -122,20 +122,9 @@ export function AIMessageBlock({
     
 
     
-    // 如果内容不包含think标签但有thinking_duration，说明是历史消息，需要显示思考栏
-    if (!hasThinkTags && thinkingDuration && thinkingDuration > 0) {
-      const result = {
-        regularContent: content,
-        thinkingContent: `思考时长：${thinkingDuration}秒`,
-        elapsedTime: thinkingDuration * 1000, // 转换为毫秒
-        isThinking: false,
-        isFinished: true
-      };
-
-      return result;
-    }
-    
     // 如果内容不包含think标签，直接返回纯文本状态
+    // 注意：不再为没有think标签的消息显示思考栏，即使有thinking_duration
+    // 这避免了误将普通消息识别为思考过程
     if (!hasThinkTags) {
       const result = {
         regularContent: content,
@@ -321,7 +310,12 @@ export function AIMessageBlock({
       )}
 
       {/* 思考进度条：仅在没有结构化segments时显示全局思考栏（兼容旧消息） */}
-      {(mixedSegments.length === 0) && ( (!!viewModel && viewModel.flags?.isThinking) || (!!thinkTextFromSegments) || (!!state && !!state.thinkingContent)) && (
+      {/* 修复：只有在真正有思考内容时才显示思考栏，避免误将普通消息识别为思考过程 */}
+      {(mixedSegments.length === 0) && (
+        (!!viewModel && viewModel.flags?.isThinking) || 
+        (!!thinkTextFromSegments && thinkTextFromSegments.trim().length > 0) || 
+        (!!state && !!state.thinkingContent && state.thinkingContent.trim().length > 0)
+      ) && (
         <ThinkingBar
           thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
           // 将毫秒转换为秒

@@ -1,20 +1,26 @@
 import { BaseProvider, CheckResult, LlmMessage, StreamCallbacks } from './BaseProvider';
 import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
+import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
+import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
 
 /**
  * OpenAI 兼容 Provider（宽松解析版）
  * - 专供各类 OpenAI 兼容聚合/代理服务
  * - 兼容两种事件负载："data: {json}" 与 直接 "{json}"，并识别 "[DONE]"
+ * - ✅ 支持结构化事件输出（onEvent优先）
  */
 export class OpenAICompatibleProvider extends BaseProvider {
   private sseClient: SSEClient;
   private aborted: boolean = false;
   private currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private thinkingStrategy: ThinkingModeStrategy;
 
   constructor(baseUrl: string, apiKey?: string, displayName: string = 'OpenAI-Compatible') {
     super(displayName, baseUrl, apiKey);
     this.sseClient = new SSEClient('OpenAICompatibleProvider');
+    // 使用标准thinking策略（兼容<think>标签，新架构）
+    this.thinkingStrategy = ThinkingStrategyFactory.createStandardStrategy();
   }
 
   async fetchModels(): Promise<Array<{ name: string; label?: string; aliases?: string[] }> | null> {
@@ -118,12 +124,11 @@ export class OpenAICompatibleProvider extends BaseProvider {
       ...mapped,
     };
 
-    // 思考流态管理
-    let thinkingStarted = false;
-    let thinkingEnded = false;
-
     try {
       this.aborted = false;
+      // 重置策略状态
+      this.thinkingStrategy.reset();
+      
       // 优先：Tauri HTTP（跨域/证书更稳健）
       let resp: any = null;
       try {
@@ -162,13 +167,13 @@ export class OpenAICompatibleProvider extends BaseProvider {
       }
 
       if (!resp || !resp.ok) {
-        await this.startSSEFallback(url, apiKey, body, cb, thinkingStarted, thinkingEnded);
+        await this.startSSEFallback(url, apiKey, body, cb);
         return;
       }
 
       const contentType = (resp.headers.get?.('Content-Type') || '').toLowerCase();
       if (contentType.includes('text/event-stream')) {
-        await this.startSSEFallback(url, apiKey, body, cb, thinkingStarted, thinkingEnded);
+        await this.startSSEFallback(url, apiKey, body, cb);
         return;
       }
 
@@ -182,22 +187,53 @@ export class OpenAICompatibleProvider extends BaseProvider {
       const processDelta = (json: any) => {
         if (!json) return;
         if (json === '[DONE]' || json?.done === true || json?.choices?.[0]?.finish_reason) {
-          if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
+          const result = this.thinkingStrategy.processToken({ done: true });
+          // 优先使用onEvent
+          if (cb.onEvent && result.events && result.events.length > 0) {
+            result.events.forEach(event => cb.onEvent!(event));
+          }
+          // 降级到onToken
+          else if (cb.onToken && result.events && result.events.length > 0) {
+            const text = StreamEventAdapter.eventsToText(result.events);
+            if (text.length > 0) {
+              cb.onToken(text);
+            }
+          }
           cb.onComplete?.();
           return;
         }
         const delta = json?.choices?.[0]?.delta ?? {};
         const reasoningPiece = typeof delta.reasoning_content === 'string' ? delta.reasoning_content : undefined;
-        if (reasoningPiece) {
-          if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; }
-          cb.onToken?.(reasoningPiece);
-        }
         const contentPiece: string | undefined =
           (typeof delta.content === 'string' ? delta.content : undefined) ||
           (typeof json?.choices?.[0]?.message?.content === 'string' ? json.choices[0].message.content : undefined);
+        
+        // 构造完整的token内容（reasoning + content）
+        let fullContent = '';
+        if (reasoningPiece) {
+          fullContent = `<think>${reasoningPiece}</think>`;
+        }
         if (contentPiece) {
-          if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
-          cb.onToken?.(contentPiece);
+          fullContent += contentPiece;
+        }
+        
+        if (fullContent) {
+          const result = this.thinkingStrategy.processToken({
+            content: fullContent,
+            done: false
+          });
+          
+          // 优先使用onEvent（直接传递结构化事件）
+          if (cb.onEvent && result.events && result.events.length > 0) {
+            result.events.forEach(event => cb.onEvent!(event));
+          }
+          // 降级：使用onToken（转换为文本，兼容旧代码）
+          else if (cb.onToken && result.events && result.events.length > 0) {
+            const text = StreamEventAdapter.eventsToText(result.events);
+            if (text.length > 0) {
+              cb.onToken(text);
+            }
+          }
         }
       };
 
@@ -214,7 +250,15 @@ export class OpenAICompatibleProvider extends BaseProvider {
             const payload = last.startsWith('data:') ? last.slice(5).trim() : last;
             try { processDelta(JSON.parse(payload)); } catch { /* ignore */ }
           }
-          if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); }
+          const result = this.thinkingStrategy.processToken({ done: true });
+          if (cb.onEvent && result.events && result.events.length > 0) {
+            result.events.forEach(event => cb.onEvent!(event));
+          } else if (cb.onToken && result.events && result.events.length > 0) {
+            const text = StreamEventAdapter.eventsToText(result.events);
+            if (text.length > 0) {
+              cb.onToken(text);
+            }
+          }
           cb.onComplete?.();
           break;
         }
@@ -223,7 +267,21 @@ export class OpenAICompatibleProvider extends BaseProvider {
         while ((idx = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 1);
-          if (!line || line === '[DONE]') { if (line === '[DONE]') { if (thinkingStarted && !thinkingEnded) cb.onToken?.('</think>'); cb.onComplete?.(); } continue; }
+          if (!line || line === '[DONE]') { 
+            if (line === '[DONE]') { 
+              const result = this.thinkingStrategy.processToken({ done: true });
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              } else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) {
+                  cb.onToken(text);
+                }
+              }
+              cb.onComplete?.(); 
+            } 
+            continue; 
+          }
           const payload = line.startsWith('data:') ? line.slice(5).trim() : line;
           try { processDelta(JSON.parse(payload)); } catch { /* ignore */ }
         }
@@ -238,10 +296,11 @@ export class OpenAICompatibleProvider extends BaseProvider {
     url: string,
     apiKey: string,
     body: unknown,
-    cb: StreamCallbacks,
-    thinkingStarted: boolean,
-    thinkingEnded: boolean
+    cb: StreamCallbacks
   ) {
+    // 重置策略状态
+    this.thinkingStrategy.reset();
+    
     try {
       await this.sseClient.startConnection(
         {
@@ -262,7 +321,18 @@ export class OpenAICompatibleProvider extends BaseProvider {
             const payload = rawData.startsWith('data:') ? rawData.substring(5).trim() : rawData.trim();
             if (!payload) return;
             if (payload === '[DONE]') {
-              if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
+              const result = this.thinkingStrategy.processToken({ done: true });
+              // 优先使用onEvent
+              if (cb.onEvent && result.events && result.events.length > 0) {
+                result.events.forEach(event => cb.onEvent!(event));
+              }
+              // 降级到onToken
+              else if (cb.onToken && result.events && result.events.length > 0) {
+                const text = StreamEventAdapter.eventsToText(result.events);
+                if (text.length > 0) {
+                  cb.onToken(text);
+                }
+              }
               cb.onComplete?.();
               this.sseClient.stopConnection();
               return;
@@ -271,16 +341,36 @@ export class OpenAICompatibleProvider extends BaseProvider {
               const json = JSON.parse(payload);
               const delta = json?.choices?.[0]?.delta ?? {};
               const reasoningPiece = typeof delta.reasoning_content === 'string' ? delta.reasoning_content : undefined;
-              if (reasoningPiece) {
-                if (!thinkingStarted) { cb.onToken?.('<think>'); thinkingStarted = true; thinkingEnded = false; }
-                cb.onToken?.(reasoningPiece);
-              }
               const contentPiece: string | undefined =
                 (typeof delta.content === 'string' ? delta.content : undefined) ||
                 (typeof json?.choices?.[0]?.message?.content === 'string' ? json.choices[0].message.content : undefined);
+              
+              // 构造完整的token内容（reasoning + content）
+              let fullContent = '';
+              if (reasoningPiece) {
+                fullContent = `<think>${reasoningPiece}</think>`;
+              }
               if (contentPiece) {
-                if (thinkingStarted && !thinkingEnded) { cb.onToken?.('</think>'); thinkingEnded = true; }
-                cb.onToken?.(contentPiece);
+                fullContent += contentPiece;
+              }
+              
+              if (fullContent) {
+                const result = this.thinkingStrategy.processToken({
+                  content: fullContent,
+                  done: false
+                });
+                
+                // 优先使用onEvent（直接传递结构化事件）
+                if (cb.onEvent && result.events && result.events.length > 0) {
+                  result.events.forEach(event => cb.onEvent!(event));
+                }
+                // 降级：使用onToken（转换为文本，兼容旧代码）
+                else if (cb.onToken && result.events && result.events.length > 0) {
+                  const text = StreamEventAdapter.eventsToText(result.events);
+                  if (text.length > 0) {
+                    cb.onToken(text);
+                  }
+                }
               }
             } catch (err) {
               console.warn('[OpenAICompatibleProvider] JSON parse error', err);

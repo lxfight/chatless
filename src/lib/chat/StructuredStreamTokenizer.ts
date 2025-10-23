@@ -1,3 +1,42 @@
+/**
+ * @deprecated 此文件已废弃，请使用新的事件系统
+ * 
+ * ## 废弃原因
+ * 
+ * 此tokenizer是旧架构的一部分，存在以下问题：
+ * 1. **重复解析**: Provider已经生成文本+标签，这里再次解析造成性能浪费
+ * 2. **架构不清晰**: thinking模式应该由Provider层统一处理，而非下游tokenizer
+ * 
+ * ## 新架构（已实现）
+ * 
+ * **Provider层**:
+ * - 使用 `ThinkingModeStrategy` 处理不同LLM的thinking输出格式
+ * - 直接发送 `StreamEvent` 结构化事件（不是文本+标签）
+ * - 通过 `onEvent` 回调传递事件
+ * 
+ * **消费层** (useChatActions):
+ * - 直接接收结构化的 `StreamEvent`
+ * - 通过 `dispatchMessageAction` 更新消息状态
+ * - 无需任何文本解析
+ * 
+ * ## 替代方案
+ * 
+ * - 新事件类型: `src/lib/llm/types/stream-events.ts`
+ * - Provider策略: `src/lib/llm/providers/thinking-strategies.ts`
+ * - 事件消费: `src/hooks/useChatActions.ts` 中的 `onEvent` 回调
+ * 
+ * @see src/lib/llm/types/stream-events.ts - 新的事件类型定义
+ * @see src/lib/llm/providers/thinking-strategies.ts - thinking模式处理策略
+ * 
+ * **保留此文件仅为向后兼容，不应在新代码中使用**
+ * 
+ * ---
+ * 
+ * 流式事件类型（旧版）
+ * 
+ * 注意：这是旧的事件系统，新代码应使用 src/lib/llm/types/stream-events.ts
+ * 保留此文件是为了向后兼容
+ */
 export type StructuredEvent =
   | { type: 'text'; chunk: string }
   | { type: 'think_start' }
@@ -8,11 +47,18 @@ export type StructuredEvent =
 type State = 'BODY' | 'THINK' | 'FENCE';
 
 /**
- * 统一流式分词器：
- * - 识别 <think> 与 </think>
- * - 识别代码围栏 ```...```（语言标识可选）
- * - 优先从围栏或裸 JSON 中提取 {"type":"tool_call"} 指令，生成 tool_call 事件
- * - 在 FENCE 状态内不会将 <think> 识别为思考，仅按文本处理（或作为 tool_call）
+ * 流式分词器（简化版）
+ * 
+ * 职责：
+ * - 识别文本中的工具调用（JSON/XML格式）
+ * - 识别代码围栏 ```...```
+ * 
+ * 不再处理：
+ * - <think>标签解析（由Provider层的ThinkingStrategy处理）
+ * 
+ * 使用场景：
+ * - 当Provider不支持thinking模式时，用于从文本中提取工具调用
+ * - 或作为补充，识别特殊格式的工具调用
  */
 export class StructuredStreamTokenizer {
   private buffer = '';

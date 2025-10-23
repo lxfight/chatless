@@ -18,6 +18,7 @@ import { ModelParametersService } from '@/lib/model-parameters';
 import { composeChatOptions } from '@/lib/chat/OptionComposer';
 import { usePromptStore } from '@/store/promptStore';
 import { renderPromptContent } from '@/lib/prompt/render';
+import { performanceMonitor } from '@/lib/performance/PerformanceMonitor';
 // 动态导入 Title 相关函数，避免静态未用告警
 
 // type StoreMessage = any;
@@ -451,8 +452,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
 
     // 流式工具调用检测器
-    const { StructuredStreamTokenizer } = require('@/lib/chat/StructuredStreamTokenizer');
-    const tokenizer = new StructuredStreamTokenizer();
+    const { StreamTokenizer } = require('@/lib/chat/StreamTokenizer');
+    const tokenizer = new StreamTokenizer();
 
     // 防重复触发：本条流内仅在首次完整命中时启动一次 MCP 调用
     let toolStarted = false;
@@ -484,8 +485,99 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(0);
         batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
       },
+      // 新增：结构化事件直通（优先于 onToken）
+      onEvent: (event: any) => {
+        // 防串写保护
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
+        
+        // 性能监控：onEvent处理
+        const perfId = `onEvent_${event?.type}_${Date.now()}`;
+        performanceMonitor.start(perfId, { 
+          type: event?.type, 
+          mode: 'event-driven',
+          messageId: assistantMessageId 
+        });
+        
+        const st = useChatStore.getState();
+        try {
+          switch (event?.type) {
+            case 'thinking_start':
+              st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
+              break;
+            case 'thinking_token':
+              if (event.content) st.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: event.content } as any);
+              break;
+            case 'thinking_end':
+              st.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
+              break;
+            case 'content_token': {
+              const chunk = String(event.content || '');
+              if (chunk) {
+                currentContentRef.current += chunk;
+                st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk } as any);
+                updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
+              }
+              break;
+            }
+            case 'tool_call': {
+              // 解析工具调用参数
+              const parsed = event.parsed || {};
+              const server = parsed.serverName || parsed.server || '';
+              const tool = parsed.toolName || parsed.tool || '';
+              const args = parsed.arguments || parsed.args || undefined;
+              if (server && tool) {
+                const cardId = crypto.randomUUID();
+                const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server, tool, status: 'running', args: args || {}, messageId: assistantMessageId }});
+                const prev = currentContentRef.current || '';
+                const next = prev + (prev ? '\n' : '') + marker;
+                if (next !== prev) {
+                  currentContentRef.current = next;
+                  try { updateMessageContentInMemory(assistantMessageId, next); } catch { /* noop */ }
+                }
+                st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server, tool, args, cardId });
+                if (!toolStarted) {
+                  toolStarted = true;
+                  (async () => {
+                    try {
+                      const { executeToolCall } = await import('@/lib/mcp/ToolCallOrchestrator');
+                      await executeToolCall({
+                        assistantMessageId,
+                        conversationId: String(finalConversationId),
+                        server,
+                        tool,
+                        args,
+                        _runningMarker: marker,
+                        provider: effectiveProvider,
+                        model: modelToUse,
+                        historyForLlm: historyForLlm as any,
+                        originalUserContent: content,
+                        cardId,
+                      });
+                    } catch { /* noop */ }
+                  })();
+                }
+              }
+              break;
+            }
+            case 'stream_complete':
+            default:
+              break;
+          }
+        } catch { /* noop */ } finally {
+          performanceMonitor.end(perfId);
+        }
+      },
       onToken: (token) => {
+        // 性能监控：onToken处理（降级路径）
+        const perfIdToken = `onToken_${Date.now()}`;
+        performanceMonitor.start(perfIdToken, { 
+          mode: 'legacy-token',
+          messageId: assistantMessageId,
+          tokenLength: token?.length 
+        });
+        
         // 生产期保留较少的 token 级日志
+        console.log('[DEBUG:onToken]', { tokenLength: token?.length, token: token?.substring(0, 50) });
         // 防串写保护：仅当仍然是当前流实例时才写入
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         currentContentRef.current += token;
@@ -549,6 +641,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         autoSaverRef.current?.update(currentContentRef.current);
 
         // 已由统一 tokenizer 负责 tool_call 事件，无需额外探测器
+        
+        // 结束性能监控
+        performanceMonitor.end(perfIdToken);
       },
       onImage: (img: { mimeType: string; data: string }) => {
         // 将图片作为新段追加到消息 segments
@@ -563,7 +658,13 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         } catch { /* noop */ }
       },
       onComplete: () => {
-        try { console.log('[CHAT] done'); } catch { /* noop */ }
+        try { 
+          console.log('[CHAT] done'); 
+          console.log('[DEBUG:onComplete]', { 
+            currentContent: currentContentRef.current?.substring(0, 100),
+            contentLength: currentContentRef.current?.length 
+          });
+        } catch { /* noop */ }
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
         if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
@@ -572,9 +673,14 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         // 将现有 tokenizer 缓冲区剩余文本 flush 出来，避免末尾被截断
         try {
           const flushEvents = tokenizer.flush();
+          console.log('[DEBUG:flush]', { 
+            flushEventCount: flushEvents.length,
+            events: flushEvents.map((ev: any) => ({ type: ev?.type, chunkLength: ev?.chunk?.length }))
+          });
           const st = useChatStore.getState();
           for (const ev of flushEvents) {
             if (ev.type === 'text' && ev.chunk) {
+              console.log('[DEBUG:flush] 输出文本:', ev.chunk);
               st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
               currentContentRef.current += ev.chunk;
             }
@@ -1045,8 +1151,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     const thinking_start_time = Date.now();
     const streamInstanceId = uuidv4();
 
-    const { StructuredStreamTokenizer } = require('@/lib/chat/StructuredStreamTokenizer');
-    const tokenizer = new StructuredStreamTokenizer();
+    const { StreamTokenizer } = require('@/lib/chat/StreamTokenizer');
+    const tokenizer = new StreamTokenizer();
 
     const streamCallbacks: StreamCallbacks = {
       onStart: () => {
@@ -1063,7 +1169,74 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         setTokenCount(0);
         batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
       },
+      // 新增：结构化事件直通（与 handleSendMessage 保持一致）
+      onEvent: (event: any) => {
+        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
+        
+        // 性能监控：onEvent处理（重试流程）
+        const perfId = `onEvent_retry_${event?.type}_${Date.now()}`;
+        performanceMonitor.start(perfId, { 
+          type: event?.type, 
+          mode: 'event-driven-retry',
+          messageId: newAssistantId 
+        });
+        
+        const st = useChatStore.getState();
+        try {
+          switch (event?.type) {
+            case 'thinking_start':
+              st.dispatchMessageAction(newAssistantId, { type: 'THINK_START' } as any);
+              break;
+            case 'thinking_token':
+              if (event.content) st.dispatchMessageAction(newAssistantId, { type: 'THINK_APPEND', chunk: event.content } as any);
+              break;
+            case 'thinking_end':
+              st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any);
+              break;
+            case 'content_token': {
+              const chunk = String(event.content || '');
+              if (chunk) {
+                currentContentRef.current += chunk;
+                st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk } as any);
+                updateMessageContentInMemory(newAssistantId, currentContentRef.current);
+              }
+              break;
+            }
+            case 'tool_call': {
+              const parsed = event.parsed || {};
+              const server = parsed.serverName || parsed.server || '';
+              const tool = parsed.toolName || parsed.tool || '';
+              const args = parsed.arguments || parsed.args || undefined;
+              if (server && tool) {
+                const cardId = crypto.randomUUID();
+                const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server, tool, status: 'running', args: args || {}, messageId: newAssistantId }});
+                const prev = currentContentRef.current || '';
+                const next = prev + (prev ? '\n' : '') + marker;
+                if (next !== prev) {
+                  currentContentRef.current = next;
+                  try { updateMessageContentInMemory(newAssistantId, next); } catch { /* noop */ }
+                }
+                st.dispatchMessageAction(newAssistantId, { type: 'TOOL_HIT', server, tool, args, cardId });
+              }
+              break;
+            }
+            case 'stream_complete':
+            default:
+              break;
+          }
+        } catch { /* noop */ } finally {
+          performanceMonitor.end(perfId);
+        }
+      },
       onToken: (token) => {
+        // 性能监控：onToken处理（重试流程-降级路径）
+        const perfIdToken = `onToken_retry_${Date.now()}`;
+        performanceMonitor.start(perfIdToken, { 
+          mode: 'legacy-token-retry',
+          messageId: newAssistantId,
+          tokenLength: token?.length 
+        });
+        
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
         currentContentRef.current += token;
         lastActivityTimeRef.current = Date.now();
@@ -1088,6 +1261,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
         } catch { updateMessageContentInMemory(newAssistantId, currentContentRef.current); }
         setTokenCount(prev => prev + 1);
         autoSaverRef.current?.update(currentContentRef.current);
+        
+        // 结束性能监控
+        performanceMonitor.end(perfIdToken);
       },
       onComplete: () => {
         if ((streamCallbacks as any).__instanceId !== streamInstanceId) {

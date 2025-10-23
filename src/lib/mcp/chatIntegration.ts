@@ -12,7 +12,7 @@ const SERVERS_CONFIG_FILE = 'mcp_servers.json'; // For server configurations
 // 2) 兼容格式：<tool_call>{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}</tool_call>
 // 3) 纯 JSON：{"type":"tool_call","server":"filesystem","tool":"list","parameters":{...}}
 // 3) 前缀/代码块包裹 ```json ... ```
-// 旧版文本解析器已废弃；统一由 StructuredStreamTokenizer 负责
+// 旧版文本解析器已废弃；统一由 StreamTokenizer 负责工具调用解析，thinking由Provider层处理
 
 // Retrieves all configured servers from settings, optionally filtered by 'enabled' status
 export async function getAllConfiguredServers(onlyEnabled: boolean = false): Promise<string[]> {
