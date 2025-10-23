@@ -237,14 +237,22 @@ export class OllamaProvider extends BaseProvider {
       this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
+      let accumulatedContent = ''; // 累积完整内容用于日志
       const processJson = (json: any) => {
         if (!json) return;
         if (json.done === true) {
+          // 打印完整响应（用于调试）
+          const { logCompleteResponse } = require('../utils/response-logger');
+          logCompleteResponse('Ollama-Fallback', model, {
+            content: accumulatedContent
+          });
+          
           cb.onComplete?.();
           return;
         }
         const token = json?.message?.content;
         if (typeof token === 'string' && token.length > 0) {
+          accumulatedContent += token; // 累积内容
           cb.onToken?.(token);
         }
       };
@@ -262,6 +270,15 @@ export class OllamaProvider extends BaseProvider {
           if (last) {
             try { processJson(JSON.parse(last)); } catch { /* ignore */ }
           }
+          
+          // 打印完整响应（用于调试）
+          if (accumulatedContent) {
+            const { logCompleteResponse } = require('../utils/response-logger');
+            logCompleteResponse('Ollama-Fallback', model, {
+              content: accumulatedContent
+            });
+          }
+          
           cb.onComplete?.();
           break;
         }
@@ -333,6 +350,27 @@ export class OllamaProvider extends BaseProvider {
                 done: json.done
               });
               
+              // 🔍 诊断：检测"只thinking不输出content"的情况
+              if (json.done && this.thinkingStrategy) {
+                const strategy = this.thinkingStrategy as any;
+                const accumulatedThinking = strategy.thinkingBuffer || '';
+                const accumulatedContent = strategy.contentBuffer || '';
+                
+                // 检测工具调用关键词
+                const toolCallKeywords = /call|use|invoke|filesystem|list_directory|read_file|mcp_tool/i;
+                const mentionsToolCall = toolCallKeywords.test(accumulatedThinking);
+                const hasActualOutput = accumulatedContent.includes('<use_mcp_tool>');
+                
+                if (mentionsToolCall && !hasActualOutput) {
+                  console.warn('⚠️ [TOOL-CALL-MISSING] 模型在thinking中提到工具调用，但未在content中输出标签!', {
+                    thinkingPreview: accumulatedThinking.substring(0, 200),
+                    contentPreview: accumulatedContent.substring(0, 200),
+                    thinkingChars: accumulatedThinking.length,
+                    contentChars: accumulatedContent.length
+                  });
+                }
+              }
+              
               // 检查是否为内部调用（如生成标题），避免输出冗余日志
               const isInternal = (cb as any).__internal === true;
               
@@ -360,6 +398,16 @@ export class OllamaProvider extends BaseProvider {
               
               // 处理完成
               if (result.isComplete) {
+                // 打印完整响应（用于调试）
+                if (!isInternal && this.thinkingStrategy) {
+                  const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
+                  const accumulated = extractAccumulatedContent(this.thinkingStrategy);
+                  logCompleteResponse('Ollama', _modelName || 'unknown', {
+                    thinking: accumulated.thinking,
+                    content: accumulated.content
+                  });
+                }
+                
                 cb.onComplete?.();
                 this.sseClient.stopConnection();
                 // 重置策略

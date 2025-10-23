@@ -15,8 +15,10 @@ export const MCPPrompts = {
     '外部工具调用规则：',
     '• 仅在必须时调用（无法凭知识回答、用户明确请求操作）',
     '• 优先使用用户@提及的服务器工具',
-    '• 调用格式：<use_mcp_tool><server_name>S</server_name><tool_name>T</tool_name><arguments>{JSON}</arguments></use_mcp_tool>',
-    '• 输出标签外禁止任何文字',
+    '• 【关键】需要调用工具时，直接在回复正文中输出完整的工具调用标签，不要只在思考中描述计划',
+    '• 调用格式：<use_mcp_tool><server_name>[服务器名]</server_name><tool_name>[工具名]</tool_name><arguments>[JSON参数]</arguments></use_mcp_tool>',
+    '• 示例：<use_mcp_tool><server_name>filesystem</server_name><tool_name>list_directory</tool_name><arguments>{"path":"."}</arguments></use_mcp_tool>',
+    '• 输出标签外禁止任何文字（思考过程除外）',
     '• 遇到"connecting"状态时可直接尝试调用，系统会自动重连',
     '• 错误调用将被惩罚'
   ].join(' '),

@@ -428,7 +428,9 @@ ${instruction}`;
   const toolResultSystemPrompt = `基于工具调用结果回答用户问题。
 - 如结果充分，直接回答
 - 如有错误或不足，可调用其他工具
-- 使用工具格式：<use_mcp_tool><server_name>S</server_name><tool_name>T</tool_name><arguments>{JSON}</arguments></use_mcp_tool>
+- 【关键】需要调用工具时，直接在回复正文中输出完整的工具调用标签，不要只在思考中描述计划
+- 使用工具格式：<use_mcp_tool><server_name>[服务器名]</server_name><tool_name>[工具名]</tool_name><arguments>[JSON参数]</arguments></use_mcp_tool>
+- 格式示例：<use_mcp_tool><server_name>filesystem</server_name><tool_name>read_file</tool_name><arguments>{"path":"example.txt"}</arguments></use_mcp_tool>
 
 原始问题：${originalUserContent}`;
 
