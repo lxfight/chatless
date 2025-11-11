@@ -285,6 +285,20 @@ export function AIMessageBlock({
     return [];
   }, [content, segments, state?.regularContent, viewModel?.items]);
 
+  // 计算当前处于“思考中”的 think 段索引：
+  // 规则：从后往前找到第一个 type==='think' 且未结束的段（duration 为 undefined/null/0 视为未结束）。
+  const activeThinkIndex = useMemo(() => {
+    for (let i = mixedSegments.length - 1; i >= 0; i--) {
+      const s: any = mixedSegments[i];
+      if (s && s.type === 'think') {
+        const d = s.duration;
+        if (d === undefined || d === null || d === 0) return i;
+        break; // 遇到已完成的最后一个 think，则之前的都不再活跃
+      }
+    }
+    return -1;
+  }, [mixedSegments]);
+
   // 将所有图片段聚合，避免把长段文本割裂
   const images = useMemo(() => {
     const src: any[] = Array.isArray(viewModel?.items) ? (viewModel?.items) : (Array.isArray(segments) ? (segments as any[]) : []);
@@ -357,29 +371,20 @@ export function AIMessageBlock({
                 }
                 // 独立渲染每个 think 段的思考栏
                 if (seg.type === 'think') {
-                  // 判断是否是当前正在活跃的think段：
-                  // 1. 必须是流式状态
-                  // 2. 是最后一个think段
-                  // 3. 该think段还没有duration（duration存在说明已结束）
-                  const isLastThinkSegment = mixedSegments.slice(idx + 1).every(s => s.type !== 'think');
-                  const hasNoDuration = seg.duration === undefined || seg.duration === null;
-                  const isCurrentThinking = isStreaming && isLastThinkSegment && hasNoDuration && viewModel?.flags?.isThinking;
+                  // 是否为当前活跃的思考段：仅由activeThinkIndex决定，避免全局标志干扰
+                  const isCurrentThinking = idx === activeThinkIndex;
                   
                   // 计算时长：
                   // 1. 如果已经有duration（已完成的think段），直接使用
                   // 2. 如果正在进行中（isCurrentThinking），使用该段的startTime计算实时时长
                   // 3. 否则使用startTime计算到当前的时长（降级处理）
                   let durationSeconds = 0;
-                  if (seg.duration !== undefined && seg.duration !== null) {
-                    // 已完成的think段，直接使用记录的duration（已经是秒）
+                  if (seg.duration !== undefined && seg.duration !== null && seg.duration > 0) {
                     durationSeconds = seg.duration;
                   } else if (isCurrentThinking && seg.startTime) {
-                    // 当前正在进行的think段，使用该段自己的startTime计算实时时长
-                    // 依赖thinkTimerTick确保每秒更新
                     const _ = thinkTimerTick; // 触发重新计算
                     durationSeconds = Math.floor((Date.now() - seg.startTime) / 1000);
                   } else if (seg.startTime) {
-                    // 如果有startTime但没有duration，计算已经过的时间（降级处理）
                     durationSeconds = Math.floor((Date.now() - seg.startTime) / 1000);
                   }
                   

@@ -1,0 +1,507 @@
+/* 思考栏动画效果 */
+
+@keyframes wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes breathe-slow {
+  0%, 100% {
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.8);
+  }
+}
+
+@keyframes particle {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--tx, 50px)), calc(-50% + var(--ty, -50px))) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+.animate-wave {
+  animation: wave 2s ease-in-out infinite;
+}
+
+.animate-breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.animate-breathe-slow {
+  animation: breathe-slow 3s ease-in-out infinite;
+}
+
+.animate-particle {
+  animation: particle 2s ease-out infinite;
+}
+
+.animate-particle:nth-child(1) { --tx: 60px; --ty: -60px; }
+.animate-particle:nth-child(2) { --tx: 80px; --ty: 0px; }
+.animate-particle:nth-child(3) { --tx: 60px; --ty: 60px; }
+.animate-particle:nth-child(4) { --tx: 0px; --ty: 80px; }
+.animate-particle:nth-child(5) { --tx: -60px; --ty: 60px; }
+.animate-particle:nth-child(6) { --tx: -80px; --ty: 0px; }
+.animate-particle:nth-child(7) { --tx: -60px; --ty: -60px; }
+.animate-particle:nth-child(8) { --tx: 0px; --ty: -80px; }
+
+.animate-scan {
+  animation: scan 2s linear infinite;
+}
+
+.animation-delay-150 {
+  animation-delay: 150ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+.animation-delay-500 {
+  animation-delay: 500ms;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1000ms;
+}
+
+/* 星空闪烁动画 */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* 涟漪扩散动画 */
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 2s ease-out infinite;
+}
+
+/* 彩虹流动动画 */
+@keyframes rainbow-flow {
+  0% {
+    background: linear-gradient(90deg, 
+      rgba(255,0,0,0.1) 0%, 
+      rgba(255,154,0,0.1) 10%, 
+      rgba(208,222,33,0.1) 20%, 
+      rgba(79,220,74,0.1) 30%, 
+      rgba(63,218,216,0.1) 40%, 
+      rgba(47,201,226,0.1) 50%, 
+      rgba(28,127,238,0.1) 60%, 
+      rgba(95,21,242,0.1) 70%, 
+      rgba(186,12,248,0.1) 80%, 
+      rgba(251,7,217,0.1) 90%, 
+      rgba(255,0,0,0.1) 100%
+    );
+  }
+  100% {
+    background: linear-gradient(90deg, 
+      rgba(255,0,0,0.1) -100%, 
+      rgba(255,154,0,0.1) -90%, 
+      rgba(208,222,33,0.1) -80%, 
+      rgba(79,220,74,0.1) -70%, 
+      rgba(63,218,216,0.1) -60%, 
+      rgba(47,201,226,0.1) -50%, 
+      rgba(28,127,238,0.1) -40%, 
+      rgba(95,21,242,0.1) -30%, 
+      rgba(186,12,248,0.1) -20%, 
+      rgba(251,7,217,0.1) -10%, 
+      rgba(255,0,0,0.1) 0%
+    );
+  }
+}
+
+.animate-rainbow-flow {
+  animation: rainbow-flow 5s linear infinite;
+  background-size: 200% 100%;
+}
+
+/* 极光动画 */
+@keyframes aurora-1 {
+  0%, 100% {
+    transform: translateX(-100%) skewX(-15deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(100%) skewX(-15deg);
+    opacity: 1;
+  }
+}
+
+@keyframes aurora-2 {
+  0%, 100% {
+    transform: translateX(-100%) skewX(15deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(100%) skewX(15deg);
+    opacity: 1;
+  }
+}
+
+@keyframes aurora-3 {
+  0%, 100% {
+    transform: translateX(100%) skewX(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(-100%) skewX(-10deg);
+    opacity: 1;
+  }
+}
+
+.animate-aurora-1 {
+  animation: aurora-1 8s ease-in-out infinite;
+}
+
+.animate-aurora-2 {
+  animation: aurora-2 10s ease-in-out infinite;
+}
+
+.animate-aurora-3 {
+  animation: aurora-3 12s ease-in-out infinite;
+}
+
+/* 霓虹流动动画 */
+@keyframes neon-flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes neon-line {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-neon-flow {
+  animation: neon-flow 3s linear infinite;
+}
+
+.animate-neon-line {
+  animation: neon-line 2s ease-in-out infinite;
+}
+
+/* 渐变移动动画 */
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 3s ease infinite;
+  background-size: 200% 200%;
+}
+
+/* 慢速旋转 */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+/* 墨水扩散动画 */
+@keyframes ink-spread {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(15);
+    opacity: 0;
+  }
+}
+
+.animate-ink-spread {
+  animation: ink-spread 3s ease-out infinite;
+}
+
+/* 漂浮动画 */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 流动动画 */
+@keyframes flow {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-flow {
+  animation: flow 2s ease-in-out infinite;
+}
+
+/* 心跳动画 */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  10%, 30% {
+    transform: scale(1.1);
+  }
+  20%, 40% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+/* 文字呼吸动画 */
+@keyframes text-breathe {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.animate-text-breathe {
+  animation: text-breathe 2s ease-in-out infinite;
+}
+
+/* 波纹文字动画 */
+@keyframes ripple-text {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-ripple-text {
+  animation: ripple-text 2s ease-in-out infinite;
+}
+
+/* 翻页动画 */
+@keyframes page-flip {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotateX(90deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
+.animate-page-flip {
+  animation: page-flip 0.8s ease-out;
+}
+
+/* 放大镜聚焦动画 */
+@keyframes zoom-focus {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.animate-zoom-focus {
+  animation: zoom-focus 1s ease-in-out infinite;
+}
+
+/* 滚动字幕动画 */
+@keyframes scroll-text {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-text {
+  animation: scroll-text 15s linear infinite;
+}
+
+/* 渐显关键词动画 */
+@keyframes fade-in-keyword {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade-in-keyword {
+  animation: fade-in-keyword 0.5s ease-out;
+}
+
+/* 飘动碎片动画 */
+@keyframes float-fragment {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.7;
+  }
+  25% {
+    transform: translateY(-15px) translateX(10px);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-5px) translateX(-10px);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(-20px) translateX(5px);
+    opacity: 0.9;
+  }
+}
+
+.animate-float-fragment {
+  animation: float-fragment 4s ease-in-out infinite;
+}
+
+/* 文字波浪动画 */
+@keyframes wave-text {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-wave-text {
+  animation: wave-text 1.5s ease-in-out infinite;
+}
+
+/* 模糊聚焦动画 */
+@keyframes blur-focus {
+  0%, 100% {
+    filter: blur(0px);
+    opacity: 1;
+  }
+  50% {
+    filter: blur(2px);
+    opacity: 0.8;
+  }
+}
+
+.animate-blur-focus {
+  animation: blur-focus 3s ease-in-out infinite;
+}
+
+/* 温和渐入动画 */
+@keyframes gentle-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-gentle-fade-in {
+  animation: gentle-fade-in 0.8s ease-out;
+}
+
