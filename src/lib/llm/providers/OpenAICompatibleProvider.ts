@@ -279,17 +279,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
                 }
               }
               
-              // 打印完整响应（用于调试）
-              if (this.thinkingStrategy) {
-                const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                logCompleteResponse('OpenAI-Compatible', model, {
-                  thinking: accumulated.thinking,
-                  content: accumulated.content
-                });
-              }
-              
-              cb.onComplete?.(); 
+              cb.onComplete?.();
             } 
             continue; 
           }

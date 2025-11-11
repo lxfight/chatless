@@ -120,16 +120,6 @@ export class OpenAIProvider extends BaseProvider {
             const jsonStr = rawData.substring(5).trim();
             if (!jsonStr) return;
             if (jsonStr === '[DONE]') {
-              // 打印完整响应（用于调试）
-              if (this.thinkingStrategy) {
-                const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                logCompleteResponse('OpenAI', model, {
-                  thinking: accumulated.thinking,
-                  content: accumulated.content
-                });
-              }
-              
               cb.onComplete?.();
               this.sseClient.stopConnection();
               return;

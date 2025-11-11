@@ -216,16 +216,6 @@ export class OpenAIResponsesProvider extends BaseProvider {
             }
             
             if (route === 'response.completed') {
-              // 打印完整响应（用于调试）
-              if (this.thinkingStrategy) {
-                const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                logCompleteResponse('OpenAI-Responses', model, {
-                  thinking: accumulated.thinking,
-                  content: accumulated.content
-                });
-              }
-              
               cb.onComplete?.();
             }
             break;

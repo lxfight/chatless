@@ -271,10 +271,15 @@ export function AIMessageBlock({
         else if (s && s.kind === 'image') list.push({ type: 'image', data: s });
       }
       // 调试开关，默认关闭
-      const DEBUG_MIXED = false;
-      if (DEBUG_MIXED) {
-        try { console.log('[UI:mixedSegments]', { id, total: list.length, cards: list.filter(s=>s.type==='card').length, thinks: list.filter(s=>s.type==='think').length, texts: list.filter(s=>s.type==='text').length }); } catch { /* noop */ }
-      }
+      try {
+        const { trace } = require('@/lib/debug/Trace');
+        trace('ui', id, 'mixedSegments', { 
+          total: list.length, 
+          cards: list.filter(s=>s.type==='card').length, 
+          thinks: list.filter(s=>s.type==='think').length, 
+          texts: list.filter(s=>s.type==='text').length 
+        });
+      } catch { /* noop */ }
       return list;
     }
     return [];
@@ -466,6 +471,24 @@ export function AIMessageBlock({
                   </div>
                 );
               })}
+              {(() => {
+                // 兜底：当 segments 中没有任何 text 段时，使用 regularContent/content 进行一次性渲染
+                const hasTextSegment = mixedSegments.some(s => s.type === 'text' && (s.text || '').trim().length > 0);
+                const fallbackText = (state?.regularContent || content || '').trim();
+                if (!hasTextSegment && fallbackText.length > 0) {
+                  return (
+                    <div key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
+                      <div className="markdown-content-area">
+                        {(() => {
+                          const { StreamingMarkdown } = require('./StreamingMarkdown');
+                          return <StreamingMarkdown content={fallbackText} isStreaming={isStreaming} />;
+                        })()}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           ) : null}
           {/* MCP调用识别阶段：检测到工具调用标签但还未完成解析时显示加载动画 */}

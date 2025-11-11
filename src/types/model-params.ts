@@ -8,6 +8,9 @@ export interface ModelParameters {
   enableFrequencyPenalty?: boolean;
   enablePresencePenalty?: boolean;
   enableStopSequences?: boolean;
+  enableThinking?: boolean;  // 控制思考模式（Ollama等支持）
+  enableStreaming?: boolean; // 控制流式响应
+  enableFormat?: boolean;    // 控制输出格式（Ollama等支持）
 
   temperature: number;
   maxTokens: number;
@@ -17,6 +20,11 @@ export interface ModelParameters {
   frequencyPenalty: number;
   presencePenalty: number;
   stopSequences: string[];
+  thinking?: boolean;  // 是否启用思考（默认true）
+  streaming?: boolean; // 是否启用流式响应（默认true）
+  format?: string;     // 输出格式（如"json"）
+  responseFormat?: 'none' | 'json' | 'schema'; // 响应格式控制
+  responseFormatSchema?: string; // JSON Schema（当responseFormat为schema时）
   /** 可选：高级参数（将直接合并到 Provider 选项中），例如 Gemini 的 generationConfig */
   advancedOptions?: Record<string, any>;
 }
@@ -29,7 +37,7 @@ export interface ModelConfig {
 }
 
 export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
-  // 模型参数默认均未启用：开箱即用“不下发”，仅在开启后才覆盖模型默认
+  // 模型参数默认均未启用：开箱即用"不下发"，仅在开启后才覆盖模型默认
   enableTemperature: false,
   enableMaxTokens: false,
   enableTopP: false,
@@ -38,6 +46,8 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
   enableFrequencyPenalty: false,
   enablePresencePenalty: false,
   enableStopSequences: false,
+  enableThinking: false,  // 默认不启用思考（避免不兼容的模型报错）
+  enableStreaming: true,  // 默认启用流式响应（大多数情况下需要实时输出）
   temperature: 0.7,
   maxTokens: 2048,
   topP: 1.0,
@@ -46,6 +56,10 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
   frequencyPenalty: 0.0,
   presencePenalty: 0.0,
   stopSequences: [],
+  thinking: true,  // 默认启用
+  streaming: true, // 默认启用
+  responseFormat: 'none', // 默认不限制格式
+  responseFormatSchema: '',
   advancedOptions: {}
 };
 

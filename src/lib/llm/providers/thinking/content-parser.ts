@@ -88,12 +88,6 @@ export class McpToolCallParser implements ContentParser {
         // 只有成功解析出server和tool时才生成事件
         if (parsed && parsed.serverName && parsed.toolName) {
           events.push(createStreamEvent.toolCall(match, parsed));
-          
-          console.log('[McpToolCallParser] 解析成功:', {
-            server: parsed.serverName,
-            tool: parsed.toolName,
-            hasArgs: !!parsed.arguments
-          });
         }
       } catch (err) {
         console.warn('[McpToolCallParser] 解析失败:', err, 'content:', match.substring(0, 100));
@@ -126,8 +120,8 @@ export class McpToolCallParser implements ContentParser {
         try {
           JSON.parse(argsText); // 验证
           args = argsText; // 保持原始字符串
-        } catch (err) {
-          console.warn('[McpToolCallParser] arguments格式无效:', err);
+        } catch {
+          // 降噪：仅在需要排查时再打开详细日志
           // 继续执行，arguments可以为空
         }
       }

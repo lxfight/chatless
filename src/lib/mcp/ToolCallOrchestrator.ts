@@ -86,7 +86,7 @@ export async function executeToolCall(params: {
   if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
     const recentResult = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
     if (recentResult) {
-      console.log(`[MCP-DEBUG] 使用缓存结果避免重复调用: ${server}.${effectiveTool}`);
+      console.debug(`[MCP] 使用缓存结果: ${server}.${effectiveTool}`);
       
       const stx = useChatStore.getState();
       stx.dispatchMessageAction(assistantMessageId, { 
@@ -119,7 +119,7 @@ export async function executeToolCall(params: {
           return desc ? `${nm} - ${desc}` : nm;
         });
         const hint = `错误：服务器"${server}"中找不到工具"${effectiveTool}"。\n\n该服务器的可用工具如下：\n${toolList.map(tool => `• ${tool}`).join('\n')}`;
-        console.log(`[MCP-DEBUG] 工具不存在错误 - 服务器=${server}, 工具=${effectiveTool}`, { hint, toolList });
+        console.warn(`[MCP] 工具不存在: ${server}.${effectiveTool}`);
         
         const stx = useChatStore.getState();
         // 改为通过状态机更新已有"运行中"卡片，避免生成重复卡片
@@ -150,22 +150,17 @@ export async function executeToolCall(params: {
   // 将执行逻辑包装为Promise并缓存
   const executePromise = (async () => {
     try {
-      console.log(`[MCP-DEBUG] 准备调用工具: ${server}.${effectiveTool}`, {
-        server,
-        tool: effectiveTool,
-        args: effectiveArgs,
-        argsType: typeof effectiveArgs,
-        argsSize: effectiveArgs ? JSON.stringify(effectiveArgs).length : 0
-      });
+      // 降噪：仅输出一条简要起止日志
+      console.debug(`[MCP] 调用 ${server}.${effectiveTool}`);
       
       // 授权检查
       const autoAuth = await shouldAutoAuthorize(server);
-      console.log(`[MCP-AUTH] 授权检查: ${server}.${effectiveTool}, 自动授权=${autoAuth}`);
+      console.debug(`[MCP-AUTH] 授权检查: ${server}.${effectiveTool}, auto=${autoAuth}`);
       
       if (!autoAuth) {
         // 需要用户授权
         const effectiveCardId = cardId || crypto.randomUUID();
-        console.log(`[MCP-AUTH] 等待用户授权: ${server}.${effectiveTool}, cardId=${effectiveCardId}`);
+        console.debug(`[MCP-AUTH] 等待用户授权: ${server}.${effectiveTool}`);
         
         const st = useChatStore.getState();
         
@@ -197,11 +192,11 @@ export async function executeToolCall(params: {
           });
         });
         
-        console.log(`[MCP-AUTH] 授权结果: ${server}.${effectiveTool}, authorized=${authorized}`);
+        console.debug(`[MCP-AUTH] 授权结果: ${server}.${effectiveTool}, ok=${authorized}`);
         
         if (!authorized) {
           // 用户拒绝授权
-          console.log(`[MCP-AUTH] 用户拒绝授权: ${server}.${effectiveTool}`);
+          console.warn(`[MCP-AUTH] 用户拒绝: ${server}.${effectiveTool}`);
           st.dispatchMessageAction(assistantMessageId, { 
             type: 'TOOL_RESULT', 
             server, 
@@ -231,18 +226,14 @@ export async function executeToolCall(params: {
         
         // 用户批准，卡片已经存在（pending_auth状态），不需要再创建
         // 授权批准后，卡片会在工具执行完成时自动更新为 success
-        console.log(`[MCP-AUTH] 用户批准授权，继续执行: ${server}.${effectiveTool}`);
+        console.debug(`[MCP-AUTH] 已批准，继续: ${server}.${effectiveTool}`);
       }
       
       // 检查服务器连接状态，如果未连接则尝试重连
       await ensureServerConnected(server);
       
       const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
-    
-    console.log(`[MCP-DEBUG] 工具调用成功: ${server}.${effectiveTool}`, {
-      resultType: typeof result,
-      resultSize: result ? (typeof result === 'string' ? result.length : JSON.stringify(result).length) : 0
-    });
+      console.debug(`[MCP] 成功: ${server}.${effectiveTool}`);
     
     // 记录成功调用
     mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
@@ -257,7 +248,7 @@ export async function executeToolCall(params: {
     } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
     
-    console.error(`[MCP-DEBUG] 工具调用失败: ${server}.${effectiveTool}`, {
+    console.error(`[MCP] 工具调用失败: ${server}.${effectiveTool}`, {
       server,
       tool: effectiveTool,
       args: effectiveArgs,
@@ -314,7 +305,7 @@ export async function executeToolCall(params: {
         toolsSuggest
       ].filter(Boolean).join('\n');
     }
-    console.log(`[MCP-DEBUG] 工具调用错误`, { server, effectiveTool, err, combinedHint, failStage });
+    console.warn(`[MCP] 工具调用错误: ${server}.${effectiveTool} -> ${err}`);
     st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint: combinedHint, cardId });
     // 关键修复：当调用发生错误时，也继续走追问链路，把错误与 schema 提示一并提供给模型
     try {
@@ -389,7 +380,6 @@ async function continueWithToolResult(params: {
   }
   (globalThis as any)[counterKey] = current + 1;
 
-  const follow = typeof result === 'string' ? result : JSON.stringify(result);
   // 根据结果类型生成精准的追问提示
   const isError = typeof result === 'object' && result && (result as any).error;
   const isEmptyResult = !result || (typeof result === 'string' && result.trim().length === 0) || 
@@ -415,11 +405,24 @@ async function continueWithToolResult(params: {
     instruction = '请基于上述结果回答用户问题，如信息不足可继续调用相关工具。';
   }
 
-  const nextUser = `原始问题：${originalUserContent}
+  // 二显一策略：只把摘要用于提示，不在正文回显原始JSON，以免与卡片重复
+  const _followSummary = (() => {
+    try {
+      const obj = typeof result === 'string' ? JSON.parse(result) : result as any;
+      if (obj && typeof obj === 'object') {
+        const keys = Object.keys(obj).slice(0, 8);
+        return `键: ${keys.join(', ')} (长度≈${JSON.stringify(obj).length})`;
+      }
+    } catch { /* ignore */ }
+    const s = (typeof result === 'string' ? result : JSON.stringify(result ?? {})).replace(/\s+/g,' ').slice(0, 300);
+    return `${s}${s.length>=300?'…':''}`;
+  })();
 
-工具结果：${server}.${tool} -> ${follow.slice(0, 8000)}
-
-${instruction}`;
+  // 构造“包含真实结果”的追问消息（避免模型凭空猜测）
+  const { toolResultToNextMessage } = await import('@/lib/mcp/providerAdapters');
+  const nextUserMsg = toolResultToNextMessage(provider as any, server, tool, result, originalUserContent);
+  // 将工程化的补充说明拼接到消息末尾，保留真实结果文本
+  nextUserMsg.content = `${nextUserMsg.content}\n\n—— 追加说明 ——\n${instruction}\n\n（注意：上述JSON/文本只作为事实依据，不要直接回显给用户）`;
 
   const _st = useChatStore.getState();
   // 继续在同一条 assistant 消息中流式续写，不新建消息
@@ -437,134 +440,101 @@ ${instruction}`;
   const followHistory: LlmMessage[] = [
     { role: 'system', content: toolResultSystemPrompt } as any,
     ...historyForLlm.filter((m:any)=>m.role!=='user' || m.content!==originalUserContent),
-    { role:'user', content: nextUser } as any
+    nextUserMsg as any
   ];
 
   const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
   const tokenizer = new StreamTokenizer();
-  // 递归阶段增加轻量自动保存：每累计一定字符就写库一次，避免断电/重启丢失
-  let autosaveBuffer = '';
-  let pendingHit: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
+  const { createStreamEventDispatcher } = await import('@/lib/chat/stream/StreamEventDispatcher');
+  const dispatcher = createStreamEventDispatcher({
+    conversationId,
+    assistantMessageId,
+    onAutoExecuteTool: (srv, tl, a, cardId) => {
+      void executeToolCall({
+        assistantMessageId,
+        conversationId,
+        server: srv,
+        tool: tl,
+        args: a,
+        _runningMarker: '',
+        provider,
+        model,
+        historyForLlm: followHistory,
+        originalUserContent,
+        cardId,
+      });
+    },
+    onRequestAuthorization: ({ server: srv, tool: tl, args: a, cardId }) => {
+      const authStore = useAuthorizationStore.getState();
+      authStore.addPendingAuthorization({
+        id: cardId,
+        messageId: assistantMessageId,
+        server: srv,
+        tool: tl,
+        args: a || {},
+        createdAt: Date.now(),
+        onApprove: () => {
+          void executeToolCall({
+            assistantMessageId,
+            conversationId,
+            server: srv,
+            tool: tl,
+            args: a,
+            _runningMarker: '',
+            provider,
+            model,
+            historyForLlm: followHistory,
+            originalUserContent,
+            cardId,
+          });
+        },
+        onReject: () => {
+          const st = useChatStore.getState();
+          st.dispatchMessageAction(assistantMessageId, {
+            type: 'TOOL_RESULT',
+            server: srv,
+            tool: tl,
+            ok: false,
+            errorMessage: '用户拒绝授权此工具调用',
+            cardId,
+          });
+        },
+      });
+    },
+  });
+  // 递归阶段：hadText 用于决定是否触发“追问”流程
   let hadText = false; // 本轮是否收到过正文 token
+  let eventModeUsed = false;
   const callbacks: StreamCallbacks = {
     onStart: () => {},
+    // 新增：优先使用结构化事件流（push式组件开始/结束）
+    onEvent: (event: any) => {
+      eventModeUsed = true;
+      try {
+        dispatcher.handle(event);
+        const s = dispatcher.getState();
+        if (s.hadText) hadText = true;
+      } catch { /* noop */ }
+    },
     onToken: (tk: string) => {
-      const stf = useChatStore.getState();
-      const convf = stf.conversations.find(c=>c.id===conversationId);
-      const msgf = convf?.messages.find(m=>m.id===assistantMessageId);
-      const cur = (msgf?.content || '') + tk;
-      stf.updateMessageContentInMemory(assistantMessageId, cur);
-      autosaveBuffer += tk;
-      if (autosaveBuffer.length > 200) {
-        autosaveBuffer = '';
-        try { void stf.updateMessage(assistantMessageId, { content: cur }); } catch { /* noop */ }
-      }
-
+      if (eventModeUsed) return;
       try {
         const events = tokenizer.push(tk);
-        for (const ev of events) {
-          if (ev.type === 'thinking_start') {
-            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-          } else if (ev.type === 'thinking_token') {
-            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
-          } else if (ev.type === 'thinking_end') {
-            stf.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-          } else if (ev.type === 'content_token') {
-            // 关键：续流阶段也要把正文 token 追加到 segments
-            if (ev.content) {
-              hadText = true;
-              stf.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
-            }
-          }
-          if (ev.type === 'tool_call' && !pendingHit) {
-            const cardId = crypto.randomUUID();
-            const parsed = ev.parsed || {};
-            const server = parsed.serverName || '';
-            const tool = parsed.toolName || '';
-            const args = parsed.arguments || undefined;
-            pendingHit = { server, tool, args: args as any, cardId };
-            // 在内容末尾追加卡片标记以确保可见
-            const prev = (msgf?.content || '') + '';
-            
-            // 检查是否需要授权
-            void (async () => {
-              try {
-                const needAuth = !(await shouldAutoAuthorize(server));
-                const marker = JSON.stringify({ 
-                  __tool_call_card__: { 
-                    id: cardId, 
-                    server, 
-                    tool, 
-                    status: needAuth ? 'pending_auth' : 'running',
-                    args: args || {}, 
-                    messageId: assistantMessageId 
-                  }
-                });
-                const next = prev + (prev ? '\n' : '') + marker;
-                stf.updateMessageContentInMemory(assistantMessageId, next);
-                
-                // 根据授权状态写入不同的segments
-                if (needAuth) {
-                  // 需要授权，创建pending_auth状态的卡片
-                  stf.dispatchMessageAction(assistantMessageId, { 
-                    type: 'TOOL_RESULT', 
-                    server, 
-                    tool, 
-                    ok: false,
-                    errorMessage: 'pending_auth',
-                    cardId 
-                  });
-                } else {
-                  // 自动授权，创建running状态的卡片
-                  stf.dispatchMessageAction(assistantMessageId, { 
-                    type: 'TOOL_HIT', 
-                    server, 
-                    tool, 
-                    args, 
-                    cardId 
-                  });
-                }
-              } catch (error) {
-                console.error('[MCP-AUTH] 授权检查失败:', error);
-                // 出错时默认需要授权
-                const marker = JSON.stringify({ 
-                  __tool_call_card__: { 
-                    id: cardId, 
-                    server, 
-                    tool, 
-                    status: 'pending_auth',
-                    args: args || {}, 
-                    messageId: assistantMessageId 
-                  }
-                });
-                const next = prev + (prev ? '\n' : '') + marker;
-                stf.updateMessageContentInMemory(assistantMessageId, next);
-                stf.dispatchMessageAction(assistantMessageId, { 
-                  type: 'TOOL_RESULT', 
-                  server, 
-                  tool, 
-                  ok: false,
-                  errorMessage: 'pending_auth',
-                  cardId 
-                });
-              }
-            })();
-          }
-        }
+        for (const ev of events) { dispatcher.handle(ev as any); }
+        if (dispatcher.getState().hadText) hadText = true;
       } catch { /* ignore detector error */ }
     },
               onComplete: () => {
       const stf2 = useChatStore.getState();
       
-      // 关键修复：在流式结束时调用tokenizer的flush方法，确保缓冲区中的最后几个字符被处理
-      try {
-        const flushEvents = tokenizer.flush();
-        for (const ev of flushEvents) {
-          if (ev.type === 'content_token' && ev.content) {
-            stf2.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
-          }
-        }
-      } catch { /* noop */ }
+      // 事件模式无需 flush；回退路径下 flush 剩余内容
+      if (!eventModeUsed) {
+        try {
+          const flushEvents = tokenizer.flush();
+          for (const ev of flushEvents) { dispatcher.handle(ev as any); }
+          dispatcher.flush();
+        } catch { /* noop */ }
+      }
       
       // 关键修复：确保在流式结束时强制保存所有内容，包括最后的token
       try {
@@ -575,85 +545,7 @@ ${instruction}`;
         void stf2.updateMessage(assistantMessageId, { content: contentNow });
       } catch { /* noop */ }
       
-      if (pendingHit) {
-        // 检查是否需要授权 - 只有自动授权的才在这里执行
-        const next = pendingHit; pendingHit = null;
-        
-        // 异步检查授权状态，只有自动授权的才立即执行
-        void (async () => {
-          try {
-            const autoAuth = await shouldAutoAuthorize(next.server);
-            if (autoAuth) {
-              // 自动授权，立即执行
-              console.log(`[MCP-COMPLETE] 自动授权，立即执行: ${next.server}.${next.tool}`);
-              void executeToolCall({
-                assistantMessageId,
-                conversationId,
-                server: next.server,
-                tool: next.tool,
-                args: next.args,
-                _runningMarker: '',
-                provider,
-                model,
-                historyForLlm: followHistory,
-                originalUserContent: originalUserContent,
-                cardId: next.cardId,
-              });
-            } else {
-              // 需要用户授权，创建授权请求并等待用户确认
-              console.log(`[MCP-COMPLETE] 需要用户授权，创建授权请求: ${next.server}.${next.tool}`);
-              
-              // 创建授权请求，等待用户批准
-              const authStore = useAuthorizationStore.getState();
-              await new Promise<boolean>((resolve) => {
-                authStore.addPendingAuthorization({
-                  id: next.cardId,
-                  messageId: assistantMessageId,
-                  server: next.server,
-                  tool: next.tool,
-                  args: next.args || {},
-                  createdAt: Date.now(),
-                  onApprove: () => {
-                    console.log(`[MCP-AUTH] 用户批准授权: ${next.server}.${next.tool}`);
-                    resolve(true);
-                    // 用户批准后执行工具调用
-                    void executeToolCall({
-                      assistantMessageId,
-                      conversationId,
-                      server: next.server,
-                      tool: next.tool,
-                      args: next.args,
-                      _runningMarker: '',
-                      provider,
-                      model,
-                      historyForLlm: followHistory,
-                      originalUserContent: originalUserContent,
-                      cardId: next.cardId,
-                    });
-                  },
-                  onReject: () => {
-                    console.log(`[MCP-AUTH] 用户拒绝授权: ${next.server}.${next.tool}`);
-                    resolve(false);
-                    // 用户拒绝，更新卡片状态为error
-                    const st = useChatStore.getState();
-                    st.dispatchMessageAction(assistantMessageId, { 
-                      type: 'TOOL_RESULT', 
-                      server: next.server, 
-                      tool: next.tool, 
-                      ok: false, 
-                      errorMessage: '用户拒绝授权此工具调用',
-                      cardId: next.cardId 
-                    });
-                  }
-                });
-              });
-            }
-          } catch (error) {
-            console.error('[MCP-COMPLETE] 授权检查失败:', error);
-            // 出错时不执行，等待用户授权
-          }
-        })();
-      } else {
+      {
         const convf2 = stf2.conversations.find(c=>c.id===conversationId);
         const msgf2 = convf2?.messages.find(m=>m.id===assistantMessageId);
         const finalContent = msgf2?.content || '';
@@ -661,12 +553,14 @@ ${instruction}`;
         if (!hadText) {
           (async () => {
             // 为追问阶段构建更好的系统提示词
-            const nudgeSystemPrompt = `基于工具调用结果回答用户问题。
+            const nudgeSystemPrompt = `你现在需要基于已获得的工具调用结果，完成最终回答或继续调用工具补充证据。
 
-要求：
-1. 有结果时直接回答
-2. 结果不足时可调用其他工具
-3. 遇到错误时重试或换用其他工具
+严格遵循：
+1) 若现有结果已足够回答，请直接给出中文最终答案（≤ 300 字）；
+2) 若仍缺少证据或需要查看/验证，请再次调用合适的工具（正文只输出 1 个 <use_mcp_tool> 标签，不要在标签外输出任何文字）；
+3) 每次仅调用 1 个工具；完成后再次判断是否已能给出最终答案；
+4) 禁止仅在思考中描述计划，必须把调用以 <use_mcp_tool> 形式写入正文；
+5) 不要编造 Server 名称，从系统提供的“已启用 Server”中选择。 
 
 用户问题：${originalUserContent}`;
 
@@ -685,10 +579,18 @@ ${instruction}`;
             const tk2 = new StreamTokenizer();
             let autosave2 = '';
             let pending2: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
+            let eventMode2 = false;
+            const dispatcher2 = createStreamEventDispatcher({ conversationId, assistantMessageId });
             // 追问阶段仍按正常渲染与保存，但不再单独统计是否有文本
             const cb2: StreamCallbacks = {
               onStart: () => { /* stream started for nudge round */ },
+              // 同样优先使用结构化事件，保证多轮思考都能独立渲染
+              onEvent: (event: any) => {
+                eventMode2 = true;
+                try { dispatcher2.handle(event); } catch { /* noop */ }
+              },
               onToken: (tk: string) => {
+                if (eventMode2) return;
                 const stx = useChatStore.getState();
                 const convx = stx.conversations.find(c=>c.id===conversationId);
                 const msgx = convx?.messages.find(m=>m.id===assistantMessageId);
@@ -704,18 +606,9 @@ ${instruction}`;
                     else if (ev.type === 'thinking_end') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
                     else if (ev.type === 'content_token' && ev.content) { stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content }); }
                     else if (ev.type === 'tool_call' && !pending2) {
-                      // 即便模型再次提出工具调用，也按常规处理，保持一致体验
-                      const cardId = crypto.randomUUID();
-                      const parsed2 = ev.parsed || {};
-                      const server2 = parsed2.serverName || '';
-                      const tool2 = parsed2.toolName || '';
-                      const args2 = parsed2.arguments || undefined;
-                      pending2 = { server: server2, tool: tool2, args: args2 as any, cardId };
-                      const prevx = (msgx?.content || '') + '';
-                      const markerx = JSON.stringify({ __tool_call_card__: { id: cardId, server: server2, tool: tool2, status: 'running', args: args2 || {}, messageId: assistantMessageId }});
-                      const nextx = prevx + (prevx ? '\n' : '') + markerx;
-                      stx.updateMessageContentInMemory(assistantMessageId, nextx);
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: server2, tool: tool2, args: args2, cardId });
+                      // 将回退解析到的 tool_call 转交统一分发器
+                      try { dispatcher2.handle({ type: 'tool_call', parsed: ev.parsed }); } catch { /* noop */ }
+                      // 不直接维护 pending2，由分发器插卡
                     }
                   }
                 } catch (e) { void e; }
@@ -724,14 +617,16 @@ ${instruction}`;
                 const sty = useChatStore.getState();
                 
                 // 关键修复：在追问阶段流式结束时也调用tokenizer的flush方法
-                try {
-                  const flushEvents = tk2.flush();
-                  for (const ev of flushEvents) {
-                    if (ev.type === 'content_token' && ev.content) {
-                      sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
+                if (!eventMode2) {
+                  try {
+                    const flushEvents = tk2.flush();
+                    for (const ev of flushEvents) {
+                      if (ev.type === 'content_token' && ev.content) {
+                        sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
+                      }
                     }
-                  }
-                } catch { /* noop */ }
+                  } catch { /* noop */ }
+                }
                 
                 if (pending2) {
                   const nx = pending2; pending2 = null;

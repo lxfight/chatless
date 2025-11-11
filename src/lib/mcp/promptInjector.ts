@@ -199,8 +199,15 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   }
   for (const l of toolsLines) sys.push({ role: 'system', content: l });
 
-  // 单条严格协议
+  // 单条严格协议 + 工程化策略
   sys.push({ role: 'system', content: strategy.buildProtocolMessage() });
+  try {
+    const { MCPPrompts } = await import('@/lib/prompts/SystemPrompts');
+    sys.push({ role: 'system', content: MCPPrompts.decisionPolicy });
+    sys.push({ role: 'system', content: MCPPrompts.outputContract });
+    sys.push({ role: 'system', content: MCPPrompts.argumentsPolicy });
+    sys.push({ role: 'system', content: MCPPrompts.errorPolicy });
+  } catch { /* noop */ }
 
   // 简要的启用 server 行
   const serversLine = strategy.buildEnabledServersLine(enabled);
@@ -208,8 +215,22 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
     return { systemMessages: sys };
   }
 
-  // 单条严格协议（统一追加在末尾，保持一致）
+  // 单条严格协议（统一追加在末尾，保持一致） + 工程化策略
   sys.push({ role: 'system', content: strategy.buildProtocolMessage() });
+  try {
+    const { MCPPrompts } = await import('@/lib/prompts/SystemPrompts');
+    sys.push({ role: 'system', content: MCPPrompts.decisionPolicy });
+    sys.push({ role: 'system', content: MCPPrompts.outputContract });
+    sys.push({ role: 'system', content: MCPPrompts.argumentsPolicy });
+    sys.push({ role: 'system', content: MCPPrompts.errorPolicy });
+  } catch { /* noop */ }
+
+  // 情景化聚焦提示（极短一行，帮助模型做出第一步动作）- 动态解析，不写死 server_name
+  try {
+    const { buildContextualHints } = await import('@/lib/mcp/intent/IntentHintBuilder');
+    const hints = await buildContextualHints(content);
+    for (const h of hints) sys.push({ role: 'system', content: h });
+  } catch { /* noop */ }
 
   return { systemMessages: sys };
 }

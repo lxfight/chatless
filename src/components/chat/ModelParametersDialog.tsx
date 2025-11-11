@@ -11,10 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { X, Plus, RotateCcw, Settings, Check, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { specializedStorage } from "@/lib/storage";
-import { ModelParametersService } from "@/lib/model-parameters";
-import { ParameterPolicyEngine } from "@/lib/llm/ParameterPolicy";
 import type { ModelParameters } from "@/types/model-params";
 import { DEFAULT_MODEL_PARAMETERS, MODEL_PARAMETER_LIMITS } from "@/types/model-params";
+import { getProviderFieldSupport, type ProviderFieldSupport } from "@/lib/llm/provider-field-support";
 
 // 自定义参数接口
 interface CustomParameter {
@@ -48,9 +47,18 @@ export function ModelParametersDialog({
   const [advancedEditorOpen, setAdvancedEditorOpen] = useState(true);
   const [advancedJsonText, setAdvancedJsonText] = useState<string>('{}');
   const [advancedJsonError, setAdvancedJsonError] = useState<string>('');
-  const [appliedPreviewOpen, setAppliedPreviewOpen] = useState(false);
-  const [appliedOptionsJson, setAppliedOptionsJson] = useState<string>('{}');
-  const [allowEditApplied, setAllowEditApplied] = useState(false);
+  
+  // Provider字段支持信息
+  const [providerSupport, setProviderSupport] = useState<ProviderFieldSupport>(() => 
+    getProviderFieldSupport(providerName)
+  );
+
+  // 更新Provider字段支持信息
+  useEffect(() => {
+    if (providerName) {
+      setProviderSupport(getProviderFieldSupport(providerName));
+    }
+  }, [providerName]);
 
   // 加载保存的参数
   useEffect(() => {
@@ -70,6 +78,8 @@ export function ModelParametersDialog({
         (parameters as any).minP !== (savedParameters as any).minP ||
         parameters.frequencyPenalty !== savedParameters.frequencyPenalty ||
         parameters.presencePenalty !== savedParameters.presencePenalty ||
+        (parameters as any).thinking !== (savedParameters as any).thinking ||
+        (parameters as any).streaming !== (savedParameters as any).streaming ||
         JSON.stringify(stopSequences) !== JSON.stringify(savedParameters.stopSequences || []) ||
         customParameters.length > 0; // 如果有自定义参数就视为有变更
       setHasChanges(hasParameterChanges);
@@ -83,6 +93,8 @@ export function ModelParametersDialog({
         (parameters as any).minP !== (DEFAULT_MODEL_PARAMETERS as any).minP ||
         parameters.frequencyPenalty !== DEFAULT_MODEL_PARAMETERS.frequencyPenalty ||
         parameters.presencePenalty !== DEFAULT_MODEL_PARAMETERS.presencePenalty ||
+        (parameters as any).thinking !== (DEFAULT_MODEL_PARAMETERS as any).thinking ||
+        (parameters as any).streaming !== (DEFAULT_MODEL_PARAMETERS as any).streaming ||
         stopSequences.length > 0 ||
         customParameters.length > 0; // 如果有自定义参数就视为有变更
       setHasChanges(hasParameterChanges);
@@ -181,53 +193,6 @@ export function ModelParametersDialog({
     setCustomParameters([]);
   };
 
-  // 仅计算"应用预览"，不再自动回填界面
-  useEffect(() => {
-    try {
-      let advanced: Record<string, any> = {};
-      if (advancedJsonText.trim()) {
-        advanced = JSON.parse(advancedJsonText);
-        setAdvancedJsonError('');
-      } else {
-        setAdvancedJsonError('');
-      }
-      const tempParams: ModelParameters = {
-        ...parameters,
-        stopSequences: stopSequences,
-        advancedOptions: advanced,
-      };
-      const chatOptions = ModelParametersService.convertToChatOptions(tempParams);
-      const applied = ParameterPolicyEngine.apply(providerName, modelId, chatOptions);
-      setAppliedOptionsJson(JSON.stringify(applied, null, 2));
-    } catch (e: any) {
-      setAdvancedJsonError(e?.message || 'JSON 格式错误');
-    }
-  }, [parameters, stopSequences, advancedJsonText, providerName, modelId]);
-
-  // 将"应用预览"反写回表单（提高可编辑性）
-  const applyPreviewIntoForm = () => {
-    try {
-      const applied = JSON.parse(appliedOptionsJson || '{}');
-      const parsed = ModelParametersService.parseFromChatOptions(applied);
-      // 覆盖基础参数与 stopSequences
-      setParameters(prev => ({
-        ...prev,
-        temperature: parsed.temperature,
-        maxTokens: parsed.maxTokens,
-        topP: parsed.topP,
-        topK: (parsed as any).topK,
-        minP: (parsed as any).minP,
-        frequencyPenalty: parsed.frequencyPenalty,
-        presencePenalty: parsed.presencePenalty,
-      }));
-      setStopSequences(parsed.stopSequences || []);
-      setAdvancedJsonText(JSON.stringify(parsed.advancedOptions || {}, null, 2));
-      setAdvancedJsonError('');
-    } catch (e: any) {
-      setAdvancedJsonError('无法从预览反解析：' + (e?.message || '格式错误'));
-    }
-  };
-
   const handleClearSession = () => {
     setParameters(DEFAULT_MODEL_PARAMETERS);
     setStopSequences([]);
@@ -323,6 +288,19 @@ export function ModelParametersDialog({
       result.stopSequences = stopSequences;
     }
     
+    // 思考和流式响应参数
+    if ((parameters as any).enableThinking && (parameters as any).thinking !== undefined) {
+      result.thinking = (parameters as any).thinking;
+    }
+    if ((parameters as any).enableStreaming && (parameters as any).streaming !== undefined) {
+      result.streaming = (parameters as any).streaming;
+    }
+    
+    // Format参数
+    if ((parameters as any).enableFormat && (parameters as any).format && (parameters as any).format !== 'none') {
+      result.format = (parameters as any).format;
+    }
+    
     // 自定义参数
     customParameters.forEach(param => {
       if (param.key.trim()) {
@@ -334,6 +312,20 @@ export function ModelParametersDialog({
   };
 
   const previewJson = generatePreviewJson();
+  
+  // 监听参数变化，验证高级JSON格式
+  useEffect(() => {
+    try {
+      if (advancedJsonText.trim() && advancedJsonText !== '{}') {
+        JSON.parse(advancedJsonText);
+        setAdvancedJsonError('');
+      } else {
+        setAdvancedJsonError('');
+      }
+    } catch (e: any) {
+      setAdvancedJsonError(e?.message || 'JSON 格式错误');
+    }
+  }, [advancedJsonText]);
 
 
   return (
@@ -516,7 +508,8 @@ export function ModelParametersDialog({
                 />
               </div>
 
-          {/* Top K */}
+          {/* Top K - 仅在Provider支持时显示 */}
+          {providerSupport.topK && (
           <div className="flex items-center gap-3">
             <Checkbox 
               checked={(parameters as any).enableTopK !== false}
@@ -563,8 +556,10 @@ export function ModelParametersDialog({
               disabled={(parameters as any).enableTopK === false}
             />
           </div>
+          )}
 
-          {/* Min P */}
+          {/* Min P - 仅在Provider支持时显示 */}
+          {providerSupport.minP && (
           <div className="flex items-center gap-3">
             <Checkbox 
               checked={(parameters as any).enableMinP !== false}
@@ -611,6 +606,7 @@ export function ModelParametersDialog({
               disabled={(parameters as any).enableMinP === false}
             />
             </div>
+          )}
 
           {/* Frequency Penalty */}
           <div className="flex items-center gap-3">
@@ -707,6 +703,129 @@ export function ModelParametersDialog({
                   disabled={parameters.enablePresencePenalty === false}
                 />
               </div>
+
+          {/* Thinking */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={(parameters as any).enableThinking === true}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableThinking: Boolean(checked) } as any))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">启用思考模式</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>启用后，模型会展示思考过程（如Ollama的thinking字段）。关闭则直接输出结果。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <Label className={cn(
+                "text-sm",
+                (parameters as any).enableThinking === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300"
+              )}>
+                {(parameters as any).thinking ? "已启用" : "已禁用"}
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setParameters(prev => ({ ...prev, thinking: !(prev as any).thinking } as any))}
+                disabled={(parameters as any).enableThinking === false}
+                className={cn(
+                  "ml-auto px-3",
+                  (parameters as any).thinking ? "bg-green-50 text-green-600 border-green-200" : ""
+                )}
+              >
+                {(parameters as any).thinking ? "开启" : "关闭"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Streaming */}
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={(parameters as any).enableStreaming !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableStreaming: Boolean(checked) } as any))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">启用流式响应</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>启用后，模型会实时流式输出内容。关闭则等待全部生成完成后一次性返回。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <Label className={cn(
+                "text-sm",
+                (parameters as any).enableStreaming === false ? "text-gray-400" : "text-gray-700 dark:text-gray-300"
+              )}>
+                {(parameters as any).streaming ? "已启用" : "已禁用"}
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setParameters(prev => ({ ...prev, streaming: !(prev as any).streaming } as any))}
+                disabled={(parameters as any).enableStreaming === false}
+                className={cn(
+                  "ml-auto px-3",
+                  (parameters as any).streaming ? "bg-blue-50 text-blue-600 border-blue-200" : ""
+                )}
+              >
+                {(parameters as any).streaming ? "开启" : "关闭"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Format - 仅在Provider支持时显示 */}
+          {providerSupport.format && (
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={(parameters as any).enableFormat !== false}
+              onCheckedChange={(checked) => setParameters(prev => ({ ...prev, enableFormat: Boolean(checked) } as any))}
+            />
+            <div className="flex items-center gap-3 min-w-32">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">输出格式</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" className="max-w-xs">
+                    <p>指定模型输出格式。选择"json"可强制模型返回JSON格式的内容。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <select
+                value={(parameters as any).format || 'none'}
+                onChange={(e) => setParameters(prev => ({ ...prev, format: e.target.value === 'none' ? undefined : e.target.value } as any))}
+                disabled={(parameters as any).enableFormat === false}
+                className={cn(
+                  "ml-auto px-3 py-1.5 text-sm border rounded-md",
+                  (parameters as any).enableFormat === false 
+                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                )}
+              >
+                <option value="none">无限制</option>
+                <option value="json">JSON</option>
+              </select>
+            </div>
+          </div>
+          )}
 
           {/* Stop Sequences */}
           <div className="flex items-center gap-3">

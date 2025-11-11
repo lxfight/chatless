@@ -1,5 +1,5 @@
 import type { Message } from '@/types/chat';
-import { ensureTextTail, appendText, appendThinkText, insertRunningCard, updateCardStatus, finishLastThink } from './segments';
+import { ensureTextTail, appendText, appendThinkText, insertRunningCard, updateCardStatus, finishLastThink, filterToolCallContent } from './segments';
 
 export type FsmState = 'RENDERING_BODY' | 'RENDERING_THINK' | 'TOOL_RUNNING' | 'TOOL_DONE' | 'TOOL_ERROR' | 'COMPLETE';
 
@@ -31,6 +31,11 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
         const base = [...model.segments];
         return { ...model, segments: appendThinkText(base, action.chunk) as any };
       }
+      // 关键稳定性策略：当工具调用已进入运行态时，忽略一切正文token，
+      // 防止指令残片在卡片识别后继续渲染到文本区域。
+      if (model.fsm === 'TOOL_RUNNING') {
+        return model;
+      }
       const base = ensureTextTail(model.segments, '');
       const next = appendText(base, action.chunk);
       return { ...model, segments: next as any };
@@ -38,7 +43,7 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
     case 'THINK_START': {
       // 转入思考段，追加一个空的 think 段，并记录开始时间
       const out = [...model.segments, { kind: 'think', text: '', startTime: Date.now() } as any];
-      try { console.log('[FSM:THINK_START]', { id: model.id, segLen: out.length }); } catch { /* noop */ }
+      // 降噪：移除冗余FSM日志
       return { ...model, segments: out, fsm: 'RENDERING_THINK' };
     }
     case 'THINK_APPEND': {
@@ -48,7 +53,7 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
     }
     case 'THINK_END': {
       // 结束思考段，记录时长，然后回到正文
-      try { console.log('[FSM:THINK_END]', { id: model.id }); } catch { /* noop */ }
+      
       // 先完成最后一个think段，记录其持续时长
       const finished = finishLastThink(model.segments);
       // 思考结束后在正文末尾创建一个空 text 段，确保后续正文不会"接着写在 think 段上"
@@ -56,36 +61,45 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
       return { ...model, segments: base as any, fsm: 'RENDERING_BODY' };
     }
     case 'TOOL_HIT': {
-      const withText = ensureTextTail(model.segments, '');
-      const next = insertRunningCard(withText, {
+      // 在插入卡片前，先清理尾部text中的任何指令残片，避免已累计的半截标签被显示
+      const cleanedTail = (() => {
+        const segs = Array.isArray(model.segments) ? [...model.segments] : [];
+        if (segs.length > 0 && (segs[segs.length - 1] as any).kind === 'text') {
+          const last: any = { ...(segs[segs.length - 1] as any) };
+          last.text = filterToolCallContent(String(last.text || ''));
+          segs[segs.length - 1] = last;
+        }
+        return ensureTextTail(segs, '');
+      })();
+      const next = insertRunningCard(cleanedTail, {
         id: action.cardId,
         server: action.server,
         tool: action.tool,
         args: action.args,
         messageId: model.id,
       } as any);
-      try { console.log('[FSM:TOOL_HIT]', { id: model.id, server: action.server, tool: action.tool, segLen: next.length }); } catch { /* noop */ }
+      
       return { ...model, segments: next as any, fsm: 'TOOL_RUNNING' };
     }
     case 'TOOL_RESULT': {
       if (action.ok) {
         const next = updateCardStatus(model.segments, { id: action.cardId, server: action.server, tool: action.tool }, { status: 'success', resultPreview: action.resultPreview });
-        try { console.log('[FSM:TOOL_RESULT_OK]', { id: model.id, segLen: next.length }); } catch { /* noop */ }
+        
         return { ...model, segments: next as any, fsm: 'TOOL_DONE' };
       }
       // 特殊处理：如果是等待授权状态，不改变 fsm
       if (action.errorMessage === 'pending_auth') {
         const next = updateCardStatus(model.segments, { id: action.cardId, server: action.server, tool: action.tool }, { status: 'pending_auth' as any, errorMessage: action.errorMessage });
-        try { console.log('[FSM:TOOL_PENDING_AUTH]', { id: model.id, segLen: next.length }); } catch { /* noop */ }
+        
         return { ...model, segments: next as any, fsm: 'TOOL_RUNNING' }; // 保持 TOOL_RUNNING 状态
       }
       const next = updateCardStatus(model.segments, { id: action.cardId, server: action.server, tool: action.tool }, { status: 'error', errorMessage: action.errorMessage, schemaHint: action.schemaHint });
-      try { console.log('[FSM:TOOL_RESULT_ERR]', { id: model.id, segLen: next.length }); } catch { /* noop */ }
+      
       return { ...model, segments: next as any, fsm: 'TOOL_ERROR' };
     }
     case 'STREAM_END': {
       const nextFsm = model.fsm === 'RENDERING_BODY' ? 'COMPLETE' : model.fsm;
-      try { console.log('[FSM:STREAM_END]', { id: model.id, fsm: nextFsm, segLen: model.segments.length }); } catch { /* noop */ }
+      
       return { ...model, fsm: nextFsm };
     }
     default:

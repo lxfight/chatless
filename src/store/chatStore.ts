@@ -669,8 +669,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
                   if (actions.some(a => a && a.type === 'TOOL_HIT')) {
                     const hit = actions.find(a => a && a.type === 'TOOL_HIT');
                     const cardCount = (model.segments || []).filter((s: any) => s && s.kind === 'toolCard').length;
-                    console.log('[MCP-FSM] TOOL_HIT applied -> segments toolCard count =', cardCount, 'msgId=', id, 'server=', hit.server, 'tool=', hit.tool);
-                    // 兜底：向 content 注入不可见的卡片标记，确保渲染层即刻可见
+                    // 降噪：不再输出刷屏日志，仅在必要时注入标记
                     try {
                       const marker = JSON.stringify({ __tool_call_card__: {
                         id: hit.cardId,
@@ -698,6 +697,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
                     hasToolCalls: vmItems.some((x:any)=>x && x.kind==='toolCard')
                   }
                 } as any;
+                try {
+                  const { trace } = require('@/lib/debug/Trace');
+                  const counts = vmItems.reduce((acc:any, s:any) => { acc[s.kind] = (acc[s.kind]||0)+1; return acc; }, {});
+                  trace('store', id, `segments updated fsm=${model.fsm}`, counts);
+                } catch { /* noop */ }
                 const nextMsg: any = { ...prevMsg, segments: model.segments, segments_vm: viewModel };
                 const nextMessages: any[] = [...(conv.messages as any[])];
                 nextMessages[idx] = nextMsg;

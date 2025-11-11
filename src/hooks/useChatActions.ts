@@ -2,7 +2,7 @@
 // NOTE: 由于在聊天流程中集成 RAG 流式逻辑，临时超出 500 行限制。
 // 后续可提取为专用 Hook 或工具文件以符合文件规模规范。
 import { useCallback, useState, useRef, useEffect } from 'react';
-import { toast, trimToastDescription } from '@/components/ui/sonner';
+import { toast } from '@/components/ui/sonner';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatStore } from "@/store/chatStore";
@@ -19,6 +19,7 @@ import { composeChatOptions } from '@/lib/chat/OptionComposer';
 import { usePromptStore } from '@/store/promptStore';
 import { renderPromptContent } from '@/lib/prompt/render';
 import { performanceMonitor } from '@/lib/performance/PerformanceMonitor';
+import { StreamOrchestrator } from '@/lib/chat/stream';
 // 动态导入 Title 相关函数，避免静态未用告警
 
 // type StoreMessage = any;
@@ -95,7 +96,8 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
   }, [router]);
 
   // 将错误信息压缩为短文本，避免右下角提示过长
-  const briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
+  // 注意：目前新架构中 onError 由 StreamOrchestrator 统一处理，此函数暂时保留供重试等场景使用
+  // const _briefErrorText = useCallback((err: unknown, maxLen: number = 180): string => trimToastDescription(err, maxLen) || '', []);
 
   const checkApiKeyValidity = useCallback(async (providerName: string, modelId: string): Promise<boolean> => {
     try {
@@ -177,25 +179,25 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
   // 已移除未使用的防抖函数，避免无意义的闭包与告警
 
-  // 性能监控
-  const performanceRef = useRef({
-    tokenCount: 0,
-    updateCount: 0,
-    lastUpdateTime: Date.now()
-  });
+  // 性能监控（目前由 performanceMonitor 统一处理，保留以供未来扩展）
+  // const _performanceRef = useRef({
+  //   tokenCount: 0,
+  //   updateCount: 0,
+  //   lastUpdateTime: Date.now()
+  // });
 
-  // 性能监控函数
-  const logPerformance = useCallback(() => {
-    const now = Date.now();
-    const timeDiff = now - performanceRef.current.lastUpdateTime;
-    if (timeDiff > 5000) {
-      performanceRef.current = {
-        tokenCount: 0,
-        updateCount: 0,
-        lastUpdateTime: now
-      };
-    }
-  }, []);
+  // 性能监控函数（目前新架构中由 performanceMonitor 统一处理）
+  // const _logPerformance = useCallback(() => {
+  //   const now = Date.now();
+  //   const timeDiff = now - performanceRef.current.lastUpdateTime;
+  //   if (timeDiff > 5000) {
+  //     performanceRef.current = {
+  //       tokenCount: 0,
+  //       updateCount: 0,
+  //       lastUpdateTime: now
+  //     };
+  //   }
+  // }, []);
 
   /**
    * 构建发送给LLM的消息历史
@@ -451,466 +453,105 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
 
     // 构建一个按秒保存的自动保存器（在 onStart 时初始化）
 
-    // 流式工具调用检测器
-    const { StreamTokenizer } = require('@/lib/chat/StreamTokenizer');
-    const tokenizer = new StreamTokenizer();
-
-    // 防重复触发：本条流内仅在首次完整命中时启动一次 MCP 调用
-    let toolStarted = false;
-
-    const streamCallbacks: StreamCallbacks = {
-      onStart: () => {
-        // 通知 UI：AI 流真正开始，此时再清空输入框更自然
-        try { notifyStreamStart(finalConversationId); } catch { /* noop */ }
-
-        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
-          await updateMessage(assistantMessageId, {
-            content: latest,
-            thinking_start_time: thinking_start_time,
-          });
-        }, 1000);
-
-        if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
-        genTimeoutRef.current = setInterval(() => {
-          if (Date.now() - lastActivityTimeRef.current > 120000) {
-            handleStopGeneration();
-            void updateMessage(assistantMessageId, { status: 'error', content: '响应超时', thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) });
-            toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
-            if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
-          }
-        }, 5000);
-        setGenerationTimeout(genTimeoutRef.current);
-
-        // 在真正开始流时再清零 token 计数和批量状态
-        setTokenCount(0);
-        batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
-      },
-      // 新增：结构化事件直通（优先于 onToken）
-      onEvent: (event: any) => {
-        // 防串写保护
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        
-        // 性能监控：onEvent处理
-        const perfId = `onEvent_${event?.type}_${Date.now()}`;
-        performanceMonitor.start(perfId, { 
-          type: event?.type, 
-          mode: 'event-driven',
-          messageId: assistantMessageId 
-        });
-        
-        const st = useChatStore.getState();
-        try {
-          switch (event?.type) {
-            case 'thinking_start':
-              st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-              break;
-            case 'thinking_token':
-              if (event.content) st.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: event.content } as any);
-              break;
-            case 'thinking_end':
-              st.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-              break;
-            case 'content_token': {
-              const chunk = String(event.content || '');
-              if (chunk) {
-                currentContentRef.current += chunk;
-                st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk } as any);
-                updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
-              }
-              break;
-            }
-            case 'tool_call': {
-              // 解析工具调用参数
-              const parsed = event.parsed || {};
-              const server = parsed.serverName || parsed.server || '';
-              const tool = parsed.toolName || parsed.tool || '';
-              const args = parsed.arguments || parsed.args || undefined;
-              if (server && tool) {
-                const cardId = crypto.randomUUID();
-                const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server, tool, status: 'running', args: args || {}, messageId: assistantMessageId }});
-                const prev = currentContentRef.current || '';
-                const next = prev + (prev ? '\n' : '') + marker;
-                if (next !== prev) {
-                  currentContentRef.current = next;
-                  try { updateMessageContentInMemory(assistantMessageId, next); } catch { /* noop */ }
-                }
-                st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server, tool, args, cardId });
-                if (!toolStarted) {
-                  toolStarted = true;
-                  (async () => {
-                    try {
-                      const { executeToolCall } = await import('@/lib/mcp/ToolCallOrchestrator');
-                      await executeToolCall({
-                        assistantMessageId,
-                        conversationId: String(finalConversationId),
-                        server,
-                        tool,
-                        args,
-                        _runningMarker: marker,
-                        provider: effectiveProvider,
-                        model: modelToUse,
-                        historyForLlm: historyForLlm as any,
-                        originalUserContent: content,
-                        cardId,
-                      });
-                    } catch { /* noop */ }
-                  })();
-                }
-              }
-              break;
-            }
-            case 'stream_complete':
-            default:
-              break;
-          }
-        } catch { /* noop */ } finally {
-          performanceMonitor.end(perfId);
-        }
-      },
-      onToken: (token) => {
-        // 性能监控：onToken处理（降级路径）
-        const perfIdToken = `onToken_${Date.now()}`;
-        performanceMonitor.start(perfIdToken, { 
-          mode: 'legacy-token',
-          messageId: assistantMessageId,
-          tokenLength: token?.length 
-        });
-        
-        // 生产期保留较少的 token 级日志
-        console.log('[DEBUG:onToken]', { tokenLength: token?.length, token: token?.substring(0, 50) });
-        // 防串写保护：仅当仍然是当前流实例时才写入
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        currentContentRef.current += token;
-        lastActivityTimeRef.current = Date.now();
-        
-        // 性能监控
-        performanceRef.current.tokenCount++;
-        logPerformance();
-        
-        // 1) 统一 tokenizer：先生成结构化事件（think/code-fence/tool_call/text），再按事件派发 FSM
-        try {
-          const events = tokenizer.push(token);
-          // 事件类型
-          // try { console.log('[TOK:events]', events.map((e:any)=>e.type)); } catch { /* noop */ }
-          const st = useChatStore.getState();
-          for (const ev of events) {
-            if (ev.type === 'think_start') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any); console.log('[TOK→FSM] THINK_START'); }
-            else if (ev.type === 'think_chunk') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.chunk } as any); }
-            else if (ev.type === 'think_end') { st.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any); console.log('[TOK→FSM] THINK_END'); }
-            else if (ev.type === 'tool_call') {
-              try { console.log('[TOK:event.tool_call]', ev.server, ev.tool); } catch { /* noop */ }
-              const cardId = crypto.randomUUID();
-              const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: assistantMessageId }});
-              const prev = currentContentRef.current || '';
-              const next = prev + (prev ? '\n' : '') + marker;
-              if (next !== prev) {
-                currentContentRef.current = next;
-                try { updateMessageContentInMemory(assistantMessageId, next); } catch (err) { void err; }
-              }
-              st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
-              if (!toolStarted) {
-                toolStarted = true;
-                (async () => {
-                  try {
-                    const { executeToolCall } = await import('@/lib/mcp/ToolCallOrchestrator');
-                    await executeToolCall({
-                      assistantMessageId,
-                      conversationId: String(finalConversationId),
-                      server: ev.server,
-                      tool: ev.tool,
-                      args: ev.args,
-                      _runningMarker: marker,
-                      provider: effectiveProvider,
-                      model: modelToUse,
-                      historyForLlm: historyForLlm as any,
-                      originalUserContent: content,
-                      cardId,
-                    });
-                  } catch (err) { void err; }
-                })();
-              }
-            }
-            else if (ev.type === 'text' && ev.chunk) st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
-          }
-          updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
-        } catch {
-          updateMessageContentInMemory(assistantMessageId, currentContentRef.current);
-        }
-        setTokenCount(prev => prev + 1);
-        // 2) 通知自动保存器按秒保存
-        autoSaverRef.current?.update(currentContentRef.current);
-
-        // 已由统一 tokenizer 负责 tool_call 事件，无需额外探测器
-        
-        // 结束性能监控
-        performanceMonitor.end(perfIdToken);
-      },
-      onImage: (img: { mimeType: string; data: string }) => {
-        // 将图片作为新段追加到消息 segments
-        try {
-          const st = useChatStore.getState();
-          st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: '' } as any);
-          const conv = st.conversations.find(c=>c.id===finalConversationId);
-          const msg: any = conv?.messages.find(m=>m.id===assistantMessageId);
-          const segs: any[] = Array.isArray(msg?.segments) ? [...msg.segments] : [];
-          segs.push({ kind: 'image', mimeType: img.mimeType, data: img.data });
-          st.setMessageSegmentsInMemory(assistantMessageId, segs);
-        } catch { /* noop */ }
-      },
-      onComplete: () => {
-        try { 
-          console.log('[CHAT] done'); 
-          console.log('[DEBUG:onComplete]', { 
-            currentContent: currentContentRef.current?.substring(0, 100),
-            contentLength: currentContentRef.current?.length 
-          });
-        } catch { /* noop */ }
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
-        if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-        setGenerationTimeout(null);
-
-        // 将现有 tokenizer 缓冲区剩余文本 flush 出来，避免末尾被截断
-        try {
-          const flushEvents = tokenizer.flush();
-          console.log('[DEBUG:flush]', { 
-            flushEventCount: flushEvents.length,
-            events: flushEvents.map((ev: any) => ({ type: ev?.type, chunkLength: ev?.chunk?.length }))
-          });
-          const st = useChatStore.getState();
-          for (const ev of flushEvents) {
-            if (ev.type === 'text' && ev.chunk) {
-              console.log('[DEBUG:flush] 输出文本:', ev.chunk);
-              st.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
-              currentContentRef.current += ev.chunk;
-            }
-          }
-        } catch { /* noop */ }
-
-        // 强制保存最终内容
-        const finalContent = currentContentRef.current;
-        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        
-        // 先更新UI状态
-        setTokenCount(prev => prev + 1);
-        // 内存中已是最新，先停止自动保存并flush，避免定时器晚到覆盖
-        autoSaverRef.current?.stop();
-        void autoSaverRef.current?.flush().finally(() => {
-          // 最终一次确认状态 & 内容
-          // 若在流式阶段已插入了工具卡片（被替换后的标记），不要被最终文本覆盖
-          try {
-            const st = useChatStore.getState();
-            const conv = st.conversations.find(c => c.id === finalConversationId);
-            const msg = conv?.messages.find(m => m.id === assistantMessageId) as any;
-            const hadCardMarker = !!(msg?.content && msg.content.includes('"__tool_call_card__"'));
-            let contentToPersist = hadCardMarker ? (msg?.content || finalContent) : finalContent;
-
-            // 兜底：如果segments中没有任何toolCard，但最终文本里包含 <tool_call> 指令，则在此处解析并注入工具卡片与执行
-            const segs = Array.isArray(msg?.segments) ? msg.segments : [];
-            const hasToolCardInSegments = segs.some((s:any)=>s && s.kind==='toolCard');
-            const xmlMatch = contentToPersist.match(/<tool_call>([\s\S]*?)<\/tool_call>/i);
-            let parsed: null | { server: string; tool: string; args?: Record<string, unknown> } = null;
-            if (xmlMatch && xmlMatch[1]) {
-              try {
-                const obj = JSON.parse(xmlMatch[1]);
-                parsed = { server: obj.server || obj.mcp || obj.provider, tool: obj.tool || obj.tool_name || obj.name, args: obj.parameters || obj.args || obj.params };
-              } catch { /* ignore */ }
-            } else {
-              // 兼容JSON裸输出
-              try {
-                const jsonMatch = contentToPersist.match(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/i);
-                if (jsonMatch && jsonMatch[0]) {
-                  const obj = JSON.parse(jsonMatch[0]);
-                  parsed = { server: obj.server || obj.mcp || obj.provider, tool: obj.tool || obj.tool_name || obj.name, args: obj.parameters || obj.args || obj.params };
-                }
-              } catch { /* ignore */ }
-            }
-
-            if (!hasToolCardInSegments && parsed && parsed.server && parsed.tool) {
-              const cardId = crypto.randomUUID();
-              const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: parsed.server, tool: parsed.tool, status: 'running', args: parsed.args || {}, messageId: assistantMessageId }});
-              const prev = contentToPersist || '';
-              const nextContent = prev + (prev ? '\n' : '') + marker;
-              contentToPersist = nextContent;
-              try { updateMessageContentInMemory(assistantMessageId, nextContent); } catch { /* noop */ }
-              // 写入segments并触发工具执行
-              st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_HIT', server: parsed.server, tool: parsed.tool, args: parsed.args, cardId });
-              // 在兜底路径也启动工具执行
-              (async () => {
-                try {
-                  const { executeToolCall } = await import('@/lib/mcp/ToolCallOrchestrator');
-                  await executeToolCall({
-                    assistantMessageId,
-                    conversationId: String(finalConversationId),
-                    server: parsed.server,
-                    tool: parsed.tool,
-                    args: parsed.args,
-                    _runningMarker: marker,
-                    provider: effectiveProvider,
-                    model: modelToUse,
-                    historyForLlm: historyForLlm as any,
-                    originalUserContent: content,
-                    cardId,
-                  });
-                } catch { /* noop */ }
-              })();
-            }
-
-            // 关键调试：输出最终消息片段与渲染要素
-            const segs2 = Array.isArray((useChatStore.getState().conversations.find(c=>c.id===finalConversationId)?.messages.find(m=>m.id===assistantMessageId) as any)?.segments) ? (useChatStore.getState().conversations.find(c=>c.id===finalConversationId) as any)?.messages.find((m:any)=>m.id===assistantMessageId).segments : [];
-            const cardCount = Array.isArray(segs2) ? segs2.filter((s:any)=>s && s.kind==='toolCard').length : 0;
-            const thinkChars = Array.isArray(segs2) ? segs2.filter((s:any)=>s && s.kind==='think').map((s:any)=>s.text||'').join('').length : 0;
-            console.log('[MSG-FINAL]', {
-              id: assistantMessageId,
-              totalSegments: Array.isArray(segs2)?segs2.length:0,
-              cardCount,
-              thinkChars,
-              hasXmlToolCall: /<tool_call>[\s\S]*?<\/tool_call>/i.test(contentToPersist),
-              contentLength: (contentToPersist||'').length
-            });
-            void updateMessage(assistantMessageId, {
-              content: contentToPersist,
-              status: 'sent',
-              thinking_start_time: thinking_start_time,
-              thinking_duration: thinking_duration,
-            });
-          } catch {
-            void updateMessage(assistantMessageId, {
-              content: finalContent,
-              status: 'sent',
-              thinking_start_time: thinking_start_time,
-              thinking_duration: thinking_duration,
-            });
-          }
-
-          // 检测并执行 MCP 工具调用（文本协议 & 原生tools 双轨支持，先实现文本协议）
-          const st = useChatStore.getState();
-          // 最终保险：若仍处于 THINK 且未收到 THINK_END，则补打一条
-          try {
-            const st2 = useChatStore.getState();
-            const conv2 = st2.conversations.find(c=>c.id===finalConversationId);
-            const msg2: any = conv2?.messages.find(m=>m.id===assistantMessageId);
-            const segs = Array.isArray(msg2?.segments) ? msg2.segments : [];
-            const stillThinking = segs.length && segs[segs.length-1]?.kind === 'think';
-            if (stillThinking) {
-              st2.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-            }
-          } catch { void 0; }
-          st.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
-          try {
-            const st2 = useChatStore.getState();
-            const conv2 = st2.conversations.find(c=>c.id===finalConversationId);
-            const msg2: any = conv2?.messages.find(m=>m.id===assistantMessageId);
-            const segs = Array.isArray(msg2?.segments) ? msg2.segments : [];
-            console.log('[VM-FINAL]', {
-              msgId: assistantMessageId,
-              segCount: segs.length,
-              toolCards: segs.filter((s:any)=>s?.kind==='toolCard').length,
-              hasThink: segs.some((s:any)=>s?.kind==='think'),
-              lastKind: segs.length ? segs[segs.length-1].kind : 'none'
-            });
-            // 打印 AI 原文（用于排查模型是否真的给了 tool_call/think_end）
-            console.log('[RAW-FINAL]', currentContentRef.current);
-          } catch { void 0; }
-
-          // 标题生成策略：
-          // 1) 若本轮已出现工具卡片（代表进入了 MCP 递归），则不在此处生成，交由 Orchestrator 收尾时机处理；
-          // 2) 若未出现工具卡片，则视为“普通对话”，在首轮助手完成后异步生成标题（不阻塞UI）。
-          try {
-            const st2 = useChatStore.getState();
-            const conv2 = st2.conversations.find(c=>c.id===finalConversationId);
-            const msg2: any = conv2?.messages.find(m=>m.id===assistantMessageId);
-            const segs = Array.isArray(msg2?.segments) ? msg2.segments : [];
-            const hasToolCard = segs.some((s:any)=>s && s.kind==='toolCard');
-            if (!hasToolCard) {
-              const schedule = (fn: () => void) => {
-                try {
-                  const ric = (window as any).requestIdleCallback;
-                  if (typeof ric === 'function') {
-                    ric(fn, { timeout: 2000 });
-                  } else {
-                    setTimeout(fn, 0);
-                  }
-                } catch {
-                  setTimeout(fn, 0);
-                }
-              };
-              schedule(() => {
-                (async () => {
-                  try {
-                    const state = useChatStore.getState();
-                    const conv = state.conversations.find(c => c.id === finalConversationId);
-                    if (!conv) return;
-                    const { shouldGenerateTitleAfterAssistantComplete, extractFirstUserMessageSeed, isDefaultTitle } = await import('@/lib/chat/TitleGenerator');
-                    const { generateTitle } = await import('@/lib/chat/TitleService');
-                    if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
-                    const seedContent = extractFirstUserMessageSeed(conv);
-                    if (!seedContent.trim()) return;
-                    const gen = await generateTitle(effectiveProvider, modelToUse, seedContent, { maxLength: 24, language: 'zh' });
-                    const st3 = useChatStore.getState();
-                    const conv3 = st3.conversations.find(c => c.id === finalConversationId);
-                    if (conv3 && isDefaultTitle(conv3.title) && gen && gen.trim()) {
-                      void st3.renameConversation(String(finalConversationId), gen.trim());
-                    }
-                  } catch { /* noop */ }
-                })();
-              });
-            }
-          } catch { /* noop */ }
-        });
-        
-        // 清理引用
-        currentContentRef.current = '';
-        setTokenCount(0);
+    // 使用新的 StreamOrchestrator 架构
+    const orchestrator = new StreamOrchestrator({
+      messageId: assistantMessageId,
+      conversationId: finalConversationId,
+      provider: effectiveProvider,
+      model: modelToUse,
+      originalUserContent: content,
+      historyForLlm: historyForLlm as any,
+      onUIUpdate: (_updatedContent) => {
+        // UI 更新回调（可选）
+        // MessageAutoSaver 在 onStart 中初始化，这里暂不处理
       },
       onError: (error) => {
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
-        if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-        setGenerationTimeout(null);
-
-        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        // 停止并尽量flush到最新，再标记错误
-        autoSaverRef.current?.stop();
-        void autoSaverRef.current?.flush().finally(() => {
-          const hasContent = !!(currentContentRef.current && currentContentRef.current.trim().length > 0);
-          if (!hasContent) {
-            // 没有任何内容产生：删除先前添加的占位AI消息，避免“空气泡”
-            void deleteMessage(assistantMessageId);
-            // 同时删除刚发送的用户消息，并回填输入框，便于重试
-            try { void deleteMessage(userMessageId); } catch { /* noop */ }
-            try { if (finalConversationId) setInputDraft(finalConversationId, content); } catch { /* noop */ }
-          } else {
-            void updateMessage(assistantMessageId, {
-              status: 'error',
-              content:
-                currentContentRef.current
-                  || (error as any)?.userMessage
-                  || (error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)))
-                  || '发生未知错误',
-              thinking_start_time: thinking_start_time,
-              thinking_duration: thinking_duration,
-            });
-          }
-        });
-        
-        // 清理引用
-        currentContentRef.current = '';
-        setTokenCount(0);
-        autoSaverRef.current = null;
-        
-        const code = (error as any)?.code || (typeof error?.message === 'string' && error.message);
-        if (code === 'NO_KEY') {
-          toast.error('未配置 API 密钥', {
-            description:
-              (error as any)?.userMessage || '请在“设置 → 模型与Provider”中为当前 Provider 或模型配置密钥后重试。',
-          });
-        } else {
-          toast.error('发生错误', {
-            description: (error as any)?.userMessage || briefErrorText(error) || '与AI模型的通信失败。',
-          });
-        }
+        console.error('[StreamOrchestrator] 错误:', error);
+        toast.error('流式处理错误', { description: error.message });
       },
+    });
+    
+    const streamCallbacks = orchestrator.createCallbacks();
+    
+    // 包装 onStart 以保留现有逻辑
+    const originalOnStart = streamCallbacks.onStart;
+    streamCallbacks.onStart = () => {
+      originalOnStart?.();
+      
+      // 通知 UI
+      try { notifyStreamStart(finalConversationId); } catch { /* noop */ }
+      
+      // 自动保存器
+      autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+        await updateMessage(assistantMessageId, {
+          content: latest,
+          thinking_start_time: thinking_start_time,
+        });
+      }, 1000);
+      
+      // 超时监控
+      if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
+      genTimeoutRef.current = setInterval(() => {
+        if (Date.now() - lastActivityTimeRef.current > 120000) {
+          handleStopGeneration();
+          void updateMessage(assistantMessageId, { 
+            status: 'error', 
+            content: '响应超时', 
+            thinking_duration: Math.floor((Date.now() - thinking_start_time) / 1000) 
+          });
+          toast.error('响应超时', { description: '模型长时间未返回数据，请检查网络或模型服务状态。' });
+          if (genTimeoutRef.current) clearInterval(genTimeoutRef.current);
+        }
+      }, 5000);
+      setGenerationTimeout(genTimeoutRef.current);
+      
+      // Token 计数重置
+      setTokenCount(0);
+      batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
+    };
+    
+    // 包装 onEvent 以保留性能监控
+    const originalOnEvent = streamCallbacks.onEvent;
+    streamCallbacks.onEvent = (event: any) => {
+      if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
+      lastActivityTimeRef.current = Date.now();
+      
+      // 简化的性能监控
+      const perfId = `onEvent_${event?.type}`;
+      performanceMonitor.start(perfId, { type: event?.type, messageId: assistantMessageId });
+      try {
+        originalOnEvent?.(event);
+      } finally {
+        performanceMonitor.end(perfId);
+      }
+    };
+    
+    // 包装 onComplete
+    const originalOnComplete = streamCallbacks.onComplete;
+    streamCallbacks.onComplete = async () => {
+      try {
+        await originalOnComplete?.();
+      } finally {
+        // 清理
+        autoSaverRef.current?.flush();
+        if (genTimeoutRef.current) {
+          clearInterval(genTimeoutRef.current);
+          setGenerationTimeout(null);
+        }
+        // isGenerating 由 store 管理，无需手动设置
+      }
+    };
+    
+    // 包装 onError
+    const originalOnError = streamCallbacks.onError;
+    streamCallbacks.onError = (error: Error) => {
+      originalOnError?.(error);
+      autoSaverRef.current?.flush();
+      if (genTimeoutRef.current) {
+        clearInterval(genTimeoutRef.current);
+        setGenerationTimeout(null);
+      }
+      // isGenerating 由 store 管理，无需手动设置
     };
 
     // 标记当前回调归属的流实例
@@ -1070,6 +711,9 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     }
   }, [currentConversationId, deleteConversation]);
 
+  // TODO: 重构重试逻辑以使用 StreamOrchestrator
+  // 当前重试逻辑仍使用旧的 StreamTokenizer 作为降级路径
+  // 未来可以考虑复用 StreamOrchestrator 简化代码
   const handleRetryMessage = useCallback(async (messageIdToRetry: string) => {
     const st = useChatStore.getState();
     const conv = currentConversationId ? st.conversations.find(c => c.id === currentConversationId) : null;

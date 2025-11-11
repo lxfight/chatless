@@ -1,42 +1,34 @@
 /**
- * 流式分词器（简化版 - 工具调用识别）
+ * 流式分词器（工具调用识别降级路径）
  * 
  * ## 当前状态
  * 
- * 此tokenizer **目前未被使用**，因为：
- * 1. 所有Provider都已支持 `onEvent` 回调
- * 2. 工具调用由Provider层的 `ThinkingModeStrategy` 处理
- * 3. `useChatActions` 直接接收结构化的 `StreamEvent`
+ * 此tokenizer 作为降级路径保留，主要用于：
+ * 1. 当Provider不支持 `onEvent` 回调时的兼容处理
+ * 2. 从文本中识别工具调用（JSON/XML/MCP格式）作为备用方案
  * 
- * ## 职责（理论上的降级路径）
+ * ## 主要架构
+ * 
+ * **推荐**: Provider → onEvent → StreamOrchestrator → chatStore
+ * 
+ * **降级**: Provider → onToken → StreamTokenizer → chatStore
+ * 
+ * ## 职责
  * 
  * - 识别文本中的工具调用（JSON/XML/MCP格式）
+ * - 处理代码围栏
  * 
  * ## 不再处理
  * 
  * - <think>标签解析（已由Provider层的ThinkingStrategy处理并通过onEvent输出）
  * 
- * ## 可能的使用场景（未来）
- * 
- * - 当需要支持不兼容 `onEvent` 的旧Provider时
- * - 作为文本解析工具调用的备用方案
- * 
- * ## 当前架构
- * 
- * **Provider → onEvent → useChatActions → chatStore**
- * 
  * @see src/lib/llm/types/stream-events.ts - 事件类型定义
- * @see src/lib/llm/providers/thinking-strategies.ts - thinking和工具调用处理
+ * @see src/lib/chat/stream/StreamOrchestrator.ts - 新的流式处理编排器
  * @see src/hooks/useChatActions.ts - onEvent 回调实现
  */
 
 import { StreamEvent, createStreamEvent } from '@/lib/llm/types/stream-events';
 
-/**
- * @deprecated 使用 StreamEvent 替代
- * 为了向后兼容暂时保留别名
- */
-export type StructuredEvent = StreamEvent;
 
 type State = 'BODY' | 'FENCE';
 
@@ -53,7 +45,7 @@ export class StreamTokenizer {
     this.buffer += token || '';
     const out: StreamEvent[] = [];
 
-    // 工具调用早期探测
+    // 工具调用早期探测（只发事件，不把指令本身透传为正文）
     const tryEarlyEmitTool = () => {
       if (this.toolEmitted) return;
       
@@ -108,10 +100,10 @@ export class StreamTokenizer {
       } 
     };
 
-    // 主解析循环
+    // 主解析循环（正文输出前，优先剔除工具调用块）
     while (this.buffer.length > 0) {
       if (this.state === 'BODY') {
-        // 检测 <use_mcp_tool>
+        // 检测 <use_mcp_tool>，不把其作为正文输出
         const useStart0 = this.buffer.indexOf('<use_mcp_tool>');
         const useEnd0 = this.buffer.indexOf('</use_mcp_tool>');
         if (useStart0 !== -1 && (useEnd0 === -1 || useEnd0 < useStart0)) {
@@ -120,7 +112,7 @@ export class StreamTokenizer {
           break;
         }
 
-        // 完整的 <use_mcp_tool>...</use_mcp_tool>
+        // 完整的 <use_mcp_tool>...</use_mcp_tool>（只触发事件，不输出块本身）
         const useTag = this.buffer.match(/<use_mcp_tool>([\s\S]*?)<\/use_mcp_tool>/i);
         if (useTag && typeof useTag.index === 'number') {
           emitContent(this.buffer.slice(0, useTag.index));
@@ -133,7 +125,7 @@ export class StreamTokenizer {
           continue;
         }
 
-        // 检测 <tool_call>
+        // 检测 <tool_call>，不把其作为正文输出
         const toolStartIdx = this.buffer.indexOf('<tool_call>');
         const toolEndIdx = this.buffer.indexOf('</tool_call>');
         if (toolStartIdx !== -1 && (toolEndIdx === -1 || toolEndIdx < toolStartIdx)) {
@@ -142,7 +134,7 @@ export class StreamTokenizer {
           break;
         }
 
-        // 完整的 <tool_call>...</tool_call>
+        // 完整的 <tool_call>...</tool_call>（只触发事件，不输出块本身）
         const xml = this.buffer.match(/<tool_call>([\s\S]*?)<\/tool_call>/i);
         if (xml && typeof xml.index === 'number') {
           emitContent(this.buffer.slice(0, xml.index));
@@ -155,7 +147,7 @@ export class StreamTokenizer {
           continue;
         }
 
-        // JSON工具调用
+        // JSON工具调用（只触发事件，不透传JSON到正文）
         const found = this.extractFirstToolCallJson(this.buffer);
         if (found) {
           const ev = this.tryEmitToolFromJson(found.json);
@@ -300,7 +292,7 @@ export class StreamTokenizer {
     if (server && tool) {
       return createStreamEvent.toolCall(
         `<use_mcp_tool>${block}</use_mcp_tool>`,
-        { serverName: server, toolName: tool, arguments: args }
+        { serverName: server, toolName: tool, arguments: args ? JSON.stringify(args) : undefined }
       );
     }
     return null;
@@ -336,6 +328,4 @@ export class StreamTokenizer {
   }
 }
 
-// 向后兼容别名
-export const StructuredStreamTokenizer = StreamTokenizer;
 

@@ -1,6 +1,7 @@
 import { specializedStorage } from './storage';
 import { DEFAULT_MODEL_PARAMETERS } from '@/types/model-params';
 import type { ModelParameters } from '@/types/model-params';
+import { adaptFieldsForProvider } from './llm/provider-field-support';
 
 export class ModelParametersService {
   /**
@@ -63,7 +64,7 @@ export class ModelParametersService {
    * 将模型参数转换为聊天选项格式
    */
   static convertToChatOptions(parameters: ModelParameters): Record<string, any> {
-    // 仅当用户“启用”某参数或者值与默认不同，才传给 Provider
+    // 仅当用户"启用"某参数或者值与默认不同，才传给 Provider
     const opts: Record<string, any> = { ...(parameters.advancedOptions || {}) };
     const def = DEFAULT_MODEL_PARAMETERS;
 
@@ -100,6 +101,15 @@ export class ModelParametersService {
         opts.stop = parameters.stopSequences;
       }
     }
+    
+    // 处理思考和流式响应参数
+    if (shouldSet(parameters.enableThinking, parameters.thinking, def.thinking)) {
+      opts.thinking = parameters.thinking;
+    }
+    if (shouldSet(parameters.enableStreaming, parameters.streaming, def.streaming)) {
+      opts.streaming = parameters.streaming;
+    }
+    
     return opts;
   }
 

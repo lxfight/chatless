@@ -151,15 +151,6 @@ export class AnthropicProvider extends BaseProvider {
                     }
                     
                     // 打印完整响应（用于调试）
-                    if (this.thinkingStrategy) {
-                      const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                      const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                      logCompleteResponse('Anthropic', model, {
-                        thinking: accumulated.thinking,
-                        content: accumulated.content
-                      });
-                    }
-                    
                     callbacks.onComplete?.();
                     this.sseClient.stopConnection();
                   }

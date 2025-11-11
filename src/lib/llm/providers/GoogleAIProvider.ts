@@ -247,16 +247,6 @@ export class GoogleAIProvider extends BaseProvider {
                     }
                   }
                   
-                  // 打印完整响应（用于调试）
-                  if (this.thinkingStrategy) {
-                    const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                    const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                    logCompleteResponse('Google-AI', model, {
-                      thinking: accumulated.thinking,
-                      content: accumulated.content
-                    });
-                  }
-                  
                   cb.onComplete?.();
                   // 确保及时关闭并移除监听，避免后续开启的新流将事件冒泡到旧回调
                   this.sseClient.stopConnection();

@@ -129,16 +129,7 @@ export class DeepSeekProvider extends BaseProvider {
               }
               
               // 打印完整响应（用于调试）
-              if (this.thinkingStrategy) {
-                const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                logCompleteResponse('DeepSeek', model, {
-                  thinking: accumulated.thinking,
-                  content: accumulated.content
-                });
-              }
-              
-              cb.onComplete?.();
+                cb.onComplete?.();
               this.sseClient.stopConnection();
               return;
             }

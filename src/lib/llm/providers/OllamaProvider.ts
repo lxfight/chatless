@@ -172,12 +172,26 @@ export class OllamaProvider extends BaseProvider {
     if (typeof (opts as any).repeatPenalty === 'number') ollamaOptions.repeat_penalty = (opts as any).repeatPenalty;
     if (typeof (opts as any).seed === 'number') ollamaOptions.seed = (opts as any).seed;
 
-    const body = {
+    // 处理think参数（根据Ollama文档，这应在body顶层）
+    // 只有在opts中明确提供了thinking参数时才使用，否则不传递（让模型使用默认值）
+    const hasThinkingParam = typeof (opts as any).thinking === 'boolean';
+    const thinkParam = hasThinkingParam ? (opts as any).thinking : undefined;
+    
+    // 处理stream参数 - 只有在opts中明确提供了streaming参数时才使用，否则默认true（大多数情况下需要流式）
+    const hasStreamingParam = typeof (opts as any).streaming === 'boolean';
+    const streamParam = hasStreamingParam ? (opts as any).streaming : true;
+    
+    const body: Record<string, any> = {
       model,
-      stream: true,
+      stream: streamParam,
       messages: processedMessages,
       options: ollamaOptions,
     };
+    
+    // 只有在明确提供了think参数时才添加到body（避免不支持的模型报错）
+    if (hasThinkingParam && typeof thinkParam === 'boolean') {
+      body.think = thinkParam;
+    }
 
     try {
       // 首选：使用 Tauri HTTP（支持跨域/自签证书）进行 NDJSON 流解析
@@ -237,22 +251,14 @@ export class OllamaProvider extends BaseProvider {
       this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
-      let accumulatedContent = ''; // 累积完整内容用于日志
       const processJson = (json: any) => {
         if (!json) return;
         if (json.done === true) {
-          // 打印完整响应（用于调试）
-          const { logCompleteResponse } = require('../utils/response-logger');
-          logCompleteResponse('Ollama-Fallback', model, {
-            content: accumulatedContent
-          });
-          
           cb.onComplete?.();
           return;
         }
         const token = json?.message?.content;
         if (typeof token === 'string' && token.length > 0) {
-          accumulatedContent += token; // 累积内容
           cb.onToken?.(token);
         }
       };
@@ -269,14 +275,6 @@ export class OllamaProvider extends BaseProvider {
           const last = buffer.trim();
           if (last) {
             try { processJson(JSON.parse(last)); } catch { /* ignore */ }
-          }
-          
-          // 打印完整响应（用于调试）
-          if (accumulatedContent) {
-            const { logCompleteResponse } = require('../utils/response-logger');
-            logCompleteResponse('Ollama-Fallback', model, {
-              content: accumulatedContent
-            });
           }
           
           cb.onComplete?.();
@@ -306,6 +304,7 @@ export class OllamaProvider extends BaseProvider {
   }
 
   private async startSSEFallback(url: string, body: unknown, cb: StreamCallbacks, _modelName?: string) {
+    const DEBUG_OLLAMA = false;
     try {
       // 创建Ollama专用thinking策略（新架构）
       this.thinkingStrategy = ThinkingStrategyFactory.createOllamaStrategy();
@@ -322,10 +321,9 @@ export class OllamaProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
-            console.log('[DEBUG:Ollama:onData]', { 
-              rawDataLength: rawData?.length, 
-              fullData: rawData 
-            });
+            if (DEBUG_OLLAMA) {
+              try { console.log('[DEBUG:Ollama:onData]', { rawDataLength: rawData?.length, fullData: rawData }); } catch { /* noop */ }
+            }
             
             const processJson = (json: any) => {
               if (!json) return;
@@ -333,15 +331,19 @@ export class OllamaProvider extends BaseProvider {
               const thinking = json?.message?.thinking || '';
               const content = json?.message?.content || '';
               
-              console.log('[DEBUG:Ollama:processJson]', { 
-                done: json.done, 
-                hasThinking: !!thinking,
-                thinkingLength: thinking?.length,
-                hasContent: !!content, 
-                contentLength: content?.length,
-                thinking: thinking.substring(0, 50),
-                content: content.substring(0, 50)
-              });
+              if (DEBUG_OLLAMA) {
+                try {
+                  console.log('[DEBUG:Ollama:processJson]', { 
+                    done: json.done, 
+                    hasThinking: !!thinking,
+                    thinkingLength: thinking?.length,
+                    hasContent: !!content, 
+                    contentLength: content?.length,
+                    thinking: thinking.substring(0, 50),
+                    content: content.substring(0, 50)
+                  });
+                } catch { /* noop */ }
+              }
               
               // 使用策略处理token，得到结构化事件
               const result = this.thinkingStrategy!.processToken({
@@ -361,13 +363,15 @@ export class OllamaProvider extends BaseProvider {
                 const mentionsToolCall = toolCallKeywords.test(accumulatedThinking);
                 const hasActualOutput = accumulatedContent.includes('<use_mcp_tool>');
                 
-                if (mentionsToolCall && !hasActualOutput) {
-                  console.warn('⚠️ [TOOL-CALL-MISSING] 模型在thinking中提到工具调用，但未在content中输出标签!', {
-                    thinkingPreview: accumulatedThinking.substring(0, 200),
-                    contentPreview: accumulatedContent.substring(0, 200),
-                    thinkingChars: accumulatedThinking.length,
-                    contentChars: accumulatedContent.length
-                  });
+                if (mentionsToolCall && !hasActualOutput && DEBUG_OLLAMA) {
+                  try {
+                    console.warn('⚠️ [TOOL-CALL-MISSING] 模型在thinking中提到工具调用，但未在content中输出标签!', {
+                      thinkingPreview: accumulatedThinking.substring(0, 200),
+                      contentPreview: accumulatedContent.substring(0, 200),
+                      thinkingChars: accumulatedThinking.length,
+                      contentChars: accumulatedContent.length
+                    });
+                  } catch { /* noop */ }
                 }
               }
               
@@ -376,11 +380,13 @@ export class OllamaProvider extends BaseProvider {
               
               // 优先使用onEvent（直接传递结构化事件）
               if (cb.onEvent && result.events && result.events.length > 0) {
-                if (!isInternal) {
-                  console.log('[DEBUG:Ollama] 输出事件:', result.events.map(e => ({
-                    type: e.type,
-                    contentLength: 'content' in e ? e.content?.length : undefined
-                  })));
+                if (!isInternal && DEBUG_OLLAMA) {
+                  try {
+                    console.log('[DEBUG:Ollama] 输出事件:', result.events.map(e => ({
+                      type: e.type,
+                      contentLength: 'content' in e ? e.content?.length : undefined
+                    })));
+                  } catch { /* noop */ }
                 }
                 
                 result.events.forEach(event => cb.onEvent!(event));
@@ -389,8 +395,8 @@ export class OllamaProvider extends BaseProvider {
               else if (cb.onToken && result.events && result.events.length > 0) {
                 const text = StreamEventAdapter.eventsToText(result.events);
                 if (text.length > 0) {
-                  if (!isInternal) {
-                    console.log('[DEBUG:Ollama] 调用onToken (兼容模式), token:', text.substring(0, 100));
+                  if (!isInternal && DEBUG_OLLAMA) {
+                    try { console.log('[DEBUG:Ollama] 调用onToken (兼容模式), token:', text.substring(0, 100)); } catch { /* noop */ }
                   }
                   cb.onToken(text);
                 }
@@ -398,16 +404,6 @@ export class OllamaProvider extends BaseProvider {
               
               // 处理完成
               if (result.isComplete) {
-                // 打印完整响应（用于调试）
-                if (!isInternal && this.thinkingStrategy) {
-                  const { logCompleteResponse, extractAccumulatedContent } = require('../utils/response-logger');
-                  const accumulated = extractAccumulatedContent(this.thinkingStrategy);
-                  logCompleteResponse('Ollama', _modelName || 'unknown', {
-                    thinking: accumulated.thinking,
-                    content: accumulated.content
-                  });
-                }
-                
                 cb.onComplete?.();
                 this.sseClient.stopConnection();
                 // 重置策略
