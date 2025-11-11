@@ -46,9 +46,9 @@ export class LLMInterpreter {
       model,
       messages,
       {
-        onToken: (t) => { content += t; },
+        onToken: (t: string) => { content += t; },
         onComplete: () => { if (resolveDone) resolveDone(); },
-        onError: (e) => { if (rejectDone) rejectDone(e); },
+        onError: (e: Error) => { if (rejectDone) rejectDone(e); },
         // 添加标记，表示这是内部调用
         __internal: true,
       } as any,

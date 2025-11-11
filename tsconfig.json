@@ -30,5 +30,13 @@
     "next-env.d.ts",
     "dist/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // 排除单元测试与测试工具，避免缺少 Jest 类型导致 typecheck 失败
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }
