@@ -498,6 +498,22 @@ async function continueWithToolResult(params: {
             errorMessage: '用户拒绝授权此工具调用',
             cardId,
           });
+          
+          // 用户拒绝后继续追问流程，让AI知道用户再次拒绝了
+          void continueWithToolResult({
+            assistantMessageId,
+            provider,
+            model,
+            conversationId,
+            historyForLlm: followHistory,
+            originalUserContent,
+            server: srv,
+            tool: tl,
+            result: {
+              error: 'AUTHORIZATION_DENIED',
+              message: '用户拒绝了此工具调用。这可能是因为用户认为此调用不合理或参数有误。请考虑用户的反馈，调整你的方法或询问用户的具体需求。'
+            }
+          });
         },
       });
     },

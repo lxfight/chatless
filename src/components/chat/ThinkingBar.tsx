@@ -69,9 +69,9 @@ export const ThinkingBar = ({
       onClick={() => setIsExpanded(!isExpanded)}
       className={cn(
         "rounded-lg border-l-[3px] border transition-all duration-300 cursor-pointer",
-        isActive 
-          ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-300/60 border-r-blue-200/40 border-t-blue-200/40 border-b-blue-200/40 dark:border-l-blue-800/60 dark:border-r-blue-900/30 dark:border-t-blue-900/30 dark:border-b-blue-900/30 hover:bg-blue-50/60 dark:hover:bg-blue-950/30" 
-          : "bg-slate-50/40 dark:bg-slate-800/40 border-slate-300/50 border-r-slate-200/40 border-t-slate-200/40 border-b-slate-200/40 dark:border-l-slate-600/50 dark:border-r-slate-700/40 dark:border-t-slate-700/40 dark:border-b-slate-700/40 hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
+        "bg-slate-50/40 dark:bg-slate-800/40 border-slate-300/50 border-r-slate-200/40 border-t-slate-200/40 border-b-slate-200/40",
+        "dark:border-l-slate-600/50 dark:border-r-slate-700/40 dark:border-t-slate-700/40 dark:border-b-slate-700/40",
+        "hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
       )}
     >
       <div className="p-3.5">
@@ -121,19 +121,17 @@ export const ThinkingBar = ({
           className={cn(
             "overflow-hidden transition-all duration-500 ease-in-out",
             isActive && !isExpanded && hasContent 
-              ? "mt-3 max-h-20 opacity-100" 
+              ? "mt-3 max-h-6 opacity-100" 
               : "mt-0 max-h-0 opacity-0"
           )}
         >
-          <div className="text-sm text-slate-600/80 dark:text-slate-300/70 leading-relaxed truncate">
-            <div className="relative">
-              <span key={displayText} className="animate-in fade-in-0 slide-in-from-right-2 duration-300">
-                {displayText}
-              </span>
-              {isActive && (
-                <span className="inline-block w-0.5 h-4 bg-blue-500/60 dark:bg-blue-400/60 ml-0.5 animate-pulse align-middle" />
-              )}
-            </div>
+          <div className="text-sm text-slate-600/80 dark:text-slate-300/70 truncate pr-1">
+            <span key={displayText} className="animate-in fade-in-0 slide-in-from-right-2 duration-300">
+              {displayText}
+            </span>
+            {isActive && (
+              <span className="inline-block w-0.5 h-4 bg-slate-400/60 dark:bg-slate-500/60 ml-0.5 animate-pulse align-middle" />
+            )}
           </div>
         </div>
       </div>
