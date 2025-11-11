@@ -16,6 +16,8 @@ use rmcp::{
 use tauri::State;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
+use reqwest::Url;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 // 仅在Windows平台编译时，引入 CommandExt Trait
 #[cfg(windows)]
@@ -482,14 +484,49 @@ pub async fn mcp_connect(
         .ok_or_else(|| "baseUrl required for sse".to_string())?;
       log::info!("[MCP/sse] Connecting to baseUrl: {}", &base);
 
-      let req = match crate::http_client::get_browser_like_client() {
-        Ok(client) => {
-          log::debug!("[MCP/sse] HTTP client created successfully");
-          client
+      // —— 代理选择策略：若 use_proxy=true 且 proxy_url 存在，且目标非本地/私网，则使用带代理客户端；否则使用浏览器化客户端 ——
+      let should_use_proxy = {
+        let enabled = config.use_proxy.unwrap_or(false) && config.proxy_url.is_some();
+        if !enabled { false } else {
+          match Url::parse(&base) {
+            Ok(u) => {
+              let host = u.host_str().unwrap_or_default();
+              is_local_or_private(host) == false
+            }
+            Err(_) => {
+              // 无法解析 URL，保守起见不走代理
+              false
+            }
+          }
         }
-        Err(e) => {
-          log::error!("[MCP/sse] Failed to get HTTP client: {}", e);
-          return Err(format!("Failed to get HTTP client: {}", e));
+      };
+
+      let req = if should_use_proxy {
+        let mut cfg = crate::http_client::HttpClientConfig::default();
+        cfg.http1_only = true;
+        cfg.gzip = false;
+        cfg.brotli = false;
+        cfg.proxy_url = config.proxy_url.clone();
+        match crate::http_client::HttpClientManager::build_custom_client(cfg) {
+          Ok(client) => {
+            log::debug!("[MCP/sse] Using custom proxied HTTP client");
+            std::sync::Arc::new(client)
+          }
+          Err(e) => {
+            log::error!("[MCP/sse] Failed to build proxied client: {}", e);
+            return Err(format!("Failed to build proxied client: {}", e));
+          }
+        }
+      } else {
+        match crate::http_client::get_browser_like_client() {
+          Ok(client) => {
+            log::debug!("[MCP/sse] Using browser-like HTTP client");
+            client
+          }
+          Err(e) => {
+            log::error!("[MCP/sse] Failed to get HTTP client: {}", e);
+            return Err(format!("Failed to get HTTP client: {}", e));
+          }
         }
       };
 
@@ -544,14 +581,46 @@ pub async fn mcp_connect(
         .ok_or_else(|| "baseUrl required for http".to_string())?;
       log::info!("[MCP/http] Connecting to baseUrl: {}", &base);
 
-      let req = match crate::http_client::get_browser_like_client() {
-        Ok(client) => {
-          log::debug!("[MCP/http] HTTP client created successfully");
-          client
+      // —— 代理选择（同上） ——
+      let should_use_proxy = {
+        let enabled = config.use_proxy.unwrap_or(false) && config.proxy_url.is_some();
+        if !enabled { false } else {
+          match Url::parse(&base) {
+            Ok(u) => {
+              let host = u.host_str().unwrap_or_default();
+              is_local_or_private(host) == false
+            }
+            Err(_) => false
+          }
         }
-        Err(e) => {
-          log::error!("[MCP/http] Failed to get HTTP client: {}", e);
-          return Err(format!("Failed to get HTTP client: {}", e));
+      };
+
+      let req = if should_use_proxy {
+        let mut cfg = crate::http_client::HttpClientConfig::default();
+        cfg.http1_only = true;
+        cfg.gzip = false;
+        cfg.brotli = false;
+        cfg.proxy_url = config.proxy_url.clone();
+        match crate::http_client::HttpClientManager::build_custom_client(cfg) {
+          Ok(client) => {
+            log::debug!("[MCP/http] Using custom proxied HTTP client");
+            std::sync::Arc::new(client)
+          }
+          Err(e) => {
+            log::error!("[MCP/http] Failed to build proxied client: {}", e);
+            return Err(format!("Failed to build proxied client: {}", e));
+          }
+        }
+      } else {
+        match crate::http_client::get_browser_like_client() {
+          Ok(client) => {
+            log::debug!("[MCP/http] Using browser-like HTTP client");
+            client
+          }
+          Err(e) => {
+            log::error!("[MCP/http] Failed to get HTTP client: {}", e);
+            return Err(format!("Failed to get HTTP client: {}", e));
+          }
         }
       };
 
@@ -591,6 +660,34 @@ pub async fn mcp_connect(
   }
 }
 
+/// 判断 host 是否为本地或私有网段（用于自动绕过代理）
+fn is_local_or_private(host: &str) -> bool {
+  let lower = host.to_ascii_lowercase();
+  if lower == "localhost" {
+    return true;
+  }
+  if let Ok(ip) = host.parse::<IpAddr>() {
+    match ip {
+      IpAddr::V4(v4) => {
+        if v4.is_loopback() || v4.is_private() {
+          return true;
+        }
+        // 额外常见内网广播/链路本地
+        if v4.octets()[0] == 169 && v4.octets()[1] == 254 {
+          return true;
+        }
+        false
+      }
+      IpAddr::V6(v6) => {
+        // 回环或链路本地
+        v6.is_loopback() || v6.is_unicast_link_local()
+      }
+    }
+  } else {
+    // 域名无法判定，视为非本地
+    false
+  }
+}
 #[tauri::command]
 pub async fn mcp_disconnect(name: String, state: State<'_, McpState>) -> Result<(), String> {
   log::info!("[MCP] Disconnecting server: {}", name);

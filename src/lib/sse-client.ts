@@ -92,12 +92,28 @@ export class SSEClient {
         return;
       }
 
+      // 读取网络偏好（代理设置），仅在启用了自定义代理且未勾选系统代理时传递给后端
+      let proxy_url: string | undefined = undefined;
+      try {
+        const { useNetworkPreferences } = await import('@/store/networkPreferences');
+        const { proxyUrl, useSystemProxy } = useNetworkPreferences.getState();
+        if (proxyUrl && !useSystemProxy) {
+          proxy_url = proxyUrl;
+          console.debug(`[${debugTag}] start_sse using proxy:`, proxy_url);
+        }
+      } catch (e) {
+        // 忽略读取失败，继续无代理
+        console.warn(`[${debugTag}] failed to read network preferences for proxy`, e);
+      }
+
       // 启动Tauri SSE连接
       await invoke('start_sse', {
         url,
         method,
         headers,
-        body
+        body,
+        // 注意：Tauri 参数名需要 snake_case
+        proxy_url
       });
 
       // 监听SSE事件 - 只传递原始数据，不进行任何解析

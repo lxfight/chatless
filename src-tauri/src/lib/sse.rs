@@ -40,6 +40,7 @@ impl AppState {
 /// * `method`  – Optional: GET / POST / ...（默认 GET）
 /// * `headers` – Optional: 附加请求头
 /// * `body`    – Optional: JSON body（POST 时常用）
+/// * `proxy_url` – Optional: 自定义代理（例如 http://127.0.0.1:7890），若为空则不使用自定义代理
 #[tauri::command]
 pub async fn start_sse(
   app: AppHandle,
@@ -48,6 +49,7 @@ pub async fn start_sse(
   method: Option<String>,
   headers: Option<HashMap<String, String>>,
   body: Option<Value>,
+  proxy_url: Option<String>,
 ) -> Result<(), String> {
   // 如果已有连接，先断开
   if let Ok(mut guard) = state.sse_shutdown_sender.lock() {
@@ -62,14 +64,32 @@ pub async fn start_sse(
     *guard = Some(shutdown_tx);
   }
 
-  // 使用最小化HTTP客户端，禁用压缩并强制HTTP/1.1，避免流解码错误
-  let client = match crate::http_client::get_minimal_client() {
-    Ok(client) => (*client).clone(), // 从Arc<Client>转换为Client
-    Err(e) => {
-      app
-        .emit("sse-error", format!("Failed to get HTTP client: {}", e))
-        .ok();
-      return Err(format!("Failed to get HTTP client: {}", e));
+  // 选择HTTP客户端：优先使用携带代理的自定义客户端；否则回退到最小化客户端
+  let client = if let Some(p) = proxy_url.clone().filter(|s| !s.is_empty()) {
+    let mut cfg = crate::http_client::HttpClientConfig::default();
+    cfg.http1_only = true;
+    cfg.gzip = false;
+    cfg.brotli = false;
+    cfg.proxy_url = Some(p);
+
+    match crate::http_client::HttpClientManager::build_custom_client(cfg) {
+      Ok(client) => client,
+      Err(e) => {
+        app
+          .emit("sse-error", format!("Failed to build HTTP client with proxy: {}", e))
+          .ok();
+        return Err(format!("Failed to build HTTP client with proxy: {}", e));
+      }
+    }
+  } else {
+    match crate::http_client::get_minimal_client() {
+      Ok(client) => (*client).clone(), // 从Arc<Client>转换为Client
+      Err(e) => {
+        app
+          .emit("sse-error", format!("Failed to get HTTP client: {}", e))
+          .ok();
+        return Err(format!("Failed to get HTTP client: {}", e));
+      }
     }
   };
 
