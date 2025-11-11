@@ -52,21 +52,23 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
   
   return (
     <div className={cn(
-      // 固定卡片最大宽度，防止随思考栏文本宽度变化
-      'w-full rounded-xl border text-sm overflow-hidden backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-slate-900/50 transition-all duration-300 hover:shadow-lg',
-      status === 'error' ? 'border-red-300/60 bg-gradient-to-br from-red-50/60 to-red-100/40 dark:border-red-900/50 dark:from-red-950/30 dark:to-red-900/20 shadow-md shadow-red-200/30 dark:shadow-red-950/30' :
-      isPendingAuth ? 'border-yellow-300/60 bg-gradient-to-br from-yellow-50/60 to-amber-50/40 dark:border-yellow-900/50 dark:from-yellow-950/30 dark:to-amber-950/20 shadow-md shadow-yellow-200/30 dark:shadow-yellow-950/30 ring-1 ring-yellow-300/20 dark:ring-yellow-700/20' :
-      status === 'running' ? 'border-blue-300/60 bg-gradient-to-br from-blue-50/60 to-cyan-50/40 dark:border-blue-900/50 dark:from-blue-950/30 dark:to-cyan-950/20 shadow-md shadow-blue-200/30 dark:shadow-blue-950/30' :
-      'border-green-300/60 bg-gradient-to-br from-green-50/60 to-emerald-50/40 dark:border-green-900/50 dark:from-green-950/30 dark:to-emerald-950/20 shadow-md shadow-green-200/30 dark:shadow-green-950/30'
-    )}>
-      <div className="px-3.5 py-2.5 flex items-center gap-2.5 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/40 dark:bg-slate-950/20">
-        <span className="px-1.5 py-0.5 rounded-md border border-emerald-300/70 bg-emerald-50/80 text-emerald-700 dark:text-emerald-400 text-[11px] font-semibold shadow-sm">@</span>
-        <button onClick={()=>setOpen(o=>!o)} className="cursor-pointer font-semibold truncate hover:underline text-slate-800 dark:text-slate-200 transition-colors">{server}</button>
+      // 柔和的边框和配色，统一视觉风格
+      'w-full rounded-lg border-[1.5px] text-sm overflow-hidden transition-all duration-300 cursor-pointer',
+      status === 'error' ? 'border-red-300/50 bg-red-50/40 dark:border-red-800/50 dark:bg-red-950/20 hover:bg-red-50/60 dark:hover:bg-red-950/30' :
+      isPendingAuth ? 'border-yellow-300/50 bg-yellow-50/40 dark:border-yellow-800/50 dark:bg-yellow-950/20 hover:bg-yellow-50/60 dark:hover:bg-yellow-950/30' :
+      status === 'running' ? 'border-blue-300/50 bg-blue-50/40 dark:border-blue-800/50 dark:bg-blue-950/20 hover:bg-blue-50/60 dark:hover:bg-blue-950/30' :
+      'border-slate-300/40 bg-slate-50/40 dark:border-slate-700/40 dark:bg-slate-800/40 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
+    )}
+      onClick={()=>setOpen(o=>!o)}
+    >
+      <div className="px-3.5 py-2.5 flex items-center gap-2.5 border-b border-slate-200/40 dark:border-slate-700/40 bg-white/20 dark:bg-slate-900/10">
+        <span className="px-2 py-0.5 rounded text-slate-600 dark:text-slate-400 text-[11px] font-semibold bg-slate-100/60 dark:bg-slate-800/60">@</span>
+        <span className="font-semibold truncate text-slate-800 dark:text-slate-200">{server}</span>
         <span className="text-slate-400 dark:text-slate-600">·</span>
         <span className="font-mono text-[12px] truncate text-slate-700 dark:text-slate-300 font-medium">{tool}</span>
         {/* 授权按钮：仅在等待授权时显示 */}
         {isPendingAuth && (
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handleApprove}
               className="flex items-center gap-0.5 px-2 py-1 rounded-md bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md active:scale-95"
@@ -91,7 +93,7 @@ export function ToolCallCard({ server, tool, status, args, resultPreview, errorM
         )}
         {/* 状态指示器：执行中用蓝色点，成功用对号，失败用X */}
         {!isPendingAuth && (
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             {/* 执行中：蓝色圆点动画 */}
             {status === 'running' && (
               <div className="relative flex items-center justify-center w-2 h-2" title="调用中...">

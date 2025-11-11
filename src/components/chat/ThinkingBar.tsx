@@ -65,18 +65,18 @@ export const ThinkingBar = ({
   const displayText = isActive ? getLastLine(thinkingContent) : thinkingContent;
 
   return (
-    <div className={cn(
-      "rounded-lg border transition-all duration-300",
-      isActive 
-        ? "bg-slate-50/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-700" 
-        : "bg-slate-50/40 dark:bg-slate-800/40 border-slate-200/50 dark:border-slate-700/50"
-    )}>
+    <div 
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={cn(
+        "rounded-lg border-l-[3px] border transition-all duration-300 cursor-pointer",
+        isActive 
+          ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-300/60 border-r-blue-200/40 border-t-blue-200/40 border-b-blue-200/40 dark:border-l-blue-800/60 dark:border-r-blue-900/30 dark:border-t-blue-900/30 dark:border-b-blue-900/30 hover:bg-blue-50/60 dark:hover:bg-blue-950/30" 
+          : "bg-slate-50/40 dark:bg-slate-800/40 border-slate-300/50 border-r-slate-200/40 border-t-slate-200/40 border-b-slate-200/40 dark:border-l-slate-600/50 dark:border-r-slate-700/40 dark:border-t-slate-700/40 dark:border-b-slate-700/40 hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
+      )}
+    >
       <div className="p-3.5">
         {/* 状态指示行 */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center gap-2.5 group hover:opacity-80 transition-opacity"
-        >
+        <div className="w-full flex items-center gap-2.5 group">
           {/* 旋转加载图标（思考中）或静态圆点（完成） */}
           <div className="relative flex items-center justify-center flex-shrink-0">
             {isActive ? (
@@ -114,7 +114,7 @@ export const ThinkingBar = ({
               isExpanded && "rotate-90"
             )} />
           )}
-        </button>
+        </div>
         
         {/* 思考内容预览（思考中显示最新一行，完成后收起） */}
         <div 
