@@ -141,29 +141,20 @@ export function ProviderModelList(props: ProviderModelListProps) {
     try {
       const scroller = getScroller();
       const prevY = scroller.scrollTop;
-      // 冻结列表容器高度，避免布局变化导致的回弹
+      // 冻结列表容器高度，避免布局变化导致的回弹（不再强制锁定滚动事件，减少“跳定位”感）
       const root = rootRef.current as HTMLElement | null;
       const prevMinH = root ? root.style.minHeight : '';
       if (root) root.style.minHeight = `${root.offsetHeight}px`;
-      // 在刷新窗口内锁定滚动位置
-      let keep = true; let setting = false;
-      const onScroll = () => {
-        if (!keep || setting) return;
-        if (Math.abs(scroller.scrollTop - prevY) > 1) {
-          setting = true; scroller.scrollTop = prevY; setting = false;
-        }
-      };
-      scroller.addEventListener('scroll', onScroll, { passive: true });
       const { providerModelService } = await import('@/lib/provider/services/ProviderModelService');
       await providerModelService.fetchIfNeeded(provider.name);
       const { modelRepository } = await import('@/lib/provider/ModelRepository');
       const latest = await modelRepository.get(provider.name);
       toast.success('已刷新模型列表', { description: `${latest?.length || 0} 个模型` });
+      // 轻量回到刷新前的大致位置（一次性），避免“来回拉扯”
       restoreScroll(scroller, prevY);
       setTimeout(() => {
-        keep = false; scroller.removeEventListener('scroll', onScroll);
         if (root) root.style.minHeight = prevMinH;
-      }, 600);
+      }, 300);
     } catch (e:any) {
       toast.error('刷新模型失败', { description: e?.message || String(e) });
     }

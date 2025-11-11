@@ -240,7 +240,7 @@ export function AiModelSettings() {
 
 
       {/* Provider 列表 - 去卡片化设计 */}
-      <div className="mt-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="mt-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden provider-list-root">
         {/* 表头优化：列名与内容对齐；状态列使用下拉；“提供商”列点击图标再展开搜索 */}
         <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-12 gap-4 items-center text-[13px] font-medium text-gray-600 dark:text-gray-400">

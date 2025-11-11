@@ -811,6 +811,12 @@ li+li { margin-top: 0.375rem; }
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 禁用浏览器滚动锚定，避免动态高度变更时的“自动定位跳动” */
+.provider-list-root {
+  overflow-anchor: none;
+  contain: layout paint;
+}
+
 /* === 全局滚动条样式: 简约纤细 === */
 * {
   scrollbar-width: thin; /* Firefox */
