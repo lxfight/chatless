@@ -57,8 +57,8 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
   const [showAdvancedDialog, setShowAdvancedDialog] = useState(false);
 
   return (
-    <div className="space-y-3">
-      <div className="group mb-2 flex items-center gap-3">
+    <div className="space-y-3.5">
+      <div className="group mb-1.5 flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300 w-28 mb-0">
           服务地址
         </label>
@@ -72,10 +72,10 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
                 onUrlChange(repoName, localUrl);
               }}
               placeholder={provider.name.toLowerCase()==='ollama' ? 'http://localhost:11434' : '服务地址 (http://...)'}
-              className="w-full p-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary focus:border-transparent transition-all duration-200 hover:border-primary dark:hover:border-primary dark:text-gray-200 h-8 text-sm"
+              className="w-full h-9 px-3 bg-white/90 dark:bg-slate-800/60 border border-slate-300/60 dark:border-slate-600/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400/40 transition-all duration-200 hover:border-blue-400/30 dark:text-slate-200 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
             {endpointPreview && (
-              <p className="mt-1 text-[12px] text-gray-400 dark:text-gray-500 select-text break-all">
+              <p className="mt-1 text-[12px] text-slate-500/80 dark:text-slate-400/80 select-text break-all">
                 地址预览：{endpointPreview}
               </p>
             )}
@@ -156,7 +156,7 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
       {showApiKeyFields && (
         <div className="flex items-center gap-2">
           <InputField
-            label="默认 API Key"
+            label="默认密钥"
             type="password"
             value={localDefaultApiKey}
             onChange={(e) => {
@@ -167,8 +167,8 @@ export function ProviderConnectionSection(props: ProviderConnectionSectionProps)
               onDefaultApiKeyChange(repoName, localDefaultApiKey);
               onDefaultApiKeyBlur(repoName);
             }}
-            placeholder="API Key"
-            className="h-8 text-sm w-full"
+            placeholder="Api Key"
+            className="h-9 text-sm w-full"
             wrapperClassName="mb-0 flex-1"
             icon={<KeyRound className="w-4 h-4 text-gray-400" />}
             inline

@@ -404,8 +404,8 @@ export function ProviderTableRow({
 
         {/* 展开的详情内容 */}
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-          <CollapsibleContent className="mt-5 pt-5 border-t border-blue-200/50 dark:border-blue-700/40 will-change-transform">
-            <div className="space-y-5 bg-white/70 dark:bg-slate-900/30 rounded-xl p-4 border border-blue-100/50 dark:border-blue-800/30">
+          <CollapsibleContent className="mt-4 pt-4 will-change-transform">
+            <div className="space-y-5 bg-white/60 dark:bg-slate-900/30 rounded-xl p-4 sm:p-5 ring-1 ring-slate-200/60 dark:ring-slate-700/50 shadow-sm">
               <ProviderConnectionSection
                 provider={provider}
                 localUrl={localUrl}

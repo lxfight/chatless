@@ -80,35 +80,35 @@ export function createProviderInstance(def: CatalogProviderDef, url: string, api
   }
   switch (def.strategy) {
     case 'openai':
-      return new OpenAIProvider(
-        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
-        apiKey || undefined,
-        def.name
-      );
+      { const inst = new OpenAIProvider(
+          baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+          apiKey || undefined,
+          def.name
+        ); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'openai-responses':
-      return new OpenAIResponsesProvider(
-        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
-        apiKey || undefined,
-        def.name
-      );
+      { const inst = new OpenAIResponsesProvider(
+          baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+          apiKey || undefined,
+          def.name
+        ); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'openai-compatible':
-      return new OpenAICompatibleProvider(
-        baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
-        apiKey || undefined,
-        def.name
-      );
+      { const inst = new OpenAICompatibleProvider(
+          baseUrl || def.defaultUrl || 'https://api.openai.com/v1',
+          apiKey || undefined,
+          def.name
+        ); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'anthropic':
-      return new AnthropicProvider(baseUrl || def.defaultUrl || 'https://api.anthropic.com/v1', apiKey || undefined);
+      { const inst = new AnthropicProvider(baseUrl || def.defaultUrl || 'https://api.anthropic.com/v1', apiKey || undefined); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'gemini':
-      return new GoogleAIProvider(baseUrl || def.defaultUrl || 'https://generativelanguage.googleapis.com/v1beta', apiKey || undefined);
+      { const inst = new GoogleAIProvider(baseUrl || def.defaultUrl || 'https://generativelanguage.googleapis.com/v1beta', apiKey || undefined); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'deepseek':
-      return new DeepSeekProvider(baseUrl || def.defaultUrl || 'https://api.deepseek.com', apiKey || undefined);
+      { const inst = new DeepSeekProvider(baseUrl || def.defaultUrl || 'https://api.deepseek.com', apiKey || undefined); (inst as any).requiresKey = !!def.requiresKey; return inst; }
     case 'ollama':
       return new OllamaProvider(baseUrl || 'http://localhost:11434');
     case 'multi':
       return new InlineMultiStrategyProvider(def.name, baseUrl || def.defaultUrl || '', apiKey || undefined);
     default:
-      return new OpenAICompatibleProvider(baseUrl || def.defaultUrl || 'https://api.openai.com/v1', apiKey || undefined);
+      { const inst = new OpenAICompatibleProvider(baseUrl || def.defaultUrl || 'https://api.openai.com/v1', apiKey || undefined); (inst as any).requiresKey = !!def.requiresKey; return inst; }
   }
 }
 

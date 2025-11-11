@@ -246,7 +246,7 @@ export function AiModelSettings() {
           <div className="grid grid-cols-12 gap-4 items-center text-[13px] font-medium text-gray-600 dark:text-gray-400">
             <div className="col-span-1" />
             <div className="col-span-6 flex items-center">
-              <span>提供商</span>
+              <span className='text-sm font-semibold'>提供商</span>
               <div className="ml-2 h-7 flex items-center">
                 {headSearchOpen ? (
                   <div className="w-32 h-full flex items-center">
@@ -273,7 +273,7 @@ export function AiModelSettings() {
               </div>
             </div>
             <div className="col-span-3 flex items-center">
-              <span>状态：</span>
+              <span className='text-sm font-semibold'>状态：</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -294,7 +294,7 @@ export function AiModelSettings() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <div className="col-span-2">操作</div>
+            <div className="col-span-2 text-sm font-semibold">操作</div>
           </div>
         </div>
 

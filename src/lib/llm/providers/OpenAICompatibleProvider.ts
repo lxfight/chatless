@@ -93,7 +93,9 @@ export class OpenAICompatibleProvider extends BaseProvider {
     opts: Record<string, any> = {}
   ): Promise<void> {
     const apiKey = await this.getApiKey(model);
-    if (!apiKey) {
+    // 允许“无需密钥”的 Provider（例如 LM Studio）跳过密钥校验
+    const requiresKey: boolean = (typeof (this as any).requiresKey === 'boolean') ? !!(this as any).requiresKey : true;
+    if (requiresKey && !apiKey) {
       const err = new Error('NO_KEY');
       (err as any).code = 'NO_KEY';
       (err as any).userMessage = '未配置 API 密钥，请前往设置为该 Provider 或模型配置密钥';
@@ -137,11 +139,14 @@ export class OpenAICompatibleProvider extends BaseProvider {
           method: 'POST',
           rawResponse: true,
           browserHeaders: true,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/x-ndjson, application/json, text/event-stream',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: (() => {
+            const h: Record<string, string> = {
+              'Content-Type': 'application/json',
+              'Accept': 'application/x-ndjson, application/json, text/event-stream',
+            };
+            if (apiKey) h.Authorization = `Bearer ${apiKey}`;
+            return h;
+          })(),
           body,
           debugTag: 'OpenAICompatStream',
         });
@@ -154,11 +159,14 @@ export class OpenAICompatibleProvider extends BaseProvider {
         try {
           resp = await fetch(url, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/x-ndjson, application/json, text/event-stream',
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers: (() => {
+              const h: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/x-ndjson, application/json, text/event-stream',
+              };
+              if (apiKey) h.Authorization = `Bearer ${apiKey}`;
+              return h;
+            })(),
             body: JSON.stringify(body),
           });
         } catch {
@@ -167,13 +175,13 @@ export class OpenAICompatibleProvider extends BaseProvider {
       }
 
       if (!resp || !resp.ok) {
-        await this.startSSEFallback(url, apiKey, body, cb);
+        await this.startSSEFallback(url, apiKey || null, body, cb);
         return;
       }
 
       const contentType = (resp.headers.get?.('Content-Type') || '').toLowerCase();
       if (contentType.includes('text/event-stream')) {
-        await this.startSSEFallback(url, apiKey, body, cb);
+        await this.startSSEFallback(url, apiKey || null, body, cb);
         return;
       }
 
@@ -295,7 +303,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
 
   private async startSSEFallback(
     url: string,
-    apiKey: string,
+    apiKey: string | null,
     body: unknown,
     cb: StreamCallbacks
   ) {
@@ -310,7 +318,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
           headers: {
             'Accept-Encoding': 'identity',
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           },
           body,
           debugTag: 'OpenAICompatibleProvider',
