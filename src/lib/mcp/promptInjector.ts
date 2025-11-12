@@ -1,6 +1,7 @@
 import { getAllConfiguredServers, getConnectedServers, getGlobalEnabledServers } from './chatIntegration';
 import { persistentCache } from './persistentCache';
 import { MCPPrompts } from '@/lib/prompts/SystemPrompts';
+import { useWebSearchStore } from '@/store/webSearchStore';
 
 export type InjectionResult = {
   systemMessages: Array<{ role: 'system'; content: string }>
@@ -45,8 +46,12 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   const mentionLike = /@([a-zA-Z0-9_-]{1,64})/; // 显式 @mention
   const toolKeywords = /(文件|目录|列出|list\s|dir\s|ls\b|tool\b|mcp\b)/i;
   const needMcp = mentionLike.test(content) || toolKeywords.test(content);
-  if (!needMcp) {
-    return { systemMessages: [] }; // 不插入任何 MCP 指令
+  // 若启用了“网络搜索”，即使未匹配到关键词，也需要注入工具清单
+  const webSearchEnabled = (() => {
+    try { return !!useWebSearchStore.getState().isWebSearchEnabled; } catch { return false; }
+  })();
+  if (!needMcp && !webSearchEnabled) {
+    return { systemMessages: [] };
   }
 
   // 仅使用“用户勾选+当前已连接”的交集，尊重用户设置
@@ -165,6 +170,11 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
       } catch { /* ignore */ }
     }
 
+    // 额外注入：网络搜索工具（不依赖 MCP 连接）
+    if (webSearchEnabled) {
+      toolsLines.push(`Tools@web_search: search`);
+    }
+
     // 合并为单条，减少分段与截断
     combinedLines.push(...toolsLines);
     combinedLines.push(...detailLines);
@@ -196,6 +206,10 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
         const names = tools.map((t:any)=>t?.name).filter(Boolean).slice(0, TOOL_LIMIT);
         if (names.length) toolsLines.push(`Tools@${server}: ${names.join(', ')}`);
     } catch { /* ignore */ }
+  }
+  // 额外注入：网络搜索工具（不依赖 MCP 连接）
+  if (webSearchEnabled) {
+    toolsLines.push(`Tools@web_search: search`);
   }
   for (const l of toolsLines) sys.push({ role: 'system', content: l });
 

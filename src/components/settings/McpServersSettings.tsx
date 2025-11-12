@@ -89,7 +89,7 @@ export function McpServersSettings() {
   // —— 高级设置弹窗 ——
   const [advDialogOpen, setAdvDialogOpen] = useState(false);
   const [maxDepthValue, setMaxDepthValue] = useState<number>(6);
-  const [defaultAutoAuth, setDefaultAutoAuth] = useState<boolean>(true);
+  const [defaultAutoAuth, setDefaultAutoAuth] = useState<boolean>(false);
 
   const loadAdvanced = useCallback(async () => {
     try {

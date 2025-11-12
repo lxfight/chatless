@@ -110,10 +110,22 @@ export async function setServerMaxRecursionDepth(
 export async function shouldAutoAuthorize(serverName: string): Promise<boolean> {
   try {
     const config = await getAuthorizationConfig();
-    // 优先使用服务器特定配置，否则使用默认配置
+    // 优先使用服务器特定配置
     const serverConfig = config.serverConfigs[serverName];
-    const autoAuth = serverConfig?.autoAuthorize;
-    return autoAuth !== undefined ? autoAuth : config.defaultAutoAuthorize;
+    if (serverConfig?.autoAuthorize !== undefined) {
+      return !!serverConfig.autoAuthorize;
+    }
+
+    // 对高敏感度服务强制要求人工确认（除非为该服务显式开启）
+    const name = (serverName || '').toLowerCase().trim();
+    const isSensitive =
+      name === 'filesystem' || name === 'file-system' || name === 'fs';
+    if (isSensitive) {
+      return false;
+    }
+
+    // 其余使用全局默认
+    return config.defaultAutoAuthorize;
   } catch (error) {
     console.error('[MCP-AUTH] 获取授权配置失败:', error);
     return DEFAULT_CONFIG.defaultAutoAuthorize;

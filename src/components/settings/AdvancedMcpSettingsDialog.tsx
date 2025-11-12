@@ -23,7 +23,7 @@ interface Props {
 export default function AdvancedMcpSettingsDialog({ open, onOpenChange, maxDepth, onSave }: Props) {
   const [val, setVal] = useState(maxDepth);
   const [saving, setSaving] = useState(false);
-  const [defaultAutoAuth, setDefaultAutoAuth] = useState(true);
+  const [defaultAutoAuth, setDefaultAutoAuth] = useState(false);
   const [loadingAuth, setLoadingAuth] = useState(true);
   
   // 加载授权配置

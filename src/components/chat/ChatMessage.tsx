@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState } from 'react';
-import { Copy, Star, RefreshCcw, Check } from 'lucide-react';
+import { Copy, Star, RefreshCcw, Check, Trash2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { ContextMenu, createMessageMenuItems } from '@/components/ui/context-menu';
@@ -135,6 +135,7 @@ function ChatMessageComponent({
           images={images}
           onEdit={onEdit}
           onCopy={onCopy}
+          onDelete={() => setConfirmOpen(true)}
         /> 
       : <AIMessageBlock 
           content={content}
@@ -152,6 +153,20 @@ function ChatMessageComponent({
           }}
         />;
   }, [isUser, id, content, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, isStreaming, thinking_duration, thinking_start_time, onSaveThinkingDuration, segments, viewModel]);
+
+  // 复制与字数统计应基于“可见文本”：优先从 segments 的 text 段拼接，其次回退到 content
+  const copyVisibleText = useMemo(() => {
+    try {
+      if (Array.isArray(segments) && segments.length > 0) {
+        const text = segments
+          .filter((s: any) => s && s.kind === 'text' && typeof s.text === 'string')
+          .map((s: any) => s.text)
+          .join('');
+        if (text && text.trim().length > 0) return text;
+      }
+    } catch { /* noop */ }
+    return content || '';
+  }, [segments, content]);
 
   const handleCopy = async (contentToCopy: string) => {
     try {
@@ -263,7 +278,7 @@ function ChatMessageComponent({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleCopy(content)}
+                  onClick={() => handleCopy(copyVisibleText)}
                     className={cn(
                       "h-5 w-5 rounded-full transition-all duration-200",
                       isCopied
@@ -276,9 +291,18 @@ function ChatMessageComponent({
                   </Button>
                   {/* 复制按钮的 tip 展示字数 */}
                   <div className="absolute right-0 -top-6 translate-y-[-2px] opacity-0 group-hover/copy:opacity-100 pointer-events-none select-none text-[11px] text-gray-500 bg-gray-50/90 dark:bg-gray-800/70 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">
-                    {`字数: ${(content || '').replace(/\s+/g,'').length}`}
+                  {`字数: ${String(copyVisibleText || '').replace(/\s+/g,'').length}`}
                   </div>
                 </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setConfirmOpen(true)}
+                className="h-5 w-5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 shrink-0"
+                title="删除"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
                 {onStar && (
                   <Button
                     variant="ghost"

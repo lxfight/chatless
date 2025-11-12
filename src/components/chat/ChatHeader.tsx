@@ -84,7 +84,7 @@ export function ChatHeader({
 
   return (
     <>
-      <div className="px-3 sm:px-4 md:px-6 py-3 border-b border-slate-200/50 dark:border-slate-700/40 flex items-center justify-between bg-gradient-to-r from-slate-50/60 via-white/40 to-slate-50/60 dark:from-slate-900/60 dark:via-slate-800/40 dark:to-slate-900/60 backdrop-blur-xl shadow-sm transition-all">
+      <div className="px-3 sm:px-4 md:px-6 py-2 border-b border-slate-200/50 dark:border-slate-700/40 flex items-center justify-between bg-gradient-to-r from-slate-50/60 via-white/40 to-slate-50/60 dark:from-slate-900/60 dark:via-slate-800/40 dark:to-slate-900/60 backdrop-blur-xl shadow-sm transition-all">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-700/60 transition-all duration-200 cursor-pointer" title="切换侧边栏">
             <Menu className="w-5 h-5 text-slate-600 dark:text-slate-400" />
@@ -114,8 +114,8 @@ export function ChatHeader({
           <EditableTitle
             initialTitle={title}
             onTitleChange={onTitleChange}
-            className="font-medium text-sm sm:text-base text-gray-800 dark:text-gray-200 truncate"
-            inputClassName="text-sm sm:text-base font-medium"
+            className="font-medium text-sm sm:text-sm text-gray-800 dark:text-gray-200 truncate"
+            inputClassName="text-sm sm:text-sm font-medium"
           />
           
           {tags?.map((tag, index) => (
@@ -128,7 +128,7 @@ export function ChatHeader({
           ))}
         </div>
         
-        <div className="flex items-center gap-2 sm:gap-3 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm flex-shrink-0">
           <ModelSelector 
             allMetadata={allMetadata}
             currentModelId={currentModelId}

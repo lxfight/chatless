@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface McpToolListTipProps {
   toolCount: number;
@@ -22,6 +22,7 @@ export function McpToolListTip({ toolCount, tools, className, children }: McpToo
   ).filter(it => it.name);
 
   return (
+    <TooltipProvider>
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
         {children}
@@ -49,6 +50,7 @@ export function McpToolListTip({ toolCount, tools, className, children }: McpToo
         </div>
       </TooltipContent>
     </Tooltip>
+    </TooltipProvider>
   );
 }
 

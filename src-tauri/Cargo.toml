@@ -30,13 +30,15 @@ tauri-plugin-upload = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 # 使用 rustls (默认)
-reqwest = { version = "0.12", features = ["stream"] }
+reqwest = { version = "0.12", features = ["stream", "json"] }
 # 如需切换到 native-tls 以解决 TLS 指纹问题，请使用以下配置：
 # reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "stream"] }
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
 lazy_static = "1"
 image = { version = "0.25", default-features = false, features = ["png", "ico", "jpeg"] }
+scraper = "0.19"
+urlencoding = "2"
 
 # —— MCP Client (rmcp) ——
 # 启用 stdio 子进程、SSE 客户端与可流式 HTTP 客户端（reqwest 实现）

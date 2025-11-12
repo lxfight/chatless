@@ -666,25 +666,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 for (const a of actions) model = reduce(model, a);
                 // 仅在包含 TOOL_HIT 的批次里打印一次关键日志，避免流式期间噪音
                 try {
-                  if (actions.some(a => a && a.type === 'TOOL_HIT')) {
-                    const hit = actions.find(a => a && a.type === 'TOOL_HIT');
-                    const cardCount = (model.segments || []).filter((s: any) => s && s.kind === 'toolCard').length;
-                    // 降噪：不再输出刷屏日志，仅在必要时注入标记
-                    try {
-                      const marker = JSON.stringify({ __tool_call_card__: {
-                        id: hit.cardId,
-                        server: hit.server,
-                        tool: hit.tool,
-                        status: 'running',
-                        args: hit.args,
-                        messageId: id
-                      }});
-                      const currentContent: string = String((prevMsg).content || '');
-                      if (!currentContent.includes('"__tool_call_card__"')) {
-                        (prevMsg).content = currentContent + (currentContent ? '\n' : '') + marker;
-                      }
-                    } catch { /* noop */ }
-                  }
+                  // 过去会把“工具卡片标记”以 JSON 行的形式注入到 content，作为持久化兜底。
+                  // 现在 segments 已在包含 TOOL_HIT/TOOL_RESULT/STREAM_END 的批次里持久化，
+                  // 注入 content 反而会导致 UI 在渲染周期中短暂显示这行 JSON，再被卡片替换，出现“闪现-消失”。
+                  // 因此这里不再向 content 注入任何工具标记，统一由 segments/viewModel 驱动 UI 与持久化。
+                  // 不对 content 做修改
                 } catch { /* noop */ }
                 // 关键：替换消息与数组引用，确保 React 依赖 conversation.messages 变化后重算 useMemo
                 // 生成只读 ViewModel 供 UI 使用
@@ -694,7 +680,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
                   flags: {
                     isThinking: (model.fsm === 'RENDERING_THINK'),
                     isComplete: (model.fsm === 'COMPLETE'),
-                    hasToolCalls: vmItems.some((x:any)=>x && x.kind==='toolCard')
+                    hasToolCalls: vmItems.some((x:any)=>x && x.kind==='toolCard'),
+                    // 新增：正在识别工具调用（抑制阀激活时）
+                    isToolDetecting: !!model.detectingTool
                   }
                 } as any;
                 try {

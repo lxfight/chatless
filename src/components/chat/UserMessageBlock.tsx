@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Copy, Pencil, Check } from 'lucide-react';
+import { Copy, Pencil, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentReference } from './DocumentReference';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,7 @@ interface UserMessageBlockProps {
   images?: string[];
   onEdit?: (id: string) => void;
   onCopy?: (content: string) => void;
+  onDelete?: () => void;
 }
 
 export const UserMessageBlock = ({
@@ -80,6 +81,7 @@ export const UserMessageBlock = ({
   onEdit,
   images = [],
   onCopy,
+  onDelete,
 }: UserMessageBlockProps) => {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -188,6 +190,17 @@ export const UserMessageBlock = ({
             title={isCopied ? "已复制" : "复制"}
           >
             {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onDelete()}
+            className="rounded-lg text-gray-600 hover:bg-gray-100/80 dark:text-gray-400 dark:hover:bg-gray-800/60 shrink-0 shadow-sm"
+            title="删除"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}
       </div>

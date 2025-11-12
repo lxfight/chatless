@@ -496,8 +496,8 @@ export function AIMessageBlock({
               })()}
             </div>
           ) : null}
-          {/* MCP调用识别阶段：检测到工具调用标签但还未完成解析时显示加载动画 */}
-          {isStreaming && hasToolCallEarly && mixedSegments.filter(s => s.type === 'card').length === 0 && (
+          {/* MCP调用识别阶段：检测到（或抑制阀已识别到）工具调用但卡片尚未出现时显示加载动画 */}
+          {isStreaming && (hasToolCallEarly || !!(viewModel as any)?.flags?.isToolDetecting) && mixedSegments.filter(s => s.type === 'card').length === 0 && (
             <div key="loader-tool-detecting" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
                 <FoldingLoader key="loader-tool" size={22} />

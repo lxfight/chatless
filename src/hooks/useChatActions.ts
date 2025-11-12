@@ -711,9 +711,6 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
     }
   }, [currentConversationId, deleteConversation]);
 
-  // TODO: 重构重试逻辑以使用 StreamOrchestrator
-  // 当前重试逻辑仍使用旧的 StreamTokenizer 作为降级路径
-  // 未来可以考虑复用 StreamOrchestrator 简化代码
   const handleRetryMessage = useCallback(async (messageIdToRetry: string) => {
     const st = useChatStore.getState();
     const conv = currentConversationId ? st.conversations.find(c => c.id === currentConversationId) : null;
@@ -792,204 +789,66 @@ export const useChatActions = (selectedModelId: string | null, currentProviderNa
       return;
     }
 
+    // —— 使用新架构：StreamOrchestrator（带早期抑制阀与GPT‑OSS工具指令识别） ——
     const thinking_start_time = Date.now();
     const streamInstanceId = uuidv4();
-
-    const { StreamTokenizer } = require('@/lib/chat/StreamTokenizer');
-    const tokenizer = new StreamTokenizer();
-
-    const streamCallbacks: StreamCallbacks = {
-      onStart: () => {
-        // 重置内容引用（重要！避免使用旧消息的内容）
-        currentContentRef.current = '';
-        pendingContentRef.current = '';
-        
-        autoSaverRef.current = new MessageAutoSaver(async (latest) => {
-          await updateMessage(newAssistantId, {
-            content: latest,
-            thinking_start_time,
-          });
-        }, 1000);
-        setTokenCount(0);
-        batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
-      },
-      // 新增：结构化事件直通（与 handleSendMessage 保持一致）
-      onEvent: (event: any) => {
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        
-        // 性能监控：onEvent处理（重试流程）
-        const perfId = `onEvent_retry_${event?.type}_${Date.now()}`;
-        performanceMonitor.start(perfId, { 
-          type: event?.type, 
-          mode: 'event-driven-retry',
-          messageId: newAssistantId 
-        });
-        
-        const st = useChatStore.getState();
-        try {
-          switch (event?.type) {
-            case 'thinking_start':
-              st.dispatchMessageAction(newAssistantId, { type: 'THINK_START' } as any);
-              break;
-            case 'thinking_token':
-              if (event.content) st.dispatchMessageAction(newAssistantId, { type: 'THINK_APPEND', chunk: event.content } as any);
-              break;
-            case 'thinking_end':
-              st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any);
-              break;
-            case 'content_token': {
-              const chunk = String(event.content || '');
-              if (chunk) {
-                currentContentRef.current += chunk;
-                st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk } as any);
-                updateMessageContentInMemory(newAssistantId, currentContentRef.current);
-              }
-              break;
-            }
-            case 'tool_call': {
-              const parsed = event.parsed || {};
-              const server = parsed.serverName || parsed.server || '';
-              const tool = parsed.toolName || parsed.tool || '';
-              const args = parsed.arguments || parsed.args || undefined;
-              if (server && tool) {
-                const cardId = crypto.randomUUID();
-                const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server, tool, status: 'running', args: args || {}, messageId: newAssistantId }});
-                const prev = currentContentRef.current || '';
-                const next = prev + (prev ? '\n' : '') + marker;
-                if (next !== prev) {
-                  currentContentRef.current = next;
-                  try { updateMessageContentInMemory(newAssistantId, next); } catch { /* noop */ }
-                }
-                st.dispatchMessageAction(newAssistantId, { type: 'TOOL_HIT', server, tool, args, cardId });
-              }
-              break;
-            }
-            case 'stream_complete':
-            default:
-              break;
-          }
-        } catch { /* noop */ } finally {
-          performanceMonitor.end(perfId);
-        }
-      },
-      onToken: (token) => {
-        // 性能监控：onToken处理（重试流程-降级路径）
-        const perfIdToken = `onToken_retry_${Date.now()}`;
-        performanceMonitor.start(perfIdToken, { 
-          mode: 'legacy-token-retry',
-          messageId: newAssistantId,
-          tokenLength: token?.length 
-        });
-        
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
-        currentContentRef.current += token;
-        lastActivityTimeRef.current = Date.now();
-        try {
-          const events = tokenizer.push(token);
-          const st = useChatStore.getState();
-          for (const ev of events) {
-            if (ev.type === 'think_start') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_START' } as any); }
-            else if (ev.type === 'think_chunk') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_APPEND', chunk: ev.chunk } as any); }
-            else if (ev.type === 'think_end') { st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any); }
-            else if (ev.type === 'text' && ev.chunk) st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
-            if (ev.type === 'tool_call') {
-              const cardId = crypto.randomUUID();
-              const marker = JSON.stringify({ __tool_call_card__: { id: cardId, server: ev.server, tool: ev.tool, status: 'running', args: ev.args || {}, messageId: newAssistantId }});
-              const prev = currentContentRef.current || '';
-              currentContentRef.current = prev + (prev ? '\n' : '') + marker;
-              try { updateMessageContentInMemory(newAssistantId, currentContentRef.current); } catch { /* noop */ }
-              useChatStore.getState().dispatchMessageAction(newAssistantId, { type: 'TOOL_HIT', server: ev.server, tool: ev.tool, args: ev.args, cardId });
-            }
-          }
-          updateMessageContentInMemory(newAssistantId, currentContentRef.current);
-        } catch { updateMessageContentInMemory(newAssistantId, currentContentRef.current); }
-        setTokenCount(prev => prev + 1);
-        autoSaverRef.current?.update(currentContentRef.current);
-        
-        // 结束性能监控
-        performanceMonitor.end(perfIdToken);
-      },
-      onComplete: () => {
-        if ((streamCallbacks as any).__instanceId !== streamInstanceId) {
-          return;
-        }
-        
-        // 刷新 tokenizer 缓冲区的剩余内容
-        try {
-          const flushEvents = tokenizer.flush();
-          const st = useChatStore.getState();
-          for (const ev of flushEvents) {
-            if (ev.type === 'text' && ev.chunk) {
-              st.dispatchMessageAction(newAssistantId, { type: 'TOKEN_APPEND', chunk: ev.chunk });
-              currentContentRef.current += ev.chunk;
-            }
-          }
-        } catch { /* noop */ }
-        
-        autoSaverRef.current?.stop();
-        const finalContent = currentContentRef.current;
-        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        
-        // 先停止自动保存并flush
-        void autoSaverRef.current?.flush().finally(() => {
-          try {
-            const st = useChatStore.getState();
-            const conv = st.conversations.find(c => c.id === currentConversationId);
-            const msg = conv?.messages.find(m => m.id === newAssistantId) as any;
-            
-            // 确保segments正确生成
-            const segs = Array.isArray(msg?.segments) ? msg.segments : [];
-            
-            void updateMessage(newAssistantId, {
-              content: finalContent,
-              status: 'sent',
-              thinking_start_time,
-              thinking_duration,
-              model: modelToUse,
-              version_group_id: groupId,
-              version_index: nextIndex,
-            });
-            
-            // 最终保险：若仍处于 THINK 且未收到 THINK_END，则补打一条
-            try {
-              const stillThinking = segs.length && segs[segs.length-1]?.kind === 'think';
-              if (stillThinking) {
-                st.dispatchMessageAction(newAssistantId, { type: 'THINK_END' } as any);
-              }
-            } catch { void 0; }
-            
-            // 触发 STREAM_END
-            st.dispatchMessageAction(newAssistantId, { type: 'STREAM_END' });
-          } catch {
-            void updateMessage(newAssistantId, {
-              content: finalContent,
-              status: 'sent',
-              thinking_start_time,
-              thinking_duration,
-              model: modelToUse,
-              version_group_id: groupId,
-              version_index: nextIndex,
-            });
-          }
-        });
-        
-        currentContentRef.current = '';
-        setTokenCount(0);
-        autoSaverRef.current = null;
-      },
+    const orchestrator = new StreamOrchestrator({
+      messageId: newAssistantId,
+      conversationId: conv.id,
+      provider: effectiveProvider,
+      model: modelToUse,
+      originalUserContent: userMsg.content,
+      historyForLlm: historyForLlm as any,
+      onUIUpdate: () => {},
       onError: (error) => {
-        autoSaverRef.current?.stop();
-        const thinking_duration = Math.floor((Date.now() - thinking_start_time) / 1000);
-        void updateMessage(newAssistantId, {
-          status: 'error',
-          content: (error as any)?.userMessage || (error instanceof Error ? error.message : '发生错误'),
+        autoSaverRef.current?.flush();
+        toast.error('流式处理错误', { description: error.message });
+      },
+    });
+    const streamCallbacks: StreamCallbacks = orchestrator.createCallbacks();
+    const originalOnStart = streamCallbacks.onStart;
+    streamCallbacks.onStart = () => {
+      originalOnStart?.();
+      // 重置引用与自动保存
+      currentContentRef.current = '';
+      pendingContentRef.current = '';
+      autoSaverRef.current = new MessageAutoSaver(async (latest) => {
+        await updateMessage(newAssistantId, {
+          content: latest,
           thinking_start_time,
-          thinking_duration,
         });
-        currentContentRef.current = '';
+      }, 1000);
+      setTokenCount(0);
+      batchUpdateRef.current = { tokenCount: 0, lastUpdateTime: 0, pendingUpdate: false };
+    };
+    const originalOnEvent = streamCallbacks.onEvent;
+    streamCallbacks.onEvent = (event: any) => {
+      if ((streamCallbacks as any).__instanceId !== streamInstanceId) return;
+      lastActivityTimeRef.current = Date.now();
+      const perfId = `onEvent_retry_${event?.type}`;
+      performanceMonitor.start(perfId, { type: event?.type, mode: 'orchestrator-retry', messageId: newAssistantId });
+      try {
+        originalOnEvent?.(event);
+      } finally {
+        performanceMonitor.end(perfId);
+      }
+    };
+    const originalOnComplete = streamCallbacks.onComplete;
+    streamCallbacks.onComplete = async () => {
+      try {
+        await originalOnComplete?.();
+      } finally {
+        autoSaverRef.current?.flush();
         setTokenCount(0);
         autoSaverRef.current = null;
       }
+    };
+    const originalOnError = streamCallbacks.onError;
+    streamCallbacks.onError = (error: Error) => {
+      originalOnError?.(error);
+      autoSaverRef.current?.flush();
+      setTokenCount(0);
+      autoSaverRef.current = null;
     };
     (streamCallbacks as any).__instanceId = streamInstanceId;
 

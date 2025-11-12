@@ -85,6 +85,87 @@ export class StreamOrchestrator {
 
       onError: (error: Error) => {
         console.error('[StreamOrchestrator] 流式错误:', error);
+        try {
+          const store = useChatStore.getState();
+          // 结束思考态（如仍在进行）
+          try {
+            const conv = store.conversations.find(c => c.id === this.context.conversationId);
+            const msg: any = conv?.messages.find(m => m.id === this.context.messageId);
+            const segs = Array.isArray(msg?.segments) ? msg.segments : [];
+            const stillThinking = segs.length && segs[segs.length - 1]?.kind === 'think';
+            if (stillThinking) {
+              store.dispatchMessageAction(this.context.messageId, { type: 'THINK_END' } as any);
+            }
+          } catch { /* noop */ }
+
+          // 派发流结束，确保 UI 与段模型收尾并触发必要的持久化
+          try {
+            store.dispatchMessageAction(this.context.messageId, { type: 'STREAM_END' } as any);
+          } catch { /* noop */ }
+
+          // 计算思考时长（若有）
+          const thinking_duration = this.context.thinkingStartTime > 0
+            ? Math.floor((Date.now() - this.context.thinkingStartTime) / 1000)
+            : undefined;
+
+          // 检测是否“没有任何有效输出”的空气泡
+          try {
+            const conv = store.conversations.find(c => c.id === this.context.conversationId);
+            const msg: any = conv?.messages.find(m => m.id === this.context.messageId);
+            const hasText = !!(msg?.content && String(msg.content).trim().length > 0);
+            const hasSegs = Array.isArray(msg?.segments) && msg.segments.length > 0;
+
+            if (!hasText && !hasSegs) {
+              // 1) 删除这个无意义的 AI 气泡
+              try { void store.deleteMessage(this.context.messageId); } catch { /* noop */ }
+              // 1.1) 同时删除刚刚发送的 user 消息（避免用户回显后再次发送产生重复）
+              try {
+                const conv2 = store.conversations.find(c => c.id === this.context.conversationId);
+                const msgs = conv2?.messages || [];
+                const aIndex = msgs.findIndex((m: any) => m.id === this.context.messageId);
+                if (aIndex > 0) {
+                  const prev = msgs[aIndex - 1] as any;
+                  const sameText = String(prev?.content || '').trim() === String(this.config.originalUserContent || '').trim();
+                  if (prev?.role === 'user' && sameText) {
+                    void store.deleteMessage(prev.id);
+                  }
+                }
+              } catch { /* noop */ }
+              // 2) 回显用户输入到输入框与草稿
+              const text = String(this.config.originalUserContent || '').trim();
+              if (text) {
+                try { if (this.context.conversationId) store.setInputDraft(this.context.conversationId, text); } catch { /* noop */ }
+                try { window.dispatchEvent(new CustomEvent('chat-input-fill', { detail: text })); } catch { /* noop */ }
+              }
+            } else {
+              // 有部分输出：把状态标为 error，并尽量保留已生成内容
+              let contentToPersist = this.context.content;
+              if (!contentToPersist || String(contentToPersist).trim().length === 0) {
+                contentToPersist = (error as any)?.userMessage || (error?.message || '请求失败');
+              }
+              void store.updateMessage(this.context.messageId, {
+                status: 'error',
+                content: contentToPersist,
+                thinking_start_time: this.context.thinkingStartTime || undefined,
+                thinking_duration,
+              });
+            }
+          } catch {
+            // 回退：无法读取消息时，至少把错误消息写入
+            let contentToPersist = this.context.content;
+            if (!contentToPersist || String(contentToPersist).trim().length === 0) {
+              contentToPersist = (error as any)?.userMessage || (error?.message || '请求失败');
+            }
+            void store.updateMessage(this.context.messageId, {
+              status: 'error',
+              content: contentToPersist,
+              thinking_start_time: this.context.thinkingStartTime || undefined,
+              thinking_duration,
+            });
+          }
+        } catch { /* 忽略状态修复中的非致命错误 */ }
+
+        // 通知上层（用于 toast 与清理定时器）
         this.config.onError?.(error);
       },
     };
@@ -153,12 +234,8 @@ export class StreamOrchestrator {
       const parsed = extractToolCallFromText(originalContent);
       
       if (parsed && parsed.server && parsed.tool) {
-        // 创建并注入工具卡片
+        // 创建工具卡（通过状态机），但不再把标记注入到 content，避免正文出现 JSON 残片
         const cardId = crypto.randomUUID();
-        const marker = createToolCardMarker(cardId, parsed.server, parsed.tool, parsed.args, this.context.messageId);
-        contentToPersist = contentToPersist + (contentToPersist ? '\n' : '') + marker;
-        
-        store.updateMessageContentInMemory(this.context.messageId, contentToPersist);
         store.dispatchMessageAction(this.context.messageId, { 
           type: 'TOOL_HIT', 
           server: parsed.server, 
@@ -175,7 +252,7 @@ export class StreamOrchestrator {
           server: parsed.server,
           tool: parsed.tool,
           args: parsed.args,
-          _runningMarker: marker,
+          _runningMarker: '', // 不再使用 content 注入的运行中标记
           provider: this.config.provider,
           model: this.config.model,
           historyForLlm: this.config.historyForLlm as any,
@@ -206,6 +283,33 @@ export class StreamOrchestrator {
 
     // 通知UI更新完成
     this.config.onUIUpdate?.(contentToPersist);
+
+    // 标题生成（通用路径）：在任意一次助手首次完成后尝试生成
+    // MCP 递归链已在 Orchestrator 外部（ToolCallOrchestrator）增加一次调用，此处作为通用兜底；
+    // 由于包含 isDefaultTitle 判定，不会重复生成。
+    try {
+      const st = useChatStore.getState();
+      const conv = st.conversations.find(c => c.id === this.context.conversationId);
+      if (conv) {
+        const {
+          shouldGenerateTitleAfterAssistantComplete,
+          extractFirstUserMessageSeed,
+          isDefaultTitle,
+        } = await import('@/lib/chat/TitleGenerator');
+        const { generateTitle } = await import('@/lib/chat/TitleService');
+        if (shouldGenerateTitleAfterAssistantComplete(conv)) {
+          const seed = extractFirstUserMessageSeed(conv);
+          if (seed && seed.trim()) {
+            const gen = await generateTitle(this.config.provider, this.config.model, seed, { maxLength: 24, language: 'zh' });
+            const st2 = useChatStore.getState();
+            const conv2 = st2.conversations.find(c => c.id === this.context.conversationId);
+            if (conv2 && isDefaultTitle(conv2.title) && gen && gen.trim()) {
+              void st2.renameConversation(String(this.context.conversationId), gen.trim());
+            }
+          }
+        }
+      }
+    } catch { /* ignore title generation errors */ }
 
     // 🎯 输出完整的响应日志（在所有处理完成后）
     try {

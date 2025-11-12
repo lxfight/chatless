@@ -10,6 +10,9 @@ import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
 import StorageUtil from '@/lib/storage';
 import { shouldAutoAuthorize } from './authorizationConfig';
 import { useAuthorizationStore } from '@/store/authorizationStore';
+import { invoke } from '@tauri-apps/api/core';
+import { useWebSearchStore } from '@/store/webSearchStore';
+import { WEB_SEARCH_SERVER_NAME } from './nativeTools/webSearch';
 
 // 防止重复调用的缓存
 const runningCalls = new Map<string, Promise<void>>();
@@ -79,26 +82,144 @@ export async function executeToolCall(params: {
   const DEBUG_MCP = false;
   if (DEBUG_MCP) { try { console.log('[MCP-ORCH] start', assistantMessageId, server, tool); } catch { /* noop */ } }
 
+  // 关键修复：进入工具阶段即标记当前助手消息为 loading，保证停止按钮持续可见
+  try {
+    const st0 = useChatStore.getState();
+    const conv0 = st0.conversations.find(c => c.id === conversationId);
+    const msg0: any = conv0?.messages.find(m => m.id === assistantMessageId);
+    // 若用户已停止（被标记为 error），则不再继续后续链路
+    if (!msg0 || msg0.status === 'error') {
+      return;
+    }
+    // 确保 loading 状态维持期间停止按钮可见
+    void st0.updateMessage(assistantMessageId, { status: 'loading' });
+  } catch { /* noop */ }
+
   const effectiveTool = (server === 'filesystem' && tool === 'list') ? 'dir' : tool;
   const effectiveArgs = normalizeArgs(server, args || {});
 
-  // 检查是否是重复调用
-  if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
-    const recentResult = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
-    if (recentResult) {
-      console.debug(`[MCP] 使用缓存结果: ${server}.${effectiveTool}`);
-      
-      const stx = useChatStore.getState();
-      stx.dispatchMessageAction(assistantMessageId, { 
-        type: 'TOOL_RESULT', 
-        server, 
-        tool: effectiveTool, 
-        ok: true, 
-        result: recentResult, 
-        cardId 
-      });
-      return;
-    }
+  // 重复调用检查移至授权判定之后，避免绕过授权开关
+
+  // —— 原生工具拦截：web_search ——（加入授权判定与缓存复用）
+  if (server === WEB_SEARCH_SERVER_NAME) {
+    const executeNative = (async () => {
+      try {
+        // 授权检查（不可绕过）
+        const autoAuth = await shouldAutoAuthorize(server);
+        if (!autoAuth) {
+          const effectiveCardId = cardId || crypto.randomUUID();
+          const st = useChatStore.getState();
+          if (!cardId) {
+            st.dispatchMessageAction(assistantMessageId, { 
+              type: 'TOOL_RESULT', 
+              server, 
+              tool: effectiveTool, 
+              ok: false, 
+              errorMessage: 'pending_auth',
+              cardId: effectiveCardId 
+            });
+          }
+          const authorized = await new Promise<boolean>((resolve) => {
+            const authStore = useAuthorizationStore.getState();
+            authStore.addPendingAuthorization({
+              id: effectiveCardId,
+              messageId: assistantMessageId,
+              server,
+              tool: effectiveTool,
+              args: effectiveArgs || {},
+              createdAt: Date.now(),
+              onApprove: () => resolve(true),
+              onReject: () => resolve(false)
+            });
+          });
+          if (!authorized) {
+            st.dispatchMessageAction(assistantMessageId, { 
+              type: 'TOOL_RESULT', 
+              server, 
+              tool: effectiveTool, 
+              ok: false, 
+              errorMessage: '用户拒绝授权此工具调用',
+              cardId: effectiveCardId 
+            });
+            await continueWithToolResult({
+              assistantMessageId,
+              provider,
+              model,
+              conversationId,
+              historyForLlm,
+              originalUserContent,
+              server,
+              tool: effectiveTool,
+              result: {
+                error: 'AUTHORIZATION_DENIED',
+                message: '用户拒绝了此工具调用。这可能是因为用户认为此调用不合理或参数有误。'
+              }
+            });
+            return;
+          }
+        }
+
+        // 授权通过后再尝试使用缓存结果
+        if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
+          const recent = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
+          if (recent) {
+            const st = useChatStore.getState();
+            const resultPreview = typeof recent === 'string' ? recent.slice(0, 12000) : JSON.stringify(recent).slice(0, 12000);
+            st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
+            await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool: effectiveTool, result: recent });
+            return;
+          }
+        }
+
+        const cfg = useWebSearchStore.getState();
+        const conversationProvider = cfg.getConversationProvider(conversationId);
+        const providerToUse = conversationProvider || cfg.provider;
+        const apiKey = providerToUse === 'google' ? cfg.apiKeyGoogle
+                      : providerToUse === 'bing' ? cfg.apiKeyBing
+                      : providerToUse === 'ollama' ? (cfg as any).apiKeyOllama
+                      : undefined;
+        const cseId = providerToUse === 'google' ? cfg.cseIdGoogle : undefined;
+        const query = typeof (effectiveArgs as any)?.query === 'string' ? String((effectiveArgs as any).query) : '';
+
+        const request = {
+          provider: providerToUse,
+          query,
+          apiKey: apiKey,
+          cseId: cseId,
+        };
+
+        const result = await invoke('native_web_search', { request });
+
+        // 记录成功
+        mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
+        const st = useChatStore.getState();
+        const resultPreview = typeof result === 'string' ? result.slice(0, 12000) : JSON.stringify(result).slice(0, 12000);
+        st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
+
+        await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool: effectiveTool, result });
+      } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
+        mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, false);
+        const st = useChatStore.getState();
+        const hint = `原生网络搜索 ${server}.${effectiveTool} 失败: ${err}`;
+        st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint: hint, cardId });
+        await continueWithToolResult({
+          assistantMessageId,
+          provider,
+          model,
+          conversationId,
+          historyForLlm,
+          originalUserContent,
+          server,
+          tool: effectiveTool,
+          result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint: hint }
+        });
+      } finally {
+        runningCalls.delete(callKey);
+      }
+    })();
+    runningCalls.set(callKey, executeNative);
+    return executeNative;
   }
 
   // 工具存在性校验（若可获取列表）
@@ -227,6 +348,18 @@ export async function executeToolCall(params: {
         // 用户批准，卡片已经存在（pending_auth状态），不需要再创建
         // 授权批准后，卡片会在工具执行完成时自动更新为 success
         console.debug(`[MCP-AUTH] 已批准，继续: ${server}.${effectiveTool}`);
+      }
+      
+      // 授权通过后：若短时间内相同请求已成功，直接复用结果并继续追问链路
+      if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
+        const recent = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
+        if (recent) {
+          const stDup = useChatStore.getState();
+          const resultPreview = typeof recent === 'string' ? recent.slice(0, 12000) : JSON.stringify(recent).slice(0, 12000);
+          stDup.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
+          await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result: recent });
+          return;
+        }
       }
       
       // 检查服务器连接状态，如果未连接则尝试重连
@@ -521,6 +654,20 @@ async function continueWithToolResult(params: {
   // 递归阶段：hadText 用于决定是否触发“追问”流程
   let hadText = false; // 本轮是否收到过正文 token
   let eventModeUsed = false;
+
+  // 关键修复：追问阶段开始前再次确保状态为 loading（覆盖上游可能的 sent）
+  try {
+    const stPre = useChatStore.getState();
+    const convPre = stPre.conversations.find(c => c.id === conversationId);
+    const msgPre: any = convPre?.messages.find(m => m.id === assistantMessageId);
+    // 若用户已停止（被标记为 error），直接跳过追问阶段
+    if (!msgPre || msgPre.status === 'error') {
+      (globalThis as any)[counterKey] = 0;
+      return;
+    }
+    void stPre.updateMessage(assistantMessageId, { status: 'loading' });
+  } catch { /* noop */ }
+
   const callbacks: StreamCallbacks = {
     onStart: () => {},
     // 新增：优先使用结构化事件流（push式组件开始/结束）

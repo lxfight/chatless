@@ -8,6 +8,8 @@ export type MessageAction =
   | { type: 'THINK_START' }
   | { type: 'THINK_APPEND'; chunk: string }
   | { type: 'THINK_END' }
+  | { type: 'TOOL_DETECTING_START' }
+  | { type: 'TOOL_DETECTING_END' }
   | { type: 'TOOL_HIT'; server: string; tool: string; args?: Record<string, unknown>; cardId: string }
   | { type: 'TOOL_RESULT'; server: string; tool: string; ok: true; resultPreview: string; cardId?: string }
   | { type: 'TOOL_RESULT'; server: string; tool: string; ok: false; errorMessage: string; schemaHint?: string; cardId?: string }
@@ -17,11 +19,12 @@ export interface MessageModel {
   segments: NonNullable<Message['segments']>;
   fsm: FsmState;
   id: string;
+  detectingTool?: boolean;
 }
 
 export function initModel(msg: Message): MessageModel {
   const segs = Array.isArray(msg.segments) ? msg.segments : [];
-  return { segments: segs, fsm: 'RENDERING_BODY', id: msg.id };
+  return { segments: segs, fsm: 'RENDERING_BODY', id: msg.id, detectingTool: false };
 }
 
 export function reduce(model: MessageModel, action: MessageAction): MessageModel {
@@ -60,6 +63,14 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
       const base = ensureTextTail(finished, '');
       return { ...model, segments: base as any, fsm: 'RENDERING_BODY' };
     }
+    case 'TOOL_DETECTING_START': {
+      // 标记为“正在识别工具调用”，用于 UI 展示占位动画
+      if (model.fsm === 'TOOL_RUNNING') return model;
+      return { ...model, detectingTool: true };
+    }
+    case 'TOOL_DETECTING_END': {
+      return { ...model, detectingTool: false };
+    }
     case 'TOOL_HIT': {
       // 在插入卡片前，先清理尾部text中的任何指令残片，避免已累计的半截标签被显示
       const cleanedTail = (() => {
@@ -79,7 +90,7 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
         messageId: model.id,
       } as any);
       
-      return { ...model, segments: next as any, fsm: 'TOOL_RUNNING' };
+      return { ...model, segments: next as any, fsm: 'TOOL_RUNNING', detectingTool: false };
     }
     case 'TOOL_RESULT': {
       if (action.ok) {

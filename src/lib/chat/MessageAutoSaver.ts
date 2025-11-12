@@ -14,6 +14,7 @@ export class MessageAutoSaver {
   private pending: boolean = false;
   private stopped: boolean = false;
   private latestContent: string = '';
+  private hasAnyUpdate: boolean = false;
 
   constructor(saveFn: MessageSaveFunction, intervalMs: number = 1000) {
     this.saveFn = saveFn;
@@ -26,6 +27,7 @@ export class MessageAutoSaver {
   public update(latestContent: string) {
     if (this.stopped) return;
     this.latestContent = latestContent;
+    this.hasAnyUpdate = true;
     if (this.timer) return; // 已经安排过一次保存
 
     this.timer = setTimeout(async () => {
@@ -53,6 +55,7 @@ export class MessageAutoSaver {
 
   private async performSave() {
     if (this.stopped) return;
+    if (!this.hasAnyUpdate) return; // 没有任何内容更新时跳过，避免把空字符串覆盖最终内容
     try {
       const contentToSave = this.latestContent;
       await this.saveFn(contentToSave);

@@ -14,6 +14,9 @@ pub mod env_setup;
 #[path = "mcp/mod.rs"]
 pub mod mcp;
 
+#[path = "web_search/mod.rs"]
+pub mod web_search;
+
 #[tauri::command]
 fn exit(app: tauri::AppHandle, code: i32) {
   #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -232,6 +235,9 @@ pub fn run() {
       http_client::test_http_client,
       http_client::compare_http_clients,
       http_request::send_http_request
+      ,
+      // —— Native Web Search ——
+      web_search::commands::native_web_search
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

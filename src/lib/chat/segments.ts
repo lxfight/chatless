@@ -90,9 +90,18 @@ export function filterToolCallContent(text: string): string {
   // 1) 移除内部注入的不可见JSON标记
   out = out.replace(/\{[^}]*"__tool_call_card__"[^}]*\}/g, '');
   
-  // 2) 移除完整的工具调用指令块
+  // 2) 移除完整的工具调用指令块（XML 风格）
   out = out.replace(/<use_mcp_tool>[\s\S]*?<\/use_mcp_tool>/gi, '');
   out = out.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '');
+  
+  // 2.1) 移除 GPT‑OSS 风格的工具调用指令
+  //      形如：<|channel|>commentary to=server[.tool] <|constrain|>json<|message|>{...}
+  out = out.replace(
+    /<\|channel\|\>\s*commentary[\s\S]*?<\|message\|\>\s*\{[\s\S]*?\}/gi,
+    ''
+  );
+  //      无标签变体：commentary to=server[.tool] json {...}
+  out = out.replace(/commentary\s+to=[^\n]+?\s+json\s*\{[\s\S]*?\}/gi, '');
   
   // 3) 移除JSON格式的工具调用（包含 "type":"tool_call"）
   out = out.replace(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/gi, '');
@@ -101,6 +110,12 @@ export function filterToolCallContent(text: string): string {
   // 这是防止用户看到指令文本的核心逻辑
   out = out.replace(/<use_mcp_tool>[\s\S]*$/i, '');
   out = out.replace(/<tool_call>[\s\S]*$/i, '');
+  // 4.1) GPT‑OSS 风格的未完成残片
+  out = out.replace(/<\|channel\|\>\s*commentary[\s\S]*$/i, '');
+  out = out.replace(/commentary\s+to=[^\n]*$/i, '');
+  // 清理单独残留的约束/消息标签
+  out = out.replace(/<\|constrain\|\>\s*json/gi, '');
+  out = out.replace(/<\|message\|\>/gi, '');
 
   // 4.1) 进一步清除指令残片（当起始标签已被截断时）
   // 情况：我们在之前的render周期已经把 `<use_mcp_tool>...` 起始处及其后续内容清空，

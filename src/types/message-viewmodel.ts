@@ -77,6 +77,8 @@ export interface MessageViewModelFlags {
   isComplete: boolean;
   /** 是否包含工具调用 */
   hasToolCalls: boolean;
+  /** 是否正在识别工具调用（抑制阀激活占位阶段） */
+  isToolDetecting?: boolean;
 }
 
 /**
