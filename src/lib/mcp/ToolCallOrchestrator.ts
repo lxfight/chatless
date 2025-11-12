@@ -878,7 +878,23 @@ async function continueWithToolResult(params: {
                 } else {
                   const convy = sty.conversations.find(c=>c.id===conversationId);
                   const msgy = convy?.messages.find(m=>m.id===assistantMessageId);
-                  const content2 = msgy?.content || '';
+                  let content2 = msgy?.content || '';
+                  // 若追问仍无任何正文，则使用结果生成一个最小可读的回退文本，避免界面空白
+                  if (!content2 || content2.trim().length === 0) {
+                    try {
+                      if (server === WEB_SEARCH_SERVER_NAME && Array.isArray(result) && result.length > 0) {
+                        const items: any[] = Array.isArray(result) ? result.slice(0, 5) : [];
+                        const lines = items.map((it, i: number) => {
+                          const t = (it?.source_title || it?.title || '').toString().trim();
+                          const u = (it?.url || '').toString().trim();
+                          return `${i + 1}. ${t}${u ? ` - ${u}` : ''}`;
+                        });
+                        const fallbackText = `根据网络搜索的结果，供参考：\n${lines.join('\n')}\n\n需要我基于这些链接进一步总结或继续检索吗？`;
+                        try { sty.appendTextToMessageSegments(assistantMessageId, fallbackText); } catch { /* noop */ }
+                        content2 = ((msgy?.content || '') + fallbackText).trim();
+                      }
+                    } catch { /* noop */ }
+                  }
                   void sty.updateMessage(assistantMessageId, { status: 'sent', content: content2 });
                   sty.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
                   (globalThis as any)[counterKey] = 0;
