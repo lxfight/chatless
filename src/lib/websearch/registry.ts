@@ -9,6 +9,7 @@ const PROVIDERS: ProviderMeta[] = [
   { id: 'google', label: 'Google' },
   { id: 'bing', label: 'Bing' },
   { id: 'ollama', label: 'Ollama' },
+  { id: 'duckduckgo', label: 'DuckDuckGo' },
   { id: 'custom_scrape', label: 'Custom Scraper' },
 ];
 
@@ -37,6 +38,7 @@ export function providerConfiguredMap(keys: ProviderConfigKeys): Record<SearchPr
     google: !!(keys.apiKeyGoogle && keys.cseIdGoogle),
     bing: !!keys.apiKeyBing,
     ollama: !!keys.apiKeyOllama,
+    duckduckgo: true,
     custom_scrape: true,
   };
 }
@@ -57,6 +59,7 @@ export function getProviderCredentials(id: SearchProvider, keys: ProviderConfigK
       return { apiKey: keys.apiKeyBing };
     case 'ollama':
       return { apiKey: keys.apiKeyOllama };
+    case 'duckduckgo':
     case 'custom_scrape':
     default:
       return {};
@@ -68,7 +71,7 @@ export function isMissingRequiredCredentials(id: SearchProvider, keys: ProviderC
   if (id === 'google') return !(cred.apiKey && cred.cseId);
   if (id === 'bing') return !cred.apiKey;
   if (id === 'ollama') return !cred.apiKey;
-  return false; // custom_scrape 不需要
+  return false; // duckduckgo/custom_scrape 不需要
 }
 
 

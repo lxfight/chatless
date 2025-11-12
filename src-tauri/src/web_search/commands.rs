@@ -8,7 +8,7 @@ use crate::http_client;
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WebSearchRequest {
-  pub provider: String,       // "google" | "bing" | "custom_scrape"
+  pub provider: String,       // "google" | "bing" | "custom_scrape" | "ollama" | "duckduckgo"
   pub query: String,          // 搜索关键词
   pub api_key: Option<String>,// provider 对应的 key（google/bing）
   pub cse_id: Option<String>, // google 的 CSE ID
@@ -32,6 +32,9 @@ pub async fn native_web_search(request: WebSearchRequest) -> Result<Vec<WebSearc
     "google" => call_google_search(client_ref, request).await,
     "bing" => call_bing_search(client_ref, request).await,
     "ollama" => call_ollama_search(client_ref, request).await,
+    // DuckDuckGo：默认采用官方html端点解析（无需API Key，鲁棒性强）
+    // 如未来需要，可替换为 duckduckgo crate 的实现
+    "duckduckgo" => call_duckduckgo_search(client_ref, request).await,
     "custom_scrape" => call_custom_scraper(client_ref, request).await,
     other => Err(format!("Unsupported search provider: {}", other)),
   }
@@ -145,6 +148,14 @@ async fn call_bing_search(client: &Client, request: WebSearchRequest) -> Result<
     .collect();
 
   Ok(results)
+}
+
+/// DuckDuckGo 搜索
+/// 说明：当前实现沿用基于 https://html.duckduckgo.com 的解析逻辑，与 `custom_scrape` 一致。
+/// 这样可在无需额外密钥的情况下提供稳定可用的结果。
+/// 若后续需要切换为 duckduckgo crate，可在此处替换为 crate 的调用与结果映射。
+async fn call_duckduckgo_search(client: &Client, request: WebSearchRequest) -> Result<Vec<WebSearchResult>, String> {
+  call_custom_scraper(client, request).await
 }
 
 async fn call_custom_scraper(client: &Client, request: WebSearchRequest) -> Result<Vec<WebSearchResult>, String> {

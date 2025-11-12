@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import StorageUtil from '@/lib/storage';
 
-export type SearchProvider = 'google' | 'bing' | 'custom_scrape' | 'ollama';
+export type SearchProvider = 'google' | 'bing' | 'custom_scrape' | 'ollama' | 'duckduckgo';
 
 type ConversationProviderMap = Record<string, SearchProvider | undefined>;
 
@@ -101,7 +101,8 @@ export const useWebSearchStore = create<WebSearchState>((set, get) => ({
     if (s.apiKeyGoogle && s.cseIdGoogle) available.push('google');
     if (s.apiKeyBing) available.push('bing');
     if (s.apiKeyOllama) available.push('ollama');
-    // 自定义抓取器总是可用
+    // DuckDuckGo 与 自定义抓取器总是可用
+    available.push('duckduckgo');
     available.push('custom_scrape');
     return available;
   },
