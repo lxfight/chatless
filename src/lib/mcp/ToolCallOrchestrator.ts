@@ -183,6 +183,19 @@ export async function executeToolCall(params: {
         });
         const query = typeof (effectiveArgs as any)?.query === 'string' ? String((effectiveArgs as any).query) : '';
 
+        // —— 调试日志：记录本次计划的 provider 与参数（去敏）
+        try {
+          console.log('[WEB_SEARCH] plan', {
+            provider: providerToUse,
+            hasApiKey: !!apiKey,
+            hasCseId: !!cseId,
+            conversationId,
+            messageId: assistantMessageId,
+            tool: effectiveTool,
+            queryPreview: (query || '').slice(0, 200),
+          });
+        } catch { /* noop */ }
+
         // 缺少密钥/必需配置时，右下角通知并在卡片中给出可读提示
         const missingKey = isMissingRequiredCredentials(providerToUse as any, {
           apiKeyGoogle: cfg.apiKeyGoogle,
@@ -204,6 +217,7 @@ export async function executeToolCall(params: {
             errorMessage: msg, 
             cardId 
           });
+          try { console.warn('[WEB_SEARCH] missing credentials', { provider: providerToUse, hasApiKey: !!apiKey, hasCseId: !!cseId }); } catch { /* noop */ }
           await continueWithToolResult({
             assistantMessageId,
             provider,
@@ -225,7 +239,27 @@ export async function executeToolCall(params: {
           cseId: cseId,
         };
 
+        // —— 发起原生调用（带日志）
+        try {
+          console.log('[WEB_SEARCH] invoke(native_web_search) -> start', {
+            provider: providerToUse,
+            hasApiKey: !!apiKey,
+            hasCseId: !!cseId,
+            queryPreview: (query || '').slice(0, 200),
+          });
+        } catch { /* noop */ }
         const result = await invoke('native_web_search', { request });
+        try {
+          if (Array.isArray(result)) {
+            console.log('[WEB_SEARCH] invoke(native_web_search) -> ok', {
+              count: result.length,
+              first: (result as unknown[])[0],
+            });
+          } else {
+            const previewStr = typeof result === 'string' ? result : JSON.stringify(result ?? {}).slice(0, 300);
+            console.log('[WEB_SEARCH] invoke(native_web_search) -> ok', previewStr);
+          }
+        } catch { /* noop */ }
 
         // 记录成功
         mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
@@ -236,6 +270,14 @@ export async function executeToolCall(params: {
         await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool: effectiveTool, result });
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
+        try {
+          console.error('[WEB_SEARCH] invoke(native_web_search) -> error', {
+            error: err,
+            provider: (useWebSearchStore.getState().getConversationProvider(conversationId) || useWebSearchStore.getState().provider),
+            messageId: assistantMessageId,
+            tool: effectiveTool,
+          });
+        } catch { /* noop */ }
         mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, false);
         const st = useChatStore.getState();
         const hint = `原生网络搜索 ${server}.${effectiveTool} 失败: ${err}`;
@@ -727,14 +769,14 @@ async function continueWithToolResult(params: {
               onComplete: () => {
       const stf2 = useChatStore.getState();
       
-      // 事件模式无需 flush；回退路径下 flush 剩余内容
-      if (!eventModeUsed) {
-        try {
+      // 事件模式或降级模式：都要在收尾时 flush，避免尾部字符与抑制阀缓冲丢失
+      try {
+        if (!eventModeUsed) {
           const flushEvents = tokenizer.flush();
           for (const ev of flushEvents) { dispatcher.handle(ev as any); }
-          dispatcher.flush();
-        } catch { /* noop */ }
-      }
+        }
+        dispatcher.flush();
+      } catch { /* noop */ }
       
       // 关键修复：确保在流式结束时强制保存所有内容，包括最后的token
       try {
@@ -816,17 +858,18 @@ async function continueWithToolResult(params: {
               onComplete: () => {
                 const sty = useChatStore.getState();
                 
-                // 关键修复：在追问阶段流式结束时也调用tokenizer的flush方法
-                if (!eventMode2) {
-                  try {
+                // 关键修复：追问阶段无论是否事件模式，都要flush（tokenizer与dispatcher）
+                try {
+                  if (!eventMode2) {
                     const flushEvents = tk2.flush();
                     for (const ev of flushEvents) {
                       if (ev.type === 'content_token' && ev.content) {
                         sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
                       }
                     }
-                  } catch { /* noop */ }
-                }
+                  }
+                  dispatcher2.flush();
+                } catch { /* noop */ }
                 
                 if (pending2) {
                   const nx = pending2; pending2 = null;

@@ -2,6 +2,7 @@ import { useChatStore } from '@/store/chatStore';
 import { createContentAppender } from './ContentAppender';
 import { handleToolCall } from './ToolCardService';
 import { trace } from '@/lib/debug/Trace';
+import { extractToolCallFromText } from '@/lib/chat/tool-call-cleanup';
 
 export type AnyStreamEvent = {
   type: string;
@@ -39,6 +40,79 @@ export function createStreamEventDispatcher(opts: StreamEventDispatcherOptions):
   let pending: null | { server: string; tool: string; cardId: string } = null;
   let contentChars = 0;
   const eventCounts: Record<string, number> = Object.create(null);
+  // 抑制阀（追问链路也要启用，避免指令短暂暴露）
+  const suppression = { buffer: '', active: false, braceDepth: 0, seenJsonStart: false, guardWindow: 64 };
+  let suppressedAcc = '';
+  // 工具指令检测缓冲（用于函数式/GPT-OSS 变体的兜底识别）
+  let detectBuf = '';
+
+  function applySuppressionValveLocal(chunk: string): string {
+    suppression.buffer += chunk;
+    if (suppression.buffer.length > 2048) suppression.buffer = suppression.buffer.slice(-2048);
+
+    const triggerRegexes: RegExp[] = [
+      /<\|channel\|\>\s*commentary\s+to=/i,
+      /commentary\s+to=/i,
+      /(?:^|\s)to\s*=\s*[a-z0-9_.-]+/i,
+      /(?:^|\s)[a-z0-9_]+\.[a-z0-9_]+\s*\{/i,
+      /<use_mcp_tool>/i,
+      /<tool_call>/i,
+    ];
+
+    if (!suppression.active) {
+      const text = suppression.buffer;
+      let hitIndex = -1;
+      for (const re of triggerRegexes) {
+        const m = re.exec(text);
+        if (m && (hitIndex === -1 || m.index < hitIndex)) hitIndex = m.index;
+      }
+      if (hitIndex >= 0) {
+        const visible = text.slice(0, hitIndex);
+        const suppressedTail = text.slice(hitIndex);
+        suppression.active = true;
+        suppression.braceDepth = 0;
+        suppression.seenJsonStart = false;
+        suppression.buffer = suppressedTail;
+        suppressedAcc = suppressedTail;
+        try { useChatStore.getState().dispatchMessageAction(opts.assistantMessageId, { type: 'TOOL_DETECTING_START' } as any); } catch { /* noop */ }
+        return visible;
+      }
+      if (text.length > suppression.guardWindow) {
+        const emit = text.slice(0, text.length - suppression.guardWindow);
+        suppression.buffer = text.slice(text.length - suppression.guardWindow);
+        return emit;
+      }
+      return '';
+    }
+
+    for (let i = 0; i < suppression.buffer.length; i++) {
+      const ch = suppression.buffer[i];
+      if (ch === '{') { suppression.seenJsonStart = true; suppression.braceDepth++; }
+      else if (ch === '}') { if (suppression.braceDepth > 0) suppression.braceDepth--; }
+      const isBoundary = /\n|;/.test(ch);
+      const done = (suppression.seenJsonStart && suppression.braceDepth === 0) || (!suppression.seenJsonStart && isBoundary);
+      if (done) {
+        const captured = suppressedAcc || suppression.buffer;
+        suppression.buffer = '';
+        suppression.active = false;
+        suppression.braceDepth = 0;
+        suppression.seenJsonStart = false;
+        try { useChatStore.getState().dispatchMessageAction(opts.assistantMessageId, { type: 'TOOL_DETECTING_END' } as any); } catch { /* noop */ }
+        // 在抑制结束时解析被吞掉的文本，直接触发工具卡插入
+        try {
+          const parsed = extractToolCallFromText(captured);
+          if (parsed && parsed.server && parsed.tool) {
+            void handleToolCallInternal({ server: parsed.server, tool: parsed.tool, arguments: parsed.args });
+          }
+        } catch { /* noop */ }
+        suppressedAcc = '';
+        return '';
+      }
+    }
+    // 抑制态持续：累积被吞的文本，供结束时解析
+    suppressedAcc += suppression.buffer;
+    return '';
+  }
 
   const handleToolCallInternal = async (parsed: any) => {
     if (pending) return;
@@ -77,7 +151,10 @@ export function createStreamEventDispatcher(opts: StreamEventDispatcherOptions):
           stx.dispatchMessageAction(opts.assistantMessageId, { type: 'THINK_END' } as any);
           break;
         case 'content_token': {
-          const chunk = String(event.content || '');
+          const raw = String(event.content || '');
+          if (!raw) break;
+          // 抑制阀：在追问/降级链路中，同样提前吞掉工具指令，避免短暂暴露
+          const chunk = applySuppressionValveLocal(raw);
           if (!chunk) break;
           hadText = true;
           appender.append(chunk);
@@ -87,6 +164,19 @@ export function createStreamEventDispatcher(opts: StreamEventDispatcherOptions):
           }
           // 段渲染：交给 FSM/segments 处理过滤
           stx.dispatchMessageAction(opts.assistantMessageId, { type: 'TOKEN_APPEND', chunk } as any);
+
+          // 兜底识别：在抑制后累积一段文本，用 extractToolCallFromText 解析函数式/GPT‑OSS 变体
+          detectBuf += chunk;
+          if (detectBuf.length > 2048) detectBuf = detectBuf.slice(-2048);
+          if (!pending) {
+            try {
+              const parsed = extractToolCallFromText(detectBuf);
+              if (parsed && parsed.server && parsed.tool) {
+                void handleToolCallInternal({ server: parsed.server, tool: parsed.tool, arguments: parsed.args });
+                detectBuf = ''; // 命中后清空，避免重复
+              }
+            } catch { /* noop */ }
+          }
           break;
         }
         case 'tool_call': {
@@ -98,6 +188,37 @@ export function createStreamEventDispatcher(opts: StreamEventDispatcherOptions):
       }
     },
     flush: () => {
+      try {
+        // 1) 处理抑制阀尾部：
+        //    - 若仍在抑制态：尝试解析被吞内容并触发工具卡；
+        //    - 若未在抑制态但缓冲区仍有守护窗口的尾部：把这部分作为普通文本补齐输出，避免“尾巴丢字”。
+        const stx = useChatStore.getState();
+        if (suppression.active) {
+          try {
+            const captured = suppressedAcc || suppression.buffer;
+            if (captured) {
+              const parsed = extractToolCallFromText(captured);
+              if (parsed && parsed.server && parsed.tool) {
+                void handleToolCallInternal({ server: parsed.server, tool: parsed.tool, arguments: parsed.args });
+              }
+            }
+          } catch { /* noop */ }
+          suppression.buffer = '';
+          suppressedAcc = '';
+          suppression.active = false;
+          suppression.braceDepth = 0;
+          suppression.seenJsonStart = false;
+        } else if (suppression.buffer) {
+          const tail = suppression.buffer;
+          suppression.buffer = '';
+          if (tail) {
+            hadText = hadText || tail.trim().length > 0;
+            appender.append(tail);
+            stx.dispatchMessageAction(opts.assistantMessageId, { type: 'TOKEN_APPEND', chunk: tail } as any);
+          }
+        }
+      } catch { /* noop */ }
+
       try { appender.flush(); } catch { /* noop */ }
       trace('events', opts.assistantMessageId, 'summary', { counts: eventCounts, contentChars, pendingTool: pending });
     },

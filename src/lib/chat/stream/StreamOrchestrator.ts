@@ -16,6 +16,7 @@ import { ContentEventHandler } from './handlers/ContentEventHandler';
 import { ToolCallEventHandler } from './handlers/ToolCallEventHandler';
 import { StreamResponseLogger } from './response-logger';
 import { useChatStore } from '@/store/chatStore';
+import { cleanToolCallInstructions } from '@/lib/chat/tool-call-cleanup';
 
 /**
  * 流式处理编排器
@@ -143,6 +144,8 @@ export class StreamOrchestrator {
               if (!contentToPersist || String(contentToPersist).trim().length === 0) {
                 contentToPersist = (error as any)?.userMessage || (error?.message || '请求失败');
               }
+              // 关键修复：错误分支也要清理工具指令，避免在卡片失败时把原始指令“回灌”到正文
+              try { contentToPersist = cleanToolCallInstructions(String(contentToPersist)); } catch { /* noop */ }
               void store.updateMessage(this.context.messageId, {
                 status: 'error',
                 content: contentToPersist,
@@ -156,6 +159,7 @@ export class StreamOrchestrator {
             if (!contentToPersist || String(contentToPersist).trim().length === 0) {
               contentToPersist = (error as any)?.userMessage || (error?.message || '请求失败');
             }
+            try { contentToPersist = cleanToolCallInstructions(String(contentToPersist)); } catch { /* noop */ }
             void store.updateMessage(this.context.messageId, {
               status: 'error',
               content: contentToPersist,
@@ -212,7 +216,7 @@ export class StreamOrchestrator {
     const store = useChatStore.getState();
     
     // 导入清理工具
-    const { cleanToolCallInstructions, extractToolCallFromText, createToolCardMarker } = 
+    const { cleanToolCallInstructions, extractToolCallFromText } = 
       await import('@/lib/chat/tool-call-cleanup');
 
     // 获取当前消息

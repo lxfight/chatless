@@ -44,19 +44,48 @@ async fn call_google_search(client: &Client, request: WebSearchRequest) -> Resul
     "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q={}",
     api_key, cse_id, encode(&request.query)
   );
-  let resp: serde_json::Value = client
+  log::info!("[WEB_SEARCH][google] GET {}", "https://www.googleapis.com/customsearch/v1?...");
+  let res = client
     .get(url)
+    .header("Accept", "application/json")
     .send()
     .await
-    .map_err(|e| e.to_string())?
-    .json()
-    .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| format!("http error: {}", e))?;
+  let status = res.status();
+  let text = res.text().await.map_err(|e| format!("read body failed: {}", e))?;
+  log::info!("[WEB_SEARCH][google] status={} body_head={}", status, sample_for_log(&text));
+  let resp: serde_json::Value = serde_json::from_str(&text)
+    .map_err(|e| format!("decode json failed: {}; body_head={}", e, sample_for_log(&text)))?;
+
+  // 优化错误提示：Google 返回 { "error": { code, message, errors: [...] } }
+  if let Some(err) = resp.get("error") {
+    let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+    let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+    let reason = err.get("errors")
+      .and_then(|a| a.as_array())
+      .and_then(|arr| arr.get(0))
+      .and_then(|o| o.get("reason"))
+      .and_then(|r| r.as_str())
+      .unwrap_or("");
+    return Err(format!(
+      "Google API 错误 (code {}): {}{}",
+      code,
+      msg,
+      if reason.is_empty() { "".to_string() } else { format!(" (reason: {})", reason) }
+    ));
+  }
 
   let items = resp
     .get("items")
     .and_then(|i| i.as_array())
-    .ok_or_else(|| "No items found in Google response".to_string())?;
+    .ok_or_else(|| {
+      let total = resp.get("searchInformation")
+        .and_then(|s| s.get("totalResults"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("0")
+        .to_string();
+      format!("Google 搜索无结果或受限（totalResults={}）。请检查 CSE 是否启用、搜索范围与 API Key/CSE ID 是否正确。", total)
+    })?;
 
   let results: Vec<WebSearchResult> = items
     .iter()
@@ -79,16 +108,20 @@ async fn call_google_search(client: &Client, request: WebSearchRequest) -> Resul
 async fn call_bing_search(client: &Client, request: WebSearchRequest) -> Result<Vec<WebSearchResult>, String> {
   let api_key = request.api_key.ok_or_else(|| "Bing API Key is missing".to_string())?;
   let url = "https://api.bing.microsoft.com/v7.0/search";
-  let resp: serde_json::Value = client
+  log::info!("[WEB_SEARCH][bing] GET {}", url);
+  let res = client
     .get(url)
+    .header("Accept", "application/json")
     .header("Ocp-Apim-Subscription-Key", api_key)
     .query(&[("q", request.query.as_str())])
     .send()
     .await
-    .map_err(|e| e.to_string())?
-    .json()
-    .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| format!("http error: {}", e))?;
+  let status = res.status();
+  let text = res.text().await.map_err(|e| format!("read body failed: {}", e))?;
+  log::info!("[WEB_SEARCH][bing] status={} body_head={}", status, sample_for_log(&text));
+  let resp: serde_json::Value = serde_json::from_str(&text)
+    .map_err(|e| format!("decode json failed: {}; body_head={}", e, sample_for_log(&text)))?;
 
   let items = resp
     .get("webPages")
@@ -116,14 +149,16 @@ async fn call_bing_search(client: &Client, request: WebSearchRequest) -> Result<
 
 async fn call_custom_scraper(client: &Client, request: WebSearchRequest) -> Result<Vec<WebSearchResult>, String> {
   let url = format!("https://html.duckduckgo.com/html/?q={}", encode(&request.query));
+  log::info!("[WEB_SEARCH][scrape] GET {}", url);
   let body = client
     .get(url)
     .send()
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("http error: {}", e))?
     .text()
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| format!("read body failed: {}", e))?;
+  log::info!("[WEB_SEARCH][scrape] body_head={}", sample_for_log(&body));
 
   let document = Html::parse_document(&body);
   let result_selector = Selector::parse("div.result").map_err(|e| e.to_string())?;
@@ -156,16 +191,20 @@ async fn call_ollama_search(client: &Client, request: WebSearchRequest) -> Resul
     "query": request.query
   });
 
-  let resp: serde_json::Value = client
+  log::info!("[WEB_SEARCH][ollama] POST {}", url);
+  let res = client
     .post(url)
+    .header("Accept", "application/json")
     .bearer_auth(api_key)
     .json(&payload)
     .send()
     .await
-    .map_err(|e| e.to_string())?
-    .json()
-    .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| format!("http error: {}", e))?;
+  let status = res.status();
+  let text = res.text().await.map_err(|e| format!("read body failed: {}", e))?;
+  log::info!("[WEB_SEARCH][ollama] status={} body_head={}", status, sample_for_log(&text));
+  let resp: serde_json::Value = serde_json::from_str(&text)
+    .map_err(|e| format!("decode json failed: {}; body_head={}", e, sample_for_log(&text)))?;
 
   let items = resp.get("results").and_then(|i| i.as_array()).ok_or_else(|| "No results found in Ollama response".to_string())?;
   let results: Vec<WebSearchResult> = items.iter().filter_map(|item| {
@@ -180,6 +219,16 @@ async fn call_ollama_search(client: &Client, request: WebSearchRequest) -> Resul
   }).take(5).collect();
 
   Ok(results)
+}
+
+fn sample_for_log(s: &str) -> String {
+  let trimmed = s.trim();
+  let head: String = trimmed.chars().take(280).collect();
+  if trimmed.len() > 280 {
+    format!("{}… (len={})", head, trimmed.len())
+  } else {
+    head
+  }
 }
 
 

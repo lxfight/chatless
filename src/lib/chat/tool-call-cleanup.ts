@@ -35,6 +35,9 @@ export function cleanToolCallInstructions(text: string): string {
   cleaned = cleaned.replace(/to\s*=\s*>+[a-z0-9_\-]+>+[a-z0-9_\-]+>+\s*\{[\s\S]*?\}>+/gi, '');
   // 2.3 移除极简变体：to=server[.tool] {...}
   cleaned = cleaned.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{[\s\S]*?\}/gi, '');
+  // 2.4 移除“函数式变体”：如 "search.search {...}" 或 "filesystem.list_directory {...}"
+  //     为降低误杀，仅匹配紧跟着 JSON 左大括号的调用样式
+  cleaned = cleaned.replace(/(^|\s)[a-z0-9_]+\.[a-z0-9_]+\s*\{[\s\S]*?\}/gi, '$1');
   
   // 3. 移除 JSON 格式的工具调用
   cleaned = cleaned.replace(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/gi, '');
@@ -44,6 +47,8 @@ export function cleanToolCallInstructions(text: string): string {
   cleaned = cleaned.replace(/<tool_call>[\s\S]*$/i, '');
   // 4.1 极简变体残片：以 "to=" 开头但未闭合 JSON
   cleaned = cleaned.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{?$/i, '');
+  // 4.2 函数式变体残片：以 "tool.method {" 结尾但未闭合
+  cleaned = cleaned.replace(/(?:^|\s)[a-z0-9_]+\.[a-z0-9_]+\s*\{?$/i, '');
   
   // 5. 移除内部工具卡片标记
   cleaned = cleaned.replace(/\{[^}]*"__tool_call_card__"[^}]*\}/g, '');
@@ -87,6 +92,30 @@ export function extractToolCallFromText(
               // 未带工具名：对 web_search 设默认 search，其他服务器无法确定则返回 null
               tool = server === WEB_SEARCH_SERVER_NAME ? 'search' : '';
             }
+            if (server && tool) {
+              return { server, tool, args };
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  // 0.5 解析“函数式变体”：如 "search.search {...}" 或 "filesystem.list_directory {...}"
+  try {
+    const fnLike = /(?:^|\s)([a-z0-9_]+)\.([a-z0-9_]+)\s*\{/i.exec(text);
+    if (fnLike) {
+      const left = (fnLike[1] || '').trim();   // 可能是 server 或简写
+      const right = (fnLike[2] || '').trim();  // 工具名
+      const pos = fnLike.index !== undefined ? (fnLike.index + fnLike[0].length - 1) : -1;
+      if (pos >= 0) {
+        const objStr = extractFirstJsonObject(text.slice(pos));
+        if (objStr) {
+          try {
+            const args = JSON.parse(objStr);
+            // 将 "search.search" 视为 web_search.search；其他情况优先按左值作为 server
+            const server = left === 'search' ? WEB_SEARCH_SERVER_NAME : left;
+            const tool = right;
             if (server && tool) {
               return { server, tool, args };
             }

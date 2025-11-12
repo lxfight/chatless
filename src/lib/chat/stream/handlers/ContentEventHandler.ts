@@ -110,6 +110,9 @@ function applySuppressionValve(context: StreamContext, chunk: string): string {
     /<\|channel\|\>\s*commentary\s+to=/i,     // GPT‑OSS 标记版
     /commentary\s+to=/i,                      // 无标记变体
     /(?:^|\s)to\s*=\s*[a-z0-9_.-]+/i,         // 极简变体：to=server.tool
+    // 函数式变体：如 "search.search { ... }"、"filesystem.list_directory { ... }"
+    // 这里以 "{"" 作为强提示，避免把普通的 obj.method() 误判
+    /(?:^|\s)[a-z0-9_]+\.[a-z0-9_]+\s*\{/i,
     /<use_mcp_tool>/i,
     /<tool_call>/i,
   ];

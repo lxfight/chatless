@@ -6,6 +6,7 @@ import { ThinkingBar } from '@/components/chat/ThinkingBar';
 // MessageStreamParser 已移除
 import FoldingLoader from '../ui/FoldingLoader';
 import { ToolCallCard } from '@/components/chat/ToolCallCard';
+import { filterToolCallContent } from '@/lib/chat/segments';
 // 采用成熟图片查看组件：yet-another-react-lightbox（需安装依赖）
 // pnpm add yet-another-react-lightbox yet-another-react-lightbox/plugins/zoom yet-another-react-lightbox/plugins/fullscreen yet-another-react-lightbox/plugins/rotate yet-another-react-lightbox/plugins/download
 import Lightbox from 'yet-another-react-lightbox';
@@ -480,13 +481,14 @@ export function AIMessageBlock({
                 // 兜底：当 segments 中没有任何 text 段时，使用 regularContent/content 进行一次性渲染
                 const hasTextSegment = mixedSegments.some(s => s.type === 'text' && (s.text || '').trim().length > 0);
                 const fallbackText = (state?.regularContent || content || '').trim();
+                const fallbackTextCleaned = filterToolCallContent(fallbackText);
                 if (!hasTextSegment && fallbackText.length > 0) {
                   return (
                     <div key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
                       <div className="markdown-content-area">
                         {(() => {
                           const { StreamingMarkdown } = require('./StreamingMarkdown');
-                          return <StreamingMarkdown content={fallbackText} isStreaming={isStreaming} />;
+                          return <StreamingMarkdown content={fallbackTextCleaned} isStreaming={isStreaming} />;
                         })()}
                       </div>
                     </div>
@@ -527,7 +529,7 @@ export function AIMessageBlock({
       {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
         <div className="relative min-w-0 max-w-full w-full markdown-content-area">
-          <MemoizedMarkdown content={(state?.regularContent || content)} />
+          <MemoizedMarkdown content={filterToolCallContent((state?.regularContent || content))} />
         </div>
       )}
 
