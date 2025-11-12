@@ -12,6 +12,7 @@ import { shouldAutoAuthorize } from './authorizationConfig';
 import { useAuthorizationStore } from '@/store/authorizationStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useWebSearchStore } from '@/store/webSearchStore';
+import { getProviderCredentials, isMissingRequiredCredentials } from '@/lib/websearch/registry';
 import { WEB_SEARCH_SERVER_NAME } from './nativeTools/webSearch';
 
 // 防止重复调用的缓存
@@ -174,12 +175,48 @@ export async function executeToolCall(params: {
         const cfg = useWebSearchStore.getState();
         const conversationProvider = cfg.getConversationProvider(conversationId);
         const providerToUse = conversationProvider || cfg.provider;
-        const apiKey = providerToUse === 'google' ? cfg.apiKeyGoogle
-                      : providerToUse === 'bing' ? cfg.apiKeyBing
-                      : providerToUse === 'ollama' ? (cfg as any).apiKeyOllama
-                      : undefined;
-        const cseId = providerToUse === 'google' ? cfg.cseIdGoogle : undefined;
+        const { apiKey, cseId } = getProviderCredentials(providerToUse as any, {
+          apiKeyGoogle: cfg.apiKeyGoogle,
+          cseIdGoogle: cfg.cseIdGoogle,
+          apiKeyBing: cfg.apiKeyBing,
+          apiKeyOllama: (cfg as any).apiKeyOllama,
+        });
         const query = typeof (effectiveArgs as any)?.query === 'string' ? String((effectiveArgs as any).query) : '';
+
+        // 缺少密钥/必需配置时，右下角通知并在卡片中给出可读提示
+        const missingKey = isMissingRequiredCredentials(providerToUse as any, {
+          apiKeyGoogle: cfg.apiKeyGoogle,
+          cseIdGoogle: cfg.cseIdGoogle,
+          apiKeyBing: cfg.apiKeyBing,
+          apiKeyOllama: (cfg as any).apiKeyOllama,
+        });
+        if (missingKey) {
+          const msg = '未配置相关网络搜索密钥，请切换到其他可用的搜索提供商。';
+          try {
+            const { toast } = await import('@/components/ui/sonner');
+            toast.error('网络搜索不可用', { description: msg });
+          } catch { /* ignore */ }
+          const st = useChatStore.getState();
+          try { st.appendTextToMessageSegments(assistantMessageId, msg); } catch { /* noop */ }
+          st.dispatchMessageAction(assistantMessageId, { 
+            type: 'TOOL_RESULT', 
+            server, tool: effectiveTool, ok: false, 
+            errorMessage: msg, 
+            cardId 
+          });
+          await continueWithToolResult({
+            assistantMessageId,
+            provider,
+            model,
+            conversationId,
+            historyForLlm,
+            originalUserContent,
+            server,
+            tool: effectiveTool,
+            result: { error: 'WEB_SEARCH_CREDENTIALS_MISSING', message: msg }
+          });
+          return;
+        }
 
         const request = {
           provider: providerToUse,

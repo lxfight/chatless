@@ -33,6 +33,8 @@ export function cleanToolCallInstructions(text: string): string {
   cleaned = cleaned.replace(/commentary\s+to=[^\n]+?\s+json\s*\{[\s\S]*?\}/gi, '');
   // 2.2 移除“>>”分隔符变体：to= >>server>>tool>>{...}>>
   cleaned = cleaned.replace(/to\s*=\s*>+[a-z0-9_\-]+>+[a-z0-9_\-]+>+\s*\{[\s\S]*?\}>+/gi, '');
+  // 2.3 移除极简变体：to=server[.tool] {...}
+  cleaned = cleaned.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{[\s\S]*?\}/gi, '');
   
   // 3. 移除 JSON 格式的工具调用
   cleaned = cleaned.replace(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/gi, '');
@@ -40,6 +42,8 @@ export function cleanToolCallInstructions(text: string): string {
   // 4. 移除未完成的指令片段（流式输出中可能出现）
   cleaned = cleaned.replace(/<use_mcp_tool>[\s\S]*$/i, '');
   cleaned = cleaned.replace(/<tool_call>[\s\S]*$/i, '');
+  // 4.1 极简变体残片：以 "to=" 开头但未闭合 JSON
+  cleaned = cleaned.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{?$/i, '');
   
   // 5. 移除内部工具卡片标记
   cleaned = cleaned.replace(/\{[^}]*"__tool_call_card__"[^}]*\}/g, '');

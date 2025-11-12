@@ -46,4 +46,29 @@ export function isProviderConfigured(id: SearchProvider, keys: ProviderConfigKey
   return !!map[id];
 }
 
+// ====== Orchestrator helpers to avoid magic values ======
+export type WebSearchCredentials = { apiKey?: string; cseId?: string };
+
+export function getProviderCredentials(id: SearchProvider, keys: ProviderConfigKeys): WebSearchCredentials {
+  switch (id) {
+    case 'google':
+      return { apiKey: keys.apiKeyGoogle, cseId: keys.cseIdGoogle };
+    case 'bing':
+      return { apiKey: keys.apiKeyBing };
+    case 'ollama':
+      return { apiKey: keys.apiKeyOllama };
+    case 'custom_scrape':
+    default:
+      return {};
+  }
+}
+
+export function isMissingRequiredCredentials(id: SearchProvider, keys: ProviderConfigKeys): boolean {
+  const cred = getProviderCredentials(id, keys);
+  if (id === 'google') return !(cred.apiKey && cred.cseId);
+  if (id === 'bing') return !cred.apiKey;
+  if (id === 'ollama') return !cred.apiKey;
+  return false; // custom_scrape 不需要
+}
+
 

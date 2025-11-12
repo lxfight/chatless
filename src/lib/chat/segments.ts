@@ -102,6 +102,8 @@ export function filterToolCallContent(text: string): string {
   );
   //      无标签变体：commentary to=server[.tool] json {...}
   out = out.replace(/commentary\s+to=[^\n]+?\s+json\s*\{[\s\S]*?\}/gi, '');
+  //      极简变体：to=server[.tool] {...}
+  out = out.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{[\s\S]*?\}/gi, '');
   
   // 3) 移除JSON格式的工具调用（包含 "type":"tool_call"）
   out = out.replace(/\{[\s\S]*?"type"\s*:\s*"tool_call"[\s\S]*?\}/gi, '');
@@ -113,6 +115,8 @@ export function filterToolCallContent(text: string): string {
   // 4.1) GPT‑OSS 风格的未完成残片
   out = out.replace(/<\|channel\|\>\s*commentary[\s\S]*$/i, '');
   out = out.replace(/commentary\s+to=[^\n]*$/i, '');
+  // 4.1.1) 极简残片：以 "to=" 开头但未闭合 JSON
+  out = out.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{?$/i, '');
   // 清理单独残留的约束/消息标签
   out = out.replace(/<\|constrain\|\>\s*json/gi, '');
   out = out.replace(/<\|message\|\>/gi, '');
