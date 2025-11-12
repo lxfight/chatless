@@ -3,6 +3,17 @@
  */
 
 import StorageUtil from '@/lib/storage';
+import { WEB_SEARCH_SERVER_NAME } from '@/lib/mcp/nativeTools/webSearch';
+
+// 可选：读取网络搜索设置，用于控制 web_search 的授权行为
+const getWebSearchAutoAuth = async (): Promise<boolean | undefined> => {
+  try {
+    const { useWebSearchStore } = await import('@/store/webSearchStore');
+    return !!useWebSearchStore.getState().autoAuthorizeWebSearch;
+  } catch {
+    return undefined;
+  }
+};
 
 export interface ServerConfig {
   autoAuthorize?: boolean; // undefined表示使用默认值
@@ -122,6 +133,12 @@ export async function shouldAutoAuthorize(serverName: string): Promise<boolean> 
       name === 'filesystem' || name === 'file-system' || name === 'fs';
     if (isSensitive) {
       return false;
+    }
+
+    // web_search 由“网络搜索设置页”单独控制（默认开启自动授权，可在设置中关闭）
+    if (name === WEB_SEARCH_SERVER_NAME) {
+      const fromStore = await getWebSearchAutoAuth();
+      if (typeof fromStore === 'boolean') return fromStore;
     }
 
     // 其余使用全局默认

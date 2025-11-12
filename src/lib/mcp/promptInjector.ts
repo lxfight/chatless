@@ -1,6 +1,7 @@
 import { getAllConfiguredServers, getConnectedServers, getGlobalEnabledServers } from './chatIntegration';
 import { persistentCache } from './persistentCache';
 import { MCPPrompts } from '@/lib/prompts/SystemPrompts';
+import { WEB_SEARCH_SERVER_NAME } from '@/lib/mcp/nativeTools/webSearch';
 import { useWebSearchStore } from '@/store/webSearchStore';
 
 export type InjectionResult = {
@@ -172,7 +173,7 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
 
     // 额外注入：网络搜索工具（不依赖 MCP 连接）
     if (webSearchEnabled) {
-      toolsLines.push(`Tools@web_search: search`);
+      toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: search`);
     }
 
     // 合并为单条，减少分段与截断
@@ -209,7 +210,7 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   }
   // 额外注入：网络搜索工具（不依赖 MCP 连接）
   if (webSearchEnabled) {
-    toolsLines.push(`Tools@web_search: search`);
+    toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: search`);
   }
   for (const l of toolsLines) sys.push({ role: 'system', content: l });
 
@@ -223,9 +224,18 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
     sys.push({ role: 'system', content: MCPPrompts.errorPolicy });
   } catch { /* noop */ }
 
-  // 简要的启用 server 行
-  const serversLine = strategy.buildEnabledServersLine(enabled);
+  // 简要的启用 server 行（若启用网络搜索，把 web_search 一并告知）
+  const enabledWithWeb = webSearchEnabled ? [...enabled, WEB_SEARCH_SERVER_NAME] : enabled;
+  const serversLine = strategy.buildEnabledServersLine(enabledWithWeb);
   if (serversLine) sys.push({ role: 'system', content: serversLine });
+
+  // 若开启网络搜索，追加联网检索策略，明确“何时使用 web_search”
+  if (webSearchEnabled) {
+    try {
+      const { MCPPrompts } = await import('@/lib/prompts/SystemPrompts');
+      sys.push({ role: 'system', content: MCPPrompts.webSearchPolicy });
+    } catch { /* ignore */ }
+  }
     return { systemMessages: sys };
   }
 

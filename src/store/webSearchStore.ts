@@ -7,6 +7,7 @@ type ConversationProviderMap = Record<string, SearchProvider | undefined>;
 
 interface WebSearchConfig {
   isWebSearchEnabled: boolean;
+  autoAuthorizeWebSearch: boolean;
   provider: SearchProvider;
   apiKeyGoogle: string;
   cseIdGoogle: string;
@@ -18,6 +19,7 @@ interface WebSearchConfig {
 interface WebSearchState extends WebSearchConfig {
   initialized: boolean;
   toggleWebSearch: (enabled: boolean) => void;
+  setAutoAuthorizeWebSearch: (enabled: boolean) => void;
   setSearchProvider: (provider: SearchProvider) => void;
   setGoogleCredentials: (apiKey: string, cseId: string) => void;
   setBingCredentials: (apiKey: string) => void;
@@ -34,6 +36,7 @@ const STORE_KEY = 'web_search_config';
 
 const defaultConfig: WebSearchConfig = {
   isWebSearchEnabled: false,
+  autoAuthorizeWebSearch: true, // 默认对 web_search 启用自动授权（可在设置里关闭）
   provider: 'google',
   apiKeyGoogle: '',
   cseIdGoogle: '',
@@ -48,6 +51,11 @@ export const useWebSearchStore = create<WebSearchState>((set, get) => ({
 
   toggleWebSearch: (enabled) => {
     set({ isWebSearchEnabled: enabled });
+    void get()._save();
+  },
+
+  setAutoAuthorizeWebSearch: (enabled) => {
+    set({ autoAuthorizeWebSearch: enabled });
     void get()._save();
   },
 

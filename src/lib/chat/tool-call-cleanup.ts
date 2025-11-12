@@ -4,6 +4,8 @@
  * 负责从消息内容中移除工具调用指令，确保用户只看到工具卡片而不是原始指令
  */
 
+import { WEB_SEARCH_SERVER_NAME } from "../mcp/nativeTools/webSearch";
+
 /**
  * 清理文本中的所有工具调用指令
  * 
@@ -79,7 +81,7 @@ export function extractToolCallFromText(
             } else {
               server = toTargetRaw.trim();
               // 未带工具名：对 web_search 设默认 search，其他服务器无法确定则返回 null
-              tool = server === 'web_search' ? 'search' : '';
+              tool = server === WEB_SEARCH_SERVER_NAME ? 'search' : '';
             }
             if (server && tool) {
               return { server, tool, args };

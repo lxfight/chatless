@@ -7,6 +7,7 @@ import { useWebSearchStore, type SearchProvider } from "@/store/webSearchStore";
 import { linkOpener } from "@/lib/utils/linkOpener";
 import { Globe, ExternalLink, ShieldCheck } from "lucide-react";
 import { providerOptions } from "@/lib/websearch/registry";
+import { Switch } from "@/components/ui/switch";
 
 export function WebSearchSettings() {
   const store = useWebSearchStore();
@@ -37,6 +38,18 @@ export function WebSearchSettings() {
         </div>
 
         <div className="space-y-6">
+          {/* 自动授权开关（仅影响 web_search 工具调用） */}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">自动授权网络搜索</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">开启后，调用 web_search 工具时将跳过确认；关闭后每次都会询问</span>
+            </div>
+            <Switch
+              checked={store.autoAuthorizeWebSearch}
+              onCheckedChange={(v) => store.setAutoAuthorizeWebSearch(!!v)}
+            />
+          </div>
+
           <SelectField
             label="默认搜索引擎"
             value={store.provider}
