@@ -317,26 +317,17 @@ export function AIMessageBlock({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  // ✅ 【优化】：使用 segments 数量作为 layout key，只在添加新 segment 时触发展开动画
-  // 这样可以避免每次文本更新都触发动画，减少视觉疲劳
-  const layoutKey = `layout-${mixedSegments.length}`;
-  
   return (
-    <motion.div
-      layout={mixedSegments.length > 1} // 只有多个segment时才启用layout动画
-      key={layoutKey}
-      className="ai-markdown-container group w-full max-w-full min-w-0"
-      transition={{ layout: { type: 'spring', stiffness: 380, damping: 28, mass: 0.3 } }}
-    >
+    <div className="ai-markdown-container group w-full max-w-full min-w-0">
    
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
-        <motion.div layout key="loader-waiting" className="flex items-center gap-3 py-2">
+        <div key="loader-waiting" className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
             <FoldingLoader size={22} />
           </div>
           <span className="text-xs italic text-slate-500 dark:text-slate-400">等待响应...</span>
-        </motion.div>
+        </div>
       )}
 
       {/* 思考进度条：仅在没有结构化segments时显示全局思考栏（兼容旧消息） */}
@@ -377,7 +368,7 @@ export function AIMessageBlock({
                 if (seg.type === 'card') {
                   const d = seg.data;
                   return (
-                    <motion.div layout key={`card-wrap-${d.id || idx}`}>
+                    <div key={`card-wrap-${d.id || idx}`}>
                       <ToolCallCard
                       key={`card-${d.id || idx}-${idx}`}
                       server={d.server}
@@ -390,7 +381,7 @@ export function AIMessageBlock({
                       messageId={d.messageId}
                       cardId={d.id}
                       />
-                    </motion.div>
+                    </div>
                   );
                 }
                 // 独立渲染每个 think 段的思考栏
@@ -413,13 +404,13 @@ export function AIMessageBlock({
                   }
                   
                   return (
-                    <motion.div layout key={`think-${idx}`}>
+                    <div key={`think-${idx}`}>
                       <ThinkingBar
                         thinkingContent={seg.text || ''}
                         durationSeconds={durationSeconds}
                         isActive={isCurrentThinking}
                       />
-                    </motion.div>
+                    </div>
                   );
                 }
                 if (seg.type === 'image') {
@@ -429,7 +420,7 @@ export function AIMessageBlock({
                   const needSoftDivider = prevType === 'card';
                   const i = Math.max(0, images.findIndex((x)=>x.src===src));
                   return (
-                    <motion.div layout key={`img-inline-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                    <div key={`img-inline-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
                       <div className="relative inline-block group">
                         <img
                           src={src}
@@ -478,7 +469,7 @@ export function AIMessageBlock({
                           </button>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 }
                 // 渲染文本段落 - 跳过空内容
@@ -524,21 +515,21 @@ export function AIMessageBlock({
           ) : null}
           {/* MCP调用识别阶段：检测到（或抑制阀已识别到）工具调用但卡片尚未出现时显示加载动画 */}
           {isStreaming && (hasToolCallEarly || !!(viewModel as any)?.flags?.isToolDetecting) && mixedSegments.filter(s => s.type === 'card').length === 0 && (
-            <motion.div layout key="loader-tool-detecting" className="flex items-center gap-3 py-2">
+            <div key="loader-tool-detecting" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
                 <FoldingLoader key="loader-tool" size={22} />
               </div>
               <span className="text-xs italic text-slate-500 dark:text-slate-400">正在识别工具调用指令…</span>
-            </motion.div>
+            </div>
           )}
           {/* 思考结束到卡片出现的过渡期占位：当仍在流式但暂无任何片段时显示 */}
           {isStreaming && !hasNoContent && !hasToolCallEarly && mixedSegments.length === 0 && (
-            <motion.div layout key="loader-preparing" className="flex items-center gap-3 py-2">
+            <div key="loader-preparing" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
                 <FoldingLoader key="loader-reply" size={22} />
               </div>
               <span className="text-xs italic text-slate-500 dark:text-slate-400">正在准备回复…</span>
-            </motion.div>
+            </div>
           )}
           {/* 悬浮显示字数 */}
           {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
@@ -593,6 +584,6 @@ export function AIMessageBlock({
           </button>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 } 
