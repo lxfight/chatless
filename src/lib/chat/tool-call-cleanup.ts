@@ -101,7 +101,7 @@ export function extractToolCallFromText(
     }
   } catch { /* ignore */ }
 
-  // 0.5 解析“函数式变体”：如 "search.search {...}" 或 "filesystem.list_directory {...}"
+  // 0.5 解析"函数式变体"：如 "search.search {...}" 或 "filesystem.list_directory {...}"
   try {
     const fnLike = /(?:^|\s)([a-z0-9_]+)\.([a-z0-9_]+)\s*\{/i.exec(text);
     if (fnLike) {
@@ -174,7 +174,7 @@ export function extractToolCallFromText(
     } catch { /* ignore */ }
   }
   
-  // 2.5 解析“>>”分隔符极简变体：to= >>server>>tool>>{...}>>
+  // 2.5 解析">>"分隔符极简变体：to= >>server>>tool>>{...}>>
   try {
     const simple = /to\s*=\s*>+([a-z0-9_\-]+)>+([a-z0-9_\-]+)>+\s*/i.exec(text);
     if (simple) {

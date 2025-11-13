@@ -285,10 +285,11 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
       const descLines = [
         `ToolsDesc@${WEB_SEARCH_SERVER_NAME}:`,
         `• search - 在互联网上搜索实时信息`,
+        `   ⚠️ 工具名必须是: search (不是 run_code, run, 或其他)`,
         `   required: ${required.join(', ')}`,
         `   params:`,
         `     - query (string) [required]${pdesc}`,
-        `   - example: {"query":"北京今天的天气"}`
+        `   - example: <use_mcp_tool><server_name>web_search</server_name><tool_name>search</tool_name><arguments>{"query":"北京今天的天气"}</arguments></use_mcp_tool>`
       ];
       for (const l of descLines) sys.push({ role: 'system', content: l });
 
@@ -296,13 +297,14 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
         const fschema: any = (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema;
         const freq: string[] = Array.isArray(fschema?.required) ? fschema.required : ['url'];
         const fdesc = (fschema?.properties?.url?.description ? ` - ${fschema.properties.url.description}` : '');
-        const fetchTitle = providerId === 'ollama' ? '• fetch - 抓取指定网页内容（返回标题/正文/链接）' : '• fetch - 抓取指定网页内容（返回标题/正文/链接）';
+        const fetchTitle = '• fetch - 抓取指定网页内容（返回标题/正文/链接）';
         const fLines = [
           fetchTitle,
+          `   ⚠️ 工具名必须是: fetch (不是 get, read, 或其他)`,
           `   required: ${freq.join(', ')}`,
           `   params:`,
           `     - url (string) [required]${fdesc}`,
-          `   - example: {"url":"https://example.com"}`
+          `   - example: <use_mcp_tool><server_name>web_search</server_name><tool_name>fetch</tool_name><arguments>{"url":"https://example.com"}</arguments></use_mcp_tool>`
         ];
         for (const l of fLines) sys.push({ role: 'system', content: l });
       }

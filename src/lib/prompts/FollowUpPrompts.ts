@@ -51,6 +51,11 @@ export function buildFirstFollowUpPrompt(
 2. 直接输出中文答案，不要输出工具调用指令
 3. 答案要简洁明了，不超过200字
 
+⚠️ 重要：如果必须调用工具，请严格使用正确的工具名：
+  - web_search的工具是: search (不是 run_code 或 run)
+  - web_search的工具是: fetch (不是 get 或 read)
+  - 格式必须是: <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>
+
 用户问题：${originalQuestion}${toolInfo}`;
 }
 

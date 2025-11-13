@@ -7,9 +7,6 @@ import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
 import StorageUtil from '@/lib/storage';
 import { shouldAutoAuthorize } from './authorizationConfig';
 import { useAuthorizationStore } from '@/store/authorizationStore';
-import { invoke } from '@tauri-apps/api/core';
-import { useWebSearchStore } from '@/store/webSearchStore';
-import { getProviderCredentials, isMissingRequiredCredentials } from '@/lib/websearch/registry';
 import { WEB_SEARCH_SERVER_NAME } from './nativeTools/webSearch';
 
 // 防止重复调用的缓存
@@ -130,127 +127,27 @@ export async function executeToolCall(params: {
           }
         }
 
-        const cfg = useWebSearchStore.getState();
-        const conversationProvider = cfg.getConversationProvider(conversationId);
-        const providerToUse = conversationProvider || cfg.provider;
-        const { apiKey, cseId } = getProviderCredentials(providerToUse as any, {
-          apiKeyGoogle: cfg.apiKeyGoogle,
-          cseIdGoogle: cfg.cseIdGoogle,
-          apiKeyBing: cfg.apiKeyBing,
-          apiKeyOllama: (cfg as any).apiKeyOllama,
-        });
-        const query = typeof (effectiveArgs as any)?.query === 'string' ? String((effectiveArgs as any).query) : '';
-
-        // —— 调试日志：记录本次计划的 provider 与参数（去敏）
-        try {
-          console.log('[WEB_SEARCH] plan', {
-            provider: providerToUse,
-            hasApiKey: !!apiKey,
-            hasCseId: !!cseId,
-            conversationId,
-            messageId: assistantMessageId,
-            tool: effectiveTool,
-            queryPreview: (query || '').slice(0, 200),
-          });
-        } catch { /* noop */ }
-
-        // 缺少密钥/必需配置时，右下角通知并在卡片中给出可读提示
-        const missingKey = isMissingRequiredCredentials(providerToUse as any, {
-          apiKeyGoogle: cfg.apiKeyGoogle,
-          cseIdGoogle: cfg.cseIdGoogle,
-          apiKeyBing: cfg.apiKeyBing,
-          apiKeyOllama: (cfg as any).apiKeyOllama,
-        });
-        if (missingKey) {
-          const msg = '未配置相关网络搜索密钥，请切换到其他可用的搜索提供商。';
-          try {
-            const { toast } = await import('@/components/ui/sonner');
-            toast.error('网络搜索不可用', { description: msg });
-          } catch { /* ignore */ }
-          const st = useChatStore.getState();
-          try { st.appendTextToMessageSegments(assistantMessageId, msg); } catch { /* noop */ }
-          st.dispatchMessageAction(assistantMessageId, { 
-            type: 'TOOL_RESULT', 
-            server, tool: effectiveTool, ok: false, 
-            errorMessage: msg, 
-            cardId 
-          });
-          try { console.warn('[WEB_SEARCH] missing credentials', { provider: providerToUse, hasApiKey: !!apiKey, hasCseId: !!cseId }); } catch { /* noop */ }
-          await continueWithToolResult({
+        // 使用WebSearchExecutor处理所有web_search工具调用
+        const { WebSearchExecutor } = await import('./executor/WebSearchExecutor');
+        const executor = new WebSearchExecutor(
+          {
             assistantMessageId,
-            provider,
-            model,
             conversationId,
-            historyForLlm,
-            originalUserContent,
             server,
             tool: effectiveTool,
-            result: { error: 'WEB_SEARCH_CREDENTIALS_MISSING', message: msg }
-          });
-          return;
-        }
-
-        const request = {
-          provider: providerToUse,
-          query,
-          apiKey: apiKey,
-          cseId: cseId,
-        };
-
-        // —— 发起原生调用（带日志）
-        try {
-          console.log('[WEB_SEARCH] invoke(native_web_search) -> start', {
-            provider: providerToUse,
-            hasApiKey: !!apiKey,
-            hasCseId: !!cseId,
-            queryPreview: (query || '').slice(0, 200),
-          });
-        } catch { /* noop */ }
-        const result = await invoke('native_web_search', { request });
-        try {
-          if (Array.isArray(result)) {
-            console.log('[WEB_SEARCH] invoke(native_web_search) -> ok', {
-              count: result.length,
-              first: (result as unknown[])[0],
-            });
-          } else {
-            const previewStr = typeof result === 'string' ? result : JSON.stringify(result ?? {}).slice(0, 300);
-            console.log('[WEB_SEARCH] invoke(native_web_search) -> ok', previewStr);
-          }
-        } catch { /* noop */ }
-
-        // 记录成功
-        mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
-        const st = useChatStore.getState();
-        const resultPreview = typeof result === 'string' ? result.slice(0, 12000) : JSON.stringify(result).slice(0, 12000);
-        st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
-
-        await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool: effectiveTool, result });
+            args: effectiveArgs,
+            _runningMarker: '', // 兼容旧参数（未使用）
+            provider,
+            model,
+            historyForLlm,
+            originalUserContent,
+            cardId,
+          },
+          callKey
+        );
+        await executor.execute();
       } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        try {
-          console.error('[WEB_SEARCH] invoke(native_web_search) -> error', {
-            error: err,
-            provider: (useWebSearchStore.getState().getConversationProvider(conversationId) || useWebSearchStore.getState().provider),
-            messageId: assistantMessageId,
-            tool: effectiveTool,
-          });
-        } catch { /* noop */ }
-        mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, false);
-        const st = useChatStore.getState();
-        const hint = `原生网络搜索 ${server}.${effectiveTool} 失败: ${err}`;
-        st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint: hint, cardId });
-        await continueWithToolResult({
-          assistantMessageId,
-          provider,
-          model,
-          conversationId,
-          historyForLlm,
-          originalUserContent,
-          server,
-          tool: effectiveTool,
-          result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint: hint }
-        });
+        console.error('[WEB_SEARCH] executor error:', e);
       } finally {
         runningCalls.delete(callKey);
       }
