@@ -223,12 +223,10 @@ function ChatMessageComponent({
           )}
         >
           <motion.div
-            layout
             initial={shouldAnimateEnter ? { opacity: 0, scale: 0.98 } : false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{
-              duration: 0.15,
-              layout: { type: "spring", stiffness: 380, damping: 28, mass: 0.3 }
+              duration: 0.15
             }}
           >
             <div className={cn(

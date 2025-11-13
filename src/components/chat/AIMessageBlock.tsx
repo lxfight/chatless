@@ -317,9 +317,14 @@ export function AIMessageBlock({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
+  // ✅ 【优化】：使用 segments 数量作为 layout key，只在添加新 segment 时触发展开动画
+  // 这样可以避免每次文本更新都触发动画，减少视觉疲劳
+  const layoutKey = `layout-${mixedSegments.length}`;
+  
   return (
     <motion.div
-      layout
+      layout={mixedSegments.length > 1} // 只有多个segment时才启用layout动画
+      key={layoutKey}
       className="ai-markdown-container group w-full max-w-full min-w-0"
       transition={{ layout: { type: 'spring', stiffness: 380, damping: 28, mass: 0.3 } }}
     >
@@ -363,9 +368,9 @@ export function AIMessageBlock({
 
       {/* 消息内容（混合片段顺序渲染） */}
       {(mixedSegments.length > 0) && (
-        <motion.div layout className="relative min-w-0 max-w-full w-full">
+        <div className="relative min-w-0 max-w-full w-full">
           {mixedSegments.length > 0 ? (
-            <motion.div layout className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
               {mixedSegments.map((seg, idx) => {
                 // 关键调试：仅当准备渲染工具卡片时打印一次，帮助确认UI层已收到segments
                 // 默认关闭的日志
@@ -484,7 +489,7 @@ export function AIMessageBlock({
                 const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
                 const needSoftDivider = prevType === 'card';
                 return (
-                  <motion.div layout key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                  <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
                     <div className="markdown-content-area">
                       {(() => {
                         // 使用统一的StreamingMarkdown组件，支持流式和非流式markdown渲染
@@ -492,7 +497,7 @@ export function AIMessageBlock({
                         return <StreamingMarkdown content={textContent} isStreaming={isStreaming} />;
                       })()}
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })}
               {(() => {
@@ -503,19 +508,19 @@ export function AIMessageBlock({
                 const fallbackTextCleaned = filterToolCallContent(fallbackText);
                 if (!hasTextSegment && fallbackText.length > 0) {
                   return (
-                    <motion.div layout key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
+                    <div key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
                       <div className="markdown-content-area">
                         {(() => {
                           const { StreamingMarkdown } = require('./StreamingMarkdown');
                           return <StreamingMarkdown content={fallbackTextCleaned} isStreaming={isStreaming} />;
                         })()}
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 }
                 return null;
               })()}
-            </motion.div>
+            </div>
           ) : null}
           {/* MCP调用识别阶段：检测到（或抑制阀已识别到）工具调用但卡片尚未出现时显示加载动画 */}
           {isStreaming && (hasToolCallEarly || !!(viewModel as any)?.flags?.isToolDetecting) && mixedSegments.filter(s => s.type === 'card').length === 0 && (
@@ -542,14 +547,14 @@ export function AIMessageBlock({
               return `字数: ${text.replace(/\s+/g,'').length}`;
             })()}
           </div> */}
-        </motion.div>
+        </div>
       )}
 
       {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
-        <motion.div layout className="relative min-w-0 max-w-full w-full markdown-content-area">
+        <div className="relative min-w-0 max-w-full w-full markdown-content-area">
           <MemoizedMarkdown content={filterToolCallContent((state?.regularContent || content))} />
-        </motion.div>
+        </div>
       )}
 
       {/* 取消集中渲染：图片已内联呈现 */}

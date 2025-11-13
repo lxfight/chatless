@@ -11,8 +11,8 @@
    这里采用利用文本阴影与逐行绘制方式的简化动画：
    渐变 opacity + 轻微 translateY，配合 very small duration 与延迟变量实现细腻感。 */
 @keyframes fadeInChar {
-  0% { opacity: 0; transform: translateY(1px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* 在容器上使用该动画，React 流式每次追加文本时，浏览器会对新增节点应用动画。
