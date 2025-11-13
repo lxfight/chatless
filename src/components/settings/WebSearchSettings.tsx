@@ -134,6 +134,101 @@ export function WebSearchSettings() {
             </div>
           )}
 
+          {/* —— 高级参数（按提供商显示，默认折叠） —— */}
+          {(store.provider === 'duckduckgo' || store.provider === 'custom_scrape') && (
+            <details className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 p-3 bg-white/60 dark:bg-slate-900/30">
+              <summary className="text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer select-none">DuckDuckGo / 自定义抓取 - 高级参数</summary>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <InputField
+                  label="结果数量 (1-10)"
+                  type="number"
+                  value={String(store.ddgLimit)}
+                  onChange={(e)=> store.setDdgAdvanced({ ddgLimit: Math.max(1, Math.min(10, Number(e.target.value)||5)) })}
+                />
+                <InputField
+                  label="Accept-Language"
+                  placeholder="例如 zh-CN,zh;q=0.9"
+                  value={store.ddgAcceptLanguage}
+                  onChange={(e)=> store.setDdgAdvanced({ ddgAcceptLanguage: e.target.value })}
+                />
+                <InputField
+                  label="kl 区域/语言"
+                  placeholder="例如 us-en / zh-cn"
+                  value={store.ddgKl}
+                  onChange={(e)=> store.setDdgAdvanced({ ddgKl: e.target.value })}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-700 dark:text-slate-300">安全搜索（kp）</span>
+                    <span className="text-[11px] text-slate-500">开启=kp=1，关闭=kp=-2</span>
+                  </div>
+                  <Switch checked={!!store.ddgSafe} onCheckedChange={(v)=> store.setDdgAdvanced({ ddgSafe: !!v })} />
+                </div>
+                <InputField
+                  label="site 限定"
+                  placeholder="例如 wikipedia.org"
+                  value={store.ddgSite}
+                  onChange={(e)=> store.setDdgAdvanced({ ddgSite: e.target.value })}
+                />
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100/70 dark:border-slate-800/60">
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Fetch 抓取选项（用于读取网页详情）</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-slate-700 dark:text-slate-300">启用可读性提取（推荐）</span>
+                      <span className="text-[11px] text-slate-500">尽量提取正文与标题，效果优于纯文本</span>
+                    </div>
+                    <Switch checked={!!store.fetchUseReadability} onCheckedChange={(v)=> store.setFetchReadability(!!v)} />
+                  </div>
+                  <InputField
+                    label="正文最大字符数"
+                    type="number"
+                    value={String(store.fetchMaxContentChars)}
+                    onChange={(e)=> store.setFetchAdvanced({ fetchMaxContentChars: Math.max(500, Number(e.target.value)||2000) })}
+                  />
+                  <InputField
+                    label="最大链接数"
+                    type="number"
+                    value={String(store.fetchMaxLinks)}
+                    onChange={(e)=> store.setFetchAdvanced({ fetchMaxLinks: Math.max(10, Number(e.target.value)||50) })}
+                  />
+                </div>
+              </div>
+            </details>
+          )}
+
+          {store.provider === 'ollama' && (
+            <details className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 p-3 bg-white/60 dark:bg-slate-900/30">
+              <summary className="text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer select-none">Ollama - 高级参数</summary>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <InputField
+                  label="最大结果数"
+                  type="number"
+                  value={String(store.ollamaMaxResults)}
+                  onChange={(e)=> store.setOllamaAdvanced({ ollamaMaxResults: Math.max(1, Math.min(10, Number(e.target.value)||5)) })}
+                />
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100/70 dark:border-slate-800/60">
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Fetch 抓取选项</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <InputField
+                    label="正文最大字符数"
+                    type="number"
+                    value={String(store.fetchMaxContentChars)}
+                    onChange={(e)=> store.setFetchAdvanced({ fetchMaxContentChars: Math.max(500, Number(e.target.value)||2000) })}
+                  />
+                  <InputField
+                    label="最大链接数"
+                    type="number"
+                    value={String(store.fetchMaxLinks)}
+                    onChange={(e)=> store.setFetchAdvanced({ fetchMaxLinks: Math.max(10, Number(e.target.value)||50) })}
+                  />
+                </div>
+              </div>
+            </details>
+          )}
+
           <div className="pt-4 border-t border-slate-100/80 dark:border-slate-800/60">
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">已可用的提供商</div>
             <div className="flex flex-wrap gap-2">

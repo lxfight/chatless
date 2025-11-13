@@ -19,4 +19,23 @@ export const WEB_SEARCH_TOOL_SCHEMA: McpTool = {
   },
 };
 
+export const WEB_FETCH_TOOL_SCHEMA: McpTool = {
+  name: 'fetch',
+  description: '抓取指定网页内容，返回页面标题、正文与链接列表。',
+  input_schema: {
+    schema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: '要抓取的网页地址（以 http:// 或 https:// 开头）',
+        },
+      },
+      required: ['url'],
+    },
+  },
+};
+
+export const WEB_SEARCH_TOOLS: McpTool[] = [WEB_SEARCH_TOOL_SCHEMA, WEB_FETCH_TOOL_SCHEMA];
+
 

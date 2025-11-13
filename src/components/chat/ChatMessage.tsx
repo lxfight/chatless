@@ -154,7 +154,16 @@ function ChatMessageComponent({
         />;
   }, [isUser, id, content, documentReference?.fileName, contextData, knowledgeBaseReference?.id, images?.length, onEdit, onCopy, isStreaming, thinking_duration, thinking_start_time, onSaveThinkingDuration, segments, viewModel]);
 
-  // 复制与字数统计应基于“可见文本”：优先从 segments 的 text 段拼接，其次回退到 content
+  // ⚠️ 【Fallback机制】：优先使用 segments，仅在 segments 为空时使用 content
+  // 
+  // 设计原则：
+  // 1. segments 是真实渲染内容的来源（由FSM驱动）
+  // 2. content 作为fallback，兼容旧数据或异常情况
+  // 
+  // 注意：
+  // - 正常情况下应该总是有 segments
+  // - 如果频繁触发 content fallback，说明 segments 生成有问题
+  // - content 可能包含工具调用指令，不应直接用于UI显示
   const copyVisibleText = useMemo(() => {
     try {
       if (Array.isArray(segments) && segments.length > 0) {
@@ -165,6 +174,7 @@ function ChatMessageComponent({
         if (text && text.trim().length > 0) return text;
       }
     } catch { /* noop */ }
+    // Fallback：仅在 segments 为空或出错时使用
     return content || '';
   }, [segments, content]);
 
@@ -213,9 +223,13 @@ function ChatMessageComponent({
           )}
         >
           <motion.div
+            layout
             initial={shouldAnimateEnter ? { opacity: 0, scale: 0.98 } : false}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.15 }}
+            transition={{
+              duration: 0.15,
+              layout: { type: "spring", stiffness: 380, damping: 28, mass: 0.3 }
+            }}
           >
             <div className={cn(
               isUser ? "max-w-full min-w-0" : "w-full max-w-full min-w-0",

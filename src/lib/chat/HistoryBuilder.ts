@@ -25,6 +25,14 @@ export class HistoryBuilder {
     return this;
   }
 
+  // ✅ 【正确使用场景】：构建 LLM 历史对话
+  // 
+  // 说明：
+  // - LLM API 要求消息格式必须包含 content 字段
+  // - 这里使用 content 是正确的，因为：
+  //   1. LLM 需要完整的历史对话内容
+  //   2. segments 是UI层概念，LLM API不认识
+  //   3. content 应该已经被清理过（移除了工具调用指令）
   addAssistant(content: string): this {
     this.history.push({ role: 'assistant', content });
     return this;

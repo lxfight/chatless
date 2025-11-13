@@ -237,7 +237,9 @@ pub fn run() {
       http_request::send_http_request
       ,
       // —— Native Web Search ——
-      web_search::commands::native_web_search
+      web_search::commands::native_web_search,
+      web_search::commands::native_web_fetch,
+      web_search::commands::duckrush_search_api
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

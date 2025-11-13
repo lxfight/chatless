@@ -192,56 +192,54 @@ export class OpenAICompatibleProvider extends BaseProvider {
       this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
+      // —— 诊断：统计信息（便于判断是否“模型无输出”还是“解析丢失”）——
+      let rawLineCount = 0;
+      let parsedOkCount = 0;
+      let contentEmittedChars = 0;
+      const lastPayloadSamples: string[] = [];
       const processDelta = (json: any) => {
         if (!json) return;
-        if (json === '[DONE]' || json?.done === true || json?.choices?.[0]?.finish_reason) {
-          const result = this.thinkingStrategy.processToken({ done: true });
-          // 优先使用onEvent
-          if (cb.onEvent && result.events && result.events.length > 0) {
-            result.events.forEach(event => cb.onEvent!(event));
-          }
-          // 降级到onToken
-          else if (cb.onToken && result.events && result.events.length > 0) {
-            const text = StreamEventAdapter.eventsToText(result.events);
-            if (text.length > 0) {
-              cb.onToken(text);
-            }
-          }
-          cb.onComplete?.();
-          return;
-        }
+        // 1) 先提取内容（包含最终 message.content），避免因 finish_reason 过早 return 丢失末帧内容
         const delta = json?.choices?.[0]?.delta ?? {};
         const reasoningPiece = typeof delta.reasoning_content === 'string' ? delta.reasoning_content : undefined;
         const contentPiece: string | undefined =
           (typeof delta.content === 'string' ? delta.content : undefined) ||
           (typeof json?.choices?.[0]?.message?.content === 'string' ? json.choices[0].message.content : undefined);
         
-        // 构造完整的token内容（reasoning + content）
         let fullContent = '';
-        if (reasoningPiece) {
-          fullContent = `<think>${reasoningPiece}</think>`;
-        }
-        if (contentPiece) {
-          fullContent += contentPiece;
-        }
-        
+        if (reasoningPiece) fullContent = `<think>${reasoningPiece}</think>`;
+        if (contentPiece) fullContent += contentPiece;
         if (fullContent) {
-          const result = this.thinkingStrategy.processToken({
-            content: fullContent,
-            done: false
-          });
-          
-          // 优先使用onEvent（直接传递结构化事件）
-          if (cb.onEvent && result.events && result.events.length > 0) {
+          const result = this.thinkingStrategy.processToken({ content: fullContent, done: false });
+          parsedOkCount++;
+          contentEmittedChars += fullContent.length;
+          if (cb.onEvent && result.events?.length) {
             result.events.forEach(event => cb.onEvent!(event));
-          }
-          // 降级：使用onToken（转换为文本，兼容旧代码）
-          else if (cb.onToken && result.events && result.events.length > 0) {
+          } else if (cb.onToken && result.events?.length) {
             const text = StreamEventAdapter.eventsToText(result.events);
-            if (text.length > 0) {
-              cb.onToken(text);
-            }
+            if (text.length > 0) cb.onToken(text);
           }
+        }
+        // 2) 再处理结束信号
+        const isDone = json === '[DONE]' || json?.done === true || !!json?.choices?.[0]?.finish_reason;
+        if (isDone) {
+          const result = this.thinkingStrategy.processToken({ done: true });
+          if (cb.onEvent && result.events?.length) {
+            result.events.forEach(event => cb.onEvent!(event));
+          } else if (cb.onToken && result.events?.length) {
+            const text = StreamEventAdapter.eventsToText(result.events);
+            if (text.length > 0) cb.onToken(text);
+          }
+          cb.onComplete?.();
+          // —— 诊断输出：NDJSON 模式统计 —— 
+          try {
+            console.debug('[OpenAICompatibleProvider] NDJSON complete', {
+              rawLineCount,
+              parsedOkCount,
+              contentEmittedChars,
+              lastPayloadSamples,
+            });
+          } catch { /* noop */ }
         }
       };
 
@@ -291,8 +289,12 @@ export class OpenAICompatibleProvider extends BaseProvider {
             } 
             continue; 
           }
+          rawLineCount++;
           const payload = line.startsWith('data:') ? line.slice(5).trim() : line;
-          try { processDelta(JSON.parse(payload)); } catch { /* ignore */ }
+          if (lastPayloadSamples.length < 6) {
+            lastPayloadSamples.push(payload.slice(0, 200));
+          }
+          try { processDelta(JSON.parse(payload)); } catch { /* ignore parse error */ }
         }
       }
     } catch (error: any) {
@@ -327,6 +329,8 @@ export class OpenAICompatibleProvider extends BaseProvider {
           onStart: cb.onStart,
           onError: cb.onError,
           onData: (rawData: string) => {
+            // —— 诊断：统计 —— 
+            // 注意：SSE 由后端拆“行”，这里统计的是每个 data 行
             const payload = rawData.startsWith('data:') ? rawData.substring(5).trim() : rawData.trim();
             if (!payload) return;
             if (payload === '[DONE]') {
@@ -385,6 +389,9 @@ export class OpenAICompatibleProvider extends BaseProvider {
               console.warn('[OpenAICompatibleProvider] JSON parse error', err);
             }
           },
+          onClose: () => {
+            try { console.debug('[OpenAICompatibleProvider] SSE closed'); } catch { /* noop */ }
+          }
         }
       );
     } catch (error) {

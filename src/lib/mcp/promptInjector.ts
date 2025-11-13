@@ -2,6 +2,7 @@ import { getAllConfiguredServers, getConnectedServers, getGlobalEnabledServers }
 import { persistentCache } from './persistentCache';
 import { MCPPrompts } from '@/lib/prompts/SystemPrompts';
 import { WEB_SEARCH_SERVER_NAME } from '@/lib/mcp/nativeTools/webSearch';
+import { WEB_SEARCH_TOOL_SCHEMA, WEB_FETCH_TOOL_SCHEMA } from '@/lib/mcp/nativeTools/webSearch';
 import { useWebSearchStore } from '@/store/webSearchStore';
 
 export type InjectionResult = {
@@ -43,16 +44,28 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   const sys: Array<{ role:'system'; content:string }> = [];
   const strategy = getProviderStrategy(providerName);
 
+  // ---- 0. 时间上下文注入（优先级最高，确保LLM知道当前时间）----
+  try {
+    const { buildTimeContextMessage, isTimeRelatedQuery } = await import('@/lib/prompts/TimeContext');
+    const isTimeRelated = isTimeRelatedQuery(content);
+    // 如果是时间相关查询，强调搜索时使用当前时间
+    const timeContextMsg = buildTimeContextMessage(isTimeRelated);
+    sys.push({ role: 'system', content: timeContextMsg });
+  } catch (e) {
+    console.warn('[promptInjector] 时间上下文注入失败:', e);
+  }
+
   // ---- 1. 粗粒度意图检测：无关问题则不注入任何 MCP 指令 ----
   const mentionLike = /@([a-zA-Z0-9_-]{1,64})/; // 显式 @mention
   const toolKeywords = /(文件|目录|列出|list\s|dir\s|ls\b|tool\b|mcp\b)/i;
   const needMcp = mentionLike.test(content) || toolKeywords.test(content);
-  // 若启用了“网络搜索”，即使未匹配到关键词，也需要注入工具清单
+  // 若启用了"网络搜索"，即使未匹配到关键词，也需要注入工具清单
   const webSearchEnabled = (() => {
     try { return !!useWebSearchStore.getState().isWebSearchEnabled; } catch { return false; }
   })();
   if (!needMcp && !webSearchEnabled) {
-    return { systemMessages: [] };
+    // 即使不需要MCP，如果已经注入了时间上下文，也返回它
+    return { systemMessages: sys };
   }
 
   // 仅使用“用户勾选+当前已连接”的交集，尊重用户设置
@@ -173,7 +186,55 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
 
     // 额外注入：网络搜索工具（不依赖 MCP 连接）
     if (webSearchEnabled) {
-      toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: search`);
+      // 根据当前 provider 决定工具清单（ollama/duckduckgo: search + fetch；其他: search）
+      let providerId = '';
+      try {
+        const s = useWebSearchStore.getState();
+        providerId = _currentConversationId ? s.getConversationProvider(_currentConversationId) : s.provider;
+      } catch { /* ignore */ }
+      const toolNames = (providerId === 'ollama' || providerId === 'duckduckgo') ? 'search, fetch' : 'search';
+      toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: ${toolNames}`);
+      try {
+        // 为 web_search 提供完整 schema 描述，避免模型漏填必填参数
+        const schema: any = (WEB_SEARCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_SEARCH_TOOL_SCHEMA as any)?.input_schema;
+        const required: string[] = Array.isArray(schema?.required) ? schema.required : ['query'];
+        const props: Record<string, any> = schema?.properties || { query: { type: 'string', description: '搜索关键词，例如 "东京今天的天气"' } };
+        const allParamKeys = Object.keys(props);
+        const optional = allParamKeys.filter(k => !required.includes(k));
+
+        detailLines.push(`ToolsDesc@${WEB_SEARCH_SERVER_NAME}:`);
+        detailLines.push(`• search - 在互联网上搜索实时信息（DuckDuckGo/Google/Bing/Ollama，根据设置选择）`);
+        detailLines.push(`   required: ${required.join(', ') || '(none)'}`);
+        if (optional.length) detailLines.push(`   optional: ${optional.join(', ')}`);
+        detailLines.push(`   params:`);
+        for (const key of Object.keys(props)) {
+          const p = props[key] || {};
+          const tarr = Array.isArray(p.type) ? p.type : (p.type ? [p.type] : []);
+          const types = (tarr.length ? tarr : ['string']).join('|');
+          const isReq = required.includes(key);
+          const pdesc = p.description ? String(p.description) : '';
+          detailLines.push(`     - ${key} (${types})${isReq ? ' [required]' : ''}${pdesc ? ` - ${pdesc}` : ''}`);
+        }
+        const example = (() => {
+          try {
+            return JSON.stringify({ query: '北京今天的天气' });
+          } catch { return '{"query":"北京今天的天气"}'; }
+        })();
+        detailLines.push(`   - example: ${example}`);
+
+        // ollama/duckduckgo 专属：补充 fetch 工具的简述
+        if (providerId === 'ollama' || providerId === 'duckduckgo') {
+          const fschema: any = (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema;
+          const freq: string[] = Array.isArray(fschema?.required) ? fschema.required : ['url'];
+          const fprops: Record<string, any> = fschema?.properties || { url: { type: 'string', description: '要抓取的网页地址（http/https）' } };
+          const fetchNote = providerId === 'ollama' ? '依赖 Ollama Web Fetch API' : '直接 HTTP 抓取';
+          detailLines.push(`• fetch - 抓取指定网页内容（返回标题/正文/链接），${fetchNote}`);
+          detailLines.push(`   required: ${freq.join(', ')}`);
+          detailLines.push(`   params:`);
+          detailLines.push(`     - url (string) [required] - ${String(fprops?.url?.description || '网页地址')}`);
+          detailLines.push(`   - example: {"url":"https://example.com"}`);
+        }
+      } catch { /* noop */ }
     }
 
     // 合并为单条，减少分段与截断
@@ -210,7 +271,42 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
   }
   // 额外注入：网络搜索工具（不依赖 MCP 连接）
   if (webSearchEnabled) {
-    toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: search`);
+    let providerId = '';
+    try {
+      const s = useWebSearchStore.getState();
+      providerId = _currentConversationId ? s.getConversationProvider(_currentConversationId) : s.provider;
+    } catch { /* ignore */ }
+    const toolNames = (providerId === 'ollama' || providerId === 'duckduckgo') ? 'search, fetch' : 'search';
+    toolsLines.push(`Tools@${WEB_SEARCH_SERVER_NAME}: ${toolNames}`);
+    try {
+      const schema: any = (WEB_SEARCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_SEARCH_TOOL_SCHEMA as any)?.input_schema;
+      const required: string[] = Array.isArray(schema?.required) ? schema.required : ['query'];
+      const pdesc = (schema?.properties?.query?.description ? ` - ${schema.properties.query.description}` : '');
+      const descLines = [
+        `ToolsDesc@${WEB_SEARCH_SERVER_NAME}:`,
+        `• search - 在互联网上搜索实时信息`,
+        `   required: ${required.join(', ')}`,
+        `   params:`,
+        `     - query (string) [required]${pdesc}`,
+        `   - example: {"query":"北京今天的天气"}`
+      ];
+      for (const l of descLines) sys.push({ role: 'system', content: l });
+
+      if (providerId === 'ollama' || providerId === 'duckduckgo') {
+        const fschema: any = (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema;
+        const freq: string[] = Array.isArray(fschema?.required) ? fschema.required : ['url'];
+        const fdesc = (fschema?.properties?.url?.description ? ` - ${fschema.properties.url.description}` : '');
+        const fetchTitle = providerId === 'ollama' ? '• fetch - 抓取指定网页内容（返回标题/正文/链接）' : '• fetch - 抓取指定网页内容（返回标题/正文/链接）';
+        const fLines = [
+          fetchTitle,
+          `   required: ${freq.join(', ')}`,
+          `   params:`,
+          `     - url (string) [required]${fdesc}`,
+          `   - example: {"url":"https://example.com"}`
+        ];
+        for (const l of fLines) sys.push({ role: 'system', content: l });
+      }
+    } catch { /* ignore */ }
   }
   for (const l of toolsLines) sys.push({ role: 'system', content: l });
 

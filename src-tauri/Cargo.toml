@@ -79,6 +79,8 @@ html2text = "0.12"
 epub = "2"
 tauri-plugin-process = "2"
 tauri-plugin-os = "2"
+readability = "0.3.0"
+kuchiki = "0.8"
 
 # 仅在Windows平台添加windows依赖
 [target.'cfg(target_os = "windows")'.dependencies]

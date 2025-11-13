@@ -77,6 +77,19 @@ export class StreamOrchestrator {
 
       onComplete: async () => {
         try {
+          // 在完成前尝试冲刷抑制阀缓冲区中的尾部可见文本
+          try {
+            const store = useChatStore.getState();
+            const s = (this.context as any).suppression as { buffer?: string; active?: boolean } | undefined;
+            if (store && s && !s.active && s.buffer && s.buffer.length > 0) {
+              const tail = s.buffer;
+              // 清空缓冲，避免重复输出
+              s.buffer = '';
+              // 将剩余文本作为普通 token 追加到段模型（由 segments 层做最终过滤）
+              store.dispatchMessageAction(this.context.messageId, { type: 'TOKEN_APPEND', chunk: tail } as any);
+            }
+          } catch { /* 忽略冲刷失败，不影响收尾 */ }
+
           await this.handleComplete();
         } catch (error) {
           console.error('[StreamOrchestrator] 完成处理失败:', error);
@@ -88,6 +101,15 @@ export class StreamOrchestrator {
         console.error('[StreamOrchestrator] 流式错误:', error);
         try {
           const store = useChatStore.getState();
+          // 错误分支同样需要在结束前冲刷抑制阀缓冲，避免尾部文本丢失
+          try {
+            const s = (this.context as any).suppression as { buffer?: string; active?: boolean } | undefined;
+            if (store && s && !s.active && s.buffer && s.buffer.length > 0) {
+              const tail = s.buffer;
+              s.buffer = '';
+              store.dispatchMessageAction(this.context.messageId, { type: 'TOKEN_APPEND', chunk: tail } as any);
+            }
+          } catch { /* noop */ }
           // 结束思考态（如仍在进行）
           try {
             const conv = store.conversations.find(c => c.id === this.context.conversationId);

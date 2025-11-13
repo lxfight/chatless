@@ -135,6 +135,7 @@ const eslintConfig = tseslint.config(
       ],
       // 该规则需要类型信息，且易在非 TS 文件触发解析问题，这里关闭
       "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
       // 放宽类型安全相关高噪音规则
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",

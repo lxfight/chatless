@@ -1,9 +1,6 @@
 // 仅保留必要调试输出，不禁用全局 no-console
-import { serverManager } from './ServerManager';
-import { buildSchemaHint, buildDetailedToolGuide } from './schemaHints';
 import { useChatStore } from '@/store/chatStore';
 import { streamChat } from '@/lib/llm';
-import { persistentCache } from './persistentCache';
 import { mcpCallHistory } from './callHistory';
 import type { Message as LlmMessage, StreamCallbacks } from '@/lib/llm/types';
 import { DEFAULT_MAX_TOOL_RECURSION_DEPTH } from './constants';
@@ -17,45 +14,6 @@ import { WEB_SEARCH_SERVER_NAME } from './nativeTools/webSearch';
 
 // 防止重复调用的缓存
 const runningCalls = new Map<string, Promise<void>>();
-
-/**
- * 确保MCP服务器已连接，如果未连接则尝试重连
- */
-async function ensureServerConnected(serverName: string): Promise<void> {
-  try {
-    const { useMcpStore } = await import('@/store/mcpStore');
-    const store = useMcpStore.getState();
-    const status = store.serverStatuses[serverName];
-    
-    console.log(`[MCP-RECONNECT] 检查服务器 ${serverName} 连接状态: ${status}`);
-    
-    // 如果服务器未连接，尝试重连
-    if (status !== 'connected') {
-      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 未连接，尝试重连...`);
-      
-      // 获取服务器配置
-      const { Store } = await import('@tauri-apps/plugin-store');
-      const cfgStore = await Store.load('mcp_servers.json');
-      const srvList: Array<{ name: string; config: any; enabled?: boolean }> = (await cfgStore.get('servers')) || [];
-      const found = srvList.find(s => s.name === serverName);
-      
-      if (!found) {
-        console.error(`[MCP-RECONNECT] 未找到服务器 ${serverName} 的配置`);
-        throw new Error(`服务器 ${serverName} 配置未找到`);
-      }
-      
-      // 尝试重连
-      console.log(`[MCP-RECONNECT] 开始重连服务器 ${serverName}...`);
-      await serverManager.reconnect(serverName, found.config);
-      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 重连成功`);
-    } else {
-      console.log(`[MCP-RECONNECT] 服务器 ${serverName} 已连接，无需重连`);
-    }
-  } catch (error) {
-    console.error(`[MCP-RECONNECT] 确保服务器连接失败:`, error);
-    throw error;
-  }
-}
 
 export async function executeToolCall(params: {
   assistantMessageId: string;
@@ -301,245 +259,33 @@ export async function executeToolCall(params: {
     return executeNative;
   }
 
-  // 工具存在性校验（若可获取列表）
-  try {
-    // 优先使用持久化缓存获取工具列表
-    let available = await persistentCache.getToolsWithCache(server);
-    if (!Array.isArray(available) || available.length === 0) {
-      // 缓存失败，使用原有方法
-      const { getToolsCached } = await import('./toolsCache');
-      available = await getToolsCached(server);
-    }
-    if (available && Array.isArray(available)) {
-      const ok = available.some((t: any) => (t?.name || '').toLowerCase() === String(effectiveTool).toLowerCase());
-      if (!ok) {
-        const toolList = (available || []).filter((t:any)=>t?.name).map((t:any)=>{
-          const nm = String(t.name);
-          const desc = t?.description ? String(t.description) : '';
-          return desc ? `${nm} - ${desc}` : nm;
-        });
-        const hint = `错误：服务器"${server}"中找不到工具"${effectiveTool}"。\n\n该服务器的可用工具如下：\n${toolList.map(tool => `• ${tool}`).join('\n')}`;
-        console.warn(`[MCP] 工具不存在: ${server}.${effectiveTool}`);
-        
-        const stx = useChatStore.getState();
-        // 改为通过状态机更新已有"运行中"卡片，避免生成重复卡片
-        const fixHint = `解决方案：请从以下可用工具中选择一个：\n${toolList.map(tool => `• ${tool}`).join('\n')}\n\n然后重新调用：<use_mcp_tool><server_name>${server}</server_name><tool_name>正确的工具名</tool_name><arguments>{}</arguments></use_mcp_tool>`;
-        stx.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: hint, schemaHint: fixHint, cardId });
-        // 关键修复：即使工具不存在，也把该错误作为“工具调用结果”继续进入追问流程，驱动模型自我纠正
-        await continueWithToolResult({
-          assistantMessageId,
-          provider,
-          model,
-          conversationId,
-          historyForLlm,
-          originalUserContent,
-          server,
-          tool: effectiveTool,
-          result: {
-            error: 'TOOL_NOT_FOUND',
-            message: hint,
-            availableTools: (available?.map((t:any)=>t?.name).filter(Boolean) || []),
-            availableToolsWithDescriptions: toolList,
-          }
-        });
-        return;
-      }
-    }
-  } catch { /* ignore */ }
-
-  // 将执行逻辑包装为Promise并缓存
+  // —— MCP工具执行：使用McpToolExecutor ——
+  const { McpToolExecutor } = await import('./executor/McpToolExecutor');
+  const executor = new McpToolExecutor({
+    assistantMessageId,
+    conversationId,
+    server,
+    tool: effectiveTool,
+    args: effectiveArgs,
+    _runningMarker: '', // 兼容旧参数（未使用）
+    provider,
+    model,
+    historyForLlm,
+    originalUserContent,
+    cardId,
+  }, callKey);
+  
   const executePromise = (async () => {
     try {
-      // 降噪：仅输出一条简要起止日志
-      console.debug(`[MCP] 调用 ${server}.${effectiveTool}`);
-      
-      // 授权检查
-      const autoAuth = await shouldAutoAuthorize(server);
-      console.debug(`[MCP-AUTH] 授权检查: ${server}.${effectiveTool}, auto=${autoAuth}`);
-      
-      if (!autoAuth) {
-        // 需要用户授权
-        const effectiveCardId = cardId || crypto.randomUUID();
-        console.debug(`[MCP-AUTH] 等待用户授权: ${server}.${effectiveTool}`);
-        
-        const st = useChatStore.getState();
-        
-        // 注意：如果卡片已经在tool_call事件时设置为pending_auth，这里就不需要再次更新
-        // 只有在没有cardId时才需要设置（比如手动调用的情况）
-        if (!cardId) {
-          st.dispatchMessageAction(assistantMessageId, { 
-            type: 'TOOL_RESULT', 
-            server, 
-            tool: effectiveTool, 
-            ok: false, 
-            errorMessage: 'pending_auth',
-            cardId: effectiveCardId 
-          });
-        }
-        
-        // 等待用户授权
-        const authorized = await new Promise<boolean>((resolve) => {
-          const authStore = useAuthorizationStore.getState();
-          authStore.addPendingAuthorization({
-            id: effectiveCardId,
-            messageId: assistantMessageId,
-            server,
-            tool: effectiveTool,
-            args: effectiveArgs || {},
-            createdAt: Date.now(),
-            onApprove: () => resolve(true),
-            onReject: () => resolve(false)
-          });
-        });
-        
-        console.debug(`[MCP-AUTH] 授权结果: ${server}.${effectiveTool}, ok=${authorized}`);
-        
-        if (!authorized) {
-          // 用户拒绝授权
-          console.warn(`[MCP-AUTH] 用户拒绝: ${server}.${effectiveTool}`);
-          st.dispatchMessageAction(assistantMessageId, { 
-            type: 'TOOL_RESULT', 
-            server, 
-            tool: effectiveTool, 
-            ok: false, 
-            errorMessage: '用户拒绝授权此工具调用',
-            cardId: effectiveCardId 
-          });
-          
-          // 继续追问流程，让AI知道用户拒绝了
-          await continueWithToolResult({
-            assistantMessageId,
-            provider,
-            model,
-            conversationId,
-            historyForLlm,
-            originalUserContent,
-            server,
-            tool: effectiveTool,
-            result: {
-              error: 'AUTHORIZATION_DENIED',
-              message: '用户拒绝了此工具调用。这可能是因为用户认为此调用不合理或参数有误。请考虑用户的反馈，调整你的方法或询问用户的具体需求。'
-            }
-          });
-          return;
-        }
-        
-        // 用户批准，卡片已经存在（pending_auth状态），不需要再创建
-        // 授权批准后，卡片会在工具执行完成时自动更新为 success
-        console.debug(`[MCP-AUTH] 已批准，继续: ${server}.${effectiveTool}`);
-      }
-      
-      // 授权通过后：若短时间内相同请求已成功，直接复用结果并继续追问链路
-      if (mcpCallHistory.isDuplicateCall(server, effectiveTool, effectiveArgs)) {
-        const recent = mcpCallHistory.getRecentResult(server, effectiveTool, effectiveArgs);
-        if (recent) {
-          const stDup = useChatStore.getState();
-          const resultPreview = typeof recent === 'string' ? recent.slice(0, 12000) : JSON.stringify(recent).slice(0, 12000);
-          stDup.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
-          await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result: recent });
-          return;
-        }
-      }
-      
-      // 检查服务器连接状态，如果未连接则尝试重连
-      await ensureServerConnected(server);
-      
-      const result = await serverManager.callTool(server, effectiveTool, effectiveArgs || undefined);
-      console.debug(`[MCP] 成功: ${server}.${effectiveTool}`);
-    
-    // 记录成功调用
-    mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, true, result);
-    
-    if (DEBUG_MCP) { try { console.log('[MCP-ORCH] ok', server, effectiveTool); } catch { /* noop */ } }
-    const resultPreview = typeof result === 'string' ? result.slice(0, 12000) : JSON.stringify(result).slice(0, 12000);
-
-    const st = useChatStore.getState();
-    st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: true, resultPreview, cardId });
-
-      await continueWithToolResult({ assistantMessageId, provider, model, conversationId, historyForLlm, originalUserContent, server, tool, result });
+      await executor.execute();
     } catch (e) {
-    const err = e instanceof Error ? e.message : String(e);
-    
-    console.error(`[MCP] 工具调用失败: ${server}.${effectiveTool}`, {
-      server,
-      tool: effectiveTool,
-      args: effectiveArgs,
-      error: err,
-      errorType: typeof e,
-      errorStack: e instanceof Error ? e.stack : undefined,
-      timestamp: new Date().toISOString()
-    });
-    
-    // 记录失败调用
-    mcpCallHistory.recordCall(server, effectiveTool, effectiveArgs, false);
-    
-    if (DEBUG_MCP) { try { console.warn('[MCP-ORCH] err', server, effectiveTool); } catch { /* noop */ } }
-    let schemaHint = '';
-    try { schemaHint = await buildSchemaHint(server, effectiveTool); } catch { /* ignore */ }
-    let detailedGuide: { text: string; spec: any } | null = null;
-    try { detailedGuide = await buildDetailedToolGuide(server, effectiveTool, effectiveArgs || {}); } catch { /* ignore */ }
-
-    const st = useChatStore.getState();
-    // —— 分阶段提示：按同一对话内相同 server.tool 的失败次数递进 ——
-    const failStage = incToolFailCount(conversationId, server, effectiveTool);
-    let combinedHint = '';
-    if (failStage <= 1) {
-      // 第1次：仅给出简短 schema 示例与必填项，提示精确重试
-      combinedHint = [
-        '参数提示（精简）：',
-        schemaHint || '',
-        '请按示例与必填项修正 arguments 后重试本工具。'
-      ].filter(Boolean).join('\n');
-    } else if (failStage === 2) {
-      // 第2次：给出聚焦纠错摘要 + 最小可行模板
-      const concise = buildConciseGuideText(detailedGuide?.spec);
-      combinedHint = [
-        '参数纠错建议（聚焦）：',
-        concise || schemaHint || '',
-        '请优先补齐缺失必填项，修正类型/枚举后再试。'
-      ].filter(Boolean).join('\n');
-    } else {
-      // 第3次及以上：提供完整详细引导 + 可替代工具建议
-      let toolsSuggest = '';
-      try {
-        const { getToolsCached } = await import('./toolsCache');
-        const available = await getToolsCached(server);
-        const toolList = (available || []).filter((t:any)=>t?.name).map((t:any)=>{
-          const nm = String(t.name);
-          const desc = t?.description ? String(t.description) : '';
-          return desc ? `${nm} - ${desc}` : nm;
-        }).slice(0, 20);
-        if (toolList.length) toolsSuggest = `若仍失败，可考虑改用：\n${toolList.join('\n')}`;
-      } catch { /* ignore */ }
-      combinedHint = [
-        '详细引导：',
-        detailedGuide?.text || schemaHint || '',
-        toolsSuggest
-      ].filter(Boolean).join('\n');
-    }
-    console.warn(`[MCP] 工具调用错误: ${server}.${effectiveTool} -> ${err}`);
-    st.dispatchMessageAction(assistantMessageId, { type: 'TOOL_RESULT', server, tool: effectiveTool, ok: false, errorMessage: err, schemaHint: combinedHint, cardId });
-    // 关键修复：当调用发生错误时，也继续走追问链路，把错误与 schema 提示一并提供给模型
-    try {
-      await continueWithToolResult({
-        assistantMessageId,
-        provider,
-        model,
-        conversationId,
-        historyForLlm,
-        originalUserContent,
-        server,
-        tool: effectiveTool,
-        result: { error: 'CALL_TOOL_FAILED', message: err, schemaHint: combinedHint, toolSpec: detailedGuide?.spec, failStage }
-      });
-    } catch { /* ignore */ }
+      // McpToolExecutor内部已处理所有错误
+      console.error('[MCP] executor error:', e);
     } finally {
-      // 清理缓存
       runningCalls.delete(callKey);
     }
   })();
-
-  // 缓存Promise
+  
   runningCalls.set(callKey, executePromise);
   return executePromise;
 }
@@ -553,7 +299,7 @@ function normalizeArgs(srv: string, originalArgs: Record<string, unknown>) {
   return a;
 }
 
-async function continueWithToolResult(params: {
+export async function continueWithToolResult(params: {
   assistantMessageId: string;
   provider: string;
   model: string;
@@ -639,18 +385,29 @@ async function continueWithToolResult(params: {
   const _st = useChatStore.getState();
   // 继续在同一条 assistant 消息中流式续写，不新建消息
 
-  // 生成唯一的系统提示词，避免重复
-  const toolResultSystemPrompt = `基于工具调用结果回答用户问题。
-- 如结果充分，直接回答
-- 如有错误或不足，可调用其他工具
-- 【关键】需要调用工具时，直接在回复正文中输出完整的工具调用标签，不要只在思考中描述计划
-- 使用工具格式：<use_mcp_tool><server_name>[服务器名]</server_name><tool_name>[工具名]</tool_name><arguments>[JSON参数]</arguments></use_mcp_tool>
-- 格式示例：<use_mcp_tool><server_name>filesystem</server_name><tool_name>read_file</tool_name><arguments>{"path":"example.txt"}</arguments></use_mcp_tool>
-
-原始问题：${originalUserContent}`;
+  // 使用优化后的追问提示词模块
+  const { buildFollowUpSystemMessages } = await import('@/lib/prompts/FollowUpPrompts');
+  const { getConnectedServers } = await import('./chatIntegration');
+  
+  // 获取已连接的服务器列表（用于工具上下文）
+  let enabledServers: string[] = [];
+  try {
+    enabledServers = await getConnectedServers();
+  } catch (e) {
+    console.warn('[continueWithToolResult] 获取服务器列表失败:', e);
+  }
+  
+  // 构建第一次追问的系统消息（合并为单一长消息）
+  const followUpSystemMessages = buildFollowUpSystemMessages(
+    'first',
+    originalUserContent,
+    enabledServers,
+    true, // 包含工具上下文
+    isError // 是否有错误
+  );
 
   const followHistory: LlmMessage[] = [
-    { role: 'system', content: toolResultSystemPrompt } as any,
+    ...followUpSystemMessages as any,
     ...historyForLlm.filter((m:any)=>m.role!=='user' || m.content!==originalUserContent),
     nextUserMsg as any
   ];
@@ -658,6 +415,11 @@ async function continueWithToolResult(params: {
   const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
   const tokenizer = new StreamTokenizer();
   const { createStreamEventDispatcher } = await import('@/lib/chat/stream/StreamEventDispatcher');
+  
+  // ✅ 【改进】：为第一次追问添加 respLogger，便于诊断和查看完整响应
+  const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
+  const respLogger = new StreamResponseLogger(provider, model);
+  
   const dispatcher = createStreamEventDispatcher({
     conversationId,
     assistantMessageId,
@@ -730,8 +492,8 @@ async function continueWithToolResult(params: {
       });
     },
   });
-  // 递归阶段：hadText 用于决定是否触发“追问”流程
-  let hadText = false; // 本轮是否收到过正文 token
+  // 递归阶段：_hadText 用于备份（实际使用 segments 判断）
+  let _hadText = false; // 本轮是否收到过正文 token（已弃用，保留备份）
   let eventModeUsed = false;
 
   // 关键修复：追问阶段开始前再次确保状态为 loading（覆盖上游可能的 sent）
@@ -753,17 +515,37 @@ async function continueWithToolResult(params: {
     onEvent: (event: any) => {
       eventModeUsed = true;
       try {
+        // 记录事件到 respLogger
+        if (event?.type === 'thinking_token' && event.content) {
+          respLogger.appendThinking(String(event.content));
+        } else if (event?.type === 'thinking_end') {
+          respLogger.endThinking();
+        } else if (event?.type === 'content_token' && event.content) {
+          respLogger.appendContent(String(event.content));
+        }
+        
         dispatcher.handle(event);
         const s = dispatcher.getState();
-        if (s.hadText) hadText = true;
+        if (s.hadText) _hadText = true;
       } catch { /* noop */ }
     },
     onToken: (tk: string) => {
       if (eventModeUsed) return;
       try {
         const events = tokenizer.push(tk);
-        for (const ev of events) { dispatcher.handle(ev as any); }
-        if (dispatcher.getState().hadText) hadText = true;
+        for (const ev of events) {
+          // 记录到 respLogger
+          if (ev.type === 'thinking_token' && ev.content) {
+            respLogger.appendThinking(String(ev.content));
+          } else if (ev.type === 'thinking_end') {
+            respLogger.endThinking();
+          } else if (ev.type === 'content_token' && ev.content) {
+            respLogger.appendContent(String(ev.content));
+          }
+          
+          dispatcher.handle(ev as any);
+        }
+        if (dispatcher.getState().hadText) _hadText = true;
       } catch { /* ignore detector error */ }
     },
               onComplete: () => {
@@ -787,28 +569,64 @@ async function continueWithToolResult(params: {
         void stf2.updateMessage(assistantMessageId, { content: contentNow });
       } catch { /* noop */ }
       
+      // ✅ 【改进】：完成日志记录，输出第一次追问的完整响应
+      try {
+        respLogger.logComplete(assistantMessageId);
+      } catch (e) {
+        console.error('[continueWithToolResult] First follow-up respLogger.logComplete error:', e);
+      }
+      
       {
+        // ⚠️ 【关键修复】：使用 dispatcher 的实时状态判断，而不是从 store 读取
+        // 
+        // 问题分析（参考 duplicate-response-analysis.md）：
+        // 1. flush() 执行后，segments 的更新是异步的（需要等 FSM 处理）
+        // 2. 在判断时，segments 可能还没有同步到 store
+        // 3. 导致 hasTextContent() 误判为 false，触发不必要的第二次追问
+        // 
+        // 解决方案：
+        // 1. dispatcher.getState().hadText 是实时状态，flush() 后立即可用
+        // 2. 不受 store 异步延迟影响
+        // 3. 与第二次追问的判断逻辑保持一致
+        const dispatcherState = dispatcher.getState();
+        const hasActualText = dispatcherState.hadText;
+        
+        // 获取当前content用于后续更新和日志输出
         const convf2 = stf2.conversations.find(c=>c.id===conversationId);
         const msgf2 = convf2?.messages.find(m=>m.id===assistantMessageId);
         const finalContent = msgf2?.content || '';
-        // 若本轮没有任何正文输出，进行一次轻量“追问”以催促模型直接给出答案
-        if (!hadText) {
+        const segments = msgf2?.segments || [];
+        const textSegments = segments.filter((s: any) => s.kind === 'text');
+        
+        // ✅ 【改进】：增强日志输出，同时显示多个判断指标
+        try {
+          console.debug('[FollowUp/First] stream complete', {
+            messageId: assistantMessageId,
+            hadTextFromDispatcher: hasActualText,
+            contentLength: finalContent.length,
+            segmentsCount: segments.length,
+            textSegmentsCount: textSegments.length,
+            contentPreview: finalContent.substring(0, 50)
+          });
+        } catch { /* noop */ }
+        
+        // 若本轮没有任何正文输出，进行一次轻量"追问"以催促模型直接给出答案
+        if (!hasActualText) {
           (async () => {
-            // 为追问阶段构建更好的系统提示词
-            const nudgeSystemPrompt = `你现在需要基于已获得的工具调用结果，完成最终回答或继续调用工具补充证据。
+            // 使用优化后的第二次追问提示词（强制回答，禁止工具调用）
+            const secondFollowUpMessages = buildFollowUpSystemMessages(
+              'second',
+              originalUserContent,
+              [], // 第二次追问不提供工具上下文
+              false // 不包含工具上下文
+            );
 
-严格遵循：
-1) 若现有结果已足够回答，请直接给出中文最终答案（≤ 300 字）；
-2) 若仍缺少证据或需要查看/验证，请再次调用合适的工具（正文只输出 1 个 <use_mcp_tool> 标签，不要在标签外输出任何文字）；
-3) 每次仅调用 1 个工具；完成后再次判断是否已能给出最终答案；
-4) 禁止仅在思考中描述计划，必须把调用以 <use_mcp_tool> 形式写入正文；
-5) 不要编造 Server 名称，从系统提供的“已启用 Server”中选择。 
-
-用户问题：${originalUserContent}`;
-
+            // 关键修复：第二次追问只保留用户消息，过滤掉第一次追问的所有system消息
+            // 避免提示词重复和混淆
             const nudgeHistory: LlmMessage[] = [
-              { role: 'system', content: nudgeSystemPrompt } as any,
-              ...followHistory, 
+              ...secondFollowUpMessages as any,
+              // 只保留 followHistory 中的 user 消息（工具结果）
+              ...followHistory.filter((m: any) => m.role === 'user'),
               { role: 'user', content: `请基于上述所有工具调用结果，分析并回答用户的原始问题。
 
 请根据实际情况灵活处理：
@@ -823,13 +641,28 @@ async function continueWithToolResult(params: {
             let pending2: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
             let eventMode2 = false;
             const dispatcher2 = createStreamEventDispatcher({ conversationId, assistantMessageId });
+            
+            // ✅ 【关键修复】：创建 respLogger2 来记录第二次追问的完整响应
+            const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
+            const respLogger2 = new StreamResponseLogger(provider, model);
+            
             // 追问阶段仍按正常渲染与保存，但不再单独统计是否有文本
             const cb2: StreamCallbacks = {
               onStart: () => { /* stream started for nudge round */ },
               // 同样优先使用结构化事件，保证多轮思考都能独立渲染
               onEvent: (event: any) => {
                 eventMode2 = true;
-                try { dispatcher2.handle(event); } catch { /* noop */ }
+                try {
+                  dispatcher2.handle(event);
+                  // 记录事件到 respLogger2
+                  if (event.type === 'thinking_token' && event.content) {
+                    respLogger2.appendThinking(String(event.content));
+                  } else if (event.type === 'thinking_end') {
+                    respLogger2.endThinking();
+                  } else if (event.type === 'content_token' && event.content) {
+                    respLogger2.appendContent(String(event.content));
+                  }
+                } catch { /* noop */ }
               },
               onToken: (tk: string) => {
                 if (eventMode2) return;
@@ -843,11 +676,18 @@ async function continueWithToolResult(params: {
                 try {
                   const events = tk2.push(tk);
                   for (const ev of events) {
-                    if (ev.type === 'thinking_start') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-                    else if (ev.type === 'thinking_token') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
-                    else if (ev.type === 'thinking_end') stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-                    else if (ev.type === 'content_token' && ev.content) { stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content }); }
-                    else if (ev.type === 'tool_call' && !pending2) {
+                    if (ev.type === 'thinking_start') {
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
+                    } else if (ev.type === 'thinking_token') {
+                      respLogger2.appendThinking(String(ev.content || ''));
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
+                    } else if (ev.type === 'thinking_end') {
+                      respLogger2.endThinking();
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
+                    } else if (ev.type === 'content_token' && ev.content) {
+                      respLogger2.appendContent(String(ev.content));
+                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
+                    } else if (ev.type === 'tool_call' && !pending2) {
                       // 将回退解析到的 tool_call 转交统一分发器
                       try { dispatcher2.handle({ type: 'tool_call', parsed: ev.parsed }); } catch { /* noop */ }
                       // 不直接维护 pending2，由分发器插卡
@@ -864,6 +704,7 @@ async function continueWithToolResult(params: {
                     const flushEvents = tk2.flush();
                     for (const ev of flushEvents) {
                       if (ev.type === 'content_token' && ev.content) {
+                        respLogger2.appendContent(String(ev.content));
                         sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
                       }
                     }
@@ -871,16 +712,46 @@ async function continueWithToolResult(params: {
                   dispatcher2.flush();
                 } catch { /* noop */ }
                 
+                // ✅ 【关键修复】：完成日志记录，输出第二次追问的完整响应
+                try {
+                  respLogger2.logComplete(assistantMessageId);
+                } catch (e) {
+                  console.error('[continueWithToolResult] respLogger2.logComplete error:', e);
+                }
+                
                 if (pending2) {
                   const nx = pending2; pending2 = null;
                   // 启动下一轮工具
                   void executeToolCall({ assistantMessageId, conversationId, server: nx.server, tool: nx.tool, args: nx.args, _runningMarker: '', provider, model, historyForLlm: nudgeHistory, originalUserContent, cardId: nx.cardId });
                 } else {
+                  // ⚠️ 【关键修复】：使用 dispatcher2 的实时状态判断
+                  // 优势：
+                  // 1. dispatcher.getState().hadText 是实时状态，flush() 后立即可用
+                  // 2. 不受 store 异步延迟影响
+                  // 3. respLogger2 用于日志记录，dispatcher 用于判断
+                  const dispatcherState = dispatcher2.getState();
+                  const hasActualText = dispatcherState.hadText;
+                  
                   const convy = sty.conversations.find(c=>c.id===conversationId);
                   const msgy = convy?.messages.find(m=>m.id===assistantMessageId);
                   let content2 = msgy?.content || '';
+                  const segments2 = msgy?.segments || [];
+                  const textSegments2 = segments2.filter((s: any) => s.kind === 'text');
+                  
+                  // ✅ 【改进】：增强日志输出，同时显示多个判断指标
+                  try {
+                    console.debug('[FollowUp/Second] stream complete', {
+                      messageId: assistantMessageId,
+                      hadTextFromDispatcher: hasActualText,
+                      contentLength: content2.length,
+                      segmentsCount: segments2.length,
+                      textSegmentsCount: textSegments2.length,
+                      contentPreview: content2.substring(0, 50)
+                    });
+                  } catch { /* noop */ }
+                  
                   // 若追问仍无任何正文，则使用结果生成一个最小可读的回退文本，避免界面空白
-                  if (!content2 || content2.trim().length === 0) {
+                  if (!hasActualText) {
                     try {
                       if (server === WEB_SEARCH_SERVER_NAME && Array.isArray(result) && result.length > 0) {
                         const items: any[] = Array.isArray(result) ? result.slice(0, 5) : [];
@@ -948,33 +819,3 @@ async function continueWithToolResult(params: {
 
   await streamChat(provider, model, followHistory as any, callbacks as any, {});
 }
-
-// —— 失败次数统计（同会话 + 服务器 + 工具）——
-function getFailCounterKey(conversationId: string, server: string, tool: string): string {
-  return `mcp-fails-${conversationId}::${server}::${tool}`;
-}
-
-function incToolFailCount(conversationId: string, server: string, tool: string): number {
-  const k = getFailCounterKey(conversationId, server, tool);
-  const cur = (globalThis as any)[k] || 0;
-  const next = cur + 1;
-  (globalThis as any)[k] = next;
-  return next;
-}
-
-function buildConciseGuideText(spec: any): string {
-  if (!spec || !spec.issues) return '';
-  const lines: string[] = [];
-  const missing: string[] = spec.issues.missingRequired || [];
-  const unknown: string[] = spec.issues.unknownKeys || [];
-  const mismatches: Array<{ key: string; expected: string; actual: string }> = spec.issues.typeMismatches || [];
-  const enums: Array<{ key: string; expected: string[]; actual: any }> = spec.issues.enumViolations || [];
-  if (missing.length) lines.push(`缺失必填：${missing.join(', ')}`);
-  if (unknown.length) lines.push(`未知参数：${unknown.join(', ')}`);
-  if (mismatches.length) lines.push(`类型不匹配：${mismatches.map((i)=>`${i.key}(期望:${i.expected}, 实际:${i.actual})`).join('; ')}`);
-  if (enums.length) lines.push(`枚举不匹配：${enums.map((i)=>`${i.key}(允许:${(i.expected||[]).slice(0,20).join('|')}, 实际:${JSON.stringify(i.actual)})`).join('; ')}`);
-  const sug = spec.suggestedArguments ? JSON.stringify(spec.suggestedArguments, null, 2) : '';
-  if (sug) lines.push('建议的最小可行 arguments：\n' + sug);
-  return lines.join('\n');
-}
-

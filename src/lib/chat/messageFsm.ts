@@ -34,11 +34,8 @@ export function reduce(model: MessageModel, action: MessageAction): MessageModel
         const base = [...model.segments];
         return { ...model, segments: appendThinkText(base, action.chunk) as any };
       }
-      // 关键稳定性策略：当工具调用已进入运行态时，忽略一切正文token，
-      // 防止指令残片在卡片识别后继续渲染到文本区域。
-      if (model.fsm === 'TOOL_RUNNING') {
-        return model;
-      }
+      // 放开 TOOL_RUNNING 的返回：允许在工具执行期间继续渲染“安全正文”
+      // 指令拦截交给抑制阀 + filterToolCallContent，避免误把指令残片渲染出来
       const base = ensureTextTail(model.segments, '');
       const next = appendText(base, action.chunk);
       return { ...model, segments: next as any };

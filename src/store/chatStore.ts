@@ -724,6 +724,16 @@ export const useChatStore = create<ChatState & ChatActions>()(
         };
       })(),
 
+      // ⚠️ 【仅用于流式内容累积】：此方法只更新内存中的 content，不写入数据库
+      // 
+      // 用途：
+      // - 在 streaming 期间快速累积原始文本（含工具调用指令）
+      // - 避免每个 token 都触发数据库写入（性能优化）
+      // 
+      // 注意：
+      // - segments 完全由 FSM 驱动，与 content 独立维护
+      // - 不应该依赖此方法更新后的 content 值来判断是否有文本
+      // - 判断是否有文本应该使用 segments
       updateMessageContentInMemory: (messageId, content) => {
         const now = Date.now();
         set(state => {

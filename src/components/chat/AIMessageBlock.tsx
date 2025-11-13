@@ -16,6 +16,7 @@ import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import 'yet-another-react-lightbox/styles.css';
 import { downloadService } from '@/lib/utils/downloadService';
 import { Download as DownloadIcon, Maximize2, Copy as CopyIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AIMessageBlockProps {
   content: string;
@@ -317,46 +318,62 @@ export function AIMessageBlock({
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
   return (
-    <div className="ai-markdown-container group w-full max-w-full min-w-0">
+    <motion.div
+      layout
+      className="ai-markdown-container group w-full max-w-full min-w-0"
+      transition={{ layout: { type: 'spring', stiffness: 380, damping: 28, mass: 0.3 } }}
+    >
    
       {/* 初始加载状态 - 当AI还没有任何响应时显示 */}
       {hasNoContent && (
-        <div key="loader-waiting" className="flex items-center gap-3 py-2">
+        <motion.div layout key="loader-waiting" className="flex items-center gap-3 py-2">
           <div className="flex items-center gap-2">
             <FoldingLoader size={22} />
           </div>
           <span className="text-xs italic text-slate-500 dark:text-slate-400">等待响应...</span>
-        </div>
+        </motion.div>
       )}
 
       {/* 思考进度条：仅在没有结构化segments时显示全局思考栏（兼容旧消息） */}
       {/* 修复：只有在真正有思考内容时才显示思考栏，避免误将普通消息识别为思考过程 */}
-      {(mixedSegments.length === 0) && (
-        (!!viewModel && viewModel.flags?.isThinking) || 
-        (!!thinkTextFromSegments && thinkTextFromSegments.trim().length > 0) || 
-        (!!state && !!state.thinkingContent && state.thinkingContent.trim().length > 0)
-      ) && (
-        <ThinkingBar
-          thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
-          // 将毫秒转换为秒
-          durationSeconds={Math.floor(realTimeElapsed / 1000)}
-          // 仅在"流式进行中"或显式标记为思考中时显示活跃态
-          isActive={ (viewModel?.flags?.isThinking !== undefined) ? !!viewModel?.flags?.isThinking : !!isStreaming }
-        />
-      )}
+      <AnimatePresence initial={false}>
+        {(mixedSegments.length === 0) && (
+          (!!viewModel && viewModel.flags?.isThinking) || 
+          (!!thinkTextFromSegments && thinkTextFromSegments.trim().length > 0) || 
+          (!!state && !!state.thinkingContent && state.thinkingContent.trim().length > 0)
+        ) && (
+          <motion.div
+            layout
+            key="global-thinking"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <ThinkingBar
+              thinkingContent={thinkTextFromSegments || state?.thinkingContent || ''}
+              // 将毫秒转换为秒
+              durationSeconds={Math.floor(realTimeElapsed / 1000)}
+              // 仅在"流式进行中"或显式标记为思考中时显示活跃态
+              isActive={ (viewModel?.flags?.isThinking !== undefined) ? !!viewModel?.flags?.isThinking : !!isStreaming }
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 消息内容（混合片段顺序渲染） */}
       {(mixedSegments.length > 0) && (
-        <div className="relative min-w-0 max-w-full w-full">
+        <motion.div layout className="relative min-w-0 max-w-full w-full">
           {mixedSegments.length > 0 ? (
-            <div className="flex flex-col gap-3">
+            <motion.div layout className="flex flex-col gap-3">
               {mixedSegments.map((seg, idx) => {
                 // 关键调试：仅当准备渲染工具卡片时打印一次，帮助确认UI层已收到segments
                 // 默认关闭的日志
                 if (seg.type === 'card') {
                   const d = seg.data;
                   return (
-                    <ToolCallCard
+                    <motion.div layout key={`card-wrap-${d.id || idx}`}>
+                      <ToolCallCard
                       key={`card-${d.id || idx}-${idx}`}
                       server={d.server}
                       tool={d.tool}
@@ -367,7 +384,8 @@ export function AIMessageBlock({
                       schemaHint={d.schemaHint}
                       messageId={d.messageId}
                       cardId={d.id}
-                    />
+                      />
+                    </motion.div>
                   );
                 }
                 // 独立渲染每个 think 段的思考栏
@@ -390,13 +408,13 @@ export function AIMessageBlock({
                   }
                   
                   return (
-                    <div key={`think-${idx}`}>
+                    <motion.div layout key={`think-${idx}`}>
                       <ThinkingBar
                         thinkingContent={seg.text || ''}
                         durationSeconds={durationSeconds}
                         isActive={isCurrentThinking}
                       />
-                    </div>
+                    </motion.div>
                   );
                 }
                 if (seg.type === 'image') {
@@ -406,7 +424,7 @@ export function AIMessageBlock({
                   const needSoftDivider = prevType === 'card';
                   const i = Math.max(0, images.findIndex((x)=>x.src===src));
                   return (
-                    <div key={`img-inline-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                    <motion.div layout key={`img-inline-${idx}`} className={needSoftDivider ? 'pt-2 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
                       <div className="relative inline-block group">
                         <img
                           src={src}
@@ -455,7 +473,7 @@ export function AIMessageBlock({
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 }
                 // 渲染文本段落 - 跳过空内容
@@ -466,7 +484,7 @@ export function AIMessageBlock({
                 const prevType = idx > 0 ? mixedSegments[idx - 1]?.type : null;
                 const needSoftDivider = prevType === 'card';
                 return (
-                  <div key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
+                  <motion.div layout key={`md-wrap-${idx}`} className={needSoftDivider ? 'pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60' : undefined}>
                     <div className="markdown-content-area">
                       {(() => {
                         // 使用统一的StreamingMarkdown组件，支持流式和非流式markdown渲染
@@ -474,47 +492,48 @@ export function AIMessageBlock({
                         return <StreamingMarkdown content={textContent} isStreaming={isStreaming} />;
                       })()}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
               {(() => {
                 // 兜底：当 segments 中没有任何 text 段时，使用 regularContent/content 进行一次性渲染
+                // 注意：这里的fallback主要用于向后兼容，正常流式应该都通过segments渲染
                 const hasTextSegment = mixedSegments.some(s => s.type === 'text' && (s.text || '').trim().length > 0);
                 const fallbackText = (state?.regularContent || content || '').trim();
                 const fallbackTextCleaned = filterToolCallContent(fallbackText);
                 if (!hasTextSegment && fallbackText.length > 0) {
                   return (
-                    <div key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
+                    <motion.div layout key="md-fallback" className="pt-3 border-t border-dashed border-slate-200/60 dark:border-slate-700/60">
                       <div className="markdown-content-area">
                         {(() => {
                           const { StreamingMarkdown } = require('./StreamingMarkdown');
                           return <StreamingMarkdown content={fallbackTextCleaned} isStreaming={isStreaming} />;
                         })()}
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 }
                 return null;
               })()}
-            </div>
+            </motion.div>
           ) : null}
           {/* MCP调用识别阶段：检测到（或抑制阀已识别到）工具调用但卡片尚未出现时显示加载动画 */}
           {isStreaming && (hasToolCallEarly || !!(viewModel as any)?.flags?.isToolDetecting) && mixedSegments.filter(s => s.type === 'card').length === 0 && (
-            <div key="loader-tool-detecting" className="flex items-center gap-3 py-2">
+            <motion.div layout key="loader-tool-detecting" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
                 <FoldingLoader key="loader-tool" size={22} />
               </div>
               <span className="text-xs italic text-slate-500 dark:text-slate-400">正在识别工具调用指令…</span>
-            </div>
+            </motion.div>
           )}
           {/* 思考结束到卡片出现的过渡期占位：当仍在流式但暂无任何片段时显示 */}
           {isStreaming && !hasNoContent && !hasToolCallEarly && mixedSegments.length === 0 && (
-            <div key="loader-preparing" className="flex items-center gap-3 py-2">
+            <motion.div layout key="loader-preparing" className="flex items-center gap-3 py-2">
               <div className="flex items-center gap-2">
                 <FoldingLoader key="loader-reply" size={22} />
               </div>
               <span className="text-xs italic text-slate-500 dark:text-slate-400">正在准备回复…</span>
-            </div>
+            </motion.div>
           )}
           {/* 悬浮显示字数 */}
           {/* <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[11px] text-gray-400 bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur px-1.5 py-0.5 rounded select-none pointer-events-none">
@@ -523,14 +542,14 @@ export function AIMessageBlock({
               return `字数: ${text.replace(/\s+/g,'').length}`;
             })()}
           </div> */}
-        </div>
+        </motion.div>
       )}
 
       {/* 当没有任何结构化片段时，回退为渲染纯正文（兼容非流式RAG或历史消息） */}
       {(mixedSegments.length === 0) && !!(state?.regularContent || content) && (
-        <div className="relative min-w-0 max-w-full w-full markdown-content-area">
+        <motion.div layout className="relative min-w-0 max-w-full w-full markdown-content-area">
           <MemoizedMarkdown content={filterToolCallContent((state?.regularContent || content))} />
-        </div>
+        </motion.div>
       )}
 
       {/* 取消集中渲染：图片已内联呈现 */}
@@ -569,6 +588,6 @@ export function AIMessageBlock({
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 } 

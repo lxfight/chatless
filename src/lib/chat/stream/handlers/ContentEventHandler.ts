@@ -57,8 +57,17 @@ export class ContentEventHandler implements EventHandler {
       return;
     }
 
-    // 累积原始内容（保留完整内容，包括工具调用指令）
-    // 这用于 ToolCallEventHandler 解析工具调用
+    // ⚠️ 【重要】：context.content 保存的是原始未过滤的内容
+    // 
+    // 用途：
+    // 1. 工具调用解析（ToolCallEventHandler）需要完整原始文本
+    // 2. 包含被 suppression valve 过滤掉的工具调用指令
+    // 3. 用于构建 LLM 历史对话（HistoryBuilder）
+    // 
+    // 注意：
+    // - context.content 不应该用于 UI 渲染或内容判断
+    // - UI 应该使用 segments（由 FSM 生成）
+    // - 判断是否有文本内容应该使用 segments 而不是 content
     context.content += chunk;
 
     // —— 早阻断抑制阀 ——
@@ -107,7 +116,7 @@ function applySuppressionValve(context: StreamContext, chunk: string): string {
 
   // 定义触发器：多形态工具调用前缀
   const triggerRegexes: RegExp[] = [
-    /<\|channel\|\>\s*commentary\s+to=/i,     // GPT‑OSS 标记版
+    /<\|channel\|>\s*commentary\s+to=/i,     // GPT‑OSS 标记版
     /commentary\s+to=/i,                      // 无标记变体
     /(?:^|\s)to\s*=\s*[a-z0-9_.-]+/i,         // 极简变体：to=server.tool
     // 函数式变体：如 "search.search { ... }"、"filesystem.list_directory { ... }"
@@ -133,6 +142,7 @@ function applySuppressionValve(context: StreamContext, chunk: string): string {
       s.braceDepth = 0;
       s.seenJsonStart = false;
       s.buffer = suppressedTail; // 仅保留被抑制的片段，等待判定结束
+      try { console.debug('[SuppressionValve]', context.messageId, 'start', { visibleLen: visible.length, preview: suppressedTail.slice(0, 80) }); } catch { /* noop */ }
       // 通知 UI：开始工具识别占位
       try {
         const st = useChatStore.getState();
@@ -166,6 +176,7 @@ function applySuppressionValve(context: StreamContext, chunk: string): string {
       s.active = false;
       s.braceDepth = 0;
       s.seenJsonStart = false;
+      try { console.debug('[SuppressionValve]', context.messageId, 'end'); } catch { /* noop */ }
       // 通知 UI：结束工具识别占位
       try {
         const st = useChatStore.getState();
