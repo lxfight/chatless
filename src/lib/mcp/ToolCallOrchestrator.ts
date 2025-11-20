@@ -309,91 +309,7 @@ export async function continueWithToolResult(params: {
     nextUserMsg as any
   ];
 
-  const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
-  const tokenizer = new StreamTokenizer();
-  const { createStreamEventDispatcher } = await import('@/lib/chat/stream/StreamEventDispatcher');
-  
-  // ✅ 【改进】：为第一次追问添加 respLogger，便于诊断和查看完整响应
-  const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
-  const respLogger = new StreamResponseLogger(provider, model);
-  
-  const dispatcher = createStreamEventDispatcher({
-    conversationId,
-    assistantMessageId,
-    onAutoExecuteTool: (srv, tl, a, cardId) => {
-      void executeToolCall({
-        assistantMessageId,
-        conversationId,
-        server: srv,
-        tool: tl,
-        args: a,
-        _runningMarker: '',
-        provider,
-        model,
-        historyForLlm: followHistory,
-        originalUserContent,
-        cardId,
-      });
-    },
-    onRequestAuthorization: ({ server: srv, tool: tl, args: a, cardId }) => {
-      const authStore = useAuthorizationStore.getState();
-      authStore.addPendingAuthorization({
-        id: cardId,
-        messageId: assistantMessageId,
-        server: srv,
-        tool: tl,
-        args: a || {},
-        createdAt: Date.now(),
-        onApprove: () => {
-          void executeToolCall({
-            assistantMessageId,
-            conversationId,
-            server: srv,
-            tool: tl,
-            args: a,
-            _runningMarker: '',
-            provider,
-            model,
-            historyForLlm: followHistory,
-            originalUserContent,
-            cardId,
-          });
-        },
-        onReject: () => {
-          const st = useChatStore.getState();
-          st.dispatchMessageAction(assistantMessageId, {
-            type: 'TOOL_RESULT',
-            server: srv,
-            tool: tl,
-            ok: false,
-            errorMessage: '用户拒绝授权此工具调用',
-            cardId,
-          });
-          
-          // 用户拒绝后继续追问流程，让AI知道用户再次拒绝了
-          void continueWithToolResult({
-            assistantMessageId,
-            provider,
-            model,
-            conversationId,
-            historyForLlm: followHistory,
-            originalUserContent,
-            server: srv,
-            tool: tl,
-            result: {
-              error: 'AUTHORIZATION_DENIED',
-              message: '用户拒绝了此工具调用。这可能是因为用户认为此调用不合理或参数有误。请考虑用户的反馈，调整你的方法或询问用户的具体需求。'
-            }
-          });
-        },
-      });
-    },
-  });
-  // 递归阶段：_hadText 用于备份（实际使用 segments 判断）
-  let _hadText = false; // 本轮是否收到过正文 token（已弃用，保留备份）
-  let eventModeUsed = false;
-
-  // 关键修复：追问阶段开始前再次确保状态为 loading（覆盖上游可能的 sent）
+  // 追问阶段开始前再次确保状态为 loading（覆盖上游可能的 sent）
   try {
     const stPre = useChatStore.getState();
     const convPre = stPre.conversations.find(c => c.id === conversationId);
@@ -406,313 +322,329 @@ export async function continueWithToolResult(params: {
     void stPre.updateMessage(assistantMessageId, { status: 'loading' });
   } catch { /* noop */ }
 
+  // 使用统一的 StreamOrchestrator + ToolChannelParser 管线处理第一次追问
+  const { StreamOrchestrator } = await import('@/lib/chat/stream');
+  const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
+
+  const orchestrator = new StreamOrchestrator({
+    messageId: assistantMessageId,
+    conversationId,
+    provider,
+    model,
+    originalUserContent,
+    historyForLlm: followHistory as any,
+    onUIUpdate: () => {},
+    onError: (err) => {
+      // Orchestrator 内部已做基础收尾，这里只做额外保护
+      try {
+        const stErr = useChatStore.getState();
+        void stErr.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+      } catch { /* noop */ }
+      (globalThis as any)[counterKey] = 0;
+    },
+  });
+
+  const baseCallbacks = orchestrator.createCallbacks();
+  const respLogger = new StreamResponseLogger(provider, model);
+  let hadTextThisRound = false;
+
   const callbacks: StreamCallbacks = {
-    onStart: () => {},
-    // 新增：优先使用结构化事件流（push式组件开始/结束）
+    ...baseCallbacks,
+    onStart: () => {
+      baseCallbacks.onStart?.();
+    },
     onEvent: (event: any) => {
-      eventModeUsed = true;
-      try {
-        // 记录事件到 respLogger
-        if (event?.type === 'thinking_token' && event.content) {
-          respLogger.appendThinking(String(event.content));
-        } else if (event?.type === 'thinking_end') {
-          respLogger.endThinking();
-        } else if (event?.type === 'content_token' && event.content) {
-          respLogger.appendContent(String(event.content));
+      // 记录到响应日志
+      if (event?.type === 'thinking_token' && event.content) {
+        respLogger.appendThinking(String(event.content));
+      } else if (event?.type === 'thinking_end') {
+        respLogger.endThinking();
+      } else if (event?.type === 'content_token' && event.content) {
+        const txt = String(event.content);
+        respLogger.appendContent(txt);
+        if (txt.trim().length > 0) {
+          hadTextThisRound = true;
         }
-        
-        dispatcher.handle(event);
-        const s = dispatcher.getState();
-        if (s.hadText) _hadText = true;
-      } catch { /* noop */ }
-    },
-    onToken: (tk: string) => {
-      if (eventModeUsed) return;
-      try {
-        const events = tokenizer.push(tk);
-        for (const ev of events) {
-          // 记录到 respLogger
-          if (ev.type === 'thinking_token' && ev.content) {
-            respLogger.appendThinking(String(ev.content));
-          } else if (ev.type === 'thinking_end') {
-            respLogger.endThinking();
-          } else if (ev.type === 'content_token' && ev.content) {
-            respLogger.appendContent(String(ev.content));
-          }
-          
-          dispatcher.handle(ev as any);
-        }
-        if (dispatcher.getState().hadText) _hadText = true;
-      } catch { /* ignore detector error */ }
-    },
-              onComplete: () => {
-      const stf2 = useChatStore.getState();
-      
-      // 事件模式或降级模式：都要在收尾时 flush，避免尾部字符与抑制阀缓冲丢失
-      try {
-        if (!eventModeUsed) {
-          const flushEvents = tokenizer.flush();
-          for (const ev of flushEvents) { dispatcher.handle(ev as any); }
-        }
-        dispatcher.flush();
-      } catch { /* noop */ }
-      
-      // 关键修复：确保在流式结束时强制保存所有内容，包括最后的token
-      try {
-        const convNow = stf2.conversations.find(c=>c.id===conversationId);
-        const msgNow = convNow?.messages.find(m=>m.id===assistantMessageId);
-        const contentNow = msgNow?.content || '';
-        // 强制保存当前内容，确保最后的token不会丢失
-        void stf2.updateMessage(assistantMessageId, { content: contentNow });
-      } catch { /* noop */ }
-      
-      // ✅ 【改进】：完成日志记录，输出第一次追问的完整响应
-      try {
-        respLogger.logComplete(assistantMessageId);
-      } catch (e) {
-        console.error('[continueWithToolResult] First follow-up respLogger.logComplete error:', e);
       }
-      
-      {
-        // ⚠️ 【关键修复】：使用 dispatcher 的实时状态判断，而不是从 store 读取
-        // 
-        // 问题分析（参考 duplicate-response-analysis.md）：
-        // 1. flush() 执行后，segments 的更新是异步的（需要等 FSM 处理）
-        // 2. 在判断时，segments 可能还没有同步到 store
-        // 3. 导致 hasTextContent() 误判为 false，触发不必要的第二次追问
-        // 
-        // 解决方案：
-        // 1. dispatcher.getState().hadText 是实时状态，flush() 后立即可用
-        // 2. 不受 store 异步延迟影响
-        // 3. 与第二次追问的判断逻辑保持一致
-        const dispatcherState = dispatcher.getState();
-        const hasActualText = dispatcherState.hadText;
-        
-        // 获取当前content用于后续更新和日志输出
-        const convf2 = stf2.conversations.find(c=>c.id===conversationId);
-        const msgf2 = convf2?.messages.find(m=>m.id===assistantMessageId);
-        const finalContent = msgf2?.content || '';
-        const segments = msgf2?.segments || [];
-        const textSegments = segments.filter((s: any) => s.kind === 'text');
-        
-        // ✅ 【改进】：增强日志输出，同时显示多个判断指标
+      baseCallbacks.onEvent?.(event);
+    },
+    onToken: baseCallbacks.onToken,
+    onComplete: async () => {
+      const st = useChatStore.getState();
+      try {
+        // 先让 Orchestrator 做完正式收尾（包括 STREAM_END 与内容清理）
+        await baseCallbacks.onComplete?.();
+      } finally {
         try {
+          respLogger.logComplete(assistantMessageId);
+        } catch (e) {
+          console.error('[continueWithToolResult] First follow-up respLogger.logComplete error:', e);
+        }
+
+        // 调试：输出本轮追问的整体情况
+        try {
+          const conv = st.conversations.find((c) => c.id === conversationId);
+          const msg: any = conv?.messages.find((m: any) => m.id === assistantMessageId);
+          const finalContent = msg?.content || '';
+          const segments = Array.isArray(msg?.segments) ? msg.segments : [];
+          const textSegments = segments.filter((s: any) => s.kind === 'text');
           console.debug('[FollowUp/First] stream complete', {
             messageId: assistantMessageId,
-            hadTextFromDispatcher: hasActualText,
+            hadTextThisRound,
             contentLength: finalContent.length,
             segmentsCount: segments.length,
             textSegmentsCount: textSegments.length,
-            contentPreview: finalContent.substring(0, 50)
+            contentPreview: finalContent.substring(0, 50),
           });
         } catch { /* noop */ }
-        
-        // 若本轮没有任何正文输出，进行一次轻量"追问"以催促模型直接给出答案
-        if (!hasActualText) {
-          (async () => {
-            // 使用优化后的第二次追问提示词（强制回答，禁止工具调用）
-            const secondFollowUpMessages = buildFollowUpSystemMessages(
-              'second',
-              originalUserContent,
-              [], // 第二次追问不提供工具上下文
-              false // 不包含工具上下文
-            );
 
-            // 关键修复：第二次追问只保留用户消息，过滤掉第一次追问的所有system消息
-            // 避免提示词重复和混淆
-            const nudgeHistory: LlmMessage[] = [
-              ...secondFollowUpMessages as any,
-              // 只保留 followHistory 中的 user 消息（工具结果）
-              ...followHistory.filter((m: any) => m.role === 'user'),
-              { role: 'user', content: `请基于上述所有工具调用结果，分析并回答用户的原始问题。
+        // 若本轮没有任何正文输出，则进入第二次“催促式”追问
+        if (!hadTextThisRound) {
+          await runSecondFollowUpRound({
+            assistantMessageId,
+            provider,
+            model,
+            conversationId,
+            originalUserContent,
+            followHistory,
+            result,
+            server,
+            counterKey,
+          });
+        } else {
+          await finishRecursionAndMaybeGenerateTitle({
+            provider,
+            model,
+            conversationId,
+            counterKey,
+          });
+        }
+      }
+    },
+    onError: (err: Error) => {
+      baseCallbacks.onError?.(err);
+      try {
+        const stErr = useChatStore.getState();
+        void stErr.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+      } catch { /* noop */ }
+      (globalThis as any)[counterKey] = 0;
+    },
+  } as any;
+
+  await streamChat(provider, model, followHistory as any, callbacks, {});
+}
+
+/**
+ * 第二次“催促式”追问：当第一次追问没有任何正文输出时触发。
+ * 仍然复用统一的 StreamOrchestrator + ToolChannelParser 管线。
+ */
+async function runSecondFollowUpRound(args: {
+  assistantMessageId: string;
+  provider: string;
+  model: string;
+  conversationId: string;
+  originalUserContent: string;
+  followHistory: LlmMessage[];
+  result: unknown;
+  server: string;
+  counterKey: string;
+}) {
+  const {
+    assistantMessageId,
+    provider,
+    model,
+    conversationId,
+    originalUserContent,
+    followHistory,
+    result,
+    server,
+    counterKey,
+  } = args;
+
+  const { buildFollowUpSystemMessages } = await import('@/lib/prompts/FollowUpPrompts');
+
+  // 第二次追问只保留用户消息，过滤掉第一次追问的所有 system 消息
+  const secondFollowUpMessages = buildFollowUpSystemMessages(
+    'second',
+    originalUserContent,
+    [], // 第二次追问不提供工具上下文
+    false, // 不包含工具上下文
+  );
+
+  const nudgeHistory: LlmMessage[] = [
+    ...secondFollowUpMessages as any,
+    // 只保留 followHistory 中的 user 消息（工具结果）
+    ...followHistory.filter((m: any) => m.role === 'user'),
+    {
+      role: 'user',
+      content: `请基于上述所有工具调用结果，分析并回答用户的原始问题。
 
 请根据实际情况灵活处理：
 1. 如果工具结果正常且足够，请直接给出完整的中文答案
 2. 如果工具结果异常或不足，请继续调用相关工具
 3. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
-4. 确保最终能够完整回答用户的原始问题` } as any
-            ];
-            const { StreamTokenizer } = await import('@/lib/chat/StreamTokenizer');
-            const tk2 = new StreamTokenizer();
-            let autosave2 = '';
-            let pending2: null | { server: string; tool: string; args?: Record<string, unknown>; cardId: string } = null;
-            let eventMode2 = false;
-            const dispatcher2 = createStreamEventDispatcher({ conversationId, assistantMessageId });
-            
-            // ✅ 【关键修复】：创建 respLogger2 来记录第二次追问的完整响应
-            const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
-            const respLogger2 = new StreamResponseLogger(provider, model);
-            
-            // 追问阶段仍按正常渲染与保存，但不再单独统计是否有文本
-            const cb2: StreamCallbacks = {
-              onStart: () => { /* stream started for nudge round */ },
-              // 同样优先使用结构化事件，保证多轮思考都能独立渲染
-              onEvent: (event: any) => {
-                eventMode2 = true;
-                try {
-                  dispatcher2.handle(event);
-                  // 记录事件到 respLogger2
-                  if (event.type === 'thinking_token' && event.content) {
-                    respLogger2.appendThinking(String(event.content));
-                  } else if (event.type === 'thinking_end') {
-                    respLogger2.endThinking();
-                  } else if (event.type === 'content_token' && event.content) {
-                    respLogger2.appendContent(String(event.content));
-                  }
-                } catch { /* noop */ }
-              },
-              onToken: (tk: string) => {
-                if (eventMode2) return;
-                const stx = useChatStore.getState();
-                const convx = stx.conversations.find(c=>c.id===conversationId);
-                const msgx = convx?.messages.find(m=>m.id===assistantMessageId);
-                const curx = (msgx?.content || '') + tk;
-                stx.updateMessageContentInMemory(assistantMessageId, curx);
-                autosave2 += tk;
-                if (autosave2.length > 200) { autosave2 = ''; try { void stx.updateMessage(assistantMessageId, { content: curx }); } catch (e) { void e; } }
-                try {
-                  const events = tk2.push(tk);
-                  for (const ev of events) {
-                    if (ev.type === 'thinking_start') {
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_START' } as any);
-                    } else if (ev.type === 'thinking_token') {
-                      respLogger2.appendThinking(String(ev.content || ''));
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_APPEND', chunk: ev.content } as any);
-                    } else if (ev.type === 'thinking_end') {
-                      respLogger2.endThinking();
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'THINK_END' } as any);
-                    } else if (ev.type === 'content_token' && ev.content) {
-                      respLogger2.appendContent(String(ev.content));
-                      stx.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
-                    } else if (ev.type === 'tool_call' && !pending2) {
-                      // 将回退解析到的 tool_call 转交统一分发器
-                      try { dispatcher2.handle({ type: 'tool_call', parsed: ev.parsed }); } catch { /* noop */ }
-                      // 不直接维护 pending2，由分发器插卡
-                    }
-                  }
-                } catch (e) { void e; }
-              },
-              onComplete: () => {
-                const sty = useChatStore.getState();
-                
-                // 关键修复：追问阶段无论是否事件模式，都要flush（tokenizer与dispatcher）
-                try {
-                  if (!eventMode2) {
-                    const flushEvents = tk2.flush();
-                    for (const ev of flushEvents) {
-                      if (ev.type === 'content_token' && ev.content) {
-                        respLogger2.appendContent(String(ev.content));
-                        sty.dispatchMessageAction(assistantMessageId, { type: 'TOKEN_APPEND', chunk: ev.content });
-                      }
-                    }
-                  }
-                  dispatcher2.flush();
-                } catch { /* noop */ }
-                
-                // ✅ 【关键修复】：完成日志记录，输出第二次追问的完整响应
-                try {
-                  respLogger2.logComplete(assistantMessageId);
-                } catch (e) {
-                  console.error('[continueWithToolResult] respLogger2.logComplete error:', e);
-                }
-                
-                if (pending2) {
-                  const nx = pending2; pending2 = null;
-                  // 启动下一轮工具
-                  void executeToolCall({ assistantMessageId, conversationId, server: nx.server, tool: nx.tool, args: nx.args, _runningMarker: '', provider, model, historyForLlm: nudgeHistory, originalUserContent, cardId: nx.cardId });
-                } else {
-                  // ⚠️ 【关键修复】：使用 dispatcher2 的实时状态判断
-                  // 优势：
-                  // 1. dispatcher.getState().hadText 是实时状态，flush() 后立即可用
-                  // 2. 不受 store 异步延迟影响
-                  // 3. respLogger2 用于日志记录，dispatcher 用于判断
-                  const dispatcherState = dispatcher2.getState();
-                  const hasActualText = dispatcherState.hadText;
-                  
-                  const convy = sty.conversations.find(c=>c.id===conversationId);
-                  const msgy = convy?.messages.find(m=>m.id===assistantMessageId);
-                  let content2 = msgy?.content || '';
-                  const segments2 = msgy?.segments || [];
-                  const textSegments2 = segments2.filter((s: any) => s.kind === 'text');
-                  
-                  // ✅ 【改进】：增强日志输出，同时显示多个判断指标
-                  try {
-                    console.debug('[FollowUp/Second] stream complete', {
-                      messageId: assistantMessageId,
-                      hadTextFromDispatcher: hasActualText,
-                      contentLength: content2.length,
-                      segmentsCount: segments2.length,
-                      textSegmentsCount: textSegments2.length,
-                      contentPreview: content2.substring(0, 50)
-                    });
-                  } catch { /* noop */ }
-                  
-                  // 若追问仍无任何正文，则使用结果生成一个最小可读的回退文本，避免界面空白
-                  if (!hasActualText) {
-                    try {
-                      if (server === WEB_SEARCH_SERVER_NAME && Array.isArray(result) && result.length > 0) {
-                        const items: any[] = Array.isArray(result) ? result.slice(0, 5) : [];
-                        const lines = items.map((it, i: number) => {
-                          const t = (it?.source_title || it?.title || '').toString().trim();
-                          const u = (it?.url || '').toString().trim();
-                          return `${i + 1}. ${t}${u ? ` - ${u}` : ''}`;
-                        });
-                        const fallbackText = `根据网络搜索的结果，供参考：\n${lines.join('\n')}\n\n需要我基于这些链接进一步总结或继续检索吗？`;
-                        try { sty.appendTextToMessageSegments(assistantMessageId, fallbackText); } catch { /* noop */ }
-                        content2 = ((msgy?.content || '') + fallbackText).trim();
-                      }
-                    } catch { /* noop */ }
-                  }
-                  void sty.updateMessage(assistantMessageId, { status: 'sent', content: content2 });
-                  sty.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
-                  (globalThis as any)[counterKey] = 0;
-                }
-              },
-              onError: (err: Error) => {
-                const stz = useChatStore.getState();
-                void stz.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
-                (globalThis as any)[counterKey] = 0;
-              }
-            } as any;
-            await streamChat(provider, model, nudgeHistory as any, cb2 as any, {});
-          })();
-        } else {
-          void stf2.updateMessage(assistantMessageId, { status: 'sent', content: finalContent });
-          stf2.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' });
-          (globalThis as any)[counterKey] = 0;
+4. 确保最终能够完整回答用户的原始问题`,
+    } as any,
+  ];
 
-          // —— 在 MCP 递归链完全结束的稳定时机生成标题（仅一次）——
-          (async () => {
-            try {
-              const state = useChatStore.getState();
-              const conv = state.conversations.find(c => c.id === conversationId);
-              if (!conv) return;
-              const {
-                shouldGenerateTitleAfterAssistantComplete,
-                extractFirstUserMessageSeed,
-                isDefaultTitle,
-              } = await import('@/lib/chat/TitleGenerator');
-              const { generateTitle } = await import('@/lib/chat/TitleService');
-              if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
-              const seed = extractFirstUserMessageSeed(conv);
-              if (!seed || !seed.trim()) return;
-              const gen = await generateTitle(provider, model, seed, { maxLength: 24, language: 'zh' });
-              const st2 = useChatStore.getState();
-              const conv2 = st2.conversations.find(c => c.id === conversationId);
-              if (conv2 && isDefaultTitle(conv2.title) && gen && gen.trim()) {
-                void st2.renameConversation(String(conversationId), gen.trim());
-              }
-            } catch { /* noop */ }
-          })();
+  const { StreamOrchestrator } = await import('@/lib/chat/stream');
+  const { StreamResponseLogger } = await import('@/lib/chat/stream/response-logger');
+
+  const stPre = useChatStore.getState();
+  try {
+    void stPre.updateMessage(assistantMessageId, { status: 'loading' });
+  } catch { /* noop */ }
+
+  const orchestrator = new StreamOrchestrator({
+    messageId: assistantMessageId,
+    conversationId,
+    provider,
+    model,
+    originalUserContent,
+    historyForLlm: nudgeHistory as any,
+    onUIUpdate: () => {},
+    onError: (err) => {
+      try {
+        const stErr = useChatStore.getState();
+        void stErr.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+      } catch { /* noop */ }
+      (globalThis as any)[counterKey] = 0;
+    },
+  });
+
+  const baseCallbacks = orchestrator.createCallbacks();
+  const respLogger2 = new StreamResponseLogger(provider, model);
+  let hadTextSecondRound = false;
+
+  const callbacks2: StreamCallbacks = {
+    ...baseCallbacks,
+    onStart: () => {
+      baseCallbacks.onStart?.();
+    },
+    onEvent: (event: any) => {
+      if (event?.type === 'thinking_token' && event.content) {
+        respLogger2.appendThinking(String(event.content));
+      } else if (event?.type === 'thinking_end') {
+        respLogger2.endThinking();
+      } else if (event?.type === 'content_token' && event.content) {
+        const txt = String(event.content);
+        respLogger2.appendContent(txt);
+        if (txt.trim().length > 0) {
+          hadTextSecondRound = true;
         }
+      }
+      baseCallbacks.onEvent?.(event);
+    },
+    onToken: baseCallbacks.onToken,
+    onComplete: async () => {
+      const st = useChatStore.getState();
+      try {
+        await baseCallbacks.onComplete?.();
+      } finally {
+        try {
+          respLogger2.logComplete(assistantMessageId);
+        } catch (e) {
+          console.error('[continueWithToolResult] Second follow-up respLogger.logComplete error:', e);
+        }
+
+        const conv = st.conversations.find((c) => c.id === conversationId);
+        const msg: any = conv?.messages.find((m: any) => m.id === assistantMessageId);
+        let content2 = msg?.content || '';
+        const segments2 = Array.isArray(msg?.segments) ? msg.segments : [];
+        const textSegments2 = segments2.filter((s: any) => s.kind === 'text');
+
+        try {
+          console.debug('[FollowUp/Second] stream complete', {
+            messageId: assistantMessageId,
+            hadTextSecondRound,
+            contentLength: content2.length,
+            segmentsCount: segments2.length,
+            textSegmentsCount: textSegments2.length,
+            contentPreview: content2.substring(0, 50),
+          });
+        } catch { /* noop */ }
+
+        // 若追问仍无任何正文，则使用结果生成一个最小可读的回退文本，避免界面空白
+        if (!hadTextSecondRound) {
+          try {
+            if (server === WEB_SEARCH_SERVER_NAME && Array.isArray(result) && result.length > 0) {
+              const items: any[] = Array.isArray(result) ? result.slice(0, 5) : [];
+              const lines = items.map((it, i: number) => {
+                const t = (it?.source_title || it?.title || '').toString().trim();
+                const u = (it?.url || '').toString().trim();
+                return `${i + 1}. ${t}${u ? ` - ${u}` : ''}`;
+              });
+              const fallbackText = `根据网络搜索的结果，供参考：\n${lines.join('\n')}\n\n需要我基于这些链接进一步总结或继续检索吗？`;
+              try {
+                st.appendTextToMessageSegments(assistantMessageId, fallbackText);
+              } catch { /* noop */ }
+              content2 = ((msg?.content || '') + fallbackText).trim();
+            }
+          } catch { /* noop */ }
+        }
+
+        try {
+          void st.updateMessage(assistantMessageId, { status: 'sent', content: content2 });
+          st.dispatchMessageAction(assistantMessageId, { type: 'STREAM_END' } as any);
+        } catch { /* noop */ }
+
+        await finishRecursionAndMaybeGenerateTitle({
+          provider,
+          model,
+          conversationId,
+          counterKey,
+        });
       }
     },
     onError: (err: Error) => {
-      const stf3 = useChatStore.getState();
-      void stf3.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+      baseCallbacks.onError?.(err);
+      try {
+        const stErr = useChatStore.getState();
+        void stErr.updateMessage(assistantMessageId, { status: 'error', content: err.message, error: true } as any);
+      } catch { /* noop */ }
       (globalThis as any)[counterKey] = 0;
-    }
+    },
   } as any;
 
-  await streamChat(provider, model, followHistory as any, callbacks as any, {});
+  await streamChat(provider, model, nudgeHistory as any, callbacks2, {});
 }
+
+/**
+ * 递归链结束时的统一收尾：重置递归计数，并在合适时机生成会话标题。
+ */
+async function finishRecursionAndMaybeGenerateTitle(args: {
+  provider: string;
+  model: string;
+  conversationId: string;
+  counterKey: string;
+}) {
+  const { provider, model, conversationId, counterKey } = args;
+  (globalThis as any)[counterKey] = 0;
+
+  try {
+    const state = useChatStore.getState();
+    const conv = state.conversations.find((c) => c.id === conversationId);
+    if (!conv) return;
+
+    const {
+      shouldGenerateTitleAfterAssistantComplete,
+      extractFirstUserMessageSeed,
+      isDefaultTitle,
+    } = await import('@/lib/chat/TitleGenerator');
+    const { generateTitle } = await import('@/lib/chat/TitleService');
+
+    if (!shouldGenerateTitleAfterAssistantComplete(conv)) return;
+    const seed = extractFirstUserMessageSeed(conv);
+    if (!seed || !seed.trim()) return;
+
+    const gen = await generateTitle(provider, model, seed, { maxLength: 24, language: 'zh' });
+    const st2 = useChatStore.getState();
+    const conv2 = st2.conversations.find((c) => c.id === conversationId);
+    if (conv2 && isDefaultTitle(conv2.title) && gen && gen.trim()) {
+      void st2.renameConversation(String(conversationId), gen.trim());
+    }
+  } catch {
+    // 忽略标题生成中的非致命错误
+  }
+}
+

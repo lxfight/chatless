@@ -24,6 +24,13 @@ export function cleanToolCallInstructions(text: string): string {
     ''
   );
 
+  // 0.1 移除缺少 JSON 体的“半截” GPT‑OSS 指令（例如仅有 header: "<|channel|>commentary to=...<|message|>"）
+  //      这类残片只会出现在流式拆包时的尾部，对用户没有任何显示意义。
+  cleaned = cleaned.replace(
+    /<\|channel\|\>\s*commentary\s+to=[^\s]+[\s\S]*?(?:<\|message\|\>)?/gi,
+    ''
+  );
+
   // 1. 移除完整的 <use_mcp_tool> 块
   cleaned = cleaned.replace(/<use_mcp_tool>[\s\S]*?<\/use_mcp_tool>/gi, '');
   
@@ -32,7 +39,7 @@ export function cleanToolCallInstructions(text: string): string {
   // 2.1 移除无标签 GPT‑OSS 变体：commentary to=... json {...}
   cleaned = cleaned.replace(/commentary\s+to=[^\n]+?\s+json\s*\{[\s\S]*?\}/gi, '');
   // 2.2 移除“>>”分隔符变体：to= >>server>>tool>>{...}>>
-  cleaned = cleaned.replace(/to\s*=\s*>+[a-z0-9_\-]+>+[a-z0-9_\-]+>+\s*\{[\s\S]*?\}>+/gi, '');
+  cleaned = cleaned.replace(/to\s*=\s*>+[a-z0-9_-]+>+[a-z0-9_-]+>+\s*\{[\s\S]*?\}>+/gi, '');
   // 2.3 移除极简变体：to=server[.tool] {...}
   cleaned = cleaned.replace(/(?:^|\s)to\s*=\s*[a-z0-9_.-]+\s*\{[\s\S]*?\}/gi, '');
   // 2.4 移除“函数式变体”：如 "search.search {...}" 或 "filesystem.list_directory {...}"
@@ -70,32 +77,67 @@ export function extractToolCallFromText(
 ): null | { server: string; tool: string; args?: Record<string, unknown> } {
   if (!text) return null;
   
-  // 0. 解析 GPT-OSS 风格：<|channel|>commentary to=xxx[.yyy] <|constrain|>json <|message|>{...}
+  // 0. 解析 GPT-OSS 风格：commentary to=server[.tool] ... {json}
+  //
+  // 统一处理以下多种变体：
+  // - <|channel|>commentary to=web_search.fetch <|constrain|>json<|message|>{...}
+  // - <|channel|>commentary to=web_search.fetch <|message|>{...}
+  // - commentary to=web_search.fetch json {...}
+  // - commentary to=web_search code<|message|>{...}
+  //
+  // 解析规则：
+  // 1) 找到 "commentary to=" 之后第一个非空白、非'<' 的连续片段，作为 target（如 "web_search.fetch" 或 "web_search"）
+  // 2) 在该位置之后提取第一个 JSON 对象作为 args
+  // 3) target 形如 "srv.tool" 时拆分为 server/tool；只有 "srv" 时：
+  //    - 若 srv === web_search：根据 args.url / args.query 推断为 fetch 或 search
+  //    - 若 srv === web_fetch：视为 web_search.fetch
   try {
-    const chan = /<\|channel\|\>\s*commentary\s+to=([\s\S]*?)(?:\s*)(?:<\|constrain\|\>|<\|message\|\>)/i.exec(text);
-    if (chan) {
-      const toTargetRaw = (chan[1] || '').trim();
-      const msgIndex = chan.index !== undefined ? (chan.index + chan[0].length) : -1;
-      if (toTargetRaw && msgIndex >= 0) {
-        const json = extractFirstJsonObject(text.slice(msgIndex));
-        if (json) {
-          try {
-            const args = JSON.parse(json);
-            let server = '';
-            let tool = '';
-            if (toTargetRaw.includes('.')) {
-              const dot = toTargetRaw.indexOf('.');
-              server = toTargetRaw.slice(0, dot).trim();
-              tool = toTargetRaw.slice(dot + 1).trim().replace(/\s+/g, '_');
-            } else {
-              server = toTargetRaw.trim();
-              // 未带工具名：对 web_search 设默认 search，其他服务器无法确定则返回 null
-              tool = server === WEB_SEARCH_SERVER_NAME ? 'search' : '';
-            }
-            if (server && tool) {
-              return { server, tool, args };
-            }
-          } catch { /* ignore */ }
+    const idxComm = text.search(/commentary\s+to=/i);
+    if (idxComm >= 0) {
+      // 从 "commentary to=" 之后开始解析
+      let after = text.slice(idxComm);
+      const eqIdx = after.toLowerCase().indexOf('to=');
+      if (eqIdx >= 0) {
+        after = after.slice(eqIdx + 3); // 跳过 "to="
+      }
+      // 取第一个非空白、非'<'的 token 作为目标
+      const targetMatch = after.match(/^\s*([^\s<]+)/);
+      const toTargetRaw = targetMatch ? targetMatch[1].trim() : '';
+
+      // 从当前位置起提取 JSON
+      const jsonStr = extractFirstJsonObject(after);
+      let args: Record<string, unknown> | undefined;
+      if (jsonStr) {
+        try { args = JSON.parse(jsonStr); } catch { /* ignore */ }
+      }
+
+      if (toTargetRaw) {
+        let server = '';
+        let tool = '';
+        if (toTargetRaw.includes('.')) {
+          const dot = toTargetRaw.indexOf('.');
+          server = toTargetRaw.slice(0, dot).trim();
+          tool = toTargetRaw.slice(dot + 1).trim().replace(/\s+/g, '_');
+        } else {
+          server = toTargetRaw.trim();
+        }
+
+        // 兼容误写形式：to=web_fetch -> 等价于 web_search.fetch
+        if (!tool && server === 'web_fetch') {
+          server = WEB_SEARCH_SERVER_NAME;
+          tool = 'fetch';
+        }
+
+        // web_search 无工具名时，根据参数推断 search / fetch
+        if (server === WEB_SEARCH_SERVER_NAME && !tool) {
+          const hasQuery = args && typeof (args as any).query === 'string' && String((args as any).query).trim().length > 0;
+          const hasUrl = args && typeof (args as any).url === 'string' && String((args as any).url).trim().length > 0;
+          if (hasUrl && !hasQuery) tool = 'fetch';
+          else tool = 'search';
+        }
+
+        if (server && tool) {
+          return { server, tool, args };
         }
       }
     }

@@ -252,11 +252,18 @@ export class StreamOrchestrator {
     // 保存原始内容用于兜底解析
     const originalContent = contentToPersist;
 
-    // 兜底：如果segments中没有任何toolCard，但内容包含工具调用指令
-    const segs = Array.isArray(msg?.segments) ? msg.segments : [];
-    const hasToolCardInSegments = segs.some((s: any) => s && s.kind === 'toolCard');
-    
-    if (!this.context.toolStarted && !hasToolCardInSegments) {
+    // 兜底：如果本轮流式过程中没有显式触发工具调用（context.toolStarted 仍为 false），
+    //       但最终内容中包含工具调用指令，则尝试在收尾阶段解析一次。
+    //
+    // 说明：
+    // - 早期实现为了避免重复，只在“完全没有工具卡片”的情况下才触发兜底；
+    // - 这会导致一个问题：同一条 AI 消息在前一轮已经插入过工具卡片时，
+    //   后续追问轮中新增的工具调用（例如先 search 再 fetch README）无法再通过兜底路径被解析，
+    //   从而第二张卡片永远不会被创建。
+    // - 现在改为仅根据本轮是否触发过工具调用来决定是否兜底：
+    //   只要本轮未触发（toolStarted=false），就允许针对本轮累积的 content 再做一次解析，
+    //   不再关心历史 segments 中是否已经存在旧卡片。
+    if (!this.context.toolStarted) {
       const parsed = extractToolCallFromText(originalContent);
       
       if (parsed && parsed.server && parsed.tool) {

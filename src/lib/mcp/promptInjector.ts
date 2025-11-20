@@ -203,7 +203,8 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
         const optional = allParamKeys.filter(k => !required.includes(k));
 
         detailLines.push(`ToolsDesc@${WEB_SEARCH_SERVER_NAME}:`);
-        detailLines.push(`• search - 在互联网上搜索实时信息（DuckDuckGo/Google/Bing/Ollama，根据设置选择）`);
+        detailLines.push(`• search - 在互联网上搜索实时信息或权威资料，用于“还没有具体链接，只知道要查什么”的场景`);
+        detailLines.push(`   注意：工具名必须是 search（不是 run_code、run 或其他）`);
         detailLines.push(`   required: ${required.join(', ') || '(none)'}`);
         if (optional.length) detailLines.push(`   optional: ${optional.join(', ')}`);
         detailLines.push(`   params:`);
@@ -228,7 +229,8 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
           const freq: string[] = Array.isArray(fschema?.required) ? fschema.required : ['url'];
           const fprops: Record<string, any> = fschema?.properties || { url: { type: 'string', description: '要抓取的网页地址（http/https）' } };
           const fetchNote = providerId === 'ollama' ? '依赖 Ollama Web Fetch API' : '直接 HTTP 抓取';
-          detailLines.push(`• fetch - 抓取指定网页内容（返回标题/正文/链接），${fetchNote}`);
+          detailLines.push(`• fetch - 抓取指定网页内容（返回标题/正文/链接），用于“已经有明确 URL，需要阅读/总结该页面”的场景，${fetchNote}`);
+          detailLines.push(`   注意：工具名必须是 fetch（不是 get、read 或其他）`);
           detailLines.push(`   required: ${freq.join(', ')}`);
           detailLines.push(`   params:`);
           detailLines.push(`     - url (string) [required] - ${String(fprops?.url?.description || '网页地址')}`);
@@ -284,7 +286,7 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
       const pdesc = (schema?.properties?.query?.description ? ` - ${schema.properties.query.description}` : '');
       const descLines = [
         `ToolsDesc@${WEB_SEARCH_SERVER_NAME}:`,
-        `• search - 在互联网上搜索实时信息`,
+        `• search - 在互联网上搜索实时信息或权威资料，用于“还没有具体链接，只知道要查什么”的场景`,
         `   ⚠️ 工具名必须是: search (不是 run_code, run, 或其他)`,
         `   required: ${required.join(', ')}`,
         `   params:`,
@@ -297,7 +299,7 @@ export async function buildMcpSystemInjections(content: string, _currentConversa
         const fschema: any = (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema?.schema || (WEB_FETCH_TOOL_SCHEMA as any)?.input_schema;
         const freq: string[] = Array.isArray(fschema?.required) ? fschema.required : ['url'];
         const fdesc = (fschema?.properties?.url?.description ? ` - ${fschema.properties.url.description}` : '');
-        const fetchTitle = '• fetch - 抓取指定网页内容（返回标题/正文/链接）';
+        const fetchTitle = '• fetch - 抓取指定网页内容（返回标题/正文/链接），用于“已经有明确 URL，需要阅读/总结该页面”的场景';
         const fLines = [
           fetchTitle,
           `   ⚠️ 工具名必须是: fetch (不是 get, read, 或其他)`,

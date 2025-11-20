@@ -3,6 +3,8 @@ import { getStaticModels } from '../../provider/staticModels';
 import { SSEClient } from '@/lib/sse-client';
 import { ThinkingStrategyFactory, type ThinkingModeStrategy } from './thinking';
 import { StreamEventAdapter } from '../adapters/StreamEventAdapter';
+import type { StreamEvent } from '@/lib/llm/types/stream-events';
+import { rewriteEventsWithToolCalls } from '../adapters/ToolChannelParser';
 
 /**
  * OpenAI 兼容 Provider（宽松解析版）
@@ -213,23 +215,13 @@ export class OpenAICompatibleProvider extends BaseProvider {
           const result = this.thinkingStrategy.processToken({ content: fullContent, done: false });
           parsedOkCount++;
           contentEmittedChars += fullContent.length;
-          if (cb.onEvent && result.events?.length) {
-            result.events.forEach(event => cb.onEvent!(event));
-          } else if (cb.onToken && result.events?.length) {
-            const text = StreamEventAdapter.eventsToText(result.events);
-            if (text.length > 0) cb.onToken(text);
-          }
+          this.dispatchEvents(result.events || [], cb);
         }
         // 2) 再处理结束信号
         const isDone = json === '[DONE]' || json?.done === true || !!json?.choices?.[0]?.finish_reason;
         if (isDone) {
           const result = this.thinkingStrategy.processToken({ done: true });
-          if (cb.onEvent && result.events?.length) {
-            result.events.forEach(event => cb.onEvent!(event));
-          } else if (cb.onToken && result.events?.length) {
-            const text = StreamEventAdapter.eventsToText(result.events);
-            if (text.length > 0) cb.onToken(text);
-          }
+          this.dispatchEvents(result.events || [], cb, true);
           cb.onComplete?.();
           // —— 诊断输出：NDJSON 模式统计 —— 
           try {
@@ -257,14 +249,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
             try { processDelta(JSON.parse(payload)); } catch { /* ignore */ }
           }
           const result = this.thinkingStrategy.processToken({ done: true });
-          if (cb.onEvent && result.events && result.events.length > 0) {
-            result.events.forEach(event => cb.onEvent!(event));
-          } else if (cb.onToken && result.events && result.events.length > 0) {
-            const text = StreamEventAdapter.eventsToText(result.events);
-            if (text.length > 0) {
-              cb.onToken(text);
-            }
-          }
+          this.dispatchEvents(result.events || [], cb, true);
           cb.onComplete?.();
           break;
         }
@@ -303,6 +288,24 @@ export class OpenAICompatibleProvider extends BaseProvider {
     }
   }
 
+  /**
+   * 统一的事件分发入口：
+   * - 先通过 ToolChannelParser 剥离工具指令 → 生成 tool_call 事件
+   * - 再将纯净的事件流交给上层回调（优先 onEvent，降级 onToken）
+   */
+  private dispatchEvents(rawEvents: StreamEvent[] | undefined, cb: StreamCallbacks, isDone: boolean = false) {
+    if (!rawEvents || rawEvents.length === 0) return;
+    const events = rewriteEventsWithToolCalls(rawEvents);
+    if (!events.length) return;
+
+    if (cb.onEvent) {
+      for (const ev of events) cb.onEvent(ev);
+    } else if (cb.onToken) {
+      const text = StreamEventAdapter.eventsToText(events);
+      if (text.length > 0) cb.onToken(text);
+    }
+  }
+
   private async startSSEFallback(
     url: string,
     apiKey: string | null,
@@ -335,17 +338,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
             if (!payload) return;
             if (payload === '[DONE]') {
               const result = this.thinkingStrategy.processToken({ done: true });
-              // 优先使用onEvent
-              if (cb.onEvent && result.events && result.events.length > 0) {
-                result.events.forEach(event => cb.onEvent!(event));
-              }
-              // 降级到onToken
-              else if (cb.onToken && result.events && result.events.length > 0) {
-                const text = StreamEventAdapter.eventsToText(result.events);
-                if (text.length > 0) {
-                  cb.onToken(text);
-                }
-              }
+              this.dispatchEvents(result.events || [], cb, true);
               cb.onComplete?.();
               this.sseClient.stopConnection();
               return;
@@ -372,18 +365,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
                   content: fullContent,
                   done: false
                 });
-                
-                // 优先使用onEvent（直接传递结构化事件）
-                if (cb.onEvent && result.events && result.events.length > 0) {
-                  result.events.forEach(event => cb.onEvent!(event));
-                }
-                // 降级：使用onToken（转换为文本，兼容旧代码）
-                else if (cb.onToken && result.events && result.events.length > 0) {
-                  const text = StreamEventAdapter.eventsToText(result.events);
-                  if (text.length > 0) {
-                    cb.onToken(text);
-                  }
-                }
+                this.dispatchEvents(result.events || [], cb);
               }
             } catch (err) {
               console.warn('[OpenAICompatibleProvider] JSON parse error', err);
