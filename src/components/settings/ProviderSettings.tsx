@@ -13,6 +13,7 @@ import { ProviderConnectionSection } from './ProviderConnectionSection';
 import { ProviderModelList } from './ProviderModelList';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 import { toast } from '@/components/ui/sonner';
+import { AdvancedSettingsDialog } from './AdvancedSettingsDialog';
 import { useStableProviderIcon } from './useStableProviderIcon';
 import { getAvatarSync } from '@/lib/utils/logoService';
 import { useRecentModelsHint } from './useRecentModelsHint';
@@ -61,7 +62,7 @@ function ProviderSettingsImpl({
   };
   // 保留最小状态集
   const [modelSearch, setModelSearch] = useState(''); // 模型搜索输入框的值
-  const lastUsedMap = useRecentModelsHint(provider.name);
+  const _lastUsedMap = useRecentModelsHint(provider.name); // 保留以便后续使用
   
   // 模型参数设置弹窗状态
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
@@ -74,6 +75,7 @@ function ProviderSettingsImpl({
   // —— 模型获取调试器状态 ——
   const [fetchDebuggerOpen, setFetchDebuggerOpen] = useState(false);
   const [hasFetchRule, setHasFetchRule] = useState<boolean>(false);
+  const [_advancedDialogOpen, setAdvancedDialogOpen] = useState(false); // 高级设置对话框状态
 
   useEffect(() => {
     (async () => {
@@ -81,7 +83,9 @@ function ProviderSettingsImpl({
         const { specializedStorage } = await import('@/lib/storage');
         const rule = await specializedStorage.models.getProviderFetchDebugRule(provider.name);
         setHasFetchRule(!!rule);
-      } catch {}
+      } catch {
+        // 忽略错误
+      }
     })();
   }, [provider.name]);
 
@@ -92,12 +96,12 @@ function ProviderSettingsImpl({
           const { specializedStorage } = await import('@/lib/storage');
           const rule = await specializedStorage.models.getProviderFetchDebugRule(provider.name);
           setHasFetchRule(!!rule);
-        } catch {}
+        } catch {
+          // 忽略错误
+        }
       })();
     }
   }, [fetchDebuggerOpen, provider.name]);
-
-  const openFetchDebugger = () => setFetchDebuggerOpen(true);
 
   // provider-specific API key / 控制台文档链接（集中在 keyDocLinks.ts 中维护）
   const docUrl = getProviderKeyDocLink(provider.name);
@@ -240,7 +244,9 @@ function ProviderSettingsImpl({
       }
     })();
     return () => {
-      try { unsubscribe?.(); } catch {}
+      try { unsubscribe?.(); } catch {
+        // 忽略取消订阅错误
+      }
     };
   }, [provider.name]);
 
@@ -262,22 +268,15 @@ function ProviderSettingsImpl({
   // 是否显示 API Key 相关字段 (Ollama 等不需要)
   const showApiKeyFields = provider.requiresApiKey !== false;
 
-  // 是否允许用户新增模型（除 Ollama）
-  const canAddModels = provider.name !== 'Ollama';
+  // 是否允许用户新增模型（除 Ollama） - 保留以便后续使用
+  const _canAddModels = provider.name !== 'Ollama';
 
   // —— 模型策略选择（仅对 multi 策略类 provider 有意义，如 New API） ——
   // 注意：New API作为聚合型提供商，用户应该为每个模型单独设置策略
   // 因此不显示Provider级别的默认策略设置，保持界面简洁
   const isMultiStrategyProvider = false; // 暂时禁用，因为聚合型提供商不需要Provider级默认策略
-  const STRATEGY_OPTIONS: Array<{ value: string; label: string }> = [
-    { value: 'openai-compatible', label: 'OpenAI Compatible (/v1/chat/completions)' },
-    { value: 'openai', label: 'OpenAI Strict' },
-    { value: 'anthropic', label: 'Anthropic (messages)' },
-    { value: 'gemini', label: 'Google Gemini (generateContent)' },
-    { value: 'deepseek', label: 'DeepSeek (chat/completions)' },
-  ];
   const [defaultStrategy, setDefaultStrategy] = useState<string>('openai-compatible');
-  const [modelStrategies, setModelStrategies] = useState<Record<string, string>>({});
+  const [_modelStrategies, _setModelStrategies] = useState<Record<string, string>>({});
   // 计算实际请求地址预览
   const endpointPreview = React.useMemo(() => {
     const base = (localUrl || '').replace(/\/$/, '');
@@ -312,42 +311,16 @@ function ProviderSettingsImpl({
         const s = await specializedStorage.models.getModelStrategy(provider.name, m.name);
         if (s) map[m.name] = s;
       }
-      setModelStrategies(map);
+      _setModelStrategies(map);
     })().catch(console.error);
   }, [provider.name, provider.models, isMultiStrategyProvider]);
 
-  // 旧的“添加模型”逻辑已移至独立对话框组件
-
-  // 能力图标渲染已迁移至子组件，保留入口占位（如需再次集成可在 ModelItem 侧实现）
-
-  // 搜索关键字高亮（已不再在此文件中使用，保留到模型列表组件内部）
-
-  // 重命名（组件级，供弹窗和菜单共用）
-  const commitRename = async (modelName: string, nextLabelRaw: string) => {
-    const nextLabel = (nextLabelRaw || '').trim();
-    if (!nextLabel) { toast.error('名称不可为空'); return; }
-    try {
-      const { modelRepository } = await import('@/lib/provider/ModelRepository');
-      const { specializedStorage } = await import('@/lib/storage');
-      const list = (await modelRepository.get(provider.name)) || [];
-      const updated = list.map((m: any) => (m.name === modelName ? { ...m, label: nextLabel } : m));
-      await modelRepository.save(provider.name, updated);
-      await specializedStorage.models.setModelLabel(provider.name, modelName, nextLabel);
-      toast.success('已重命名', { description: nextLabel });
-    } catch (err) {
-      console.error(err);
-      toast.error('重命名失败');
-    }
-  };
-
-  // Add/Rename 模型弹窗已拆分为独立文件
-
-
-  // 能力摘要按钮已移除（如需显示可在 ModelItem 中实现）
+  // 旧的"添加模型"、"重命名"逻辑已移至子组件
+  // 能力图标渲染、搜索关键字高亮已迁移至子组件
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={(open)=>{ setIsOpen(open); onOpenChange?.(open); }} className="border border-gray-200/60 dark:border-gray-700/50 rounded-xl overflow-hidden bg-white/80 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-all">
+      <Collapsible open={isOpen} onOpenChange={(open)=>{ setIsOpen(open); onOpenChange?.(open); }} className="border border-slate-200/70 dark:border-slate-700/70 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
         <ProviderHeader
           provider={provider}
           isOpen={isOpen}
@@ -369,9 +342,12 @@ function ProviderSettingsImpl({
           onRefresh={onRefresh}
           onOpenFetchDebugger={isDevelopmentEnvironment() ? (() => setFetchDebuggerOpen(true)) : undefined}
           hasFetchRule={hasFetchRule}
+          onOpenSettings={() => setAdvancedDialogOpen(true)}
+          onResetUrl={handleResetUrl}
+          onPreferenceChange={onPreferenceChange}
         />
 
-      <CollapsibleContent className="px-4 pb-4 pt-3 bg-gray-50/50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-700">
+      <CollapsibleContent className="px-3 pb-3 pt-2 bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-200/70 dark:border-slate-700/70">
         
         <div className="space-y-3">
           <ProviderConnectionSection
@@ -389,14 +365,15 @@ function ProviderSettingsImpl({
             onDefaultApiKeyBlur={onDefaultApiKeyBlur}
             endpointPreview={endpointPreview}
             onPreferenceChange={onPreferenceChange}
+            showInlineMenu={false}
           />
 
           {/* 模型列表和配置 */}
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
             {isMultiStrategyProvider && (
               <ProviderStrategySelector providerName={provider.name} value={defaultStrategy as any} onChange={(v)=>setDefaultStrategy(v)} />
             )}
-            <div className="mt-2">
+            <div className={isMultiStrategyProvider ? "mt-2" : ""}>
               <ProviderModelList
                 provider={provider}
                 modelsForDisplay={modelsForDisplay}
@@ -427,6 +404,16 @@ function ProviderSettingsImpl({
 
     {/* 模型获取调试器弹窗（独立组件） */}
     <ModelFetchDebugger open={fetchDebuggerOpen} onOpenChange={setFetchDebuggerOpen} provider={provider} baseUrl={localUrl || provider.api_base_url || ''} />
+    
+    {/* 高级设置对话框 */}
+    {onPreferenceChange && (
+      <AdvancedSettingsDialog
+        open={_advancedDialogOpen}
+        onOpenChange={setAdvancedDialogOpen}
+        provider={provider}
+        onPreferenceChange={onPreferenceChange}
+      />
+    )}
   </>
   );
 }

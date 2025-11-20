@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { DndContext, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, closestCenter, DragOverlay } from '@dnd-kit/core';
+import Image from "next/image";
+import { DndContext, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { SettingsSectionHeader } from "./SettingsSectionHeader";
+// import { SettingsSectionHeader } from "./SettingsSectionHeader";
 // import { ModelCard } from "./ModelCard"; // 不再使用 ModelCard
-import { ProviderTableRow } from "./ProviderTableRow";
-import { ServerCog, RotateCcw, GripVertical, ChevronRight, Settings, Search } from "lucide-react";
+import { ProviderSettings } from "./ProviderSettings";
+import { ServerCog, RotateCcw, GripVertical } from "lucide-react";
 // 导入新模块
 /* Commenting out for now due to persistent linter error
 import {
@@ -30,6 +31,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useProviderManagement, ProviderWithStatus } from '@/hooks/useProviderManagement';
 import { cn } from "@/lib/utils"; // Assuming cn is used somewhere or will be
 import { AddProvidersDialog } from './AddProvidersDialog';
+import { useStableProviderIcon } from "./useStableProviderIcon";
 // 头部过滤器已内化到表头，无需 Select 组件
 // duplicate import removed
 
@@ -76,7 +78,6 @@ export function AiModelSettings() {
   // 搜索与过滤 state
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all'|'recently_checked'|'needs_key'|'never_checked'>('all');
-  const [headSearchOpen, setHeadSearchOpen] = useState(false);
   // 如需更新 provider 配置请从 store 调用，当前未使用
 
   // 计算各状态的数量
@@ -104,11 +105,9 @@ export function AiModelSettings() {
     return matchesSearch && matchesStatus;
   });
 
-  // —— 拖拽排序：保存用户顺序 ——
+  // —— 左侧列表：拖拽排序 + 选中状态 ——
   const [localList, setLocalList] = useState<ProviderWithStatus[]>(filteredProviders);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // 由父级维护每个 provider 的展开状态，避免因列表刷新而丢失
-  const [providerOpenMap, setProviderOpenMap] = useState<Record<string, boolean>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // 仅在筛选/源数据长度或集合变化时同步，避免每次 render 都触发 setState
   const lastSyncRef = useRef<string>("");
   useEffect(() => {
@@ -120,18 +119,20 @@ export function AiModelSettings() {
     if (lastSyncRef.current !== key) {
       lastSyncRef.current = key;
       setLocalList(filteredProviders);
+      // 若当前选中项不在新的列表中，则选中第一个可用 Provider
+      if (!selectedId || !filteredProviders.some(p => p.name === selectedId)) {
+        setSelectedId(filteredProviders[0]?.name ?? null);
+      }
     }
-  }, [filteredProviders]);
+  }, [filteredProviders, selectedId]);
 
   // dnd-kit 传感器
   // 调高触发距离，减少误触；限定触发元素为拖拽把手
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id as string);
+  const handleDragStart = (_event: DragStartEvent) => {
+    // 仅用于激活拖拽感应，无需额外处理
   };
-
   const handleDragEnd = React.useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -140,7 +141,6 @@ export function AiModelSettings() {
     if (oldIndex === -1 || newIndex === -1) return;
     const next = arrayMove(localList, oldIndex, newIndex);
     setLocalList(next);
-    setActiveId(null);
     try {
       const { providerRepository } = await import('@/lib/provider/ProviderRepository');
       await providerRepository.setUserOrder(next.map((p: ProviderWithStatus)=>p.name));
@@ -158,226 +158,274 @@ export function AiModelSettings() {
   // 保持 DndContext 依赖长度稳定
   const handleDragMove = React.useCallback(() => {}, []);
   const handleDragOverEvt = React.useCallback(() => {}, []);
-  const handleDragCancel = React.useCallback(() => { setActiveId(null); }, []);
+  const handleDragCancel = React.useCallback(() => {}, []);
 
-  // Sortable item with手柄
-  function SortableProviderItem({ provider, children }: { provider: ProviderWithStatus; children: React.ReactNode }) {
+  // 左侧可拖拽 Provider 列表项
+  function SortableProviderRow({ provider }: { provider: ProviderWithStatus }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: provider.name });
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
       transition,
-      opacity: isDragging ? 0.6 : 1,
+      opacity: isDragging ? 0.5 : 1,
       willChange: isDragging ? 'transform' : undefined,
     };
-    // 由顶层 openMap 控制展开态，默认折叠
+
+    const isSelected = provider.name === selectedId;
+    const { iconSrc } = useStableProviderIcon(provider as any);
+    
+    // 简化状态显示：只在关键状态时显示小徽章
+    const statusDot = provider.configStatus === 'NO_KEY' 
+      ? { color: 'bg-amber-400 dark:bg-amber-500', tooltip: '未配置密钥' }
+      : provider.displayStatus === 'NOT_CONNECTED'
+      ? { color: 'bg-red-400 dark:bg-red-500', tooltip: '连接失败' }
+      : null;
+
+    // 格式化最后检查时间
+    const formatLastChecked = (timestamp?: number) => {
+      if (!timestamp) return '从未检查';
+      const now = Date.now();
+      const diff = now - timestamp;
+      if (diff < 60000) return '刚刚检查';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+      return `${Math.floor(diff / 86400000)}天前`;
+    };
+
+    // 导入右键菜单组件和功能
+    const { ContextMenu } = require('@/components/ui/context-menu');
+
+    // 右键菜单项 - 常用功能在上，不常用功能用分隔线隔开
+    const menuItems = React.useMemo(() => [
+      {
+        id: 'refresh',
+        text: '刷新状态',
+        action: () => {
+          handleSingleProviderRefresh(provider);
+        }
+      },
+      {
+        id: 'copy-url',
+        text: '复制服务地址',
+        action: () => {
+          const url = (provider as any).url || (provider as any).api_base_url || '';
+          navigator.clipboard.writeText(url);
+          toast.success('已复制服务地址', { duration: 2000 });
+        }
+      },
+      {
+        id: 'separator-1',
+        text: '',
+        separator: true
+      },
+      {
+        id: 'toggle-visibility',
+        text: provider.isVisible ? '隐藏提供商' : '显示提供商',
+        action: async () => {
+          try {
+            const { providerRepository } = await import('@/lib/provider/ProviderRepository');
+            await providerRepository.setVisibility(provider.name, !provider.isVisible);
+            toast.success(provider.isVisible ? '已隐藏提供商' : '已显示提供商', { duration: 2000 });
+          } catch (error) {
+            console.error('切换可见性失败:', error);
+            toast.error('操作失败');
+          }
+        }
+      }
+    ], [provider]);
+
+    // 悬浮提示信息
+    const tooltipContent = `${provider.displayName || provider.name}\n${formatLastChecked(provider.lastCheckedAt)}\n${provider.models?.length || 0} 个模型`;
+
     return (
-      <div ref={setNodeRef} style={style} className={"group transition-shadow duration-150 "+(isDragging?"shadow-lg ring-1 ring-blue-300/60 rounded-lg scale-[0.998]":"") }>
-        <div className="relative">
-          <div className="flex-1">
-              {React.cloneElement(children as any, {
-              open: providerOpenMap[provider.name] ?? false,
-              onOpenChange: (open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open })),
-              dragHandleProps: { ...attributes, ...listeners, role: 'button', tabIndex: -1 }
-            })}
-          </div>
+      <ContextMenu menuItems={menuItems}>
+        <div ref={setNodeRef} style={style} title={tooltipContent}>
+          <button
+            type="button"
+            onClick={() => setSelectedId(provider.name)}
+            className={cn(
+              "w-full flex items-center gap-2 px-2 py-2 text-left transition-colors relative group",
+              isSelected
+                ? "bg-blue-50/90 dark:bg-blue-900/25 text-blue-700 dark:text-blue-200 border-l-2 border-blue-500"
+                : "hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-200 border-l-2 border-transparent"
+            )}
+          >
+            {/* 拖拽手柄 */}
+            <span
+              className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing hover:text-slate-400 dark:hover:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="w-3 h-3" />
+            </span>
+            
+            {/* 图标 */}
+            <div className="flex-shrink-0 relative">
+              <div className="w-7 h-7 rounded-md bg-slate-100/80 dark:bg-slate-800/80 flex items-center justify-center overflow-hidden">
+                <Image
+                  src={iconSrc}
+                  alt={provider.displayName || provider.name}
+                  className="w-5 h-5 object-contain"
+                  draggable={false}
+                  width={20}
+                  height={20}
+                />
+              </div>
+              {/* 状态点 */}
+              {statusDot && (
+                <span 
+                  className={cn("absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-slate-900", statusDot.color)}
+                  title={statusDot.tooltip}
+                />
+              )}
+            </div>
+            
+            {/* 文本信息 */}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate leading-tight text-sm">
+                {provider.displayName || provider.name}
+              </div>
+            </div>
+          </button>
         </div>
-      </div>
+      </ContextMenu>
     );
   }
 
   // 进度条功能已移除，可在此处实现统计逻辑
 
+  // 选中 Provider 详情
+  const selectedProvider: ProviderWithStatus | null =
+    (selectedId && localList.find((p) => p.name === selectedId)) ||
+    localList[0] ||
+    null;
+
   // --- 渲染逻辑 ---
   return (
-    <div className="space-y-5">
-      <div className="space-y-4">
-      <div className="mb-6">
-        <h2 className="text-base font-semibold text-brand-700 dark:text-brand-300 mb-2">管理提供商</h2>
-        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            在此添加/编辑提供商，并进行连接管理。聊天会话中可选择已连接提供商，AI 将按需调用工具/资源/提示。
-          </p>
-        </div>
-          </div>
+    <div className="h-full min-h-0 flex flex-col gap-3">
+      {/* 顶部标题栏：紧凑设计 */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">管理提供商</h2>
+        
+        {/* 刷新按钮 */}
+        <button
+          aria-label="刷新"
+          title="刷新所有提供商状态"
+          onClick={handleGlobalRefresh}
+          disabled={isRefreshing || isLoading}
+          className={cn(
+            "w-8 h-8 rounded-md border border-slate-200/70 dark:border-slate-700/70 flex items-center justify-center",
+            "text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400",
+            "hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none transition-colors disabled:opacity-50"
+          )}
+        >
+          <RotateCcw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
+        </button>
+      </div>
 
-        {/* 操作栏：保留右侧操作按钮，仅移除上方搜索与筛选 */}
-        <div className='flex justify-end'>
-        <div className="flex items-center gap-3">
-            {/* 刷新：图标按钮 */}
-            <button
-              aria-label="刷新"
-              title="刷新"
-              onClick={handleGlobalRefresh}
-              disabled={isRefreshing || isLoading}
-              className={cn(
-                "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-                "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-                "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
-              )}
-            >
-              <RotateCcw className={cn("w-4 h-4", isRefreshing && 'animate-spin')} />
-            </button>
+      {/* 主体：左侧列表 + 右侧详情 */}
+      <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-3 flex-1 min-h-0 overflow-hidden">
+        {/* 左侧 Provider 列表 */}
+        <div className="flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-lg overflow-hidden shadow-sm">
+          {/* 搜索栏 */}
+          <div className="flex-shrink-0 px-2 py-2 border-b border-slate-200/80 dark:border-slate-700/80 flex items-center gap-1.5 bg-slate-50/50 dark:bg-slate-800/30">
+            <SearchInput
+              value={searchQuery}
+              onChange={(e)=>setSearchQuery(e.target.value)}
+              placeholder="搜索"
+              variant="withIcon"
+              allowClear
+              className="h-7 flex-1 text-xs"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="px-2 h-7 text-[11px] text-slate-600 dark:text-slate-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 focus:outline-none transition-colors whitespace-nowrap"
+                  title="筛选状态"
+                >
+                  {statusFilter === 'all' && '全部'}
+                  {statusFilter === 'recently_checked' && '已检查'}
+                  {statusFilter === 'needs_key' && '无密钥'}
+                  {statusFilter === 'never_checked' && '未检查'}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-24">
+                <DropdownMenuItem onClick={() => setStatusFilter('all')} className="text-xs">全部</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('recently_checked')} className="text-xs">最近检查</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('needs_key')} className="text-xs">未配置密钥</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('never_checked')} className="text-xs">未检查过</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
-            {/* 添加提供商按钮 */}
+            {/* 管理提供商按钮 */}
             <AddProvidersDialog
               trigger={
-             
-
-<button
-  className={cn(
-    "w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-center",
-    "text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
-    "hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none  transition-all"
-  )}
->
-  <Settings className="w-5 h-5" />
-</button>
-
+                <button
+                  className={cn(
+                    "w-7 h-7 rounded-md border border-slate-200/70 dark:border-slate-700/70 flex items-center justify-center",
+                    "text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400",
+                    "hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none transition-colors"
+                  )}
+                  title="添加或管理提供商"
+                >
+                  <ServerCog className="w-3.5 h-3.5" />
+                </button>
               }
             />
           </div>
-        </div>
 
-
-      {/* Provider 列表 - 去卡片化设计 */}
-      <div className="mt-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden provider-list-root">
-        {/* 表头优化：列名与内容对齐；状态列使用下拉；“提供商”列点击图标再展开搜索 */}
-        <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-12 gap-4 items-center text-[13px] font-medium text-gray-600 dark:text-gray-400">
-            <div className="col-span-1" />
-            <div className="col-span-6 flex items-center">
-              <span className='text-sm font-semibold'>提供商</span>
-              <div className="ml-2 h-7 flex items-center">
-                {headSearchOpen ? (
-                  <div className="w-32 h-full flex items-center">
-                    <SearchInput
-                      value={searchQuery}
-                      onChange={(e)=>setSearchQuery(e.target.value)}
-                      placeholder="搜索提供商"
-                      variant="withIcon"
-                      allowClear
-                      autoFocus
-                      className="h-7"
-                      onBlur={()=>{ if (!searchQuery) setHeadSearchOpen(false); }}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    onClick={()=>setHeadSearchOpen(true)}
-                    className="h-7 w-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="搜索提供商"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="col-span-3 flex items-center">
-              <span className='text-sm font-semibold'>状态：</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="ml-1 px-1 h-6 text-xs text-blue-600 dark:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none "
-                    title="更改状态筛选"
-                  >
-                    {statusFilter === 'all' && '全部'}
-                    {statusFilter === 'recently_checked' && '最近检查'}
-                    {statusFilter === 'needs_key' && '未配置密钥'}
-                    {statusFilter === 'never_checked' && '未检查过'}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-28">
-                  <DropdownMenuItem onClick={()=>setStatusFilter('all')}>全部</DropdownMenuItem>
-                  <DropdownMenuItem onClick={()=>setStatusFilter('recently_checked')}>最近检查</DropdownMenuItem>
-                  <DropdownMenuItem onClick={()=>setStatusFilter('needs_key')}>未配置密钥</DropdownMenuItem>
-                  <DropdownMenuItem onClick={()=>setStatusFilter('never_checked')}>未检查过</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="col-span-2 text-sm font-semibold">操作</div>
-          </div>
-        </div>
-
-        {/* 表格内容 */}
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOverEvt} onDragCancel={handleDragCancel} onDragEnd={handleDragEnd}>
-          <SortableContext items={localList.map((p: ProviderWithStatus)=>p.name)} strategy={verticalListSortingStrategy}>
-            <div className="divide-y divide-gray-200/60 dark:divide-gray-700/50">
-              {localList.map((provider, index) => (
-                <SortableProviderItem key={provider.name} provider={provider}>
-                  <ProviderTableRow
-                    provider={provider}
-                    _index={index}
-                    isConnecting={provider.displayStatus === 'CONNECTING'}
-                    isInitialChecking={isLoading}
-                    onUrlChange={(name, url) => handleServiceUrlChange(name, url)}
-                    onDefaultApiKeyChange={(name, key) => handleProviderDefaultApiKeyChange(name, key)}
-                    onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
-                    onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(provider.name, modelName, apiKey)}
-                    onModelApiKeyBlur={handleModelApiKeyBlur}
-                    onRefresh={handleSingleProviderRefresh}
-                    onPreferenceChange={handlePreferenceChange}
-                    open={providerOpenMap[provider.name] ?? false}
-                    onOpenChange={(open: boolean) => setProviderOpenMap((m)=>({ ...m, [provider.name]: open }))}
-                  />
-                </SortableProviderItem>
-              ))}
-            </div>
-          </SortableContext>
-          
-          {/* 拖拽中的跟随行（半透明、悬浮） */}
-          <DragOverlay dropAnimation={{ duration: 150 }}>
-            {activeId ? (
-              <div className="opacity-70 scale-[0.98] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
-                <div className="px-4 py-3">
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-1 flex items-center gap-2">
-                      <div className="cursor-grabbing text-gray-400 dark:text-gray-500">
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
-                    <div className="col-span-5 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700"></div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                          {(() => {
-                            const item = localList.find(p=>p.name===activeId);
-                            return item?.displayName || item?.name || '';
-                          })()}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {localList.find(p=>p.name===activeId)?.models?.length || 0} 个模型
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-span-3">
-                      <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-sm text-gray-400 dark:text-gray-500">从未检查</span>
-                    </div>
-                    <div className="col-span-1 flex items-center gap-1">
-                      <div className="w-8 h-8"></div>
-                      <div className="w-8 h-8"></div>
-                    </div>
-                  </div>
+          {/* 列表区域 - 添加固定滚动条，避免跳动 */}
+          <div className="flex-1 overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragMove={handleDragMove}
+              onDragOver={handleDragOverEvt}
+              onDragCancel={handleDragCancel}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={localList.map((p: ProviderWithStatus) => p.name)} strategy={verticalListSortingStrategy}>
+                <div>
+                  {localList.map((provider) => (
+                    <SortableProviderRow key={provider.name} provider={provider} />
+                  ))}
                 </div>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+              </SortableContext>
+            </DndContext>
 
-        {/* 空状态提示 */}
-        {providers.length === 0 && !isLoading && (
-          <div className="px-4 py-8 text-center">
-            <div className="text-gray-500 dark:text-gray-400">
-              <ServerCog className="w-10 h-10 mx-auto mb-3 opacity-50" />
-              <p className="text-base font-medium mb-1">暂无提供商</p>
-              <p className="text-sm">点击右上角"添加提供商"开始配置</p>
-            </div>
+            {localList.length === 0 && !isLoading && (
+              <div className="px-3 py-12 text-center text-xs text-slate-500 dark:text-slate-400">
+                <ServerCog className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="font-medium">暂无匹配的提供商</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+
+        {/* 右侧详情面板 - 添加固定滚动条 */}
+        <div className="flex flex-col min-w-0 overflow-hidden">
+          {selectedProvider ? (
+            <div className="h-full overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+              <ProviderSettings
+                provider={selectedProvider}
+                isConnecting={selectedProvider.displayStatus === 'CONNECTING'}
+                isInitialChecking={isLoading}
+                onUrlChange={handleServiceUrlChange}
+                onDefaultApiKeyChange={handleProviderDefaultApiKeyChange}
+                onDefaultApiKeyBlur={handleDefaultApiKeyBlur}
+                onModelApiKeyChange={(modelName, apiKey) => handleModelApiKeyChange(selectedProvider.name, modelName, apiKey)}
+                onModelApiKeyBlur={handleModelApiKeyBlur}
+                onRefresh={handleSingleProviderRefresh}
+                onPreferenceChange={handlePreferenceChange}
+                open
+              />
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-200/70 dark:border-slate-700/70 rounded-lg bg-slate-50/30 dark:bg-slate-900/20">
+              请从左侧选择一个提供商
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

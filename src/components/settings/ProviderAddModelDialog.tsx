@@ -80,18 +80,18 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-xs">添加</Button>
+        <Button type="button" size="sm" variant="secondary" className="h-6 px-2 text-[11px] border-slate-200/70 dark:border-slate-700/70 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">添加</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[720px]">
-        <DialogHeader>
-          <DialogTitle className="text-[16px] font-semibold text-gray-800 dark:text-gray-100">添加模型</DialogTitle>
+      <DialogContent className="sm:max-w-[720px] border-slate-200/80 dark:border-slate-700/80 shadow-lg">
+        <DialogHeader className="border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
+          <DialogTitle className="text-base font-semibold text-slate-800 dark:text-slate-100">添加模型</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2">
+        <div className="space-y-2 py-2">
           {/* 表头仅显示一次，避免每行重复列名 */}
           <div className="grid grid-cols-12 gap-2 items-center px-1">
-            <div className="col-span-4 text-[11px] text-gray-500">模型名称（显示名，可选）</div>
-            <div className="col-span-4 text-[11px] text-gray-500">模型 ID</div>
-            <div className="col-span-3 text-[11px] text-gray-500">请求策略</div>
+            <div className="col-span-4 text-[11px] font-medium text-slate-600 dark:text-slate-400">模型名称（显示名，可选）</div>
+            <div className="col-span-4 text-[11px] font-medium text-slate-600 dark:text-slate-400">模型 ID</div>
+            <div className="col-span-3 text-[11px] font-medium text-slate-600 dark:text-slate-400">请求策略</div>
             <div className="col-span-1" />
           </div>
 
@@ -99,40 +99,40 @@ export function ProviderAddModelDialog({ providerName, onAdded }: { providerName
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-4">
                 <input
-                  className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
+                  className="w-full h-8 px-2.5 rounded-md border border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-800/60 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:border-blue-400/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
                   value={row.label}
                   onChange={e=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, label: e.target.value } : r))}
                   placeholder="如：Gemini 2.5 Pro" />
               </div>
               <div className="col-span-4">
                 <input
-                  className="w-full h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-sm"
+                  className="w-full h-8 px-2.5 rounded-md border border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-800/60 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:border-blue-400/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
                   value={row.id}
                   onChange={e=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, id: e.target.value } : r))}
                   placeholder="如：gemini-2.5-pro" />
               </div>
               <div className="col-span-3">
                 <Select value={row.strategy} onValueChange={(v:any)=>setRows(prev=> prev.map((r,i)=> i===idx? { ...r, strategy: v } : r))}>
-                  <SelectTrigger className="h-9 text-xs w-full truncate">
+                  <SelectTrigger className="h-8 text-[11px] w-full truncate border-slate-200/70 dark:border-slate-700/70">
                     <SelectValue placeholder="跟随默认" className="truncate" />
                   </SelectTrigger>
                   <SelectContent className="max-w-[360px]">
                     {STRATEGY_OPTIONS.map(opt=> (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs truncate">{opt.label}</SelectItem>
+                      <SelectItem key={opt.value} value={opt.value} className="text-[11px] truncate">{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="col-span-1 flex items-center gap-1 justify-end">
-                <Button type="button" aria-label="添加一行" variant="outline" className="h-7 w-7 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 p-0" onClick={addRow}>+</Button>
-                <Button type="button" aria-label="删除该行" variant="outline" className="h-7 w-7 rounded-md text-gray-500 p-0" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
+                <Button type="button" aria-label="添加一行" variant="outline" className="h-7 w-7 rounded-md bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200/50 dark:border-blue-800/40 p-0 transition-colors" onClick={addRow}>+</Button>
+                <Button type="button" aria-label="删除该行" variant="outline" className="h-7 w-7 rounded-md text-slate-500 dark:text-slate-400 border-slate-200/70 dark:border-slate-700/70 p-0 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors" onClick={()=>removeRow(idx)} disabled={rows.length<=1}>−</Button>
               </div>
             </div>
           ))}
         </div>
-        <DialogFooter>
-          <Button variant="outline" className="bg-white text-gray-600 h-8 px-3" onClick={()=>setOpen(false)} disabled={saving}>取消</Button>
-          <Button className="bg-blue-500/80 hover:bg-blue-500 text-white h-8 px-3" onClick={submit} disabled={saving || !canSubmit}>{saving? '保存中…' : '批量添加/更新'}</Button>
+        <DialogFooter className="border-t border-slate-200/60 dark:border-slate-700/60 pt-3 gap-2">
+          <Button variant="outline" className="h-8 px-3 text-xs border-slate-200/70 dark:border-slate-700/70 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors" onClick={()=>setOpen(false)} disabled={saving}>取消</Button>
+          <Button className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white transition-colors" onClick={submit} disabled={saving || !canSubmit}>{saving? '保存中…' : '批量添加/更新'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

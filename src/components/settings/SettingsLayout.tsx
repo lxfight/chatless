@@ -83,8 +83,8 @@ export function SettingsLayout({ children, activeTab, onTabChange }: SettingsLay
         <div className="flex flex-1 overflow-hidden">
              {/* 设置侧边栏 */}
              <SettingsSidebar activeTab={activeTab} onTabChange={onTabChange} />
-             {/* 设置内容区域 */}
-             <main ref={mainRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-white/60 to-gray-50/40 dark:from-gray-900/60 dark:to-gray-950/40 backdrop-blur-sm custom-scrollbar text-sm">
+             {/* 设置内容区域 - 优化边距，提高空间利用率 */}
+             <main ref={mainRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 bg-gradient-to-br from-white/60 to-gray-50/40 dark:from-gray-900/60 dark:to-gray-950/40 backdrop-blur-sm custom-scrollbar text-sm">
                {children}
              </main>
         </div>
