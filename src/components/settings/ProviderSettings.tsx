@@ -16,6 +16,7 @@ import { toast } from '@/components/ui/sonner';
 import { useStableProviderIcon } from './useStableProviderIcon';
 import { getAvatarSync } from '@/lib/utils/logoService';
 import { useRecentModelsHint } from './useRecentModelsHint';
+import { getProviderKeyDocLink } from '@/lib/provider/keyDocLinks';
 
 // 导入 ProviderWithStatus 类型
 import type { ProviderWithStatus } from '@/hooks/useProviderManagement';
@@ -98,16 +99,8 @@ function ProviderSettingsImpl({
 
   const openFetchDebugger = () => setFetchDebuggerOpen(true);
 
-  // provider-specific API key doc links
-  const keyDocLinks: Record<string, string> = {
-    'openai': 'https://platform.openai.com/account/api-keys',
-    'anthropic': 'https://console.anthropic.com/settings/keys',
-    'google ai': 'https://aistudio.google.com/app/apikey',
-    'deepseek': 'https://deepseek.com',
-    // Ollama 不需要 API Key
-  };
-  const providerKey = provider.name.toLowerCase();
-  const docUrl = keyDocLinks[providerKey];
+  // provider-specific API key / 控制台文档链接（集中在 keyDocLinks.ts 中维护）
+  const docUrl = getProviderKeyDocLink(provider.name);
 
   // 稳定的图标加载：先显示头像，后台预取真实图标，命中后平滑替换（仅切换一次）
   const { iconSrc } = useStableProviderIcon(provider);

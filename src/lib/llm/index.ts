@@ -4,48 +4,57 @@ import { DeepSeekProvider } from './providers/DeepSeekProvider';
 import { GoogleAIProvider } from './providers/GoogleAIProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
+import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider';
 import { createProviderInstance } from './strategy-factory';
 import { providerRepository } from '@/lib/provider/ProviderRepository';
 import { AVAILABLE_PROVIDERS_CATALOG } from '@/lib/provider/catalog';
 
 // —— 定义 Provider 注册顺序 ——
 const PROVIDER_ORDER = [
-  'Ollama',      // 1. Ollama 排在最前面
-  'DeepSeek',    // 2. DeepSeek
-  'Google AI',   // 3. Google AI
-  'Anthropic',   // 4. Anthropic
-  'OpenAI',      // 5. OpenAI
-  'New API'      // 6. New API（多策略聚合）
+  'LM Studio',   // 1. 本地 LM Studio
+  'Ollama',      // 2. 本地 Ollama
+  'DeepSeek',    // 3. DeepSeek
+  'Google AI',   // 4. Google AI
+  'Anthropic',   // 5. Anthropic
+  'OpenAI',      // 6. OpenAI
+  'New API',     // 7. New API（多策略聚合，仅排序用）
 ];
 
 // 同步注册所有providers，确保顺序正确
 function registerAllProviders(): void {
   console.log('[llm/index] 开始按顺序注册所有providers...');
   
-  // 1. Ollama - 使用默认URL，后续会从配置中更新
+  // 1. LM Studio - 本地 OpenAI 兼容，默认免密
+  const lmStudioProvider = new OpenAICompatibleProvider('http://localhost:1234/v1', undefined, 'LM Studio');
+  // 标记无需密钥，便于运行时跳过密钥校验
+  (lmStudioProvider as any).requiresKey = false;
+  ProviderRegistry.register(lmStudioProvider);
+  console.log('[llm/index] 1. LMStudioProvider 已注册');
+
+  // 2. Ollama - 使用默认URL，后续会从配置中更新
   const ollamaProvider = new OllamaProvider('http://localhost:11434');
   ProviderRegistry.register(ollamaProvider);
-  console.log('[llm/index] 1. OllamaProvider 已注册');
+  console.log('[llm/index] 2. OllamaProvider 已注册');
 
-  // 2. DeepSeek
+  // 3. DeepSeek
   const deepseekApiKey: string | undefined = undefined;
   ProviderRegistry.register(new DeepSeekProvider('https://api.deepseek.com', deepseekApiKey));
-  console.log('[llm/index] 2. DeepSeekProvider 已注册');
+  console.log('[llm/index] 3. DeepSeekProvider 已注册');
 
-  // 3. Google AI
+  // 4. Google AI
   const googleApiKey: string | undefined = undefined;
   ProviderRegistry.register(new GoogleAIProvider('https://generativelanguage.googleapis.com/v1beta', googleApiKey));
-  console.log('[llm/index] 3. GoogleAIProvider 已注册');
+  console.log('[llm/index] 4. GoogleAIProvider 已注册');
 
-  // 4. Anthropic (Claude)
+  // 5. Anthropic (Claude)
   const anthropicKey: string | undefined = undefined;
   ProviderRegistry.register(new AnthropicProvider('https://api.anthropic.com/v1', anthropicKey));
-  console.log('[llm/index] 4. AnthropicProvider 已注册');
+  console.log('[llm/index] 5. AnthropicProvider 已注册');
 
-  // 5. OpenAI（严格解析）
+  // 6. OpenAI（严格解析）
   const openaiKey: string | undefined = undefined;
   ProviderRegistry.register(new OpenAIProvider('https://api.openai.com/v1', openaiKey));
-  console.log('[llm/index] 5. OpenAIProvider 已注册');
+  console.log('[llm/index] 6. OpenAIProvider 已注册');
 
   // 不再默认注册 OpenAI-Compatible，避免新安装时自动添加该 Provider。
 

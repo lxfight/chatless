@@ -5,6 +5,14 @@ import { ProviderRegistry } from "@/lib/llm";
 import { KeyManager } from "@/lib/llm/KeyManager";
 import { getStaticModels } from "../staticModels";
 
+// 默认在全新安装时展示在 Provider 列表中的内置提供商
+const DEFAULT_VISIBLE_PROVIDER_NAMES = new Set<string>([
+  'LM Studio',
+  'Ollama',
+  'DeepSeek',
+  'Google AI',
+]);
+
 /**
  * 仅负责初始化 Provider 列表与静态模型写入，不做状态检查。
  */
@@ -44,7 +52,8 @@ export class ProviderInitializationService {
       lastChecked: existingConfig?.lastChecked || 0,
       apiKey: existingConfig?.apiKey || apiKey,
       isUserAdded: existingConfig?.isUserAdded ?? false,
-      isVisible: existingConfig?.isVisible ?? true,
+      // 若用户已有配置则尊重用户；否则仅对白名单中的 Provider 默认可见
+      isVisible: existingConfig?.isVisible ?? DEFAULT_VISIBLE_PROVIDER_NAMES.has(p.name),
       strategy: existingConfig?.strategy,
       displayName: existingConfig?.displayName,
       avatarSeed: existingConfig?.avatarSeed,
