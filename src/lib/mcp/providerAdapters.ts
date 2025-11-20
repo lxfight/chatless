@@ -59,15 +59,17 @@ export function toolResultToNextMessage(provider: Provider, server: string, tool
   
   return {
     role: 'user',
-    content: `${userContext}工具调用结果：${server}.${tool} -> ${text}
+    content: `${userContext}下面是刚刚调用 ${server}.${tool} 得到的结果（可能已做适度截断）：
+${text}
 
-请分析上述工具调用结果：
-1. 如果结果正常且足够回答用户问题，请直接给出完整的中文答案
-2. 如果结果异常（如错误、空结果、格式问题等），请尝试调用其他工具或重新调用该工具
-3. 如果还需要更多信息才能完整回答，请继续调用相关工具
-4. 如果需要调用工具，请使用 <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool> 格式
+请你先认真阅读这些结果，并结合你已有的知识，直接用中文回答用户的问题。
 
-请基于实际情况灵活处理，确保最终能够完整回答用户的原始问题。`
+【回答策略】
+1. 如果这些结果已经基本覆盖用户问题，请直接给出清晰、凝练的中文答案（尽量一次说完）。
+2. 只有在结果明显缺少关键信息时，才可以再调用极少量的工具补充信息（一般不超过 1 次），并避免对同一内容反复搜索。
+3. 工具调用完成后必须给出最终答案，而不是继续规划或无限制地重复调用工具。
+
+请基于实际情况给出你认为最有帮助、最直接的回答。`
   };
 }
 

@@ -8,6 +8,7 @@ import StorageUtil from '@/lib/storage';
 import { shouldAutoAuthorize } from './authorizationConfig';
 import { useAuthorizationStore } from '@/store/authorizationStore';
 import { WEB_SEARCH_SERVER_NAME } from './nativeTools/webSearch';
+import { filterToolCallContent } from '@/lib/chat/segments';
 
 // 防止重复调用的缓存
 const runningCalls = new Map<string, Promise<void>>();
@@ -362,7 +363,9 @@ export async function continueWithToolResult(params: {
       } else if (event?.type === 'content_token' && event.content) {
         const txt = String(event.content);
         respLogger.appendContent(txt);
-        if (txt.trim().length > 0) {
+        // 关键：只在“过滤掉工具指令后的可见文本”存在时，才认为本轮产生了有效正文
+        const visible = filterToolCallContent(txt);
+        if (visible.trim().length > 0) {
           hadTextThisRound = true;
         }
       }
@@ -529,7 +532,9 @@ async function runSecondFollowUpRound(args: {
       } else if (event?.type === 'content_token' && event.content) {
         const txt = String(event.content);
         respLogger2.appendContent(txt);
-        if (txt.trim().length > 0) {
+        // 同样基于过滤后的“可见文本”判断是否有正文输出
+        const visible = filterToolCallContent(txt);
+        if (visible.trim().length > 0) {
           hadTextSecondRound = true;
         }
       }

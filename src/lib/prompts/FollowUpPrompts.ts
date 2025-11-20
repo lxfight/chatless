@@ -41,7 +41,7 @@ export function buildFirstFollowUpPrompt(
   
   // 正常情况：工具成功返回结果
   const toolInfo = includeToolContext && enabledServers && enabledServers.length > 0
-    ? `\n\n【备用选项】（仅在结果明显错误或完全不相关时使用）\n可用工具: ${enabledServers.join(', ')}\n调用格式: <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>`
+    ? `\n\n【备用选项】（仅在结果明显错误或完全不相关时使用）\n可用工具: ${enabledServers.join(', ')}`
     : '';
   
   return `你现在需要基于工具调用结果，给用户一个完整的中文答案。
@@ -50,11 +50,7 @@ export function buildFirstFollowUpPrompt(
 1. 工具已经返回了结果，你的任务是阅读和总结
 2. 直接输出中文答案，不要输出工具调用指令
 3. 答案要简洁明了，不超过200字
-
-⚠️ 重要：如果必须调用工具，请严格使用正确的工具名：
-  - web_search的工具是: search (不是 run_code 或 run)
-  - web_search的工具是: fetch (不是 get 或 read)
-  - 格式必须是: <use_mcp_tool><server_name>...</server_name><tool_name>...</tool_name><arguments>{...}</arguments></use_mcp_tool>
+4. 除非信息明显不足，一般不应再调用超过 1 次新的工具；如果多次尝试后仍有不确定之处，请说明局限并给出你能给出的最佳答案。
 
 用户问题：${originalQuestion}${toolInfo}`;
 }
