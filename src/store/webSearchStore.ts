@@ -54,7 +54,9 @@ const STORE_KEY = 'web_search_config';
 const defaultConfig: WebSearchConfig = {
   isWebSearchEnabled: false,
   autoAuthorizeWebSearch: true, // 默认对 web_search 启用自动授权（可在设置里关闭）
-  provider: 'google',
+  // 默认搜索提供商：优先使用 DuckDuckGo（免费且无需密钥）
+  // 已有用户的选择会通过持久化配置覆盖此默认值
+  provider: 'duckduckgo',
   apiKeyGoogle: '',
   cseIdGoogle: '',
   apiKeyBing: '',

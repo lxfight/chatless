@@ -6,10 +6,11 @@ type ProviderMeta = {
 };
 
 const PROVIDERS: ProviderMeta[] = [
+  // DuckDuckGo 放在首位，便于在设置页和聊天输入中优先展示（且免费、无需密钥）
+  { id: 'duckduckgo', label: 'DuckDuckGo' },
   { id: 'google', label: 'Google' },
   { id: 'bing', label: 'Bing' },
   { id: 'ollama', label: 'Ollama' },
-  { id: 'duckduckgo', label: 'DuckDuckGo' },
   { id: 'custom_scrape', label: 'Custom Scraper' },
 ];
 
